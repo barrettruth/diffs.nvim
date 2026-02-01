@@ -1,0 +1,8 @@
+doc/tags
+*.log
+
+.*cache*
+CLAUDE.md
+.claude/
+
+node_modules/
