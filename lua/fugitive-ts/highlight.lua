@@ -1,11 +1,15 @@
 local M = {}
 
+---@param bufnr integer
+---@param ns integer
+---@param hunk fugitive-ts.Hunk
 function M.highlight_hunk(bufnr, ns, hunk)
   local lang = hunk.lang
   if not lang then
     return
   end
 
+  ---@type string[]
   local code_lines = {}
   for _, line in ipairs(hunk.lines) do
     table.insert(code_lines, line:sub(2))
