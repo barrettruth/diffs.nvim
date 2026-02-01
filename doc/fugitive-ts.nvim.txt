@@ -25,6 +25,10 @@ SETUP                                                        *fugitive-ts-setup*
       -- Enable/disable highlighting (default: true)
       enabled = true,
 
+      -- Enable debug logging (default: false)
+      -- Outputs to :messages with [fugitive-ts] prefix
+      debug = false,
+
       -- Custom filename -> language mappings (optional)
       languages = {},
 

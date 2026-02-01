@@ -6,16 +6,27 @@
 
 local M = {}
 
+---@param msg string
+---@param ... any
+local function dbg(msg, ...)
+  local formatted = string.format(msg, ...)
+  vim.notify('[fugitive-ts] ' .. formatted, vim.log.levels.DEBUG)
+end
+
 ---@param filename string
 ---@param custom_langs? table<string, string>
+---@param debug? boolean
 ---@return string?
-local function get_lang_from_filename(filename, custom_langs)
+local function get_lang_from_filename(filename, custom_langs, debug)
   if custom_langs and custom_langs[filename] then
     return custom_langs[filename]
   end
 
   local ft = vim.filetype.match({ filename = filename })
   if not ft then
+    if debug then
+      dbg('no filetype for: %s', filename)
+    end
     return nil
   end
 
@@ -25,6 +36,11 @@ local function get_lang_from_filename(filename, custom_langs)
     if ok then
       return lang
     end
+    if debug then
+      dbg('no parser for lang: %s (ft: %s)', lang, ft)
+    end
+  elseif debug then
+    dbg('no ts lang for filetype: %s', ft)
   end
 
   return nil
@@ -32,8 +48,9 @@ end
 
 ---@param bufnr integer
 ---@param custom_langs? table<string, string>
+---@param debug? boolean
 ---@return fugitive-ts.Hunk[]
-function M.parse_buffer(bufnr, custom_langs)
+function M.parse_buffer(bufnr, custom_langs, debug)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   ---@type fugitive-ts.Hunk[]
   local hunks = {}
@@ -65,7 +82,10 @@ function M.parse_buffer(bufnr, custom_langs)
     if filename then
       flush_hunk()
       current_filename = filename
-      current_lang = get_lang_from_filename(filename, custom_langs)
+      current_lang = get_lang_from_filename(filename, custom_langs, debug)
+      if debug and current_lang then
+        dbg('file: %s -> lang: %s', filename, current_lang)
+      end
     elseif line:match('^@@.-@@') then
       flush_hunk()
       hunk_start = i

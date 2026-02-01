@@ -1,5 +1,6 @@
 ---@class fugitive-ts.Config
 ---@field enabled boolean
+---@field debug boolean
 ---@field languages table<string, string>
 ---@field debounce_ms integer
 
@@ -17,6 +18,7 @@ local ns = vim.api.nvim_create_namespace('fugitive_ts')
 ---@type fugitive-ts.Config
 local default_config = {
   enabled = true,
+  debug = false,
   languages = {},
   debounce_ms = 50,
 }
@@ -26,6 +28,16 @@ local config = vim.deepcopy(default_config)
 
 ---@type table<integer, boolean>
 local attached_buffers = {}
+
+---@param msg string
+---@param ... any
+local function dbg(msg, ...)
+  if not config.debug then
+    return
+  end
+  local formatted = string.format(msg, ...)
+  vim.notify('[fugitive-ts] ' .. formatted, vim.log.levels.DEBUG)
+end
 
 ---@param bufnr integer
 local function highlight_buffer(bufnr)
@@ -39,9 +51,10 @@ local function highlight_buffer(bufnr)
 
   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
 
-  local hunks = parser.parse_buffer(bufnr, config.languages)
+  local hunks = parser.parse_buffer(bufnr, config.languages, config.debug)
+  dbg('found %d hunks in buffer %d', #hunks, bufnr)
   for _, hunk in ipairs(hunks) do
-    highlight.highlight_hunk(bufnr, ns, hunk)
+    highlight.highlight_hunk(bufnr, ns, hunk, config.debug)
   end
 end
 
@@ -76,6 +89,8 @@ function M.attach(bufnr)
     return
   end
   attached_buffers[bufnr] = true
+
+  dbg('attaching to buffer %d', bufnr)
 
   local debounced = create_debounced_highlight(bufnr)
 
