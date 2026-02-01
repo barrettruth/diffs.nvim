@@ -3,6 +3,7 @@
 ---@field debug boolean
 ---@field languages table<string, string>
 ---@field debounce_ms integer
+---@field max_lines_per_hunk integer
 
 ---@class fugitive-ts
 ---@field attach fun(bufnr?: integer)
@@ -21,6 +22,7 @@ local default_config = {
   debug = false,
   languages = {},
   debounce_ms = 50,
+  max_lines_per_hunk = 500,
 }
 
 ---@type fugitive-ts.Config
@@ -54,7 +56,7 @@ local function highlight_buffer(bufnr)
   local hunks = parser.parse_buffer(bufnr, config.languages, config.debug)
   dbg('found %d hunks in buffer %d', #hunks, bufnr)
   for _, hunk in ipairs(hunks) do
-    highlight.highlight_hunk(bufnr, ns, hunk, config.debug)
+    highlight.highlight_hunk(bufnr, ns, hunk, config.max_lines_per_hunk, config.debug)
   end
 end
 
@@ -99,6 +101,14 @@ function M.attach(bufnr)
   vim.api.nvim_create_autocmd({ 'TextChanged', 'TextChangedI' }, {
     buffer = bufnr,
     callback = debounced,
+  })
+
+  vim.api.nvim_create_autocmd('Syntax', {
+    buffer = bufnr,
+    callback = function()
+      dbg('syntax event, re-highlighting buffer %d', bufnr)
+      highlight_buffer(bufnr)
+    end,
   })
 
   vim.api.nvim_create_autocmd('BufWipeout', {

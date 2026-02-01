@@ -34,6 +34,10 @@ SETUP                                                        *fugitive-ts-setup*
 
       -- Debounce delay in ms (default: 50)
       debounce_ms = 50,
+
+      -- Max lines per hunk before skipping treesitter (default: 500)
+      -- Prevents lag on large diffs
+      max_lines_per_hunk = 500,
     })
 <
 
