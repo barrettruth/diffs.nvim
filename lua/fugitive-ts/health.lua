@@ -16,8 +16,11 @@ function M.check()
     vim.health.warn('vim-fugitive not detected (required for this plugin to be useful)')
   end
 
+  ---@type string[]
   local common_langs = { 'lua', 'python', 'javascript', 'typescript', 'rust', 'go', 'c', 'cpp' }
+  ---@type string[]
   local available = {}
+  ---@type string[]
   local missing = {}
 
   for _, lang in ipairs(common_langs) do
