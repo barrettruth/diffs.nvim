@@ -1,9 +1,17 @@
 local M = {}
 
+---@param msg string
+---@param ... any
+local function dbg(msg, ...)
+  local formatted = string.format(msg, ...)
+  vim.notify('[fugitive-ts] ' .. formatted, vim.log.levels.DEBUG)
+end
+
 ---@param bufnr integer
 ---@param ns integer
 ---@param hunk fugitive-ts.Hunk
-function M.highlight_hunk(bufnr, ns, hunk)
+---@param debug? boolean
+function M.highlight_hunk(bufnr, ns, hunk, debug)
   local lang = hunk.lang
   if not lang then
     return
@@ -22,19 +30,29 @@ function M.highlight_hunk(bufnr, ns, hunk)
 
   local ok, parser_obj = pcall(vim.treesitter.get_string_parser, code, lang)
   if not ok or not parser_obj then
+    if debug then
+      dbg('failed to create parser for lang: %s', lang)
+    end
     return
   end
 
   local trees = parser_obj:parse()
   if not trees or #trees == 0 then
+    if debug then
+      dbg('parse returned no trees for lang: %s', lang)
+    end
     return
   end
 
   local query = vim.treesitter.query.get(lang, 'highlights')
   if not query then
+    if debug then
+      dbg('no highlights query for lang: %s', lang)
+    end
     return
   end
 
+  local extmark_count = 0
   for id, node, _ in query:iter_captures(trees[1]:root(), code) do
     local capture_name = '@' .. query.captures[id]
     local sr, sc, er, ec = node:range()
@@ -50,6 +68,11 @@ function M.highlight_hunk(bufnr, ns, hunk)
       hl_group = capture_name,
       priority = 200,
     })
+    extmark_count = extmark_count + 1
+  end
+
+  if debug then
+    dbg('hunk %s:%d applied %d extmarks', hunk.filename, hunk.start_line, extmark_count)
   end
 end
 
