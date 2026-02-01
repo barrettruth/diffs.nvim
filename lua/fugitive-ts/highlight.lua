@@ -10,10 +10,24 @@ end
 ---@param bufnr integer
 ---@param ns integer
 ---@param hunk fugitive-ts.Hunk
+---@param max_lines integer
 ---@param debug? boolean
-function M.highlight_hunk(bufnr, ns, hunk, debug)
+function M.highlight_hunk(bufnr, ns, hunk, max_lines, debug)
   local lang = hunk.lang
   if not lang then
+    return
+  end
+
+  if #hunk.lines > max_lines then
+    if debug then
+      dbg(
+        'skipping hunk %s:%d (%d lines > %d max)',
+        hunk.filename,
+        hunk.start_line,
+        #hunk.lines,
+        max_lines
+      )
+    end
     return
   end
 
@@ -50,6 +64,18 @@ function M.highlight_hunk(bufnr, ns, hunk, debug)
       dbg('no highlights query for lang: %s', lang)
     end
     return
+  end
+
+  for i, line in ipairs(hunk.lines) do
+    local buf_line = hunk.start_line + i - 1
+    local line_len = #line
+    if line_len > 1 then
+      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 1, {
+        end_col = line_len,
+        hl_group = 'Normal',
+        priority = 199,
+      })
+    end
   end
 
   local extmark_count = 0
