@@ -15,9 +15,19 @@ describe('parser', function()
       end
     end
 
+    local test_langs = {
+      ['lua/test.lua'] = 'lua',
+      ['lua/foo.lua'] = 'lua',
+      ['src/bar.py'] = 'python',
+      ['test.lua'] = 'lua',
+      ['test.py'] = 'python',
+      ['other.lua'] = 'lua',
+      ['.envrc'] = 'bash',
+    }
+
     it('returns empty table for empty buffer', function()
       local bufnr = create_buffer({})
-      local hunks = parser.parse_buffer(bufnr, {}, {}, false)
+      local hunks = parser.parse_buffer(bufnr, test_langs, {}, false)
       assert.are.same({}, hunks)
       delete_buffer(bufnr)
     end)
@@ -30,7 +40,7 @@ describe('parser', function()
         'Unstaged (1)',
         'M lua/test.lua',
       })
-      local hunks = parser.parse_buffer(bufnr, {}, {}, false)
+      local hunks = parser.parse_buffer(bufnr, test_langs, {}, false)
       assert.are.same({}, hunks)
       delete_buffer(bufnr)
     end)
@@ -44,7 +54,7 @@ describe('parser', function()
         '+local new = true',
         ' return M',
       })
-      local hunks = parser.parse_buffer(bufnr, {}, {}, false)
+      local hunks = parser.parse_buffer(bufnr, test_langs, {}, false)
 
       assert.are.equal(1, #hunks)
       assert.are.equal('lua/test.lua', hunks[1].filename)
@@ -66,7 +76,7 @@ describe('parser', function()
         '+  print("hello")',
         ' end',
       })
-      local hunks = parser.parse_buffer(bufnr, {}, {}, false)
+      local hunks = parser.parse_buffer(bufnr, test_langs, {}, false)
 
       assert.are.equal(2, #hunks)
       assert.are.equal(2, hunks[1].start_line)
@@ -85,7 +95,7 @@ describe('parser', function()
         ' def hello():',
         '+    pass',
       })
-      local hunks = parser.parse_buffer(bufnr, {}, {}, false)
+      local hunks = parser.parse_buffer(bufnr, test_langs, {}, false)
 
       assert.are.equal(2, #hunks)
       assert.are.equal('lua/foo.lua', hunks[1].filename)
@@ -103,7 +113,7 @@ describe('parser', function()
         '+print(msg)',
         ' end',
       })
-      local hunks = parser.parse_buffer(bufnr, {}, {}, false)
+      local hunks = parser.parse_buffer(bufnr, test_langs, {}, false)
 
       assert.are.equal(1, #hunks)
       assert.are.equal('function M.hello()', hunks[1].header_context)
@@ -118,7 +128,7 @@ describe('parser', function()
         ' local M = {}',
         '+local x = 1',
       })
-      local hunks = parser.parse_buffer(bufnr, {}, {}, false)
+      local hunks = parser.parse_buffer(bufnr, test_langs, {}, false)
 
       assert.are.equal(1, #hunks)
       assert.is_nil(hunks[1].header_context)
@@ -132,8 +142,7 @@ describe('parser', function()
         ' export FOO=bar',
         '+export BAZ=qux',
       })
-      local custom_langs = { ['.envrc'] = 'bash' }
-      local hunks = parser.parse_buffer(bufnr, custom_langs, {}, false)
+      local hunks = parser.parse_buffer(bufnr, test_langs, {}, false)
 
       assert.are.equal(1, #hunks)
       assert.are.equal('bash', hunks[1].lang)
@@ -151,7 +160,7 @@ describe('parser', function()
         ' def foo():',
         '+    pass',
       })
-      local hunks = parser.parse_buffer(bufnr, {}, { 'lua' }, false)
+      local hunks = parser.parse_buffer(bufnr, test_langs, { 'lua' }, false)
 
       assert.are.equal(1, #hunks)
       assert.are.equal('test.py', hunks[1].filename)
@@ -168,7 +177,7 @@ describe('parser', function()
           ' local x = 1',
           '+local y = 2',
         })
-        local hunks = parser.parse_buffer(bufnr, {}, {}, false)
+        local hunks = parser.parse_buffer(bufnr, test_langs, {}, false)
         assert.are.equal(1, #hunks, 'Failed for prefix: ' .. prefix)
         delete_buffer(bufnr)
       end
@@ -183,7 +192,7 @@ describe('parser', function()
         '',
         'Some other content',
       })
-      local hunks = parser.parse_buffer(bufnr, {}, {}, false)
+      local hunks = parser.parse_buffer(bufnr, test_langs, {}, false)
 
       assert.are.equal(1, #hunks)
       assert.are.equal(2, #hunks[1].lines)
@@ -200,7 +209,7 @@ describe('parser', function()
         '@@ -1,1 +1,1 @@',
         ' local z = 3',
       })
-      local hunks = parser.parse_buffer(bufnr, {}, {}, false)
+      local hunks = parser.parse_buffer(bufnr, test_langs, {}, false)
 
       assert.are.equal(2, #hunks)
       assert.are.equal(2, #hunks[1].lines)
