@@ -68,7 +68,7 @@ CONFIGURATION                                               *fugitive-ts-config*
         {hide_prefix}        (boolean, default: true)
                              Hide diff prefixes (`+`/`-`/` `) using conceal.
                              Makes code appear flush left without the leading
-                             diff character. Sets `conceallevel=2` on attach.
+                             diff character. Sets `conceallevel=1` on attach.
 
         {highlights}         (table, default: see below)
                              Controls which highlight features are enabled.
