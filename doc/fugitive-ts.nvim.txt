@@ -86,7 +86,7 @@ CONFIGURATION                                               *fugitive-ts-config*
                              using `FugitiveTsAdd`/`FugitiveTsDelete` groups
                              (derived from `DiffAdd`/`DiffDelete` backgrounds).
 
-        {linenr}             (boolean, default: true)
+        {gutter}             (boolean, default: true)
                              Highlight line numbers with matching colors.
                              Only visible if line numbers are enabled.
 

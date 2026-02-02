@@ -28,7 +28,7 @@ describe('fugitive-ts', function()
           highlights = {
             treesitter = true,
             background = true,
-            linenr = true,
+            gutter = true,
             vim = false,
           },
         })
