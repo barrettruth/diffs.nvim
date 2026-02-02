@@ -146,7 +146,7 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     end
 
     if opts.highlights.background and (prefix == '+' or prefix == '-') then
-      local line_hl = prefix == '+' and 'DiffAdd' or 'DiffDelete'
+      local line_hl = prefix == '+' and 'FugitiveTsAdd' or 'FugitiveTsDelete'
       local extmark_opts = {
         line_hl_group = line_hl,
         priority = 198,

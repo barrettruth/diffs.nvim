@@ -7,6 +7,10 @@ describe('highlight', function()
 
     before_each(function()
       ns = vim.api.nvim_create_namespace('fugitive_ts_test')
+      local diff_add = vim.api.nvim_get_hl(0, { name = 'DiffAdd' })
+      local diff_delete = vim.api.nvim_get_hl(0, { name = 'DiffDelete' })
+      vim.api.nvim_set_hl(0, 'FugitiveTsAdd', { bg = diff_add.bg })
+      vim.api.nvim_set_hl(0, 'FugitiveTsDelete', { bg = diff_delete.bg })
     end)
 
     local function create_buffer(lines)
@@ -318,7 +322,7 @@ describe('highlight', function()
       local extmarks = get_extmarks(bufnr)
       local has_diff_add = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].line_hl_group == 'DiffAdd' then
+        if mark[4] and mark[4].line_hl_group == 'FugitiveTsAdd' then
           has_diff_add = true
           break
         end
@@ -351,7 +355,7 @@ describe('highlight', function()
       local extmarks = get_extmarks(bufnr)
       local has_diff_delete = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].line_hl_group == 'DiffDelete' then
+        if mark[4] and mark[4].line_hl_group == 'FugitiveTsDelete' then
           has_diff_delete = true
           break
         end
@@ -516,7 +520,7 @@ describe('highlight', function()
       local extmarks = get_extmarks(bufnr)
       local has_diff_add = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].line_hl_group == 'DiffAdd' then
+        if mark[4] and mark[4].line_hl_group == 'FugitiveTsAdd' then
           has_diff_add = true
           break
         end
