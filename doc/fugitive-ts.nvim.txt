@@ -56,7 +56,7 @@ CONFIGURATION                                               *fugitive-ts-config*
                              Example: >lua
                                  disabled_languages = { 'markdown', 'text' }
 <
-        {debounce_ms}        (integer, default: 50)
+        {debounce_ms}        (integer, default: 0)
                              Debounce delay in milliseconds for re-highlighting
                              after buffer changes. Lower values feel snappier
                              but use more CPU.
@@ -66,9 +66,11 @@ CONFIGURATION                                               *fugitive-ts-config*
                              this many lines. Prevents lag on massive diffs.
 
         {hide_prefix}        (boolean, default: true)
-                             Hide diff prefixes (`+`/`-`/` `) using conceal.
-                             Makes code appear flush left without the leading
-                             diff character. Sets `conceallevel=1` on attach.
+                             Hide diff prefixes (`+`/`-`/` `) using virtual
+                             text overlay. Makes code appear without the
+                             leading diff character. When `highlights.background`
+                             is also enabled, the overlay inherits the line's
+                             background color.
 
         {highlights}         (table, default: see below)
                              Controls which highlight features are enabled.

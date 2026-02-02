@@ -241,7 +241,7 @@ describe('highlight', function()
       delete_buffer(bufnr)
     end)
 
-    it('applies conceal extmarks when hide_prefix enabled', function()
+    it('applies overlay extmarks when hide_prefix enabled', function()
       local bufnr = create_buffer({
         '@@ -1,1 +1,2 @@',
         ' local x = 1',
@@ -258,17 +258,17 @@ describe('highlight', function()
       highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ hide_prefix = true }))
 
       local extmarks = get_extmarks(bufnr)
-      local conceal_count = 0
+      local overlay_count = 0
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].conceal == '' then
-          conceal_count = conceal_count + 1
+        if mark[4] and mark[4].virt_text_pos == 'overlay' then
+          overlay_count = overlay_count + 1
         end
       end
-      assert.are.equal(2, conceal_count)
+      assert.are.equal(2, overlay_count)
       delete_buffer(bufnr)
     end)
 
-    it('does not apply conceal extmarks when hide_prefix disabled', function()
+    it('does not apply overlay extmarks when hide_prefix disabled', function()
       local bufnr = create_buffer({
         '@@ -1,1 +1,2 @@',
         ' local x = 1',
@@ -285,13 +285,13 @@ describe('highlight', function()
       highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ hide_prefix = false }))
 
       local extmarks = get_extmarks(bufnr)
-      local conceal_count = 0
+      local overlay_count = 0
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].conceal == '' then
-          conceal_count = conceal_count + 1
+        if mark[4] and mark[4].virt_text_pos == 'overlay' then
+          overlay_count = overlay_count + 1
         end
       end
-      assert.are.equal(0, conceal_count)
+      assert.are.equal(0, overlay_count)
       delete_buffer(bufnr)
     end)
 
