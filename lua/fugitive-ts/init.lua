@@ -2,6 +2,8 @@
 ---@field enabled boolean
 ---@field debug boolean
 ---@field languages table<string, string>
+---@field disabled_languages string[]
+---@field highlight_headers boolean
 ---@field debounce_ms integer
 ---@field max_lines_per_hunk integer
 
@@ -21,6 +23,8 @@ local default_config = {
   enabled = true,
   debug = false,
   languages = {},
+  disabled_languages = {},
+  highlight_headers = true,
   debounce_ms = 50,
   max_lines_per_hunk = 500,
 }
@@ -53,10 +57,18 @@ local function highlight_buffer(bufnr)
 
   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
 
-  local hunks = parser.parse_buffer(bufnr, config.languages, config.debug)
+  local hunks =
+    parser.parse_buffer(bufnr, config.languages, config.disabled_languages, config.debug)
   dbg('found %d hunks in buffer %d', #hunks, bufnr)
   for _, hunk in ipairs(hunks) do
-    highlight.highlight_hunk(bufnr, ns, hunk, config.max_lines_per_hunk, config.debug)
+    highlight.highlight_hunk(
+      bufnr,
+      ns,
+      hunk,
+      config.max_lines_per_hunk,
+      config.highlight_headers,
+      config.debug
+    )
   end
 end
 

@@ -2,6 +2,8 @@
 ---@field filename string
 ---@field lang string
 ---@field start_line integer
+---@field header_context string?
+---@field header_context_col integer?
 ---@field lines string[]
 
 local M = {}
@@ -15,9 +17,10 @@ end
 
 ---@param filename string
 ---@param custom_langs? table<string, string>
+---@param disabled_langs? string[]
 ---@param debug? boolean
 ---@return string?
-local function get_lang_from_filename(filename, custom_langs, debug)
+local function get_lang_from_filename(filename, custom_langs, disabled_langs, debug)
   if custom_langs and custom_langs[filename] then
     return custom_langs[filename]
   end
@@ -32,6 +35,12 @@ local function get_lang_from_filename(filename, custom_langs, debug)
 
   local lang = vim.treesitter.language.get_lang(ft)
   if lang then
+    if disabled_langs and vim.tbl_contains(disabled_langs, lang) then
+      if debug then
+        dbg('lang disabled: %s', lang)
+      end
+      return nil
+    end
     local ok = pcall(vim.treesitter.language.inspect, lang)
     if ok then
       return lang
@@ -48,9 +57,10 @@ end
 
 ---@param bufnr integer
 ---@param custom_langs? table<string, string>
+---@param disabled_langs? string[]
 ---@param debug? boolean
 ---@return fugitive-ts.Hunk[]
-function M.parse_buffer(bufnr, custom_langs, debug)
+function M.parse_buffer(bufnr, custom_langs, disabled_langs, debug)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   ---@type fugitive-ts.Hunk[]
   local hunks = {}
@@ -61,6 +71,10 @@ function M.parse_buffer(bufnr, custom_langs, debug)
   local current_lang = nil
   ---@type integer?
   local hunk_start = nil
+  ---@type string?
+  local hunk_header_context = nil
+  ---@type integer?
+  local hunk_header_context_col = nil
   ---@type string[]
   local hunk_lines = {}
 
@@ -70,10 +84,14 @@ function M.parse_buffer(bufnr, custom_langs, debug)
         filename = current_filename,
         lang = current_lang,
         start_line = hunk_start,
+        header_context = hunk_header_context,
+        header_context_col = hunk_header_context_col,
         lines = hunk_lines,
       })
     end
     hunk_start = nil
+    hunk_header_context = nil
+    hunk_header_context_col = nil
     hunk_lines = {}
   end
 
@@ -82,13 +100,18 @@ function M.parse_buffer(bufnr, custom_langs, debug)
     if filename then
       flush_hunk()
       current_filename = filename
-      current_lang = get_lang_from_filename(filename, custom_langs, debug)
+      current_lang = get_lang_from_filename(filename, custom_langs, disabled_langs, debug)
       if debug and current_lang then
         dbg('file: %s -> lang: %s', filename, current_lang)
       end
     elseif line:match('^@@.-@@') then
       flush_hunk()
       hunk_start = i
+      local prefix, context = line:match('^(@@.-@@%s*)(.*)')
+      if context and context ~= '' then
+        hunk_header_context = context
+        hunk_header_context_col = #prefix
+      end
     elseif hunk_start then
       local prefix = line:sub(1, 1)
       if prefix == ' ' or prefix == '+' or prefix == '-' then
