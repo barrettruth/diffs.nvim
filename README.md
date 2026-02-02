@@ -1,6 +1,9 @@
 # fugitive-ts.nvim
 
-Treesitter syntax highlighting for vim-fugitive
+**Treesitter syntax highlighting for vim-fugitive**
+
+Enhance the great `vim-fugitive` with syntax-aware code to easily work with
+diffs.
 
 ![fugitive-ts.nvim preview](https://github.com/user-attachments/assets/90463492-76e4-44c2-a095-057a087c3a36)
 
@@ -40,6 +43,7 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 ## Acknowledgements
 
+- [vim-fugitive](https://github.com/tpope/vim-fugitive)
 - [codediff.nvim](https://github.com/esmuellert/codediff.nvim)
 - [diffview.nvim](https://github.com/sindrets/diffview.nvim)
 - [resolve.nvim](https://github.com/spacedentist/resolve.nvim)
