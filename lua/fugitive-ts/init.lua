@@ -75,19 +75,27 @@ end
 ---@param bufnr integer
 ---@return fun()
 local function create_debounced_highlight(bufnr)
-  local timer = nil
+  local timer = nil ---@type table?
   return function()
     if timer then
       timer:stop() ---@diagnostic disable-line: undefined-field
       timer:close() ---@diagnostic disable-line: undefined-field
+      timer = nil
     end
-    timer = vim.uv.new_timer()
-    timer:start(
+    local t = vim.uv.new_timer()
+    if not t then
+      highlight_buffer(bufnr)
+      return
+    end
+    timer = t
+    t:start(
       config.debounce_ms,
       0,
       vim.schedule_wrap(function()
-        timer:close()
-        timer = nil
+        t:close()
+        if timer == t then
+          timer = nil
+        end
         highlight_buffer(bufnr)
       end)
     )
