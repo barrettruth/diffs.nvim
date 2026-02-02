@@ -5,7 +5,7 @@
 Enhance the great `vim-fugitive` with syntax-aware code to easily work with
 diffs.
 
-![fugitive-ts.nvim preview](https://github.com/user-attachments/assets/5675b410-0668-4450-a946-7caedf7863b8)
+![fugitive-ts.nvim preview](https://github.com/user-attachments/assets/fc849310-09c8-4282-8a92-a2edaf8fe2b4)
 
 ## Features
 
