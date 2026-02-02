@@ -11,7 +11,7 @@
 ---@field disabled_languages string[]
 ---@field debounce_ms integer
 ---@field max_lines_per_hunk integer
----@field conceal_prefixes boolean
+---@field hide_prefix boolean
 ---@field highlights fugitive-ts.Highlights
 
 ---@class fugitive-ts
@@ -33,7 +33,7 @@ local default_config = {
   disabled_languages = {},
   debounce_ms = 50,
   max_lines_per_hunk = 500,
-  conceal_prefixes = true,
+  hide_prefix = true,
   highlights = {
     treesitter = true,
     background = true,
@@ -75,7 +75,7 @@ local function highlight_buffer(bufnr)
   for _, hunk in ipairs(hunks) do
     highlight.highlight_hunk(bufnr, ns, hunk, {
       max_lines = config.max_lines_per_hunk,
-      conceal_prefixes = config.conceal_prefixes,
+      hide_prefix = config.hide_prefix,
       highlights = config.highlights,
     })
   end
@@ -122,6 +122,10 @@ function M.attach(bufnr)
 
   dbg('attaching to buffer %d', bufnr)
 
+  if config.hide_prefix then
+    vim.api.nvim_set_option_value('conceallevel', 2, { win = 0 })
+  end
+
   local debounced = create_debounced_highlight(bufnr)
 
   highlight_buffer(bufnr)
@@ -164,7 +168,7 @@ function M.setup(opts)
     disabled_languages = { opts.disabled_languages, 'table', true },
     debounce_ms = { opts.debounce_ms, 'number', true },
     max_lines_per_hunk = { opts.max_lines_per_hunk, 'number', true },
-    conceal_prefixes = { opts.conceal_prefixes, 'boolean', true },
+    hide_prefix = { opts.hide_prefix, 'boolean', true },
     highlights = { opts.highlights, 'table', true },
   })
 

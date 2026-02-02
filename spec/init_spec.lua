@@ -24,7 +24,7 @@ describe('fugitive-ts', function()
           disabled_languages = { 'markdown' },
           debounce_ms = 100,
           max_lines_per_hunk = 1000,
-          conceal_prefixes = false,
+          hide_prefix = false,
           highlights = {
             treesitter = true,
             background = true,

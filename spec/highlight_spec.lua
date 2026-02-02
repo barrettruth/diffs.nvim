@@ -32,7 +32,7 @@ describe('highlight', function()
     local function default_opts(overrides)
       local opts = {
         max_lines = 500,
-        conceal_prefixes = false,
+        hide_prefix = false,
         highlights = {
           treesitter = true,
           background = false,
@@ -241,7 +241,7 @@ describe('highlight', function()
       delete_buffer(bufnr)
     end)
 
-    it('applies overlay extmarks when conceal_prefixes enabled', function()
+    it('applies conceal extmarks when hide_prefix enabled', function()
       local bufnr = create_buffer({
         '@@ -1,1 +1,2 @@',
         ' local x = 1',
@@ -255,20 +255,20 @@ describe('highlight', function()
         lines = { ' local x = 1', '+local y = 2' },
       }
 
-      highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ conceal_prefixes = true }))
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ hide_prefix = true }))
 
       local extmarks = get_extmarks(bufnr)
-      local overlay_count = 0
+      local conceal_count = 0
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].virt_text_pos == 'overlay' then
-          overlay_count = overlay_count + 1
+        if mark[4] and mark[4].conceal == '' then
+          conceal_count = conceal_count + 1
         end
       end
-      assert.are.equal(2, overlay_count)
+      assert.are.equal(2, conceal_count)
       delete_buffer(bufnr)
     end)
 
-    it('does not apply overlay extmarks when conceal_prefixes disabled', function()
+    it('does not apply conceal extmarks when hide_prefix disabled', function()
       local bufnr = create_buffer({
         '@@ -1,1 +1,2 @@',
         ' local x = 1',
@@ -282,16 +282,16 @@ describe('highlight', function()
         lines = { ' local x = 1', '+local y = 2' },
       }
 
-      highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ conceal_prefixes = false }))
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ hide_prefix = false }))
 
       local extmarks = get_extmarks(bufnr)
-      local overlay_count = 0
+      local conceal_count = 0
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].virt_text_pos == 'overlay' then
-          overlay_count = overlay_count + 1
+        if mark[4] and mark[4].conceal == '' then
+          conceal_count = conceal_count + 1
         end
       end
-      assert.are.equal(0, overlay_count)
+      assert.are.equal(0, conceal_count)
       delete_buffer(bufnr)
     end)
 

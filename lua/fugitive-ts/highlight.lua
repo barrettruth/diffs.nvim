@@ -66,7 +66,7 @@ end
 
 ---@class fugitive-ts.HunkOpts
 ---@field max_lines integer
----@field conceal_prefixes boolean
+---@field hide_prefix boolean
 ---@field highlights fugitive-ts.Highlights
 
 ---@param bufnr integer
@@ -142,11 +142,10 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     local line_hl = is_diff_line and (prefix == '+' and 'FugitiveTsAdd' or 'FugitiveTsDelete')
       or nil
 
-    if opts.conceal_prefixes then
-      local virt_hl = (opts.highlights.background and line_hl) or nil
+    if opts.hide_prefix then
       pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
-        virt_text = { { ' ', virt_hl } },
-        virt_text_pos = 'overlay',
+        end_col = 1,
+        conceal = '',
       })
     end
 
