@@ -65,12 +65,10 @@ CONFIGURATION                                               *fugitive-ts-config*
                              Skip treesitter highlighting for hunks larger than
                              this many lines. Prevents lag on massive diffs.
 
-        {conceal_prefixes}   (boolean, default: true)
-                             Hide diff prefixes (`+`/`-`/` `) using virtual
-                             text overlay. Makes code appear without the
-                             leading diff character. When `highlights.background`
-                             is also enabled, the overlay inherits the line's
-                             background color.
+        {hide_prefix}        (boolean, default: true)
+                             Hide diff prefixes (`+`/`-`/` `) using conceal.
+                             Makes code appear flush left without the leading
+                             diff character. Sets `conceallevel=2` on attach.
 
         {highlights}         (table, default: see below)
                              Controls which highlight features are enabled.
@@ -133,7 +131,7 @@ IMPLEMENTATION                                    *fugitive-ts-implementation*
    - Background extmarks (`FugitiveTsAdd`/`FugitiveTsDelete`) at priority 198
    - `Normal` extmarks at priority 199 clear underlying diff foreground
    - Treesitter highlights are applied as extmarks at priority 200
-   - Virtual text overlays hide diff prefixes when `conceal_prefixes` is enabled
+   - Conceal extmarks hide diff prefixes when `hide_prefix` is enabled
 4. Re-highlighting occurs on `TextChanged` (debounced) and `Syntax` events
 
 ==============================================================================
