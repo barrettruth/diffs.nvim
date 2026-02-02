@@ -1,11 +1,19 @@
+---@class fugitive-ts.Highlights
+---@field treesitter boolean
+---@field headers boolean
+---@field background boolean
+---@field linenr boolean
+---@field vim boolean
+
 ---@class fugitive-ts.Config
 ---@field enabled boolean
 ---@field debug boolean
 ---@field languages table<string, string>
 ---@field disabled_languages string[]
----@field highlight_headers boolean
 ---@field debounce_ms integer
 ---@field max_lines_per_hunk integer
+---@field conceal_prefixes boolean
+---@field highlights fugitive-ts.Highlights
 
 ---@class fugitive-ts
 ---@field attach fun(bufnr?: integer)
@@ -24,9 +32,16 @@ local default_config = {
   debug = false,
   languages = {},
   disabled_languages = {},
-  highlight_headers = true,
   debounce_ms = 50,
   max_lines_per_hunk = 500,
+  conceal_prefixes = true,
+  highlights = {
+    treesitter = true,
+    headers = true,
+    background = true,
+    linenr = true,
+    vim = false,
+  },
 }
 
 ---@type fugitive-ts.Config
@@ -61,14 +76,12 @@ local function highlight_buffer(bufnr)
     parser.parse_buffer(bufnr, config.languages, config.disabled_languages, config.debug)
   dbg('found %d hunks in buffer %d', #hunks, bufnr)
   for _, hunk in ipairs(hunks) do
-    highlight.highlight_hunk(
-      bufnr,
-      ns,
-      hunk,
-      config.max_lines_per_hunk,
-      config.highlight_headers,
-      config.debug
-    )
+    highlight.highlight_hunk(bufnr, ns, hunk, {
+      max_lines = config.max_lines_per_hunk,
+      conceal_prefixes = config.conceal_prefixes,
+      highlights = config.highlights,
+      debug = config.debug,
+    })
   end
 end
 

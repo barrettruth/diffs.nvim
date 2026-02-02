@@ -25,6 +25,33 @@ describe('highlight', function()
       return vim.api.nvim_buf_get_extmarks(bufnr, ns, 0, -1, { details = true })
     end
 
+    local function default_opts(overrides)
+      local opts = {
+        max_lines = 500,
+        conceal_prefixes = false,
+        highlights = {
+          treesitter = true,
+          headers = false,
+          background = false,
+          linenr = false,
+          vim = false,
+        },
+        debug = false,
+      }
+      if overrides then
+        for k, v in pairs(overrides) do
+          if k == 'highlights' then
+            for hk, hv in pairs(v) do
+              opts.highlights[hk] = hv
+            end
+          else
+            opts[k] = v
+          end
+        end
+      end
+      return opts
+    end
+
     it('applies extmarks for lua code', function()
       local bufnr = create_buffer({
         '@@ -1,1 +1,2 @@',
@@ -39,7 +66,7 @@ describe('highlight', function()
         lines = { ' local x = 1', '+local y = 2' },
       }
 
-      highlight.highlight_hunk(bufnr, ns, hunk, 500, false, false)
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
 
       local extmarks = get_extmarks(bufnr)
       assert.is_true(#extmarks > 0)
@@ -60,7 +87,7 @@ describe('highlight', function()
         lines = { ' local x = 1', '+local y = 2' },
       }
 
-      highlight.highlight_hunk(bufnr, ns, hunk, 500, false, false)
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
 
       local extmarks = get_extmarks(bufnr)
       local has_normal = false
@@ -90,7 +117,7 @@ describe('highlight', function()
         lines = hunk_lines,
       }
 
-      highlight.highlight_hunk(bufnr, ns, hunk, 500, false, false)
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
 
       local extmarks = get_extmarks(bufnr)
       assert.are.equal(0, #extmarks)
@@ -111,7 +138,7 @@ describe('highlight', function()
         lines = { ' some content', '+more content' },
       }
 
-      highlight.highlight_hunk(bufnr, ns, hunk, 500, false, false)
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
 
       local extmarks = get_extmarks(bufnr)
       assert.are.equal(0, #extmarks)
@@ -134,7 +161,7 @@ describe('highlight', function()
         lines = { ' local x = 1', '+local y = 2' },
       }
 
-      highlight.highlight_hunk(bufnr, ns, hunk, 500, true, false)
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ highlights = { headers = true } }))
 
       local extmarks = get_extmarks(bufnr)
       local has_header_extmark = false
@@ -163,7 +190,7 @@ describe('highlight', function()
         lines = { ' local x = 1' },
       }
 
-      highlight.highlight_hunk(bufnr, ns, hunk, 500, false, false)
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
 
       local extmarks = get_extmarks(bufnr)
       local header_extmarks = 0
@@ -189,7 +216,7 @@ describe('highlight', function()
       }
 
       assert.has_no.errors(function()
-        highlight.highlight_hunk(bufnr, ns, hunk, 500, false, false)
+        highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
       end)
       delete_buffer(bufnr)
     end)
@@ -209,8 +236,293 @@ describe('highlight', function()
       }
 
       assert.has_no.errors(function()
-        highlight.highlight_hunk(bufnr, ns, hunk, 500, false, false)
+        highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
       end)
+      delete_buffer(bufnr)
+    end)
+
+    it('applies conceal extmarks when conceal_prefixes enabled', function()
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { ' local x = 1', '+local y = 2' },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ conceal_prefixes = true }))
+
+      local extmarks = get_extmarks(bufnr)
+      local conceal_count = 0
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].conceal == '' then
+          conceal_count = conceal_count + 1
+        end
+      end
+      assert.are.equal(2, conceal_count)
+      delete_buffer(bufnr)
+    end)
+
+    it('does not apply conceal extmarks when conceal_prefixes disabled', function()
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { ' local x = 1', '+local y = 2' },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ conceal_prefixes = false }))
+
+      local extmarks = get_extmarks(bufnr)
+      local conceal_count = 0
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].conceal == '' then
+          conceal_count = conceal_count + 1
+        end
+      end
+      assert.are.equal(0, conceal_count)
+      delete_buffer(bufnr)
+    end)
+
+    it('applies DiffAdd background to + lines when background enabled', function()
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { ' local x = 1', '+local y = 2' },
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { background = true } })
+      )
+
+      local extmarks = get_extmarks(bufnr)
+      local has_diff_add = false
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].line_hl_group == 'DiffAdd' then
+          has_diff_add = true
+          break
+        end
+      end
+      assert.is_true(has_diff_add)
+      delete_buffer(bufnr)
+    end)
+
+    it('applies DiffDelete background to - lines when background enabled', function()
+      local bufnr = create_buffer({
+        '@@ -1,2 +1,1 @@',
+        ' local x = 1',
+        '-local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { ' local x = 1', '-local y = 2' },
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { background = true } })
+      )
+
+      local extmarks = get_extmarks(bufnr)
+      local has_diff_delete = false
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].line_hl_group == 'DiffDelete' then
+          has_diff_delete = true
+          break
+        end
+      end
+      assert.is_true(has_diff_delete)
+      delete_buffer(bufnr)
+    end)
+
+    it('does not apply background when background disabled', function()
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { ' local x = 1', '+local y = 2' },
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { background = false } })
+      )
+
+      local extmarks = get_extmarks(bufnr)
+      local has_line_hl = false
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].line_hl_group then
+          has_line_hl = true
+          break
+        end
+      end
+      assert.is_false(has_line_hl)
+      delete_buffer(bufnr)
+    end)
+
+    it('applies number_hl_group when linenr enabled', function()
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { ' local x = 1', '+local y = 2' },
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { background = true, linenr = true } })
+      )
+
+      local extmarks = get_extmarks(bufnr)
+      local has_number_hl = false
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].number_hl_group then
+          has_number_hl = true
+          break
+        end
+      end
+      assert.is_true(has_number_hl)
+      delete_buffer(bufnr)
+    end)
+
+    it('does not apply number_hl_group when linenr disabled', function()
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { ' local x = 1', '+local y = 2' },
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { background = true, linenr = false } })
+      )
+
+      local extmarks = get_extmarks(bufnr)
+      local has_number_hl = false
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].number_hl_group then
+          has_number_hl = true
+          break
+        end
+      end
+      assert.is_false(has_number_hl)
+      delete_buffer(bufnr)
+    end)
+
+    it('skips treesitter highlights when treesitter disabled', function()
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { ' local x = 1', '+local y = 2' },
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { treesitter = false, background = true } })
+      )
+
+      local extmarks = get_extmarks(bufnr)
+      local has_ts_highlight = false
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].hl_group and mark[4].hl_group:match('^@') then
+          has_ts_highlight = true
+          break
+        end
+      end
+      assert.is_false(has_ts_highlight)
+      delete_buffer(bufnr)
+    end)
+
+    it('still applies background when treesitter disabled', function()
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { ' local x = 1', '+local y = 2' },
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { treesitter = false, background = true } })
+      )
+
+      local extmarks = get_extmarks(bufnr)
+      local has_diff_add = false
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].line_hl_group == 'DiffAdd' then
+          has_diff_add = true
+          break
+        end
+      end
+      assert.is_true(has_diff_add)
       delete_buffer(bufnr)
     end)
   end)
