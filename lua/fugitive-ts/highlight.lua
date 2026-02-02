@@ -66,7 +66,7 @@ end
 
 ---@class fugitive-ts.HunkOpts
 ---@field max_lines integer
----@field conceal_prefixes boolean
+---@field hide_prefix boolean
 ---@field highlights fugitive-ts.Highlights
 
 ---@param bufnr integer
@@ -87,6 +87,49 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
       #hunk.lines,
       opts.max_lines
     )
+    return
+  end
+
+  for i, line in ipairs(hunk.lines) do
+    local buf_line = hunk.start_line + i - 1
+    local line_len = #line
+    local prefix = line:sub(1, 1)
+
+    local is_diff_line = prefix == '+' or prefix == '-'
+    local line_hl = is_diff_line and (prefix == '+' and 'FugitiveTsAdd' or 'FugitiveTsDelete')
+      or nil
+    local number_hl = is_diff_line and (prefix == '+' and 'FugitiveTsAddNr' or 'FugitiveTsDeleteNr')
+      or nil
+
+    if opts.hide_prefix then
+      local virt_hl = (opts.highlights.background and line_hl) or nil
+      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
+        virt_text = { { ' ', virt_hl } },
+        virt_text_pos = 'overlay',
+      })
+    end
+
+    if opts.highlights.background and is_diff_line then
+      local extmark_opts = {
+        line_hl_group = line_hl,
+        priority = 198,
+      }
+      if opts.highlights.gutter then
+        extmark_opts.number_hl_group = number_hl
+      end
+      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, extmark_opts)
+    end
+
+    if line_len > 1 and opts.highlights.treesitter then
+      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 1, {
+        end_col = line_len,
+        hl_group = 'Normal',
+        priority = 199,
+      })
+    end
+  end
+
+  if not opts.highlights.treesitter then
     return
   end
 
@@ -131,47 +174,6 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     if header_extmarks > 0 then
       dbg('header %s:%d applied %d extmarks', hunk.filename, hunk.start_line, header_extmarks)
     end
-  end
-
-  for i, line in ipairs(hunk.lines) do
-    local buf_line = hunk.start_line + i - 1
-    local line_len = #line
-    local prefix = line:sub(1, 1)
-
-    local is_diff_line = prefix == '+' or prefix == '-'
-    local line_hl = is_diff_line and (prefix == '+' and 'FugitiveTsAdd' or 'FugitiveTsDelete')
-      or nil
-
-    if opts.conceal_prefixes then
-      local virt_hl = (opts.highlights.background and line_hl) or nil
-      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
-        virt_text = { { ' ', virt_hl } },
-        virt_text_pos = 'overlay',
-      })
-    end
-
-    if opts.highlights.background and is_diff_line then
-      local extmark_opts = {
-        line_hl_group = line_hl,
-        priority = 198,
-      }
-      if opts.highlights.gutter then
-        extmark_opts.number_hl_group = line_hl
-      end
-      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, extmark_opts)
-    end
-
-    if line_len > 1 and opts.highlights.treesitter then
-      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 1, {
-        end_col = line_len,
-        hl_group = 'Normal',
-        priority = 199,
-      })
-    end
-  end
-
-  if not opts.highlights.treesitter then
-    return
   end
 
   local extmark_count = 0
