@@ -22,9 +22,16 @@ describe('fugitive-ts', function()
           debug = true,
           languages = { ['.envrc'] = 'bash' },
           disabled_languages = { 'markdown' },
-          highlight_headers = false,
           debounce_ms = 100,
           max_lines_per_hunk = 1000,
+          conceal_prefixes = false,
+          highlights = {
+            treesitter = true,
+            headers = false,
+            background = true,
+            linenr = true,
+            vim = false,
+          },
         })
       end)
     end)
