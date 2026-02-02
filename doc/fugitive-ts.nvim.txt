@@ -78,12 +78,17 @@ CONFIGURATION                                               *fugitive-ts-config*
                                                       *fugitive-ts.VimConfig*
     Vim config fields: ~
         {enabled}            (boolean, default: false)
-                             Experimental: Use vim syntax highlighting as
-                             fallback when no treesitter parser is available.
+                             Use vim syntax highlighting as fallback when no
+                             treesitter parser is available for a language.
+                             Creates a scratch buffer, sets the filetype, and
+                             queries |synID()| per character to extract
+                             highlight groups. Slower than treesitter but
+                             covers languages without a TS parser installed.
 
         {max_lines}          (integer, default: 200)
                              Skip vim syntax highlighting for hunks larger than
-                             this many lines.
+                             this many lines. Lower than the treesitter default
+                             due to the per-character cost of |synID()|.
 
                                                        *fugitive-ts.Highlights*
     Highlights table fields: ~

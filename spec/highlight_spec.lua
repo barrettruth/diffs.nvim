@@ -131,7 +131,7 @@ describe('highlight', function()
       delete_buffer(bufnr)
     end)
 
-    it('does nothing for nil lang', function()
+    it('does nothing for nil lang and nil ft', function()
       local bufnr = create_buffer({
         '@@ -1,1 +1,2 @@',
         ' some content',
@@ -140,6 +140,7 @@ describe('highlight', function()
 
       local hunk = {
         filename = 'test.unknown',
+        ft = nil,
         lang = nil,
         start_line = 1,
         lines = { ' some content', '+more content' },
@@ -528,6 +529,156 @@ describe('highlight', function()
         end
       end
       assert.is_true(has_diff_add)
+      delete_buffer(bufnr)
+    end)
+
+    it('applies vim syntax extmarks when vim.enabled and no TS parser', function()
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        ft = 'lua',
+        lang = nil,
+        start_line = 1,
+        lines = { ' local x = 1', '+local y = 2' },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ vim = { enabled = true } }))
+
+      local extmarks = get_extmarks(bufnr)
+      local has_syntax_hl = false
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].hl_group and mark[4].hl_group ~= 'Normal' then
+          has_syntax_hl = true
+          break
+        end
+      end
+      assert.is_true(has_syntax_hl)
+      delete_buffer(bufnr)
+    end)
+
+    it('skips vim fallback when vim.enabled is false', function()
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        ft = 'lua',
+        lang = nil,
+        start_line = 1,
+        lines = { ' local x = 1', '+local y = 2' },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ vim = { enabled = false } }))
+
+      local extmarks = get_extmarks(bufnr)
+      local has_syntax_hl = false
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].hl_group and mark[4].hl_group ~= 'Normal' then
+          has_syntax_hl = true
+          break
+        end
+      end
+      assert.is_false(has_syntax_hl)
+      delete_buffer(bufnr)
+    end)
+
+    it('respects vim.max_lines', function()
+      local lines = { '@@ -1,100 +1,101 @@' }
+      local hunk_lines = {}
+      for i = 1, 250 do
+        table.insert(lines, ' line ' .. i)
+        table.insert(hunk_lines, ' line ' .. i)
+      end
+
+      local bufnr = create_buffer(lines)
+      local hunk = {
+        filename = 'test.lua',
+        ft = 'lua',
+        lang = nil,
+        start_line = 1,
+        lines = hunk_lines,
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ vim = { enabled = true, max_lines = 200 } })
+      )
+
+      local extmarks = get_extmarks(bufnr)
+      assert.are.equal(0, #extmarks)
+      delete_buffer(bufnr)
+    end)
+
+    it('applies background for vim fallback hunks', function()
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        ft = 'lua',
+        lang = nil,
+        start_line = 1,
+        lines = { ' local x = 1', '+local y = 2' },
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ vim = { enabled = true }, highlights = { background = true } })
+      )
+
+      local extmarks = get_extmarks(bufnr)
+      local has_diff_add = false
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].line_hl_group == 'FugitiveTsAdd' then
+          has_diff_add = true
+          break
+        end
+      end
+      assert.is_true(has_diff_add)
+      delete_buffer(bufnr)
+    end)
+
+    it('applies Normal blanking for vim fallback hunks', function()
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        ft = 'lua',
+        lang = nil,
+        start_line = 1,
+        lines = { ' local x = 1', '+local y = 2' },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ vim = { enabled = true } }))
+
+      local extmarks = get_extmarks(bufnr)
+      local has_normal = false
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].hl_group == 'Normal' then
+          has_normal = true
+          break
+        end
+      end
+      assert.is_true(has_normal)
       delete_buffer(bufnr)
     end)
   end)
