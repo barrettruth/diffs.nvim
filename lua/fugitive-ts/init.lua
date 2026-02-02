@@ -72,15 +72,13 @@ local function highlight_buffer(bufnr)
 
   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
 
-  local hunks =
-    parser.parse_buffer(bufnr, config.languages, config.disabled_languages, config.debug)
+  local hunks = parser.parse_buffer(bufnr, config.languages, config.disabled_languages)
   dbg('found %d hunks in buffer %d', #hunks, bufnr)
   for _, hunk in ipairs(hunks) do
     highlight.highlight_hunk(bufnr, ns, hunk, {
       max_lines = config.max_lines_per_hunk,
       conceal_prefixes = config.conceal_prefixes,
       highlights = config.highlights,
-      debug = config.debug,
     })
   end
 end
@@ -160,7 +158,31 @@ end
 ---@param opts? fugitive-ts.Config
 function M.setup(opts)
   opts = opts or {}
+
+  vim.validate({
+    enabled = { opts.enabled, 'boolean', true },
+    debug = { opts.debug, 'boolean', true },
+    languages = { opts.languages, 'table', true },
+    disabled_languages = { opts.disabled_languages, 'table', true },
+    debounce_ms = { opts.debounce_ms, 'number', true },
+    max_lines_per_hunk = { opts.max_lines_per_hunk, 'number', true },
+    conceal_prefixes = { opts.conceal_prefixes, 'boolean', true },
+    highlights = { opts.highlights, 'table', true },
+  })
+
+  if opts.highlights then
+    vim.validate({
+      ['highlights.treesitter'] = { opts.highlights.treesitter, 'boolean', true },
+      ['highlights.headers'] = { opts.highlights.headers, 'boolean', true },
+      ['highlights.background'] = { opts.highlights.background, 'boolean', true },
+      ['highlights.linenr'] = { opts.highlights.linenr, 'boolean', true },
+      ['highlights.vim'] = { opts.highlights.vim, 'boolean', true },
+    })
+  end
+
   config = vim.tbl_deep_extend('force', default_config, opts)
+  parser.set_debug(config.debug)
+  highlight.set_debug(config.debug)
 end
 
 return M

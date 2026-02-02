@@ -1,8 +1,18 @@
 local M = {}
 
+local debug_enabled = false
+
+---@param enabled boolean
+function M.set_debug(enabled)
+  debug_enabled = enabled
+end
+
 ---@param msg string
 ---@param ... any
 local function dbg(msg, ...)
+  if not debug_enabled then
+    return
+  end
   local formatted = string.format(msg, ...)
   vim.notify('[fugitive-ts] ' .. formatted, vim.log.levels.DEBUG)
 end
@@ -13,9 +23,8 @@ end
 ---@param col_offset integer
 ---@param text string
 ---@param lang string
----@param debug? boolean
 ---@return integer
-local function highlight_text(bufnr, ns, hunk, col_offset, text, lang, debug)
+local function highlight_text(bufnr, ns, hunk, col_offset, text, lang)
   local ok, parser_obj = pcall(vim.treesitter.get_string_parser, text, lang)
   if not ok or not parser_obj then
     return 0
@@ -59,7 +68,6 @@ end
 ---@field max_lines integer
 ---@field conceal_prefixes boolean
 ---@field highlights fugitive-ts.Highlights
----@field debug boolean
 
 ---@param bufnr integer
 ---@param ns integer
@@ -72,15 +80,13 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
   end
 
   if #hunk.lines > opts.max_lines then
-    if opts.debug then
-      dbg(
-        'skipping hunk %s:%d (%d lines > %d max)',
-        hunk.filename,
-        hunk.start_line,
-        #hunk.lines,
-        opts.max_lines
-      )
-    end
+    dbg(
+      'skipping hunk %s:%d (%d lines > %d max)',
+      hunk.filename,
+      hunk.start_line,
+      #hunk.lines,
+      opts.max_lines
+    )
     return
   end
 
@@ -97,25 +103,19 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
 
   local ok, parser_obj = pcall(vim.treesitter.get_string_parser, code, lang)
   if not ok or not parser_obj then
-    if opts.debug then
-      dbg('failed to create parser for lang: %s', lang)
-    end
+    dbg('failed to create parser for lang: %s', lang)
     return
   end
 
   local trees = parser_obj:parse()
   if not trees or #trees == 0 then
-    if opts.debug then
-      dbg('parse returned no trees for lang: %s', lang)
-    end
+    dbg('parse returned no trees for lang: %s', lang)
     return
   end
 
   local query = vim.treesitter.query.get(lang, 'highlights')
   if not query then
-    if opts.debug then
-      dbg('no highlights query for lang: %s', lang)
-    end
+    dbg('no highlights query for lang: %s', lang)
     return
   end
 
@@ -126,16 +126,9 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
       hl_group = 'Normal',
       priority = 199,
     })
-    local header_extmarks = highlight_text(
-      bufnr,
-      ns,
-      hunk,
-      hunk.header_context_col,
-      hunk.header_context,
-      lang,
-      opts.debug
-    )
-    if opts.debug and header_extmarks > 0 then
+    local header_extmarks =
+      highlight_text(bufnr, ns, hunk, hunk.header_context_col, hunk.header_context, lang)
+    if header_extmarks > 0 then
       dbg('header %s:%d applied %d extmarks', hunk.filename, hunk.start_line, header_extmarks)
     end
   end
@@ -196,9 +189,7 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     extmark_count = extmark_count + 1
   end
 
-  if opts.debug then
-    dbg('hunk %s:%d applied %d extmarks', hunk.filename, hunk.start_line, extmark_count)
-  end
+  dbg('hunk %s:%d applied %d extmarks', hunk.filename, hunk.start_line, extmark_count)
 end
 
 return M

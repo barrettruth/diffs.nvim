@@ -36,7 +36,6 @@ describe('highlight', function()
           linenr = false,
           vim = false,
         },
-        debug = false,
       }
       if overrides then
         for k, v in pairs(overrides) do
