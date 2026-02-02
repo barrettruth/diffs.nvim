@@ -8,9 +8,19 @@
 
 local M = {}
 
+local debug_enabled = false
+
+---@param enabled boolean
+function M.set_debug(enabled)
+  debug_enabled = enabled
+end
+
 ---@param msg string
 ---@param ... any
 local function dbg(msg, ...)
+  if not debug_enabled then
+    return
+  end
   local formatted = string.format(msg, ...)
   vim.notify('[fugitive-ts] ' .. formatted, vim.log.levels.DEBUG)
 end
@@ -18,15 +28,12 @@ end
 ---@param filename string
 ---@param custom_langs? table<string, string>
 ---@param disabled_langs? string[]
----@param debug? boolean
 ---@return string?
-local function get_lang_from_filename(filename, custom_langs, disabled_langs, debug)
+local function get_lang_from_filename(filename, custom_langs, disabled_langs)
   if custom_langs and custom_langs[filename] then
     local lang = custom_langs[filename]
     if disabled_langs and vim.tbl_contains(disabled_langs, lang) then
-      if debug then
-        dbg('lang disabled: %s', lang)
-      end
+      dbg('lang disabled: %s', lang)
       return nil
     end
     return lang
@@ -34,28 +41,22 @@ local function get_lang_from_filename(filename, custom_langs, disabled_langs, de
 
   local ft = vim.filetype.match({ filename = filename })
   if not ft then
-    if debug then
-      dbg('no filetype for: %s', filename)
-    end
+    dbg('no filetype for: %s', filename)
     return nil
   end
 
   local lang = vim.treesitter.language.get_lang(ft)
   if lang then
     if disabled_langs and vim.tbl_contains(disabled_langs, lang) then
-      if debug then
-        dbg('lang disabled: %s', lang)
-      end
+      dbg('lang disabled: %s', lang)
       return nil
     end
     local ok = pcall(vim.treesitter.language.inspect, lang)
     if ok then
       return lang
     end
-    if debug then
-      dbg('no parser for lang: %s (ft: %s)', lang, ft)
-    end
-  elseif debug then
+    dbg('no parser for lang: %s (ft: %s)', lang, ft)
+  else
     dbg('no ts lang for filetype: %s', ft)
   end
 
@@ -65,9 +66,8 @@ end
 ---@param bufnr integer
 ---@param custom_langs? table<string, string>
 ---@param disabled_langs? string[]
----@param debug? boolean
 ---@return fugitive-ts.Hunk[]
-function M.parse_buffer(bufnr, custom_langs, disabled_langs, debug)
+function M.parse_buffer(bufnr, custom_langs, disabled_langs)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   ---@type fugitive-ts.Hunk[]
   local hunks = {}
@@ -107,8 +107,8 @@ function M.parse_buffer(bufnr, custom_langs, disabled_langs, debug)
     if filename then
       flush_hunk()
       current_filename = filename
-      current_lang = get_lang_from_filename(filename, custom_langs, disabled_langs, debug)
-      if debug and current_lang then
+      current_lang = get_lang_from_filename(filename, custom_langs, disabled_langs)
+      if current_lang then
         dbg('file: %s -> lang: %s', filename, current_lang)
       end
     elseif line:match('^@@.-@@') then
