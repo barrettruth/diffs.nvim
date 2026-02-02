@@ -70,23 +70,11 @@ CONFIGURATION                                               *fugitive-ts-config*
                              Skip treesitter highlighting for hunks larger than
                              this many lines. Prevents lag on massive diffs.
 
-Example Configuration ~
->lua
-    require('fugitive-ts').setup({
-      enabled = true,
-      debug = false,
-      languages = {},
-      disabled_languages = {},
-      highlight_headers = true,
-      debounce_ms = 50,
-      max_lines_per_hunk = 500,
-    })
-<
 ==============================================================================
 API                                                            *fugitive-ts-api*
 
 setup({opts})                                           *fugitive-ts.setup()*
-    Configure the plugin. Called automatically by lazy.nvim when using `opts`.
+    Configure the plugin with `opts`.
 
     Parameters: ~
         {opts}  (|fugitive-ts.Config|, optional) Configuration table.
