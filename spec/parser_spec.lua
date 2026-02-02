@@ -48,6 +48,7 @@ describe('parser', function()
 
       assert.are.equal(1, #hunks)
       assert.are.equal('lua/test.lua', hunks[1].filename)
+      assert.are.equal('lua', hunks[1].ft)
       assert.are.equal('lua', hunks[1].lang)
       assert.are.equal(3, hunks[1].start_line)
       assert.are.equal(3, #hunks[1].lines)
@@ -152,6 +153,25 @@ describe('parser', function()
       local hunks = parser.parse_buffer(bufnr)
 
       assert.are.equal(1, #hunks)
+      assert.are.equal(2, #hunks[1].lines)
+      delete_buffer(bufnr)
+    end)
+
+    it('emits hunk with ft when no ts parser available', function()
+      local bufnr = create_buffer({
+        'M test.xyz_no_parser',
+        '@@ -1,1 +1,2 @@',
+        ' some content',
+        '+more content',
+      })
+
+      vim.filetype.add({ extension = { xyz_no_parser = 'xyz_no_parser_ft' } })
+
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('xyz_no_parser_ft', hunks[1].ft)
+      assert.is_nil(hunks[1].lang)
       assert.are.equal(2, #hunks[1].lines)
       delete_buffer(bufnr)
     end)

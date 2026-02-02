@@ -31,20 +31,25 @@ describe('highlight', function()
 
     local function default_opts(overrides)
       local opts = {
-        max_lines = 500,
         hide_prefix = false,
+        treesitter = {
+          enabled = true,
+          max_lines = 500,
+        },
+        vim = {
+          enabled = false,
+          max_lines = 200,
+        },
         highlights = {
-          treesitter = true,
           background = false,
           gutter = false,
-          vim = false,
         },
       }
       if overrides then
         for k, v in pairs(overrides) do
-          if k == 'highlights' then
-            for hk, hv in pairs(v) do
-              opts.highlights[hk] = hv
+          if type(v) == 'table' and type(opts[k]) == 'table' then
+            for sk, sv in pairs(v) do
+              opts[k][sk] = sv
             end
           else
             opts[k] = v
@@ -478,7 +483,7 @@ describe('highlight', function()
         bufnr,
         ns,
         hunk,
-        default_opts({ highlights = { treesitter = false, background = true } })
+        default_opts({ treesitter = { enabled = false }, highlights = { background = true } })
       )
 
       local extmarks = get_extmarks(bufnr)
@@ -511,7 +516,7 @@ describe('highlight', function()
         bufnr,
         ns,
         hunk,
-        default_opts({ highlights = { treesitter = false, background = true } })
+        default_opts({ treesitter = { enabled = false }, highlights = { background = true } })
       )
 
       local extmarks = get_extmarks(bufnr)

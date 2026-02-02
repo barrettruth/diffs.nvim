@@ -1,6 +1,7 @@
 ---@class fugitive-ts.Hunk
 ---@field filename string
----@field lang string
+---@field ft string?
+---@field lang string?
 ---@field start_line integer
 ---@field header_context string?
 ---@field header_context_col integer?
@@ -27,13 +28,17 @@ end
 
 ---@param filename string
 ---@return string?
-local function get_lang_from_filename(filename)
+local function get_ft_from_filename(filename)
   local ft = vim.filetype.match({ filename = filename })
   if not ft then
     dbg('no filetype for: %s', filename)
-    return nil
   end
+  return ft
+end
 
+---@param ft string
+---@return string?
+local function get_lang_from_ft(ft)
   local lang = vim.treesitter.language.get_lang(ft)
   if lang then
     local ok = pcall(vim.treesitter.language.inspect, lang)
@@ -44,7 +49,6 @@ local function get_lang_from_filename(filename)
   else
     dbg('no ts lang for filetype: %s', ft)
   end
-
   return nil
 end
 
@@ -58,6 +62,8 @@ function M.parse_buffer(bufnr)
   ---@type string?
   local current_filename = nil
   ---@type string?
+  local current_ft = nil
+  ---@type string?
   local current_lang = nil
   ---@type integer?
   local hunk_start = nil
@@ -69,9 +75,10 @@ function M.parse_buffer(bufnr)
   local hunk_lines = {}
 
   local function flush_hunk()
-    if hunk_start and #hunk_lines > 0 and current_lang then
+    if hunk_start and #hunk_lines > 0 and (current_lang or current_ft) then
       table.insert(hunks, {
         filename = current_filename,
+        ft = current_ft,
         lang = current_lang,
         start_line = hunk_start,
         header_context = hunk_header_context,
@@ -90,9 +97,12 @@ function M.parse_buffer(bufnr)
     if filename then
       flush_hunk()
       current_filename = filename
-      current_lang = get_lang_from_filename(filename)
+      current_ft = get_ft_from_filename(filename)
+      current_lang = current_ft and get_lang_from_ft(current_ft) or nil
       if current_lang then
         dbg('file: %s -> lang: %s', filename, current_lang)
+      elseif current_ft then
+        dbg('file: %s -> ft: %s (no ts parser)', filename, current_ft)
       end
     elseif line:match('^@@.-@@') then
       flush_hunk()
@@ -109,6 +119,7 @@ function M.parse_buffer(bufnr)
       elseif line == '' or line:match('^[MADRC%?!]%s+') or line:match('^%a') then
         flush_hunk()
         current_filename = nil
+        current_ft = nil
         current_lang = nil
       end
     end
