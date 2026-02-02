@@ -25,6 +25,8 @@ local parser = require('fugitive-ts.parser')
 
 local ns = vim.api.nvim_create_namespace('fugitive_ts')
 
+---@diagnostic disable: undefined-global
+
 ---@param hex integer
 ---@param bg_hex integer
 ---@param alpha number
@@ -45,8 +47,10 @@ local function blend_color(hex, bg_hex, alpha)
   return bit.bor(bit.lshift(blend_r, 16), bit.lshift(blend_g, 8), blend_b)
 end
 
+---@diagnostic enable: undefined-global
+
 ---@param name string
----@return vim.api.keyset.hl_info
+---@return table
 local function resolve_hl(name)
   local hl = vim.api.nvim_get_hl(0, { name = name })
   while hl.link do
