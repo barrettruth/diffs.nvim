@@ -4,9 +4,13 @@ end
 vim.g.loaded_fugitive_ts = 1
 
 vim.api.nvim_create_autocmd('FileType', {
-  pattern = 'fugitive',
+  pattern = { 'fugitive', 'git' },
   callback = function(args)
-    require('fugitive-ts').attach(args.buf)
+    local ft = require('fugitive-ts')
+    if args.match == 'git' and not ft.is_fugitive_buffer(args.buf) then
+      return
+    end
+    ft.attach(args.buf)
   end,
 })
 
