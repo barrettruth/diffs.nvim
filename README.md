@@ -1,9 +1,8 @@
 # fugitive-ts.nvim
 
-**Treesitter syntax highlighting for vim-fugitive diff views**
+Treesitter syntax highlighting for vim-fugitive.
 
-Transform fugitive's regex-based diff highlighting into language-aware,
-treesitter-powered syntax highlighting.
+https://github.com/user-attachments/assets/placeholder
 
 ## Features
 
@@ -33,30 +32,6 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
   opts = {},
 }
 ```
-
-## Configuration
-
-```lua
-require('fugitive-ts').setup({
-  enabled = true,
-  debug = false,
-  languages = {},
-  disabled_languages = {},
-  highlight_headers = true,
-  debounce_ms = 50,
-  max_lines_per_hunk = 500,
-})
-```
-
-| Option               | Default | Description                                   |
-| -------------------- | ------- | --------------------------------------------- |
-| `enabled`            | `true`  | Enable/disable highlighting                   |
-| `debug`              | `false` | Log debug messages to `:messages`             |
-| `languages`          | `{}`    | Custom filename → language mappings           |
-| `disabled_languages` | `{}`    | Languages to skip (e.g., `{"markdown"}`)      |
-| `highlight_headers`  | `true`  | Highlight context in `@@ ... @@` hunk headers |
-| `debounce_ms`        | `50`    | Debounce delay for re-highlighting            |
-| `max_lines_per_hunk` | `500`   | Skip treesitter for large hunks               |
 
 ## Documentation
 
