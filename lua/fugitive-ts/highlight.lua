@@ -1,8 +1,18 @@
 local M = {}
 
+local debug_enabled = false
+
+---@param enabled boolean
+function M.set_debug(enabled)
+  debug_enabled = enabled
+end
+
 ---@param msg string
 ---@param ... any
 local function dbg(msg, ...)
+  if not debug_enabled then
+    return
+  end
   local formatted = string.format(msg, ...)
   vim.notify('[fugitive-ts] ' .. formatted, vim.log.levels.DEBUG)
 end
@@ -13,9 +23,8 @@ end
 ---@param col_offset integer
 ---@param text string
 ---@param lang string
----@param debug? boolean
 ---@return integer
-local function highlight_text(bufnr, ns, hunk, col_offset, text, lang, debug)
+local function highlight_text(bufnr, ns, hunk, col_offset, text, lang)
   local ok, parser_obj = pcall(vim.treesitter.get_string_parser, text, lang)
   if not ok or not parser_obj then
     return 0
@@ -55,28 +64,29 @@ local function highlight_text(bufnr, ns, hunk, col_offset, text, lang, debug)
   return extmark_count
 end
 
+---@class fugitive-ts.HunkOpts
+---@field max_lines integer
+---@field conceal_prefixes boolean
+---@field highlights fugitive-ts.Highlights
+
 ---@param bufnr integer
 ---@param ns integer
 ---@param hunk fugitive-ts.Hunk
----@param max_lines integer
----@param highlight_headers boolean
----@param debug? boolean
-function M.highlight_hunk(bufnr, ns, hunk, max_lines, highlight_headers, debug)
+---@param opts fugitive-ts.HunkOpts
+function M.highlight_hunk(bufnr, ns, hunk, opts)
   local lang = hunk.lang
   if not lang then
     return
   end
 
-  if #hunk.lines > max_lines then
-    if debug then
-      dbg(
-        'skipping hunk %s:%d (%d lines > %d max)',
-        hunk.filename,
-        hunk.start_line,
-        #hunk.lines,
-        max_lines
-      )
-    end
+  if #hunk.lines > opts.max_lines then
+    dbg(
+      'skipping hunk %s:%d (%d lines > %d max)',
+      hunk.filename,
+      hunk.start_line,
+      #hunk.lines,
+      opts.max_lines
+    )
     return
   end
 
@@ -93,29 +103,23 @@ function M.highlight_hunk(bufnr, ns, hunk, max_lines, highlight_headers, debug)
 
   local ok, parser_obj = pcall(vim.treesitter.get_string_parser, code, lang)
   if not ok or not parser_obj then
-    if debug then
-      dbg('failed to create parser for lang: %s', lang)
-    end
+    dbg('failed to create parser for lang: %s', lang)
     return
   end
 
   local trees = parser_obj:parse()
   if not trees or #trees == 0 then
-    if debug then
-      dbg('parse returned no trees for lang: %s', lang)
-    end
+    dbg('parse returned no trees for lang: %s', lang)
     return
   end
 
   local query = vim.treesitter.query.get(lang, 'highlights')
   if not query then
-    if debug then
-      dbg('no highlights query for lang: %s', lang)
-    end
+    dbg('no highlights query for lang: %s', lang)
     return
   end
 
-  if highlight_headers and hunk.header_context and hunk.header_context_col then
+  if hunk.header_context and hunk.header_context_col then
     local header_line = hunk.start_line - 1
     pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, header_line, hunk.header_context_col, {
       end_col = hunk.header_context_col + #hunk.header_context,
@@ -123,8 +127,8 @@ function M.highlight_hunk(bufnr, ns, hunk, max_lines, highlight_headers, debug)
       priority = 199,
     })
     local header_extmarks =
-      highlight_text(bufnr, ns, hunk, hunk.header_context_col, hunk.header_context, lang, debug)
-    if debug and header_extmarks > 0 then
+      highlight_text(bufnr, ns, hunk, hunk.header_context_col, hunk.header_context, lang)
+    if header_extmarks > 0 then
       dbg('header %s:%d applied %d extmarks', hunk.filename, hunk.start_line, header_extmarks)
     end
   end
@@ -132,13 +136,42 @@ function M.highlight_hunk(bufnr, ns, hunk, max_lines, highlight_headers, debug)
   for i, line in ipairs(hunk.lines) do
     local buf_line = hunk.start_line + i - 1
     local line_len = #line
-    if line_len > 1 then
+    local prefix = line:sub(1, 1)
+
+    local is_diff_line = prefix == '+' or prefix == '-'
+    local line_hl = is_diff_line and (prefix == '+' and 'FugitiveTsAdd' or 'FugitiveTsDelete')
+      or nil
+
+    if opts.conceal_prefixes then
+      local virt_hl = (opts.highlights.background and line_hl) or nil
+      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
+        virt_text = { { ' ', virt_hl } },
+        virt_text_pos = 'overlay',
+      })
+    end
+
+    if opts.highlights.background and is_diff_line then
+      local extmark_opts = {
+        line_hl_group = line_hl,
+        priority = 198,
+      }
+      if opts.highlights.linenr then
+        extmark_opts.number_hl_group = line_hl
+      end
+      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, extmark_opts)
+    end
+
+    if line_len > 1 and opts.highlights.treesitter then
       pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 1, {
         end_col = line_len,
         hl_group = 'Normal',
         priority = 199,
       })
     end
+  end
+
+  if not opts.highlights.treesitter then
+    return
   end
 
   local extmark_count = 0
@@ -160,9 +193,7 @@ function M.highlight_hunk(bufnr, ns, hunk, max_lines, highlight_headers, debug)
     extmark_count = extmark_count + 1
   end
 
-  if debug then
-    dbg('hunk %s:%d applied %d extmarks', hunk.filename, hunk.start_line, extmark_count)
-  end
+  dbg('hunk %s:%d applied %d extmarks', hunk.filename, hunk.start_line, extmark_count)
 end
 
 return M

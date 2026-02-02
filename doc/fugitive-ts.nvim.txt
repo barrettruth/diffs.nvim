@@ -56,11 +56,6 @@ CONFIGURATION                                               *fugitive-ts-config*
                              Example: >lua
                                  disabled_languages = { 'markdown', 'text' }
 <
-        {highlight_headers}  (boolean, default: true)
-                             Highlight function context in hunk headers.
-                             The context portion of `@@ -10,3 +10,4 @@ func()`
-                             will receive treesitter highlighting.
-
         {debounce_ms}        (integer, default: 50)
                              Debounce delay in milliseconds for re-highlighting
                              after buffer changes. Lower values feel snappier
@@ -69,6 +64,38 @@ CONFIGURATION                                               *fugitive-ts-config*
         {max_lines_per_hunk} (integer, default: 500)
                              Skip treesitter highlighting for hunks larger than
                              this many lines. Prevents lag on massive diffs.
+
+        {conceal_prefixes}   (boolean, default: true)
+                             Hide diff prefixes (`+`/`-`/` `) using virtual
+                             text overlay. Makes code appear without the
+                             leading diff character. When `highlights.background`
+                             is also enabled, the overlay inherits the line's
+                             background color.
+
+        {highlights}         (table, default: see below)
+                             Controls which highlight features are enabled.
+                             See |fugitive-ts.Highlights| for fields.
+
+                                                       *fugitive-ts.Highlights*
+    Highlights table fields: ~
+        {treesitter}         (boolean, default: true)
+                             Apply treesitter syntax highlighting to code.
+
+        {background}         (boolean, default: true)
+                             Apply background highlighting to `+`/`-` lines
+                             using `FugitiveTsAdd`/`FugitiveTsDelete` groups
+                             (derived from `DiffAdd`/`DiffDelete` backgrounds).
+
+        {linenr}             (boolean, default: true)
+                             Highlight line numbers with matching colors.
+                             Only visible if line numbers are enabled.
+
+        {vim}                (boolean, default: false)
+                             Experimental: Use vim syntax highlighting as
+                             fallback when no treesitter parser is available.
+
+    Note: Header context (e.g., `@@ -10,3 +10,4 @@ func()`) is always
+    highlighted with treesitter when a parser is available.
 
 ==============================================================================
 API                                                            *fugitive-ts-api*
@@ -103,8 +130,10 @@ IMPLEMENTATION                                    *fugitive-ts-implementation*
    - Language is detected from the filename using |vim.filetype.match()|
    - Diff prefixes (`+`/`-`/` `) are stripped from code lines
    - Code is parsed with |vim.treesitter.get_string_parser()|
+   - Background extmarks (`FugitiveTsAdd`/`FugitiveTsDelete`) at priority 198
+   - `Normal` extmarks at priority 199 clear underlying diff foreground
    - Treesitter highlights are applied as extmarks at priority 200
-   - A `Normal` extmark at priority 199 clears underlying diff colors
+   - Virtual text overlays hide diff prefixes when `conceal_prefixes` is enabled
 4. Re-highlighting occurs on `TextChanged` (debounced) and `Syntax` events
 
 ==============================================================================

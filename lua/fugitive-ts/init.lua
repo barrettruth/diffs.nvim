@@ -1,11 +1,18 @@
+---@class fugitive-ts.Highlights
+---@field treesitter boolean
+---@field background boolean
+---@field linenr boolean
+---@field vim boolean
+
 ---@class fugitive-ts.Config
 ---@field enabled boolean
 ---@field debug boolean
 ---@field languages table<string, string>
 ---@field disabled_languages string[]
----@field highlight_headers boolean
 ---@field debounce_ms integer
 ---@field max_lines_per_hunk integer
+---@field conceal_prefixes boolean
+---@field highlights fugitive-ts.Highlights
 
 ---@class fugitive-ts
 ---@field attach fun(bufnr?: integer)
@@ -24,9 +31,15 @@ local default_config = {
   debug = false,
   languages = {},
   disabled_languages = {},
-  highlight_headers = true,
   debounce_ms = 50,
   max_lines_per_hunk = 500,
+  conceal_prefixes = true,
+  highlights = {
+    treesitter = true,
+    background = true,
+    linenr = true,
+    vim = false,
+  },
 }
 
 ---@type fugitive-ts.Config
@@ -57,18 +70,14 @@ local function highlight_buffer(bufnr)
 
   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
 
-  local hunks =
-    parser.parse_buffer(bufnr, config.languages, config.disabled_languages, config.debug)
+  local hunks = parser.parse_buffer(bufnr, config.languages, config.disabled_languages)
   dbg('found %d hunks in buffer %d', #hunks, bufnr)
   for _, hunk in ipairs(hunks) do
-    highlight.highlight_hunk(
-      bufnr,
-      ns,
-      hunk,
-      config.max_lines_per_hunk,
-      config.highlight_headers,
-      config.debug
-    )
+    highlight.highlight_hunk(bufnr, ns, hunk, {
+      max_lines = config.max_lines_per_hunk,
+      conceal_prefixes = config.conceal_prefixes,
+      highlights = config.highlights,
+    })
   end
 end
 
@@ -92,9 +101,9 @@ local function create_debounced_highlight(bufnr)
       config.debounce_ms,
       0,
       vim.schedule_wrap(function()
-        t:close()
         if timer == t then
           timer = nil
+          t:close()
         end
         highlight_buffer(bufnr)
       end)
@@ -147,7 +156,35 @@ end
 ---@param opts? fugitive-ts.Config
 function M.setup(opts)
   opts = opts or {}
+
+  vim.validate({
+    enabled = { opts.enabled, 'boolean', true },
+    debug = { opts.debug, 'boolean', true },
+    languages = { opts.languages, 'table', true },
+    disabled_languages = { opts.disabled_languages, 'table', true },
+    debounce_ms = { opts.debounce_ms, 'number', true },
+    max_lines_per_hunk = { opts.max_lines_per_hunk, 'number', true },
+    conceal_prefixes = { opts.conceal_prefixes, 'boolean', true },
+    highlights = { opts.highlights, 'table', true },
+  })
+
+  if opts.highlights then
+    vim.validate({
+      ['highlights.treesitter'] = { opts.highlights.treesitter, 'boolean', true },
+      ['highlights.background'] = { opts.highlights.background, 'boolean', true },
+      ['highlights.linenr'] = { opts.highlights.linenr, 'boolean', true },
+      ['highlights.vim'] = { opts.highlights.vim, 'boolean', true },
+    })
+  end
+
   config = vim.tbl_deep_extend('force', default_config, opts)
+  parser.set_debug(config.debug)
+  highlight.set_debug(config.debug)
+
+  local diff_add = vim.api.nvim_get_hl(0, { name = 'DiffAdd' })
+  local diff_delete = vim.api.nvim_get_hl(0, { name = 'DiffDelete' })
+  vim.api.nvim_set_hl(0, 'FugitiveTsAdd', { bg = diff_add.bg })
+  vim.api.nvim_set_hl(0, 'FugitiveTsDelete', { bg = diff_delete.bg })
 end
 
 return M
