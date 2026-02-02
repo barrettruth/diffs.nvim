@@ -73,95 +73,35 @@ end
 ---@param bufnr integer
 ---@param ns integer
 ---@param hunk fugitive-ts.Hunk
----@param opts fugitive-ts.HunkOpts
-function M.highlight_hunk(bufnr, ns, hunk, opts)
+---@param code_lines string[]
+---@return integer
+local function highlight_treesitter(bufnr, ns, hunk, code_lines)
   local lang = hunk.lang
   if not lang then
-    return
-  end
-
-  local max_lines = opts.treesitter.max_lines
-  if #hunk.lines > max_lines then
-    dbg(
-      'skipping hunk %s:%d (%d lines > %d max)',
-      hunk.filename,
-      hunk.start_line,
-      #hunk.lines,
-      max_lines
-    )
-    return
-  end
-
-  for i, line in ipairs(hunk.lines) do
-    local buf_line = hunk.start_line + i - 1
-    local line_len = #line
-    local prefix = line:sub(1, 1)
-
-    local is_diff_line = prefix == '+' or prefix == '-'
-    local line_hl = is_diff_line and (prefix == '+' and 'FugitiveTsAdd' or 'FugitiveTsDelete')
-      or nil
-    local number_hl = is_diff_line and (prefix == '+' and 'FugitiveTsAddNr' or 'FugitiveTsDeleteNr')
-      or nil
-
-    if opts.hide_prefix then
-      local virt_hl = (opts.highlights.background and line_hl) or nil
-      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
-        virt_text = { { ' ', virt_hl } },
-        virt_text_pos = 'overlay',
-      })
-    end
-
-    if opts.highlights.background and is_diff_line then
-      local extmark_opts = {
-        line_hl_group = line_hl,
-        priority = 198,
-      }
-      if opts.highlights.gutter then
-        extmark_opts.number_hl_group = number_hl
-      end
-      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, extmark_opts)
-    end
-
-    if line_len > 1 and opts.treesitter.enabled then
-      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 1, {
-        end_col = line_len,
-        hl_group = 'Normal',
-        priority = 199,
-      })
-    end
-  end
-
-  if not opts.treesitter.enabled then
-    return
-  end
-
-  ---@type string[]
-  local code_lines = {}
-  for _, line in ipairs(hunk.lines) do
-    table.insert(code_lines, line:sub(2))
+    return 0
   end
 
   local code = table.concat(code_lines, '\n')
   if code == '' then
-    return
+    return 0
   end
 
   local ok, parser_obj = pcall(vim.treesitter.get_string_parser, code, lang)
   if not ok or not parser_obj then
     dbg('failed to create parser for lang: %s', lang)
-    return
+    return 0
   end
 
   local trees = parser_obj:parse()
   if not trees or #trees == 0 then
     dbg('parse returned no trees for lang: %s', lang)
-    return
+    return 0
   end
 
   local query = vim.treesitter.query.get(lang, 'highlights')
   if not query then
     dbg('no highlights query for lang: %s', lang)
-    return
+    return 0
   end
 
   if hunk.header_context and hunk.header_context_col then
@@ -195,6 +135,161 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
       priority = 200,
     })
     extmark_count = extmark_count + 1
+  end
+
+  return extmark_count
+end
+
+---@param bufnr integer
+---@param ns integer
+---@param hunk fugitive-ts.Hunk
+---@param code_lines string[]
+---@return integer
+local function highlight_vim_syntax(bufnr, ns, hunk, code_lines)
+  local ft = hunk.ft
+  if not ft then
+    return 0
+  end
+
+  if #code_lines == 0 then
+    return 0
+  end
+
+  local scratch = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(scratch, 0, -1, false, code_lines)
+  vim.api.nvim_set_option_value('bufhidden', 'wipe', { buf = scratch })
+
+  local extmark_count = 0
+
+  vim.api.nvim_buf_call(scratch, function()
+    vim.cmd('setlocal syntax=' .. ft)
+    vim.cmd('redraw')
+
+    for i, line in ipairs(code_lines) do
+      local col = 1
+      local line_len = #line
+
+      while col <= line_len do
+        local syn_id = vim.fn.synID(i, col, 1)
+        if syn_id == 0 then
+          col = col + 1
+        else
+          local hl_name = vim.fn.synIDattr(vim.fn.synIDtrans(syn_id), 'name')
+          local span_start = col
+
+          col = col + 1
+          while col <= line_len do
+            local next_id = vim.fn.synID(i, col, 1)
+            if next_id == 0 then
+              break
+            end
+            local next_name = vim.fn.synIDattr(vim.fn.synIDtrans(next_id), 'name')
+            if next_name ~= hl_name then
+              break
+            end
+            col = col + 1
+          end
+
+          if hl_name ~= '' then
+            local buf_line = hunk.start_line + i - 1
+            pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, span_start, {
+              end_col = col,
+              hl_group = hl_name,
+              priority = 200,
+            })
+            extmark_count = extmark_count + 1
+          end
+        end
+      end
+    end
+  end)
+
+  vim.api.nvim_buf_delete(scratch, { force = true })
+
+  return extmark_count
+end
+
+---@param bufnr integer
+---@param ns integer
+---@param hunk fugitive-ts.Hunk
+---@param opts fugitive-ts.HunkOpts
+function M.highlight_hunk(bufnr, ns, hunk, opts)
+  local use_ts = hunk.lang and opts.treesitter.enabled
+  local use_vim = not use_ts and hunk.ft and opts.vim.enabled
+
+  if not use_ts and not use_vim and not hunk.ft then
+    return
+  end
+
+  local max_lines = use_ts and opts.treesitter.max_lines or opts.vim.max_lines
+  if (use_ts or use_vim) and #hunk.lines > max_lines then
+    dbg(
+      'skipping hunk %s:%d (%d lines > %d max)',
+      hunk.filename,
+      hunk.start_line,
+      #hunk.lines,
+      max_lines
+    )
+    use_ts = false
+    use_vim = false
+  end
+
+  local apply_syntax = use_ts or use_vim
+
+  for i, line in ipairs(hunk.lines) do
+    local buf_line = hunk.start_line + i - 1
+    local line_len = #line
+    local prefix = line:sub(1, 1)
+
+    local is_diff_line = prefix == '+' or prefix == '-'
+    local line_hl = is_diff_line and (prefix == '+' and 'FugitiveTsAdd' or 'FugitiveTsDelete')
+      or nil
+    local number_hl = is_diff_line and (prefix == '+' and 'FugitiveTsAddNr' or 'FugitiveTsDeleteNr')
+      or nil
+
+    if opts.hide_prefix then
+      local virt_hl = (opts.highlights.background and line_hl) or nil
+      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
+        virt_text = { { ' ', virt_hl } },
+        virt_text_pos = 'overlay',
+      })
+    end
+
+    if opts.highlights.background and is_diff_line then
+      local extmark_opts = {
+        line_hl_group = line_hl,
+        priority = 198,
+      }
+      if opts.highlights.gutter then
+        extmark_opts.number_hl_group = number_hl
+      end
+      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, extmark_opts)
+    end
+
+    if line_len > 1 and apply_syntax then
+      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 1, {
+        end_col = line_len,
+        hl_group = 'Normal',
+        priority = 199,
+      })
+    end
+  end
+
+  if not apply_syntax then
+    return
+  end
+
+  ---@type string[]
+  local code_lines = {}
+  for _, line in ipairs(hunk.lines) do
+    table.insert(code_lines, line:sub(2))
+  end
+
+  local extmark_count = 0
+  if use_ts then
+    extmark_count = highlight_treesitter(bufnr, ns, hunk, code_lines)
+  elseif use_vim then
+    extmark_count = highlight_vim_syntax(bufnr, ns, hunk, code_lines)
   end
 
   dbg('hunk %s:%d applied %d extmarks', hunk.filename, hunk.start_line, extmark_count)
