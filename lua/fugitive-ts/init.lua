@@ -101,9 +101,9 @@ local function create_debounced_highlight(bufnr)
       config.debounce_ms,
       0,
       vim.schedule_wrap(function()
-        t:close()
         if timer == t then
           timer = nil
+          t:close()
         end
         highlight_buffer(bufnr)
       end)
