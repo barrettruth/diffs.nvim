@@ -119,7 +119,7 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     return
   end
 
-  if opts.highlights.headers and hunk.header_context and hunk.header_context_col then
+  if hunk.header_context and hunk.header_context_col then
     local header_line = hunk.start_line - 1
     pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, header_line, hunk.header_context_col, {
       end_col = hunk.header_context_col + #hunk.header_context,
@@ -138,15 +138,19 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     local line_len = #line
     local prefix = line:sub(1, 1)
 
+    local is_diff_line = prefix == '+' or prefix == '-'
+    local line_hl = is_diff_line and (prefix == '+' and 'FugitiveTsAdd' or 'FugitiveTsDelete')
+      or nil
+
     if opts.conceal_prefixes then
+      local virt_hl = (opts.highlights.background and line_hl) or nil
       pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
-        end_col = 1,
-        conceal = '',
+        virt_text = { { ' ', virt_hl } },
+        virt_text_pos = 'overlay',
       })
     end
 
-    if opts.highlights.background and (prefix == '+' or prefix == '-') then
-      local line_hl = prefix == '+' and 'FugitiveTsAdd' or 'FugitiveTsDelete'
+    if opts.highlights.background and is_diff_line then
       local extmark_opts = {
         line_hl_group = line_hl,
         priority = 198,
