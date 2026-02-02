@@ -217,10 +217,6 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
   local use_ts = hunk.lang and opts.treesitter.enabled
   local use_vim = not use_ts and hunk.ft and opts.vim.enabled
 
-  if not use_ts and not use_vim and not hunk.ft then
-    return
-  end
-
   local max_lines = use_ts and opts.treesitter.max_lines or opts.vim.max_lines
   if (use_ts or use_vim) and #hunk.lines > max_lines then
     dbg(
@@ -235,6 +231,23 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
   end
 
   local apply_syntax = use_ts or use_vim
+
+  ---@type string[]
+  local code_lines = {}
+  if apply_syntax then
+    for _, line in ipairs(hunk.lines) do
+      table.insert(code_lines, line:sub(2))
+    end
+  end
+
+  local extmark_count = 0
+  if use_ts then
+    extmark_count = highlight_treesitter(bufnr, ns, hunk, code_lines)
+  elseif use_vim then
+    extmark_count = highlight_vim_syntax(bufnr, ns, hunk, code_lines)
+  end
+
+  local syntax_applied = extmark_count > 0
 
   for i, line in ipairs(hunk.lines) do
     local buf_line = hunk.start_line + i - 1
@@ -266,30 +279,13 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
       pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, extmark_opts)
     end
 
-    if line_len > 1 and apply_syntax then
+    if line_len > 1 and syntax_applied then
       pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 1, {
         end_col = line_len,
         hl_group = 'Normal',
         priority = 199,
       })
     end
-  end
-
-  if not apply_syntax then
-    return
-  end
-
-  ---@type string[]
-  local code_lines = {}
-  for _, line in ipairs(hunk.lines) do
-    table.insert(code_lines, line:sub(2))
-  end
-
-  local extmark_count = 0
-  if use_ts then
-    extmark_count = highlight_treesitter(bufnr, ns, hunk, code_lines)
-  elseif use_vim then
-    extmark_count = highlight_vim_syntax(bufnr, ns, hunk, code_lines)
   end
 
   dbg('hunk %s:%d applied %d extmarks', hunk.filename, hunk.start_line, extmark_count)
