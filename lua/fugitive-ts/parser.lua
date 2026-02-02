@@ -9,22 +9,7 @@
 
 local M = {}
 
-local debug_enabled = false
-
----@param enabled boolean
-function M.set_debug(enabled)
-  debug_enabled = enabled
-end
-
----@param msg string
----@param ... any
-local function dbg(msg, ...)
-  if not debug_enabled then
-    return
-  end
-  local formatted = string.format(msg, ...)
-  vim.notify('[fugitive-ts] ' .. formatted, vim.log.levels.DEBUG)
-end
+local dbg = require('fugitive-ts.log').dbg
 
 ---@param filename string
 ---@return string?
@@ -116,7 +101,13 @@ function M.parse_buffer(bufnr)
       local prefix = line:sub(1, 1)
       if prefix == ' ' or prefix == '+' or prefix == '-' then
         table.insert(hunk_lines, line)
-      elseif line == '' or line:match('^[MADRC%?!]%s+') or line:match('^%a') then
+      elseif
+        line == ''
+        or line:match('^[MADRC%?!]%s+')
+        or line:match('^diff ')
+        or line:match('^index ')
+        or line:match('^Binary ')
+      then
         flush_hunk()
         current_filename = nil
         current_ft = nil

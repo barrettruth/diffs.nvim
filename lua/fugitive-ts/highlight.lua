@@ -1,21 +1,6 @@
 local M = {}
 
-local debug_enabled = false
-
----@param enabled boolean
-function M.set_debug(enabled)
-  debug_enabled = enabled
-end
-
----@param msg string
----@param ... any
-local function dbg(msg, ...)
-  if not debug_enabled then
-    return
-  end
-  local formatted = string.format(msg, ...)
-  vim.notify('[fugitive-ts] ' .. formatted, vim.log.levels.DEBUG)
-end
+local dbg = require('fugitive-ts.log').dbg
 
 ---@param bufnr integer
 ---@param ns integer
