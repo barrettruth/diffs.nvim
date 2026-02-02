@@ -10,9 +10,58 @@ end
 ---@param bufnr integer
 ---@param ns integer
 ---@param hunk fugitive-ts.Hunk
----@param max_lines integer
+---@param col_offset integer
+---@param text string
+---@param lang string
 ---@param debug? boolean
-function M.highlight_hunk(bufnr, ns, hunk, max_lines, debug)
+---@return integer
+local function highlight_text(bufnr, ns, hunk, col_offset, text, lang, debug)
+  local ok, parser_obj = pcall(vim.treesitter.get_string_parser, text, lang)
+  if not ok or not parser_obj then
+    return 0
+  end
+
+  local trees = parser_obj:parse()
+  if not trees or #trees == 0 then
+    return 0
+  end
+
+  local query = vim.treesitter.query.get(lang, 'highlights')
+  if not query then
+    return 0
+  end
+
+  local extmark_count = 0
+  local header_line = hunk.start_line - 1
+
+  for id, node, _ in query:iter_captures(trees[1]:root(), text) do
+    local capture_name = '@' .. query.captures[id]
+    local sr, sc, er, ec = node:range()
+
+    local buf_sr = header_line + sr
+    local buf_er = header_line + er
+    local buf_sc = col_offset + sc
+    local buf_ec = col_offset + ec
+
+    pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_sr, buf_sc, {
+      end_row = buf_er,
+      end_col = buf_ec,
+      hl_group = capture_name,
+      priority = 200,
+    })
+    extmark_count = extmark_count + 1
+  end
+
+  return extmark_count
+end
+
+---@param bufnr integer
+---@param ns integer
+---@param hunk fugitive-ts.Hunk
+---@param max_lines integer
+---@param highlight_headers boolean
+---@param debug? boolean
+function M.highlight_hunk(bufnr, ns, hunk, max_lines, highlight_headers, debug)
   local lang = hunk.lang
   if not lang then
     return
@@ -64,6 +113,20 @@ function M.highlight_hunk(bufnr, ns, hunk, max_lines, debug)
       dbg('no highlights query for lang: %s', lang)
     end
     return
+  end
+
+  if highlight_headers and hunk.header_context and hunk.header_context_col then
+    local header_line = hunk.start_line - 1
+    pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, header_line, hunk.header_context_col, {
+      end_col = hunk.header_context_col + #hunk.header_context,
+      hl_group = 'Normal',
+      priority = 199,
+    })
+    local header_extmarks =
+      highlight_text(bufnr, ns, hunk, hunk.header_context_col, hunk.header_context, lang, debug)
+    if debug and header_extmarks > 0 then
+      dbg('header %s:%d applied %d extmarks', hunk.filename, hunk.start_line, header_extmarks)
+    end
   end
 
   for i, line in ipairs(hunk.lines) do
