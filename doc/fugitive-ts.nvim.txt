@@ -32,6 +32,14 @@ SETUP                                                        *fugitive-ts-setup*
       -- Custom filename -> language mappings (optional)
       languages = {},
 
+      -- Languages to skip treesitter highlighting for (default: {})
+      -- Uses treesitter language names, e.g. {"markdown", "vimdoc"}
+      disabled_languages = {},
+
+      -- Highlight context in hunk headers (default: true)
+      -- e.g. "@@ -10,3 +10,4 @@ function foo()" -> "function foo()" gets highlighted
+      highlight_headers = true,
+
       -- Debounce delay in ms (default: 50)
       debounce_ms = 50,
 
