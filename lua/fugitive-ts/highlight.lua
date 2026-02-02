@@ -90,49 +90,6 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     return
   end
 
-  ---@type string[]
-  local code_lines = {}
-  for _, line in ipairs(hunk.lines) do
-    table.insert(code_lines, line:sub(2))
-  end
-
-  local code = table.concat(code_lines, '\n')
-  if code == '' then
-    return
-  end
-
-  local ok, parser_obj = pcall(vim.treesitter.get_string_parser, code, lang)
-  if not ok or not parser_obj then
-    dbg('failed to create parser for lang: %s', lang)
-    return
-  end
-
-  local trees = parser_obj:parse()
-  if not trees or #trees == 0 then
-    dbg('parse returned no trees for lang: %s', lang)
-    return
-  end
-
-  local query = vim.treesitter.query.get(lang, 'highlights')
-  if not query then
-    dbg('no highlights query for lang: %s', lang)
-    return
-  end
-
-  if hunk.header_context and hunk.header_context_col then
-    local header_line = hunk.start_line - 1
-    pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, header_line, hunk.header_context_col, {
-      end_col = hunk.header_context_col + #hunk.header_context,
-      hl_group = 'Normal',
-      priority = 199,
-    })
-    local header_extmarks =
-      highlight_text(bufnr, ns, hunk, hunk.header_context_col, hunk.header_context, lang)
-    if header_extmarks > 0 then
-      dbg('header %s:%d applied %d extmarks', hunk.filename, hunk.start_line, header_extmarks)
-    end
-  end
-
   for i, line in ipairs(hunk.lines) do
     local buf_line = hunk.start_line + i - 1
     local line_len = #line
@@ -174,6 +131,49 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
 
   if not opts.highlights.treesitter then
     return
+  end
+
+  ---@type string[]
+  local code_lines = {}
+  for _, line in ipairs(hunk.lines) do
+    table.insert(code_lines, line:sub(2))
+  end
+
+  local code = table.concat(code_lines, '\n')
+  if code == '' then
+    return
+  end
+
+  local ok, parser_obj = pcall(vim.treesitter.get_string_parser, code, lang)
+  if not ok or not parser_obj then
+    dbg('failed to create parser for lang: %s', lang)
+    return
+  end
+
+  local trees = parser_obj:parse()
+  if not trees or #trees == 0 then
+    dbg('parse returned no trees for lang: %s', lang)
+    return
+  end
+
+  local query = vim.treesitter.query.get(lang, 'highlights')
+  if not query then
+    dbg('no highlights query for lang: %s', lang)
+    return
+  end
+
+  if hunk.header_context and hunk.header_context_col then
+    local header_line = hunk.start_line - 1
+    pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, header_line, hunk.header_context_col, {
+      end_col = hunk.header_context_col + #hunk.header_context,
+      hl_group = 'Normal',
+      priority = 199,
+    })
+    local header_extmarks =
+      highlight_text(bufnr, ns, hunk, hunk.header_context_col, hunk.header_context, lang)
+    if header_extmarks > 0 then
+      dbg('header %s:%d applied %d extmarks', hunk.filename, hunk.start_line, header_extmarks)
+    end
   end
 
   local extmark_count = 0
