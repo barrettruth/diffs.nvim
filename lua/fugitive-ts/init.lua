@@ -352,6 +352,15 @@ function M.setup(opts)
       end
     end,
   })
+
+  vim.api.nvim_create_autocmd('WinClosed', {
+    callback = function(args)
+      local win = tonumber(args.match)
+      if win and diff_windows[win] then
+        diff_windows[win] = nil
+      end
+    end,
+  })
 end
 
 return M
