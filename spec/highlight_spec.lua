@@ -36,7 +36,7 @@ describe('highlight', function()
         highlights = {
           treesitter = true,
           background = false,
-          linenr = false,
+          gutter = false,
           vim = false,
         },
       }
@@ -394,7 +394,7 @@ describe('highlight', function()
       delete_buffer(bufnr)
     end)
 
-    it('applies number_hl_group when linenr enabled', function()
+    it('applies number_hl_group when gutter enabled', function()
       local bufnr = create_buffer({
         '@@ -1,1 +1,2 @@',
         ' local x = 1',
@@ -412,7 +412,7 @@ describe('highlight', function()
         bufnr,
         ns,
         hunk,
-        default_opts({ highlights = { background = true, linenr = true } })
+        default_opts({ highlights = { background = true, gutter = true } })
       )
 
       local extmarks = get_extmarks(bufnr)
@@ -427,7 +427,7 @@ describe('highlight', function()
       delete_buffer(bufnr)
     end)
 
-    it('does not apply number_hl_group when linenr disabled', function()
+    it('does not apply number_hl_group when gutter disabled', function()
       local bufnr = create_buffer({
         '@@ -1,1 +1,2 @@',
         ' local x = 1',
@@ -445,7 +445,7 @@ describe('highlight', function()
         bufnr,
         ns,
         hunk,
-        default_opts({ highlights = { background = true, linenr = false } })
+        default_opts({ highlights = { background = true, gutter = false } })
       )
 
       local extmarks = get_extmarks(bufnr)
