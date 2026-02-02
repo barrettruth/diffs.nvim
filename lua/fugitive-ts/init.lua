@@ -180,6 +180,14 @@ function M.attach(bufnr)
     end,
   })
 
+  vim.api.nvim_create_autocmd('BufReadPost', {
+    buffer = bufnr,
+    callback = function()
+      dbg('BufReadPost event, re-highlighting buffer %d', bufnr)
+      highlight_buffer(bufnr)
+    end,
+  })
+
   vim.api.nvim_create_autocmd('BufWipeout', {
     buffer = bufnr,
     callback = function()
@@ -192,6 +200,28 @@ end
 function M.refresh(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
   highlight_buffer(bufnr)
+end
+
+local function compute_highlight_groups()
+  local normal = vim.api.nvim_get_hl(0, { name = 'Normal' })
+  local diff_add = vim.api.nvim_get_hl(0, { name = 'DiffAdd' })
+  local diff_delete = vim.api.nvim_get_hl(0, { name = 'DiffDelete' })
+  local diff_added = resolve_hl('diffAdded')
+  local diff_removed = resolve_hl('diffRemoved')
+
+  local bg = normal.bg or 0x1e1e2e
+  local add_bg = diff_add.bg or 0x2e4a3a
+  local del_bg = diff_delete.bg or 0x4a2e3a
+  local add_fg = diff_added.fg or diff_add.fg or 0x80c080
+  local del_fg = diff_removed.fg or diff_delete.fg or 0xc08080
+
+  local blended_add = blend_color(add_bg, bg, 0.4)
+  local blended_del = blend_color(del_bg, bg, 0.4)
+
+  vim.api.nvim_set_hl(0, 'FugitiveTsAdd', { bg = blended_add })
+  vim.api.nvim_set_hl(0, 'FugitiveTsDelete', { bg = blended_del })
+  vim.api.nvim_set_hl(0, 'FugitiveTsAddNr', { fg = add_fg, bg = blended_add })
+  vim.api.nvim_set_hl(0, 'FugitiveTsDeleteNr', { fg = del_fg, bg = blended_del })
 end
 
 ---@param opts? fugitive-ts.Config
@@ -233,25 +263,16 @@ function M.setup(opts)
   parser.set_debug(config.debug)
   highlight.set_debug(config.debug)
 
-  local normal = vim.api.nvim_get_hl(0, { name = 'Normal' })
-  local diff_add = vim.api.nvim_get_hl(0, { name = 'DiffAdd' })
-  local diff_delete = vim.api.nvim_get_hl(0, { name = 'DiffDelete' })
-  local diff_added = resolve_hl('diffAdded')
-  local diff_removed = resolve_hl('diffRemoved')
+  compute_highlight_groups()
 
-  local bg = normal.bg or 0x1e1e2e
-  local add_bg = diff_add.bg or 0x2e4a3a
-  local del_bg = diff_delete.bg or 0x4a2e3a
-  local add_fg = diff_added.fg or diff_add.fg or 0x80c080
-  local del_fg = diff_removed.fg or diff_delete.fg or 0xc08080
-
-  local blended_add = blend_color(add_bg, bg, 0.4)
-  local blended_del = blend_color(del_bg, bg, 0.4)
-
-  vim.api.nvim_set_hl(0, 'FugitiveTsAdd', { bg = blended_add })
-  vim.api.nvim_set_hl(0, 'FugitiveTsDelete', { bg = blended_del })
-  vim.api.nvim_set_hl(0, 'FugitiveTsAddNr', { fg = add_fg, bg = blended_add })
-  vim.api.nvim_set_hl(0, 'FugitiveTsDeleteNr', { fg = del_fg, bg = blended_del })
+  vim.api.nvim_create_autocmd('ColorScheme', {
+    callback = function()
+      compute_highlight_groups()
+      for bufnr, _ in pairs(attached_buffers) do
+        highlight_buffer(bufnr)
+      end
+    end,
+  })
 end
 
 return M
