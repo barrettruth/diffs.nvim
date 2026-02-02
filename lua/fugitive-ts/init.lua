@@ -10,9 +10,6 @@
 ---@field enabled boolean
 ---@field max_lines integer
 
----@class fugitive-ts.DiffsplitConfig
----@field enabled boolean
-
 ---@class fugitive-ts.Config
 ---@field enabled boolean
 ---@field debug boolean
@@ -21,7 +18,6 @@
 ---@field treesitter fugitive-ts.TreesitterConfig
 ---@field vim fugitive-ts.VimConfig
 ---@field highlights fugitive-ts.Highlights
----@field diffsplit fugitive-ts.DiffsplitConfig
 
 ---@class fugitive-ts
 ---@field attach fun(bufnr?: integer)
@@ -84,9 +80,6 @@ local default_config = {
   highlights = {
     background = true,
     gutter = true,
-  },
-  diffsplit = {
-    enabled = true,
   },
 }
 
@@ -249,7 +242,7 @@ local DIFF_WINHIGHLIGHT = table.concat({
 }, ',')
 
 function M.attach_diff()
-  if not config.enabled or not config.diffsplit.enabled then
+  if not config.enabled then
     return
   end
 
@@ -301,14 +294,7 @@ function M.setup(opts)
     treesitter = { opts.treesitter, 'table', true },
     vim = { opts.vim, 'table', true },
     highlights = { opts.highlights, 'table', true },
-    diffsplit = { opts.diffsplit, 'table', true },
   })
-
-  if opts.diffsplit then
-    vim.validate({
-      ['diffsplit.enabled'] = { opts.diffsplit.enabled, 'boolean', true },
-    })
-  end
 
   if opts.treesitter then
     vim.validate({
