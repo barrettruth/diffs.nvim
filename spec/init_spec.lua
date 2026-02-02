@@ -27,7 +27,6 @@ describe('fugitive-ts', function()
           conceal_prefixes = false,
           highlights = {
             treesitter = true,
-            headers = false,
             background = true,
             linenr = true,
             vim = false,

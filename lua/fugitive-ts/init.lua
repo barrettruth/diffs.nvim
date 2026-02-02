@@ -1,6 +1,5 @@
 ---@class fugitive-ts.Highlights
 ---@field treesitter boolean
----@field headers boolean
 ---@field background boolean
 ---@field linenr boolean
 ---@field vim boolean
@@ -37,7 +36,6 @@ local default_config = {
   conceal_prefixes = true,
   highlights = {
     treesitter = true,
-    headers = true,
     background = true,
     linenr = true,
     vim = false,
@@ -173,7 +171,6 @@ function M.setup(opts)
   if opts.highlights then
     vim.validate({
       ['highlights.treesitter'] = { opts.highlights.treesitter, 'boolean', true },
-      ['highlights.headers'] = { opts.highlights.headers, 'boolean', true },
       ['highlights.background'] = { opts.highlights.background, 'boolean', true },
       ['highlights.linenr'] = { opts.highlights.linenr, 'boolean', true },
       ['highlights.vim'] = { opts.highlights.vim, 'boolean', true },

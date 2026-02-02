@@ -35,7 +35,6 @@ describe('highlight', function()
         conceal_prefixes = false,
         highlights = {
           treesitter = true,
-          headers = false,
           background = false,
           linenr = false,
           vim = false,
@@ -164,7 +163,7 @@ describe('highlight', function()
         lines = { ' local x = 1', '+local y = 2' },
       }
 
-      highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ highlights = { headers = true } }))
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
 
       local extmarks = get_extmarks(bufnr)
       local has_header_extmark = false
@@ -178,9 +177,9 @@ describe('highlight', function()
       delete_buffer(bufnr)
     end)
 
-    it('does not highlight header when disabled', function()
+    it('does not highlight header when no header_context', function()
       local bufnr = create_buffer({
-        '@@ -10,3 +10,4 @@ function hello()',
+        '@@ -10,3 +10,4 @@',
         ' local x = 1',
       })
 
@@ -188,8 +187,6 @@ describe('highlight', function()
         filename = 'test.lua',
         lang = 'lua',
         start_line = 1,
-        header_context = 'function hello()',
-        header_context_col = 18,
         lines = { ' local x = 1' },
       }
 
@@ -244,7 +241,7 @@ describe('highlight', function()
       delete_buffer(bufnr)
     end)
 
-    it('applies conceal extmarks when conceal_prefixes enabled', function()
+    it('applies overlay extmarks when conceal_prefixes enabled', function()
       local bufnr = create_buffer({
         '@@ -1,1 +1,2 @@',
         ' local x = 1',
@@ -261,17 +258,17 @@ describe('highlight', function()
       highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ conceal_prefixes = true }))
 
       local extmarks = get_extmarks(bufnr)
-      local conceal_count = 0
+      local overlay_count = 0
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].conceal == '' then
-          conceal_count = conceal_count + 1
+        if mark[4] and mark[4].virt_text_pos == 'overlay' then
+          overlay_count = overlay_count + 1
         end
       end
-      assert.are.equal(2, conceal_count)
+      assert.are.equal(2, overlay_count)
       delete_buffer(bufnr)
     end)
 
-    it('does not apply conceal extmarks when conceal_prefixes disabled', function()
+    it('does not apply overlay extmarks when conceal_prefixes disabled', function()
       local bufnr = create_buffer({
         '@@ -1,1 +1,2 @@',
         ' local x = 1',
@@ -288,13 +285,13 @@ describe('highlight', function()
       highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ conceal_prefixes = false }))
 
       local extmarks = get_extmarks(bufnr)
-      local conceal_count = 0
+      local overlay_count = 0
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].conceal == '' then
-          conceal_count = conceal_count + 1
+        if mark[4] and mark[4].virt_text_pos == 'overlay' then
+          overlay_count = overlay_count + 1
         end
       end
-      assert.are.equal(0, conceal_count)
+      assert.are.equal(0, overlay_count)
       delete_buffer(bufnr)
     end)
 
