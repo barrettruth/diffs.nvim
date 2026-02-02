@@ -11,7 +11,7 @@
 ---@field disabled_languages string[]
 ---@field debounce_ms integer
 ---@field max_lines_per_hunk integer
----@field conceal_prefixes boolean
+---@field hide_prefix boolean
 ---@field highlights fugitive-ts.Highlights
 
 ---@class fugitive-ts
@@ -25,15 +25,47 @@ local parser = require('fugitive-ts.parser')
 
 local ns = vim.api.nvim_create_namespace('fugitive_ts')
 
+---@param hex integer
+---@param bg_hex integer
+---@param alpha number
+---@return integer
+local function blend_color(hex, bg_hex, alpha)
+  ---@diagnostic disable: undefined-global
+  local r = bit.band(bit.rshift(hex, 16), 0xFF)
+  local g = bit.band(bit.rshift(hex, 8), 0xFF)
+  local b = bit.band(hex, 0xFF)
+
+  local bg_r = bit.band(bit.rshift(bg_hex, 16), 0xFF)
+  local bg_g = bit.band(bit.rshift(bg_hex, 8), 0xFF)
+  local bg_b = bit.band(bg_hex, 0xFF)
+
+  local blend_r = math.floor(r * alpha + bg_r * (1 - alpha))
+  local blend_g = math.floor(g * alpha + bg_g * (1 - alpha))
+  local blend_b = math.floor(b * alpha + bg_b * (1 - alpha))
+
+  return bit.bor(bit.lshift(blend_r, 16), bit.lshift(blend_g, 8), blend_b)
+  ---@diagnostic enable: undefined-global
+end
+
+---@param name string
+---@return table
+local function resolve_hl(name)
+  local hl = vim.api.nvim_get_hl(0, { name = name })
+  while hl.link do
+    hl = vim.api.nvim_get_hl(0, { name = hl.link })
+  end
+  return hl
+end
+
 ---@type fugitive-ts.Config
 local default_config = {
   enabled = true,
   debug = false,
   languages = {},
   disabled_languages = {},
-  debounce_ms = 50,
+  debounce_ms = 0,
   max_lines_per_hunk = 500,
-  conceal_prefixes = true,
+  hide_prefix = false,
   highlights = {
     treesitter = true,
     background = true,
@@ -75,7 +107,7 @@ local function highlight_buffer(bufnr)
   for _, hunk in ipairs(hunks) do
     highlight.highlight_hunk(bufnr, ns, hunk, {
       max_lines = config.max_lines_per_hunk,
-      conceal_prefixes = config.conceal_prefixes,
+      hide_prefix = config.hide_prefix,
       highlights = config.highlights,
     })
   end
@@ -164,7 +196,7 @@ function M.setup(opts)
     disabled_languages = { opts.disabled_languages, 'table', true },
     debounce_ms = { opts.debounce_ms, 'number', true },
     max_lines_per_hunk = { opts.max_lines_per_hunk, 'number', true },
-    conceal_prefixes = { opts.conceal_prefixes, 'boolean', true },
+    hide_prefix = { opts.hide_prefix, 'boolean', true },
     highlights = { opts.highlights, 'table', true },
   })
 
@@ -181,10 +213,25 @@ function M.setup(opts)
   parser.set_debug(config.debug)
   highlight.set_debug(config.debug)
 
+  local normal = vim.api.nvim_get_hl(0, { name = 'Normal' })
   local diff_add = vim.api.nvim_get_hl(0, { name = 'DiffAdd' })
   local diff_delete = vim.api.nvim_get_hl(0, { name = 'DiffDelete' })
-  vim.api.nvim_set_hl(0, 'FugitiveTsAdd', { bg = diff_add.bg })
-  vim.api.nvim_set_hl(0, 'FugitiveTsDelete', { bg = diff_delete.bg })
+  local diff_added = resolve_hl('diffAdded')
+  local diff_removed = resolve_hl('diffRemoved')
+
+  local bg = normal.bg or 0x1e1e2e
+  local add_bg = diff_add.bg or 0x2e4a3a
+  local del_bg = diff_delete.bg or 0x4a2e3a
+  local add_fg = diff_added.fg or diff_add.fg or 0x80c080
+  local del_fg = diff_removed.fg or diff_delete.fg or 0xc08080
+
+  local blended_add = blend_color(add_bg, bg, 0.4)
+  local blended_del = blend_color(del_bg, bg, 0.4)
+
+  vim.api.nvim_set_hl(0, 'FugitiveTsAdd', { bg = blended_add })
+  vim.api.nvim_set_hl(0, 'FugitiveTsDelete', { bg = blended_del })
+  vim.api.nvim_set_hl(0, 'FugitiveTsAddNr', { fg = add_fg, bg = blended_add })
+  vim.api.nvim_set_hl(0, 'FugitiveTsDeleteNr', { fg = del_fg, bg = blended_del })
 end
 
 return M

@@ -32,7 +32,7 @@ describe('highlight', function()
     local function default_opts(overrides)
       local opts = {
         max_lines = 500,
-        conceal_prefixes = false,
+        hide_prefix = false,
         highlights = {
           treesitter = true,
           background = false,
@@ -241,7 +241,7 @@ describe('highlight', function()
       delete_buffer(bufnr)
     end)
 
-    it('applies overlay extmarks when conceal_prefixes enabled', function()
+    it('applies overlay extmarks when hide_prefix enabled', function()
       local bufnr = create_buffer({
         '@@ -1,1 +1,2 @@',
         ' local x = 1',
@@ -255,7 +255,7 @@ describe('highlight', function()
         lines = { ' local x = 1', '+local y = 2' },
       }
 
-      highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ conceal_prefixes = true }))
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ hide_prefix = true }))
 
       local extmarks = get_extmarks(bufnr)
       local overlay_count = 0
@@ -268,7 +268,7 @@ describe('highlight', function()
       delete_buffer(bufnr)
     end)
 
-    it('does not apply overlay extmarks when conceal_prefixes disabled', function()
+    it('does not apply overlay extmarks when hide_prefix disabled', function()
       local bufnr = create_buffer({
         '@@ -1,1 +1,2 @@',
         ' local x = 1',
@@ -282,7 +282,7 @@ describe('highlight', function()
         lines = { ' local x = 1', '+local y = 2' },
       }
 
-      highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ conceal_prefixes = false }))
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ hide_prefix = false }))
 
       local extmarks = get_extmarks(bufnr)
       local overlay_count = 0

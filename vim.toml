@@ -8,6 +8,9 @@ any = true
 [jit]
 any = true
 
+[bit]
+any = true
+
 [assert]
 any = true
 
