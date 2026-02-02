@@ -65,8 +65,9 @@ local function highlight_text(bufnr, ns, hunk, col_offset, text, lang)
 end
 
 ---@class fugitive-ts.HunkOpts
----@field max_lines integer
 ---@field hide_prefix boolean
+---@field treesitter fugitive-ts.TreesitterConfig
+---@field vim fugitive-ts.VimConfig
 ---@field highlights fugitive-ts.Highlights
 
 ---@param bufnr integer
@@ -79,13 +80,14 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     return
   end
 
-  if #hunk.lines > opts.max_lines then
+  local max_lines = opts.treesitter.max_lines
+  if #hunk.lines > max_lines then
     dbg(
       'skipping hunk %s:%d (%d lines > %d max)',
       hunk.filename,
       hunk.start_line,
       #hunk.lines,
-      opts.max_lines
+      max_lines
     )
     return
   end
@@ -120,7 +122,7 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
       pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, extmark_opts)
     end
 
-    if line_len > 1 and opts.highlights.treesitter then
+    if line_len > 1 and opts.treesitter.enabled then
       pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 1, {
         end_col = line_len,
         hl_group = 'Normal',
@@ -129,7 +131,7 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     end
   end
 
-  if not opts.highlights.treesitter then
+  if not opts.treesitter.enabled then
     return
   end
 

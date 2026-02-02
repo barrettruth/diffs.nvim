@@ -42,45 +42,51 @@ CONFIGURATION                                               *fugitive-ts-config*
                              Enable debug logging to |:messages| with
                              `[fugitive-ts]` prefix.
 
-        {languages}          (table<string, string>, default: {})
-                             Custom filename to treesitter language mappings.
-                             Useful for non-standard file extensions.
-                             Example: >lua
-                                 languages = {
-                                   ['.envrc'] = 'bash',
-                                   ['Justfile'] = 'just',
-                                 }
-<
-        {disabled_languages} (string[], default: {})
-                             Treesitter language names to skip highlighting.
-                             Example: >lua
-                                 disabled_languages = { 'markdown', 'text' }
-<
         {debounce_ms}        (integer, default: 0)
                              Debounce delay in milliseconds for re-highlighting
                              after buffer changes. Lower values feel snappier
                              but use more CPU.
 
-        {max_lines_per_hunk} (integer, default: 500)
-                             Skip treesitter highlighting for hunks larger than
-                             this many lines. Prevents lag on massive diffs.
-
-        {hide_prefix}        (boolean, default: true)
+        {hide_prefix}        (boolean, default: false)
                              Hide diff prefixes (`+`/`-`/` `) using virtual
                              text overlay. Makes code appear without the
                              leading diff character. When `highlights.background`
                              is also enabled, the overlay inherits the line's
                              background color.
 
+        {treesitter}         (table, default: see below)
+                             Treesitter highlighting options.
+                             See |fugitive-ts.TreesitterConfig| for fields.
+
+        {vim}                (table, default: see below)
+                             Vim syntax highlighting options (experimental).
+                             See |fugitive-ts.VimConfig| for fields.
+
         {highlights}         (table, default: see below)
                              Controls which highlight features are enabled.
                              See |fugitive-ts.Highlights| for fields.
 
-                                                       *fugitive-ts.Highlights*
-    Highlights table fields: ~
-        {treesitter}         (boolean, default: true)
+                                                *fugitive-ts.TreesitterConfig*
+    Treesitter config fields: ~
+        {enabled}            (boolean, default: true)
                              Apply treesitter syntax highlighting to code.
 
+        {max_lines}          (integer, default: 500)
+                             Skip treesitter highlighting for hunks larger than
+                             this many lines. Prevents lag on massive diffs.
+
+                                                      *fugitive-ts.VimConfig*
+    Vim config fields: ~
+        {enabled}            (boolean, default: false)
+                             Experimental: Use vim syntax highlighting as
+                             fallback when no treesitter parser is available.
+
+        {max_lines}          (integer, default: 200)
+                             Skip vim syntax highlighting for hunks larger than
+                             this many lines.
+
+                                                       *fugitive-ts.Highlights*
+    Highlights table fields: ~
         {background}         (boolean, default: true)
                              Apply background highlighting to `+`/`-` lines
                              using `FugitiveTsAdd`/`FugitiveTsDelete` groups
@@ -90,12 +96,13 @@ CONFIGURATION                                               *fugitive-ts-config*
                              Highlight line numbers with matching colors.
                              Only visible if line numbers are enabled.
 
-        {vim}                (boolean, default: false)
-                             Experimental: Use vim syntax highlighting as
-                             fallback when no treesitter parser is available.
-
     Note: Header context (e.g., `@@ -10,3 +10,4 @@ func()`) is always
     highlighted with treesitter when a parser is available.
+
+    Language detection uses Neovim's built-in |vim.filetype.match()| and
+    |vim.treesitter.language.get_lang()|. To customize filetype detection
+    or register treesitter parsers for custom filetypes, use
+    |vim.filetype.add()| and |vim.treesitter.language.register()|.
 
 ==============================================================================
 API                                                            *fugitive-ts-api*
