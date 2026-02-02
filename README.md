@@ -2,7 +2,7 @@
 
 Treesitter syntax highlighting for vim-fugitive.
 
-https://github.com/user-attachments/assets/placeholder
+https://github.com/user-attachments/assets/90463492-76e4-44c2-a095-057a087c3a36
 
 ## Features
 
