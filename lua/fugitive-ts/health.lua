@@ -31,14 +31,6 @@ function M.check()
       table.insert(missing, lang)
     end
   end
-
-  if #available > 0 then
-    vim.health.ok('Treesitter parsers available: ' .. table.concat(available, ', '))
-  end
-
-  if #missing > 0 then
-    vim.health.info('Treesitter parsers not installed: ' .. table.concat(missing, ', '))
-  end
 end
 
 return M
