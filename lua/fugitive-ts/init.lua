@@ -30,6 +30,7 @@ local ns = vim.api.nvim_create_namespace('fugitive_ts')
 ---@param alpha number
 ---@return integer
 local function blend_color(hex, bg_hex, alpha)
+  ---@diagnostic disable: undefined-global
   local r = bit.band(bit.rshift(hex, 16), 0xFF)
   local g = bit.band(bit.rshift(hex, 8), 0xFF)
   local b = bit.band(hex, 0xFF)
@@ -43,6 +44,7 @@ local function blend_color(hex, bg_hex, alpha)
   local blend_b = math.floor(b * alpha + bg_b * (1 - alpha))
 
   return bit.bor(bit.lshift(blend_r, 16), bit.lshift(blend_g, 8), blend_b)
+  ---@diagnostic enable: undefined-global
 end
 
 ---@param name string
