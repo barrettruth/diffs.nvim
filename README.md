@@ -41,6 +41,14 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 :help fugitive-ts.nvim
 ```
 
+## Known Limitations
+
+- Syntax "flashing": `fugitive-ts.nvim` hooks into the `FileType fugitive` event
+  triggered by `vim-fugitive`, at which point the `fugitive` buffer is
+  preliminarily painted. The buffer is then re-painted after `debounce_ms`
+  milliseconds, causing an unavoidable visual "flash" even when
+  `debounce_ms = 0`. Feel free to reach out if you know how to fix this!
+
 ## Acknowledgements
 
 - [vim-fugitive](https://github.com/tpope/vim-fugitive)
