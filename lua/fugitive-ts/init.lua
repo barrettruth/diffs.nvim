@@ -63,12 +63,11 @@ end
 ---@param bufnr integer
 ---@return fun()
 local function create_debounced_highlight(bufnr)
-  ---@type uv_timer_t?
   local timer = nil
   return function()
     if timer then
-      timer:stop()
-      timer:close()
+      timer:stop() ---@diagnostic disable-line: undefined-field
+      timer:close() ---@diagnostic disable-line: undefined-field
     end
     timer = vim.uv.new_timer()
     timer:start(

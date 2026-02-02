@@ -14,4 +14,4 @@ repos:
     hooks:
       - id: prettier
         name: prettier
-        files: \.(md|,toml,yaml,sh)$
+        files: \.(md|toml|yaml|sh)$
