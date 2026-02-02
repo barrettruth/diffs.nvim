@@ -26,19 +26,8 @@ local function dbg(msg, ...)
 end
 
 ---@param filename string
----@param custom_langs? table<string, string>
----@param disabled_langs? string[]
 ---@return string?
-local function get_lang_from_filename(filename, custom_langs, disabled_langs)
-  if custom_langs and custom_langs[filename] then
-    local lang = custom_langs[filename]
-    if disabled_langs and vim.tbl_contains(disabled_langs, lang) then
-      dbg('lang disabled: %s', lang)
-      return nil
-    end
-    return lang
-  end
-
+local function get_lang_from_filename(filename)
   local ft = vim.filetype.match({ filename = filename })
   if not ft then
     dbg('no filetype for: %s', filename)
@@ -47,10 +36,6 @@ local function get_lang_from_filename(filename, custom_langs, disabled_langs)
 
   local lang = vim.treesitter.language.get_lang(ft)
   if lang then
-    if disabled_langs and vim.tbl_contains(disabled_langs, lang) then
-      dbg('lang disabled: %s', lang)
-      return nil
-    end
     local ok = pcall(vim.treesitter.language.inspect, lang)
     if ok then
       return lang
@@ -64,10 +49,8 @@ local function get_lang_from_filename(filename, custom_langs, disabled_langs)
 end
 
 ---@param bufnr integer
----@param custom_langs? table<string, string>
----@param disabled_langs? string[]
 ---@return fugitive-ts.Hunk[]
-function M.parse_buffer(bufnr, custom_langs, disabled_langs)
+function M.parse_buffer(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   ---@type fugitive-ts.Hunk[]
   local hunks = {}
@@ -107,7 +90,7 @@ function M.parse_buffer(bufnr, custom_langs, disabled_langs)
     if filename then
       flush_hunk()
       current_filename = filename
-      current_lang = get_lang_from_filename(filename, custom_langs, disabled_langs)
+      current_lang = get_lang_from_filename(filename)
       if current_lang then
         dbg('file: %s -> lang: %s', filename, current_lang)
       end

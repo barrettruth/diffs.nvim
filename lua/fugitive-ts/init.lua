@@ -1,17 +1,22 @@
 ---@class fugitive-ts.Highlights
----@field treesitter boolean
 ---@field background boolean
 ---@field gutter boolean
----@field vim boolean
+
+---@class fugitive-ts.TreesitterConfig
+---@field enabled boolean
+---@field max_lines integer
+
+---@class fugitive-ts.VimConfig
+---@field enabled boolean
+---@field max_lines integer
 
 ---@class fugitive-ts.Config
 ---@field enabled boolean
 ---@field debug boolean
----@field languages table<string, string>
----@field disabled_languages string[]
 ---@field debounce_ms integer
----@field max_lines_per_hunk integer
 ---@field hide_prefix boolean
+---@field treesitter fugitive-ts.TreesitterConfig
+---@field vim fugitive-ts.VimConfig
 ---@field highlights fugitive-ts.Highlights
 
 ---@class fugitive-ts
@@ -61,16 +66,19 @@ end
 local default_config = {
   enabled = true,
   debug = false,
-  languages = {},
-  disabled_languages = {},
   debounce_ms = 0,
-  max_lines_per_hunk = 500,
   hide_prefix = false,
+  treesitter = {
+    enabled = true,
+    max_lines = 500,
+  },
+  vim = {
+    enabled = false,
+    max_lines = 200,
+  },
   highlights = {
-    treesitter = true,
     background = true,
     gutter = true,
-    vim = false,
   },
 }
 
@@ -102,12 +110,13 @@ local function highlight_buffer(bufnr)
 
   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
 
-  local hunks = parser.parse_buffer(bufnr, config.languages, config.disabled_languages)
+  local hunks = parser.parse_buffer(bufnr)
   dbg('found %d hunks in buffer %d', #hunks, bufnr)
   for _, hunk in ipairs(hunks) do
     highlight.highlight_hunk(bufnr, ns, hunk, {
-      max_lines = config.max_lines_per_hunk,
       hide_prefix = config.hide_prefix,
+      treesitter = config.treesitter,
+      vim = config.vim,
       highlights = config.highlights,
     })
   end
@@ -192,20 +201,31 @@ function M.setup(opts)
   vim.validate({
     enabled = { opts.enabled, 'boolean', true },
     debug = { opts.debug, 'boolean', true },
-    languages = { opts.languages, 'table', true },
-    disabled_languages = { opts.disabled_languages, 'table', true },
     debounce_ms = { opts.debounce_ms, 'number', true },
-    max_lines_per_hunk = { opts.max_lines_per_hunk, 'number', true },
     hide_prefix = { opts.hide_prefix, 'boolean', true },
+    treesitter = { opts.treesitter, 'table', true },
+    vim = { opts.vim, 'table', true },
     highlights = { opts.highlights, 'table', true },
   })
 
+  if opts.treesitter then
+    vim.validate({
+      ['treesitter.enabled'] = { opts.treesitter.enabled, 'boolean', true },
+      ['treesitter.max_lines'] = { opts.treesitter.max_lines, 'number', true },
+    })
+  end
+
+  if opts.vim then
+    vim.validate({
+      ['vim.enabled'] = { opts.vim.enabled, 'boolean', true },
+      ['vim.max_lines'] = { opts.vim.max_lines, 'number', true },
+    })
+  end
+
   if opts.highlights then
     vim.validate({
-      ['highlights.treesitter'] = { opts.highlights.treesitter, 'boolean', true },
       ['highlights.background'] = { opts.highlights.background, 'boolean', true },
       ['highlights.gutter'] = { opts.highlights.gutter, 'boolean', true },
-      ['highlights.vim'] = { opts.highlights.vim, 'boolean', true },
     })
   end
 
