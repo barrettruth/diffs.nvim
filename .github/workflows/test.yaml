@@ -19,4 +19,4 @@ jobs:
 
       - uses: nvim-neorocks/nvim-busted-action@v1
         with:
-          nvim-version: ${{ matrix.nvim }}
+          nvim_version: ${{ matrix.nvim }}

@@ -1,6 +1,15 @@
-vim.cmd([[set runtimepath=$VIMRUNTIME]])
-vim.opt.runtimepath:append(vim.fn.getcwd())
+local plugin_dir = vim.fn.getcwd()
+vim.opt.runtimepath:prepend(plugin_dir)
 vim.opt.packpath = {}
+
+local function ensure_parser(lang)
+  local ok = pcall(vim.treesitter.language.inspect, lang)
+  if not ok then
+    error('Treesitter parser for ' .. lang .. ' not available. Neovim 0.10+ bundles lua parser.')
+  end
+end
+
+ensure_parser('lua')
 
 local M = {}
 
