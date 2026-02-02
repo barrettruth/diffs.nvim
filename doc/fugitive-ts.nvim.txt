@@ -10,6 +10,14 @@ fugitive-ts.nvim adds treesitter-based syntax highlighting to vim-fugitive
 diff views. It overlays language-aware highlights on top of fugitive's
 default regex-based diff highlighting.
 
+Features: ~
+- Syntax highlighting in |:Git| summary diffs and commit detail views
+- Syntax highlighting in |:Gdiffsplit| / |:Gvdiffsplit| side-by-side diffs
+- Vim syntax fallback for languages without a treesitter parser
+- Blended diff background colors that preserve syntax visibility
+- Optional diff prefix (`+`/`-`/` `) concealment
+- Gutter (line number) highlighting
+
 ==============================================================================
 REQUIREMENTS                                          *fugitive-ts-requirements*
 
@@ -148,18 +156,30 @@ refresh({bufnr})                                       *fugitive-ts.refresh()*
 ==============================================================================
 IMPLEMENTATION                                    *fugitive-ts-implementation*
 
-1. The `FileType fugitive` autocmd triggers |fugitive-ts.attach()|
-2. The buffer is parsed to detect file headers (`M path/to/file.lua`) and
-   hunk headers (`@@ -10,3 +10,4 @@`)
+Summary / commit detail views: ~
+1. `FileType fugitive` or `FileType git` (for `fugitive://` buffers)
+   triggers |fugitive-ts.attach()|
+2. The buffer is parsed to detect file headers (`M path/to/file`,
+   `diff --git a/... b/...`) and hunk headers (`@@ -10,3 +10,4 @@`)
 3. For each hunk:
    - Language is detected from the filename using |vim.filetype.match()|
    - Diff prefixes (`+`/`-`/` `) are stripped from code lines
    - Code is parsed with |vim.treesitter.get_string_parser()|
+   - If no treesitter parser and `vim.enabled`: vim syntax fallback via
+     scratch buffer and |synID()|
    - Background extmarks (`FugitiveTsAdd`/`FugitiveTsDelete`) at priority 198
    - `Normal` extmarks at priority 199 clear underlying diff foreground
-   - Treesitter highlights are applied as extmarks at priority 200
+   - Syntax highlights are applied as extmarks at priority 200
    - Conceal extmarks hide diff prefixes when `hide_prefix` is enabled
 4. Re-highlighting occurs on `TextChanged` (debounced) and `Syntax` events
+
+Diffsplit views: ~
+1. `OptionSet diff` detects when a window enters diff mode
+2. If any `&diff` window in the tabpage contains a `fugitive://` buffer,
+   all `&diff` windows receive a window-local 'winhighlight' override
+3. The override remaps `DiffAdd`/`DiffDelete`/`DiffChange`/`DiffText` to
+   background-only variants, allowing existing treesitter highlighting to
+   show through the diff colors
 
 ==============================================================================
 KNOWN LIMITATIONS                                   *fugitive-ts-limitations*
