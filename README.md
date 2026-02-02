@@ -4,7 +4,9 @@ Treesitter syntax highlighting for vim-fugitive diff views.
 
 ## Problem
 
-vim-fugitive uses regex-based `syntax/diff.vim` for highlighting expanded diffs in the status buffer. This means code inside diffs has no language-aware highlighting:
+vim-fugitive uses regex-based `syntax/diff.vim` for highlighting expanded diffs
+in the status buffer. This means code inside diffs has no language-aware
+highlighting:
 
 ```
 Unstaged (1)
@@ -17,7 +19,9 @@ M lua/mymodule.lua
 
 ## Solution
 
-Hook into fugitive's buffer, detect diff hunks, extract the language from filenames, and apply treesitter highlights as extmarks on top of fugitive's existing highlighting.
+Hook into fugitive's buffer, detect diff hunks, extract the language from
+filenames, and apply treesitter highlights as extmarks on top of fugitive's
+existing highlighting.
 
 ```
 Unstaged (1)
@@ -66,6 +70,7 @@ Staged (N)
 ```
 
 Pattern to detect:
+
 - Filename: `^[MADRC?] .+%.(%w+)$` → captures extension
 - Hunk header: `^@@ .+ @@`
 - Code lines: after hunk header, lines starting with ` `, `+`, or `-`
@@ -154,7 +159,8 @@ end
 
 ### 6. Re-highlight on Buffer Change
 
-Fugitive modifies the buffer when user expands/collapses diffs. Need to re-parse:
+Fugitive modifies the buffer when user expands/collapses diffs. Need to
+re-parse:
 
 ```lua
 vim.api.nvim_create_autocmd({"TextChanged", "TextChangedI"}, {
@@ -226,5 +232,5 @@ require("fugitive-ts").setup({
 
 - [Neovim Treesitter API](https://neovim.io/doc/user/treesitter.html)
 - [vim-fugitive User events](https://github.com/tpope/vim-fugitive/blob/master/doc/fugitive.txt)
-- [nvim_buf_set_extmark](https://neovim.io/doc/user/api.html#nvim_buf_set_extmark())
-- [vim.treesitter.get_string_parser](https://neovim.io/doc/user/treesitter.html#vim.treesitter.get_string_parser())
+- [nvim_buf_set_extmark](<https://neovim.io/doc/user/api.html#nvim_buf_set_extmark()>)
+- [vim.treesitter.get_string_parser](<https://neovim.io/doc/user/treesitter.html#vim.treesitter.get_string_parser()>)
