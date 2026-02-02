@@ -183,6 +183,11 @@ function M.setup(opts)
   config = vim.tbl_deep_extend('force', default_config, opts)
   parser.set_debug(config.debug)
   highlight.set_debug(config.debug)
+
+  local diff_add = vim.api.nvim_get_hl(0, { name = 'DiffAdd' })
+  local diff_delete = vim.api.nvim_get_hl(0, { name = 'DiffDelete' })
+  vim.api.nvim_set_hl(0, 'FugitiveTsAdd', { bg = diff_add.bg })
+  vim.api.nvim_set_hl(0, 'FugitiveTsDelete', { bg = diff_delete.bg })
 end
 
 return M
