@@ -123,7 +123,7 @@ function M.attach(bufnr)
   dbg('attaching to buffer %d', bufnr)
 
   if config.hide_prefix then
-    vim.api.nvim_set_option_value('conceallevel', 2, { win = 0 })
+    vim.api.nvim_set_option_value('conceallevel', 1, { win = 0 })
   end
 
   local debounced = create_debounced_highlight(bufnr)
