@@ -1,0 +1,9 @@
+return {
+  _all = {
+    lua = 'nvim -l',
+    ROOT = { './spec/' },
+  },
+  default = {
+    verbose = true,
+  },
+}

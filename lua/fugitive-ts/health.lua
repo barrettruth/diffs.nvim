@@ -15,30 +15,6 @@ function M.check()
   else
     vim.health.warn('vim-fugitive not detected (required for this plugin to be useful)')
   end
-
-  ---@type string[]
-  local common_langs = { 'lua', 'python', 'javascript', 'typescript', 'rust', 'go', 'c', 'cpp' }
-  ---@type string[]
-  local available = {}
-  ---@type string[]
-  local missing = {}
-
-  for _, lang in ipairs(common_langs) do
-    local ok = pcall(vim.treesitter.language.inspect, lang)
-    if ok then
-      table.insert(available, lang)
-    else
-      table.insert(missing, lang)
-    end
-  end
-
-  if #available > 0 then
-    vim.health.ok('Treesitter parsers available: ' .. table.concat(available, ', '))
-  end
-
-  if #missing > 0 then
-    vim.health.info('Treesitter parsers not installed: ' .. table.concat(missing, ', '))
-  end
 end
 
 return M

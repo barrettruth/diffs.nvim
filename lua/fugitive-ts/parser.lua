@@ -22,7 +22,14 @@ end
 ---@return string?
 local function get_lang_from_filename(filename, custom_langs, disabled_langs, debug)
   if custom_langs and custom_langs[filename] then
-    return custom_langs[filename]
+    local lang = custom_langs[filename]
+    if disabled_langs and vim.tbl_contains(disabled_langs, lang) then
+      if debug then
+        dbg('lang disabled: %s', lang)
+      end
+      return nil
+    end
+    return lang
   end
 
   local ft = vim.filetype.match({ filename = filename })
