@@ -62,6 +62,10 @@ CONFIGURATION                                               *fugitive-ts-config*
                              Vim syntax highlighting options (experimental).
                              See |fugitive-ts.VimConfig| for fields.
 
+        {diffsplit}           (table, default: see below)
+                             Diffsplit highlighting options.
+                             See |fugitive-ts.DiffsplitConfig| for fields.
+
         {highlights}         (table, default: see below)
                              Controls which highlight features are enabled.
                              See |fugitive-ts.Highlights| for fields.
@@ -89,6 +93,15 @@ CONFIGURATION                                               *fugitive-ts-config*
                              Skip vim syntax highlighting for hunks larger than
                              this many lines. Lower than the treesitter default
                              due to the per-character cost of |synID()|.
+
+                                                 *fugitive-ts.DiffsplitConfig*
+    Diffsplit config fields: ~
+        {enabled}            (boolean, default: true)
+                             Override diff highlight foreground colors in
+                             |:Gdiffsplit| and |:Gvdiffsplit| windows so
+                             treesitter syntax is visible through the diff
+                             backgrounds. Uses window-local 'winhighlight'
+                             and only applies to fugitive-owned buffers.
 
                                                        *fugitive-ts.Highlights*
     Highlights table fields: ~
