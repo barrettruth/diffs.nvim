@@ -155,7 +155,7 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
         line_hl_group = line_hl,
         priority = 198,
       }
-      if opts.highlights.linenr then
+      if opts.highlights.gutter then
         extmark_opts.number_hl_group = line_hl
       end
       pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, extmark_opts)
