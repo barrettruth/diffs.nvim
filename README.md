@@ -1,8 +1,8 @@
 # fugitive-ts.nvim
 
-Treesitter syntax highlighting for vim-fugitive.
+Treesitter syntax highlighting for vim-fugitive
 
-https://github.com/user-attachments/assets/90463492-76e4-44c2-a095-057a087c3a36
+![fugitive-ts.nvim preview](https://github.com/user-attachments/assets/90463492-76e4-44c2-a095-057a087c3a36)
 
 ## Features
 
