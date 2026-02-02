@@ -100,7 +100,7 @@ local diff_windows = {}
 
 ---@param bufnr integer
 ---@return boolean
-local function is_fugitive_buffer(bufnr)
+function M.is_fugitive_buffer(bufnr)
   return vim.api.nvim_buf_get_name(bufnr):match('^fugitive://') ~= nil
 end
 
@@ -270,7 +270,7 @@ function M.attach_diff()
     if vim.api.nvim_win_is_valid(win) and vim.wo[win].diff then
       table.insert(diff_wins, win)
       local bufnr = vim.api.nvim_win_get_buf(win)
-      if is_fugitive_buffer(bufnr) then
+      if M.is_fugitive_buffer(bufnr) then
         has_fugitive = true
       end
     end
