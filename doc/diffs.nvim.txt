@@ -194,8 +194,9 @@ To minimize the flash, use a low debounce value: >lua
 ==============================================================================
 HIGHLIGHT GROUPS                                          *diffs-highlights*
 
-diffs.nvim defines custom highlight groups. All are set with `default = true`,
-so colorschemes can override them by defining them first.
+diffs.nvim defines custom highlight groups. Fugitive unified diff groups use
+`default = true`, so colorschemes can override them. Diff mode groups are
+always derived from the corresponding `Diff*` groups.
 
 Fugitive unified diff highlights: ~
                                                                   *DiffsAdd*
@@ -215,20 +216,24 @@ Fugitive unified diff highlights: ~
                         `diffRemoved`, background from `DiffsDelete`.
 
 Diff mode window highlights: ~
-These are background-only variants used for |winhighlight| remapping in
-`&diff` windows, allowing treesitter syntax to show through.
+These are used for |winhighlight| remapping in `&diff` windows.
 
                                                              *DiffsDiffAdd*
-    DiffsDiffAdd        Background-only version of `DiffAdd`.
+    DiffsDiffAdd        Background-only. Derived from `DiffAdd` bg.
+                        Treesitter provides foreground syntax highlighting.
 
                                                           *DiffsDiffDelete*
-    DiffsDiffDelete     Background-only version of `DiffDelete`.
+    DiffsDiffDelete     Foreground and background from `DiffDelete`.
+                        Used for filler lines (`/////`) which have no real
+                        code content to highlight.
 
                                                           *DiffsDiffChange*
-    DiffsDiffChange     Background-only version of `DiffChange`.
+    DiffsDiffChange     Background-only. Derived from `DiffChange` bg.
+                        Treesitter provides foreground syntax highlighting.
 
                                                             *DiffsDiffText*
-    DiffsDiffText       Background-only version of `DiffText`.
+    DiffsDiffText       Background-only. Derived from `DiffText` bg.
+                        Treesitter provides foreground syntax highlighting.
 
 To customize these in your colorscheme: >lua
     vim.api.nvim_set_hl(0, 'DiffsAdd', { bg = '#2e4a3a' })
