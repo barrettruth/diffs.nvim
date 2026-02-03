@@ -533,6 +533,19 @@ describe('highlight', function()
     end)
 
     it('applies vim syntax extmarks when vim.enabled and no TS parser', function()
+      local orig_synID = vim.fn.synID
+      local orig_synIDtrans = vim.fn.synIDtrans
+      local orig_synIDattr = vim.fn.synIDattr
+      vim.fn.synID = function(_line, _col, _trans)
+        return 1
+      end
+      vim.fn.synIDtrans = function(id)
+        return id
+      end
+      vim.fn.synIDattr = function(_id, _what)
+        return 'Identifier'
+      end
+
       local bufnr = create_buffer({
         '@@ -1,1 +1,2 @@',
         ' local x = 1',
@@ -548,6 +561,10 @@ describe('highlight', function()
       }
 
       highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ vim = { enabled = true } }))
+
+      vim.fn.synID = orig_synID
+      vim.fn.synIDtrans = orig_synIDtrans
+      vim.fn.synIDattr = orig_synIDattr
 
       local extmarks = get_extmarks(bufnr)
       local has_syntax_hl = false
@@ -654,6 +671,19 @@ describe('highlight', function()
     end)
 
     it('applies Normal blanking for vim fallback hunks', function()
+      local orig_synID = vim.fn.synID
+      local orig_synIDtrans = vim.fn.synIDtrans
+      local orig_synIDattr = vim.fn.synIDattr
+      vim.fn.synID = function(_line, _col, _trans)
+        return 1
+      end
+      vim.fn.synIDtrans = function(id)
+        return id
+      end
+      vim.fn.synIDattr = function(_id, _what)
+        return 'Identifier'
+      end
+
       local bufnr = create_buffer({
         '@@ -1,1 +1,2 @@',
         ' local x = 1',
@@ -670,6 +700,10 @@ describe('highlight', function()
 
       highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ vim = { enabled = true } }))
 
+      vim.fn.synID = orig_synID
+      vim.fn.synIDtrans = orig_synIDtrans
+      vim.fn.synIDattr = orig_synIDattr
+
       local extmarks = get_extmarks(bufnr)
       local has_normal = false
       for _, mark in ipairs(extmarks) do
@@ -680,6 +714,59 @@ describe('highlight', function()
       end
       assert.is_true(has_normal)
       delete_buffer(bufnr)
+    end)
+  end)
+
+  describe('coalesce_syntax_spans', function()
+    it('coalesces adjacent chars with same hl group', function()
+      local function query_fn(_line, _col)
+        return 1, 'Keyword'
+      end
+      local spans = highlight.coalesce_syntax_spans(query_fn, { 'hello' })
+      assert.are.equal(1, #spans)
+      assert.are.equal(1, spans[1].col_start)
+      assert.are.equal(6, spans[1].col_end)
+      assert.are.equal('Keyword', spans[1].hl_name)
+    end)
+
+    it('splits spans at hl group boundaries', function()
+      local function query_fn(_line, col)
+        if col <= 3 then
+          return 1, 'Keyword'
+        end
+        return 2, 'String'
+      end
+      local spans = highlight.coalesce_syntax_spans(query_fn, { 'abcdef' })
+      assert.are.equal(2, #spans)
+      assert.are.equal('Keyword', spans[1].hl_name)
+      assert.are.equal(1, spans[1].col_start)
+      assert.are.equal(4, spans[1].col_end)
+      assert.are.equal('String', spans[2].hl_name)
+      assert.are.equal(4, spans[2].col_start)
+      assert.are.equal(7, spans[2].col_end)
+    end)
+
+    it('skips syn_id 0 gaps', function()
+      local function query_fn(_line, col)
+        if col == 2 or col == 3 then
+          return 0, ''
+        end
+        return 1, 'Identifier'
+      end
+      local spans = highlight.coalesce_syntax_spans(query_fn, { 'abcd' })
+      assert.are.equal(2, #spans)
+      assert.are.equal(1, spans[1].col_start)
+      assert.are.equal(2, spans[1].col_end)
+      assert.are.equal(4, spans[2].col_start)
+      assert.are.equal(5, spans[2].col_end)
+    end)
+
+    it('skips empty hl_name spans', function()
+      local function query_fn(_line, _col)
+        return 1, ''
+      end
+      local spans = highlight.coalesce_syntax_spans(query_fn, { 'abc' })
+      assert.are.equal(0, #spans)
     end)
   end)
 end)
