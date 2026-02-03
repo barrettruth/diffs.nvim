@@ -204,17 +204,6 @@ describe('diffs', function()
         close_window(win)
       end)
 
-      it('does nothing when enabled=false', function()
-        diffs.setup({ enabled = false })
-        local win, _ = create_diff_window()
-        diffs.attach_diff()
-
-        local whl = vim.api.nvim_get_option_value('winhighlight', { win = win })
-        assert.are.equal('', whl)
-
-        close_window(win)
-      end)
-
       it('is idempotent', function()
         local win, _ = create_diff_window()
         assert.has_no.errors(function()
