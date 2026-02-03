@@ -32,28 +32,25 @@ describe('highlight', function()
     local function default_opts(overrides)
       local opts = {
         hide_prefix = false,
-        treesitter = {
-          enabled = true,
-          max_lines = 500,
-        },
-        vim = {
-          enabled = false,
-          max_lines = 200,
-        },
         highlights = {
           background = false,
           gutter = false,
+          treesitter = {
+            enabled = true,
+            max_lines = 500,
+          },
+          vim = {
+            enabled = false,
+            max_lines = 200,
+          },
         },
       }
       if overrides then
-        for k, v in pairs(overrides) do
-          if type(v) == 'table' and type(opts[k]) == 'table' then
-            for sk, sv in pairs(v) do
-              opts[k][sk] = sv
-            end
-          else
-            opts[k] = v
-          end
+        if overrides.highlights then
+          opts.highlights = vim.tbl_deep_extend('force', opts.highlights, overrides.highlights)
+        end
+        if overrides.hide_prefix ~= nil then
+          opts.hide_prefix = overrides.hide_prefix
         end
       end
       return opts
@@ -484,7 +481,7 @@ describe('highlight', function()
         bufnr,
         ns,
         hunk,
-        default_opts({ treesitter = { enabled = false }, highlights = { background = true } })
+        default_opts({ highlights = { treesitter = { enabled = false }, background = true } })
       )
 
       local extmarks = get_extmarks(bufnr)
@@ -517,7 +514,7 @@ describe('highlight', function()
         bufnr,
         ns,
         hunk,
-        default_opts({ treesitter = { enabled = false }, highlights = { background = true } })
+        default_opts({ highlights = { treesitter = { enabled = false }, background = true } })
       )
 
       local extmarks = get_extmarks(bufnr)
@@ -560,7 +557,12 @@ describe('highlight', function()
         lines = { ' local x = 1', '+local y = 2' },
       }
 
-      highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ vim = { enabled = true } }))
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { vim = { enabled = true } } })
+      )
 
       vim.fn.synID = orig_synID
       vim.fn.synIDtrans = orig_synIDtrans
@@ -593,7 +595,12 @@ describe('highlight', function()
         lines = { ' local x = 1', '+local y = 2' },
       }
 
-      highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ vim = { enabled = false } }))
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { vim = { enabled = false } } })
+      )
 
       local extmarks = get_extmarks(bufnr)
       local has_syntax_hl = false
@@ -628,7 +635,7 @@ describe('highlight', function()
         bufnr,
         ns,
         hunk,
-        default_opts({ vim = { enabled = true, max_lines = 200 } })
+        default_opts({ highlights = { vim = { enabled = true, max_lines = 200 } } })
       )
 
       local extmarks = get_extmarks(bufnr)
@@ -655,7 +662,7 @@ describe('highlight', function()
         bufnr,
         ns,
         hunk,
-        default_opts({ vim = { enabled = true }, highlights = { background = true } })
+        default_opts({ highlights = { vim = { enabled = true }, background = true } })
       )
 
       local extmarks = get_extmarks(bufnr)
@@ -698,7 +705,12 @@ describe('highlight', function()
         lines = { ' local x = 1', '+local y = 2' },
       }
 
-      highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ vim = { enabled = true } }))
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { vim = { enabled = true } } })
+      )
 
       vim.fn.synID = orig_synID
       vim.fn.synIDtrans = orig_synIDtrans

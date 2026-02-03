@@ -1,7 +1,3 @@
----@class diffs.Highlights
----@field background boolean
----@field gutter boolean
-
 ---@class diffs.TreesitterConfig
 ---@field enabled boolean
 ---@field max_lines integer
@@ -10,18 +6,21 @@
 ---@field enabled boolean
 ---@field max_lines integer
 
+---@class diffs.Highlights
+---@field background boolean
+---@field gutter boolean
+---@field treesitter diffs.TreesitterConfig
+---@field vim diffs.VimConfig
+
 ---@class diffs.Config
 ---@field debug boolean
 ---@field debounce_ms integer
 ---@field hide_prefix boolean
----@field treesitter diffs.TreesitterConfig
----@field vim diffs.VimConfig
 ---@field highlights diffs.Highlights
 
 ---@class diffs
 ---@field attach fun(bufnr?: integer)
 ---@field refresh fun(bufnr?: integer)
----@field setup fun(opts?: diffs.Config)
 local M = {}
 
 local highlight = require('diffs.highlight')
@@ -67,22 +66,24 @@ local default_config = {
   debug = false,
   debounce_ms = 0,
   hide_prefix = false,
-  treesitter = {
-    enabled = true,
-    max_lines = 500,
-  },
-  vim = {
-    enabled = false,
-    max_lines = 200,
-  },
   highlights = {
     background = true,
     gutter = true,
+    treesitter = {
+      enabled = true,
+      max_lines = 500,
+    },
+    vim = {
+      enabled = false,
+      max_lines = 200,
+    },
   },
 }
 
 ---@type diffs.Config
 local config = vim.deepcopy(default_config)
+
+local initialized = false
 
 ---@type table<integer, boolean>
 local attached_buffers = {}
@@ -111,8 +112,6 @@ local function highlight_buffer(bufnr)
   for _, hunk in ipairs(hunks) do
     highlight.highlight_hunk(bufnr, ns, hunk, {
       hide_prefix = config.hide_prefix,
-      treesitter = config.treesitter,
-      vim = config.vim,
       highlights = config.highlights,
     })
   end
@@ -148,8 +147,125 @@ local function create_debounced_highlight(bufnr)
   end
 end
 
+local function compute_highlight_groups()
+  local normal = vim.api.nvim_get_hl(0, { name = 'Normal' })
+  local diff_add = vim.api.nvim_get_hl(0, { name = 'DiffAdd' })
+  local diff_delete = vim.api.nvim_get_hl(0, { name = 'DiffDelete' })
+  local diff_added = resolve_hl('diffAdded')
+  local diff_removed = resolve_hl('diffRemoved')
+
+  local bg = normal.bg or 0x1e1e2e
+  local add_bg = diff_add.bg or 0x2e4a3a
+  local del_bg = diff_delete.bg or 0x4a2e3a
+  local add_fg = diff_added.fg or diff_add.fg or 0x80c080
+  local del_fg = diff_removed.fg or diff_delete.fg or 0xc08080
+
+  local blended_add = blend_color(add_bg, bg, 0.4)
+  local blended_del = blend_color(del_bg, bg, 0.4)
+
+  vim.api.nvim_set_hl(0, 'DiffsAdd', { default = true, bg = blended_add })
+  vim.api.nvim_set_hl(0, 'DiffsDelete', { default = true, bg = blended_del })
+  vim.api.nvim_set_hl(0, 'DiffsAddNr', { default = true, fg = add_fg, bg = blended_add })
+  vim.api.nvim_set_hl(0, 'DiffsDeleteNr', { default = true, fg = del_fg, bg = blended_del })
+
+  local diff_change = resolve_hl('DiffChange')
+  local diff_text = resolve_hl('DiffText')
+
+  vim.api.nvim_set_hl(0, 'DiffsDiffAdd', { bg = diff_add.bg })
+  vim.api.nvim_set_hl(0, 'DiffsDiffDelete', { fg = diff_delete.fg, bg = diff_delete.bg })
+  vim.api.nvim_set_hl(0, 'DiffsDiffChange', { bg = diff_change.bg })
+  vim.api.nvim_set_hl(0, 'DiffsDiffText', { bg = diff_text.bg })
+end
+
+local function init()
+  if initialized then
+    return
+  end
+  initialized = true
+
+  local opts = vim.g.diffs or {}
+
+  vim.validate({
+    debug = { opts.debug, 'boolean', true },
+    debounce_ms = { opts.debounce_ms, 'number', true },
+    hide_prefix = { opts.hide_prefix, 'boolean', true },
+    highlights = { opts.highlights, 'table', true },
+  })
+
+  if opts.highlights then
+    vim.validate({
+      ['highlights.background'] = { opts.highlights.background, 'boolean', true },
+      ['highlights.gutter'] = { opts.highlights.gutter, 'boolean', true },
+      ['highlights.treesitter'] = { opts.highlights.treesitter, 'table', true },
+      ['highlights.vim'] = { opts.highlights.vim, 'table', true },
+    })
+
+    if opts.highlights.treesitter then
+      vim.validate({
+        ['highlights.treesitter.enabled'] = { opts.highlights.treesitter.enabled, 'boolean', true },
+        ['highlights.treesitter.max_lines'] = {
+          opts.highlights.treesitter.max_lines,
+          'number',
+          true,
+        },
+      })
+    end
+
+    if opts.highlights.vim then
+      vim.validate({
+        ['highlights.vim.enabled'] = { opts.highlights.vim.enabled, 'boolean', true },
+        ['highlights.vim.max_lines'] = { opts.highlights.vim.max_lines, 'number', true },
+      })
+    end
+  end
+
+  if opts.debounce_ms and opts.debounce_ms < 0 then
+    error('diffs: debounce_ms must be >= 0')
+  end
+  if
+    opts.highlights
+    and opts.highlights.treesitter
+    and opts.highlights.treesitter.max_lines
+    and opts.highlights.treesitter.max_lines < 1
+  then
+    error('diffs: highlights.treesitter.max_lines must be >= 1')
+  end
+  if
+    opts.highlights
+    and opts.highlights.vim
+    and opts.highlights.vim.max_lines
+    and opts.highlights.vim.max_lines < 1
+  then
+    error('diffs: highlights.vim.max_lines must be >= 1')
+  end
+
+  config = vim.tbl_deep_extend('force', default_config, opts)
+  log.set_enabled(config.debug)
+
+  compute_highlight_groups()
+
+  vim.api.nvim_create_autocmd('ColorScheme', {
+    callback = function()
+      compute_highlight_groups()
+      for bufnr, _ in pairs(attached_buffers) do
+        highlight_buffer(bufnr)
+      end
+    end,
+  })
+
+  vim.api.nvim_create_autocmd('WinClosed', {
+    callback = function(args)
+      local win = tonumber(args.match)
+      if win and diff_windows[win] then
+        diff_windows[win] = nil
+      end
+    end,
+  })
+end
+
 ---@param bufnr? integer
 function M.attach(bufnr)
+  init()
   bufnr = bufnr or vim.api.nvim_get_current_buf()
 
   if attached_buffers[bufnr] then
@@ -198,36 +314,6 @@ function M.refresh(bufnr)
   highlight_buffer(bufnr)
 end
 
-local function compute_highlight_groups()
-  local normal = vim.api.nvim_get_hl(0, { name = 'Normal' })
-  local diff_add = vim.api.nvim_get_hl(0, { name = 'DiffAdd' })
-  local diff_delete = vim.api.nvim_get_hl(0, { name = 'DiffDelete' })
-  local diff_added = resolve_hl('diffAdded')
-  local diff_removed = resolve_hl('diffRemoved')
-
-  local bg = normal.bg or 0x1e1e2e
-  local add_bg = diff_add.bg or 0x2e4a3a
-  local del_bg = diff_delete.bg or 0x4a2e3a
-  local add_fg = diff_added.fg or diff_add.fg or 0x80c080
-  local del_fg = diff_removed.fg or diff_delete.fg or 0xc08080
-
-  local blended_add = blend_color(add_bg, bg, 0.4)
-  local blended_del = blend_color(del_bg, bg, 0.4)
-
-  vim.api.nvim_set_hl(0, 'DiffsAdd', { default = true, bg = blended_add })
-  vim.api.nvim_set_hl(0, 'DiffsDelete', { default = true, bg = blended_del })
-  vim.api.nvim_set_hl(0, 'DiffsAddNr', { default = true, fg = add_fg, bg = blended_add })
-  vim.api.nvim_set_hl(0, 'DiffsDeleteNr', { default = true, fg = del_fg, bg = blended_del })
-
-  local diff_change = resolve_hl('DiffChange')
-  local diff_text = resolve_hl('DiffText')
-
-  vim.api.nvim_set_hl(0, 'DiffsDiffAdd', { bg = diff_add.bg })
-  vim.api.nvim_set_hl(0, 'DiffsDiffDelete', { fg = diff_delete.fg, bg = diff_delete.bg })
-  vim.api.nvim_set_hl(0, 'DiffsDiffChange', { bg = diff_change.bg })
-  vim.api.nvim_set_hl(0, 'DiffsDiffText', { bg = diff_text.bg })
-end
-
 local DIFF_WINHIGHLIGHT = table.concat({
   'DiffAdd:DiffsDiffAdd',
   'DiffDelete:DiffsDiffDelete',
@@ -236,6 +322,7 @@ local DIFF_WINHIGHLIGHT = table.concat({
 }, ',')
 
 function M.attach_diff()
+  init()
   local tabpage = vim.api.nvim_get_current_tabpage()
   local wins = vim.api.nvim_tabpage_list_wins(tabpage)
 
@@ -265,74 +352,6 @@ function M.detach_diff()
     end
     diff_windows[win] = nil
   end
-end
-
----@param opts? diffs.Config
-function M.setup(opts)
-  opts = opts or {}
-
-  vim.validate({
-    debug = { opts.debug, 'boolean', true },
-    debounce_ms = { opts.debounce_ms, 'number', true },
-    hide_prefix = { opts.hide_prefix, 'boolean', true },
-    treesitter = { opts.treesitter, 'table', true },
-    vim = { opts.vim, 'table', true },
-    highlights = { opts.highlights, 'table', true },
-  })
-
-  if opts.treesitter then
-    vim.validate({
-      ['treesitter.enabled'] = { opts.treesitter.enabled, 'boolean', true },
-      ['treesitter.max_lines'] = { opts.treesitter.max_lines, 'number', true },
-    })
-  end
-
-  if opts.vim then
-    vim.validate({
-      ['vim.enabled'] = { opts.vim.enabled, 'boolean', true },
-      ['vim.max_lines'] = { opts.vim.max_lines, 'number', true },
-    })
-  end
-
-  if opts.highlights then
-    vim.validate({
-      ['highlights.background'] = { opts.highlights.background, 'boolean', true },
-      ['highlights.gutter'] = { opts.highlights.gutter, 'boolean', true },
-    })
-  end
-
-  if opts.debounce_ms and opts.debounce_ms < 0 then
-    error('diffs: debounce_ms must be >= 0')
-  end
-  if opts.treesitter and opts.treesitter.max_lines and opts.treesitter.max_lines < 1 then
-    error('diffs: treesitter.max_lines must be >= 1')
-  end
-  if opts.vim and opts.vim.max_lines and opts.vim.max_lines < 1 then
-    error('diffs: vim.max_lines must be >= 1')
-  end
-
-  config = vim.tbl_deep_extend('force', default_config, opts)
-  log.set_enabled(config.debug)
-
-  compute_highlight_groups()
-
-  vim.api.nvim_create_autocmd('ColorScheme', {
-    callback = function()
-      compute_highlight_groups()
-      for bufnr, _ in pairs(attached_buffers) do
-        highlight_buffer(bufnr)
-      end
-    end,
-  })
-
-  vim.api.nvim_create_autocmd('WinClosed', {
-    callback = function(args)
-      local win = tonumber(args.match)
-      if win and diff_windows[win] then
-        diff_windows[win] = nil
-      end
-    end,
-  })
 end
 
 return M
