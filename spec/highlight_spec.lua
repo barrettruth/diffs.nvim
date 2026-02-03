@@ -6,7 +6,7 @@ describe('highlight', function()
     local ns
 
     before_each(function()
-      ns = vim.api.nvim_create_namespace('fugitive_ts_test')
+      ns = vim.api.nvim_create_namespace('diffs_test')
       local diff_add = vim.api.nvim_get_hl(0, { name = 'DiffAdd' })
       local diff_delete = vim.api.nvim_get_hl(0, { name = 'DiffDelete' })
       vim.api.nvim_set_hl(0, 'DiffsAdd', { bg = diff_add.bg })
