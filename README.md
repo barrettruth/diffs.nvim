@@ -2,8 +2,8 @@
 
 **Syntax highlighting for diffs in Neovim**
 
-Enhance vim-fugitive and Neovim's built-in diff mode with language-aware syntax
-highlighting.
+Enhance `vim-fugitive` and Neovim's built-in diff mode with language-aware
+syntax highlighting.
 
 ![diffs.nvim preview](https://github.com/user-attachments/assets/d3d64c96-b824-4fcb-af7f-4aef3f7f498a)
 
@@ -19,7 +19,7 @@ highlighting.
 ## Requirements
 
 - Neovim 0.9.0+
-- [vim-fugitive](https://github.com/tpope/vim-fugitive) (optional, for unified
+- [`vim-fugitive`](https://github.com/tpope/vim-fugitive) (optional, for unified
   diff syntax highlighting)
 
 ## Installation
@@ -39,14 +39,25 @@ luarocks install diffs.nvim
 
 ## Known Limitations
 
-- `vim-fugitive` syntax "flashing": diffs.nvim hooks into the
-  `FileType fugitive` event triggered by vim-fugitive, at which point the buffer
-  is preliminarily painted. The buffer is then re-painted after `debounce_ms`
-  milliseconds, causing an unavoidable visual "flash" even when
-  `debounce_ms = 0`.
+- **Syntax flashing**: `diffs.nvim` hooks into the `FileType fugitive` event
+  triggered by `vim-fugitive`, at which point the buffer is preliminarily
+  painted. The buffer is then re-painted after `debounce_ms` milliseconds,
+  causing an unavoidable visual "flash" even when `debounce_ms = 0`.
+
+- **Conflicting diff plugins**: `diffs.nvim` may not interact well with other
+  plugins that modify diff highlighting. Known plugins that may conflict:
+  - [`diffview.nvim`](https://github.com/sindrets/diffview.nvim) - provides its
+    own diff highlighting and conflict resolution UI
+  - [`mini.diff`](https://github.com/echasnovski/mini.diff) - visualizes buffer
+    differences with its own highlighting system
+  - [`gitsigns.nvim`](https://github.com/lewis6991/gitsigns.nvim) - generally
+    compatible, but both plugins modifying line highlights may produce
+    unexpected results
+  - [`git-conflict.nvim`](https://github.com/akinsho/git-conflict.nvim) -
+    conflict marker highlighting may overlap with `diffs.nvim`
 
 # Acknowledgements
 
-- [vim-fugitive](https://github.com/tpope/vim-fugitive)
-- [codediff.nvim](https://github.com/esmuellert/codediff.nvim)
-- [diffview.nvim](https://github.com/sindrets/diffview.nvim)
+- [`vim-fugitive`](https://github.com/tpope/vim-fugitive)
+- [`codediff.nvim`](https://github.com/esmuellert/codediff.nvim)
+- [`diffview.nvim`](https://github.com/sindrets/diffview.nvim)
