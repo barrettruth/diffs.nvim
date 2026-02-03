@@ -125,6 +125,47 @@ local function highlight_treesitter(bufnr, ns, hunk, code_lines)
   return extmark_count
 end
 
+---@alias fugitive-ts.SyntaxQueryFn fun(line: integer, col: integer): integer, string
+
+---@param query_fn fugitive-ts.SyntaxQueryFn
+---@param code_lines string[]
+---@return {line: integer, col_start: integer, col_end: integer, hl_name: string}[]
+function M.coalesce_syntax_spans(query_fn, code_lines)
+  local spans = {}
+  for i, line in ipairs(code_lines) do
+    local col = 1
+    local line_len = #line
+
+    while col <= line_len do
+      local syn_id, hl_name = query_fn(i, col)
+      if syn_id == 0 then
+        col = col + 1
+      else
+        local span_start = col
+
+        col = col + 1
+        while col <= line_len do
+          local next_id, next_name = query_fn(i, col)
+          if next_id == 0 or next_name ~= hl_name then
+            break
+          end
+          col = col + 1
+        end
+
+        if hl_name ~= '' then
+          table.insert(spans, {
+            line = i,
+            col_start = span_start,
+            col_end = col,
+            hl_name = hl_name,
+          })
+        end
+      end
+    end
+  end
+  return spans
+end
+
 ---@param bufnr integer
 ---@param ns integer
 ---@param hunk fugitive-ts.Hunk
@@ -144,52 +185,38 @@ local function highlight_vim_syntax(bufnr, ns, hunk, code_lines)
   vim.api.nvim_buf_set_lines(scratch, 0, -1, false, code_lines)
   vim.api.nvim_set_option_value('bufhidden', 'wipe', { buf = scratch })
 
-  local extmark_count = 0
+  local spans = {}
 
   vim.api.nvim_buf_call(scratch, function()
     vim.cmd('setlocal syntax=' .. ft)
     vim.cmd('redraw')
 
-    for i, line in ipairs(code_lines) do
-      local col = 1
-      local line_len = #line
-
-      while col <= line_len do
-        local syn_id = vim.fn.synID(i, col, 1)
-        if syn_id == 0 then
-          col = col + 1
-        else
-          local hl_name = vim.fn.synIDattr(vim.fn.synIDtrans(syn_id), 'name')
-          local span_start = col
-
-          col = col + 1
-          while col <= line_len do
-            local next_id = vim.fn.synID(i, col, 1)
-            if next_id == 0 then
-              break
-            end
-            local next_name = vim.fn.synIDattr(vim.fn.synIDtrans(next_id), 'name')
-            if next_name ~= hl_name then
-              break
-            end
-            col = col + 1
-          end
-
-          if hl_name ~= '' then
-            local buf_line = hunk.start_line + i - 1
-            pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, span_start, {
-              end_col = col,
-              hl_group = hl_name,
-              priority = 200,
-            })
-            extmark_count = extmark_count + 1
-          end
-        end
+    ---@param line integer
+    ---@param col integer
+    ---@return integer, string
+    local function query_fn(line, col)
+      local syn_id = vim.fn.synID(line, col, 1)
+      if syn_id == 0 then
+        return 0, ''
       end
+      return syn_id, vim.fn.synIDattr(vim.fn.synIDtrans(syn_id), 'name')
     end
+
+    spans = M.coalesce_syntax_spans(query_fn, code_lines)
   end)
 
   vim.api.nvim_buf_delete(scratch, { force = true })
+
+  local extmark_count = 0
+  for _, span in ipairs(spans) do
+    local buf_line = hunk.start_line + span.line - 1
+    pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, span.col_start, {
+      end_col = span.col_end,
+      hl_group = span.hl_name,
+      priority = 200,
+    })
+    extmark_count = extmark_count + 1
+  end
 
   return extmark_count
 end
