@@ -93,7 +93,7 @@ function M.parse_buffer(bufnr)
   end
 
   for i, line in ipairs(lines) do
-    local filename = line:match('^[MADRC%?!]%s+(.+)$')
+    local filename = line:match('^[MADRC%?!]%s+(.+)$') or line:match('^diff %-%-git a/.+ b/(.+)$')
     if filename then
       flush_hunk()
       current_filename = filename
