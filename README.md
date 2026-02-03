@@ -34,6 +34,12 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 }
 ```
 
+Or via [luarocks](https://luarocks.org/modules/barrettruth/diffs.nvim):
+
+```
+luarocks install diffs.nvim
+```
+
 ## Documentation
 
 ```vim
