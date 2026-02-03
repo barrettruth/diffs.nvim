@@ -24,17 +24,8 @@ highlighting.
 
 ## Installation
 
-Using [lazy.nvim](https://github.com/folke/lazy.nvim):
-
-```lua
-{
-  'barrettruth/diffs.nvim',
-  dependencies = { 'tpope/vim-fugitive' },
-  opts = {},
-}
-```
-
-Or via [luarocks](https://luarocks.org/modules/barrettruth/diffs.nvim):
+Install with your package manager of choice or via
+[luarocks](https://luarocks.org/modules/barrettruth/diffs.nvim):
 
 ```
 luarocks install diffs.nvim
