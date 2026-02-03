@@ -10,9 +10,6 @@
 ---@field enabled boolean
 ---@field max_lines integer
 
----@class fugitive-ts.DiffsplitConfig
----@field enabled boolean
-
 ---@class fugitive-ts.Config
 ---@field enabled boolean
 ---@field debug boolean
@@ -21,7 +18,6 @@
 ---@field treesitter fugitive-ts.TreesitterConfig
 ---@field vim fugitive-ts.VimConfig
 ---@field highlights fugitive-ts.Highlights
----@field diffsplit fugitive-ts.DiffsplitConfig
 
 ---@class fugitive-ts
 ---@field attach fun(bufnr?: integer)
@@ -30,6 +26,7 @@
 local M = {}
 
 local highlight = require('fugitive-ts.highlight')
+local log = require('fugitive-ts.log')
 local parser = require('fugitive-ts.parser')
 
 local ns = vim.api.nvim_create_namespace('fugitive_ts')
@@ -84,9 +81,6 @@ local default_config = {
     background = true,
     gutter = true,
   },
-  diffsplit = {
-    enabled = true,
-  },
 }
 
 ---@type fugitive-ts.Config
@@ -104,15 +98,7 @@ function M.is_fugitive_buffer(bufnr)
   return vim.api.nvim_buf_get_name(bufnr):match('^fugitive://') ~= nil
 end
 
----@param msg string
----@param ... any
-local function dbg(msg, ...)
-  if not config.debug then
-    return
-  end
-  local formatted = string.format(msg, ...)
-  vim.notify('[fugitive-ts] ' .. formatted, vim.log.levels.DEBUG)
-end
+local dbg = log.dbg
 
 ---@param bufnr integer
 local function highlight_buffer(bufnr)
@@ -256,7 +242,7 @@ local DIFF_WINHIGHLIGHT = table.concat({
 }, ',')
 
 function M.attach_diff()
-  if not config.enabled or not config.diffsplit.enabled then
+  if not config.enabled then
     return
   end
 
@@ -308,14 +294,7 @@ function M.setup(opts)
     treesitter = { opts.treesitter, 'table', true },
     vim = { opts.vim, 'table', true },
     highlights = { opts.highlights, 'table', true },
-    diffsplit = { opts.diffsplit, 'table', true },
   })
-
-  if opts.diffsplit then
-    vim.validate({
-      ['diffsplit.enabled'] = { opts.diffsplit.enabled, 'boolean', true },
-    })
-  end
 
   if opts.treesitter then
     vim.validate({
@@ -338,9 +317,18 @@ function M.setup(opts)
     })
   end
 
+  if opts.debounce_ms and opts.debounce_ms < 0 then
+    error('fugitive-ts: debounce_ms must be >= 0')
+  end
+  if opts.treesitter and opts.treesitter.max_lines and opts.treesitter.max_lines < 1 then
+    error('fugitive-ts: treesitter.max_lines must be >= 1')
+  end
+  if opts.vim and opts.vim.max_lines and opts.vim.max_lines < 1 then
+    error('fugitive-ts: vim.max_lines must be >= 1')
+  end
+
   config = vim.tbl_deep_extend('force', default_config, opts)
-  parser.set_debug(config.debug)
-  highlight.set_debug(config.debug)
+  log.set_enabled(config.debug)
 
   compute_highlight_groups()
 
