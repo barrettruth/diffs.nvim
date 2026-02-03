@@ -2,26 +2,33 @@ require('spec.helpers')
 local diffs = require('diffs')
 
 describe('diffs', function()
-  describe('setup', function()
-    it('accepts empty config', function()
-      assert.has_no.errors(function()
-        diffs.setup({})
-      end)
+  describe('vim.g.diffs config', function()
+    after_each(function()
+      vim.g.diffs = nil
     end)
 
     it('accepts nil config', function()
+      vim.g.diffs = nil
       assert.has_no.errors(function()
-        diffs.setup()
+        diffs.attach()
+      end)
+    end)
+
+    it('accepts empty config', function()
+      vim.g.diffs = {}
+      assert.has_no.errors(function()
+        diffs.attach()
       end)
     end)
 
     it('accepts full config', function()
-      assert.has_no.errors(function()
-        diffs.setup({
-          enabled = false,
-          debug = true,
-          debounce_ms = 100,
-          hide_prefix = false,
+      vim.g.diffs = {
+        debug = true,
+        debounce_ms = 100,
+        hide_prefix = false,
+        highlights = {
+          background = true,
+          gutter = true,
           treesitter = {
             enabled = true,
             max_lines = 1000,
@@ -30,19 +37,19 @@ describe('diffs', function()
             enabled = false,
             max_lines = 200,
           },
-          highlights = {
-            background = true,
-            gutter = true,
-          },
-        })
+        },
+      }
+      assert.has_no.errors(function()
+        diffs.attach()
       end)
     end)
 
     it('accepts partial config', function()
+      vim.g.diffs = {
+        debounce_ms = 25,
+      }
       assert.has_no.errors(function()
-        diffs.setup({
-          debounce_ms = 25,
-        })
+        diffs.attach()
       end)
     end)
   end)
@@ -59,10 +66,6 @@ describe('diffs', function()
         vim.api.nvim_buf_delete(bufnr, { force = true })
       end
     end
-
-    before_each(function()
-      diffs.setup({ enabled = true })
-    end)
 
     it('does not error on empty buffer', function()
       local bufnr = create_buffer({})
@@ -108,10 +111,6 @@ describe('diffs', function()
         vim.api.nvim_buf_delete(bufnr, { force = true })
       end
     end
-
-    before_each(function()
-      diffs.setup({ enabled = true })
-    end)
 
     it('does not error on unattached buffer', function()
       local bufnr = create_buffer({})
@@ -167,10 +166,6 @@ describe('diffs', function()
         vim.api.nvim_win_close(win, true)
       end
     end
-
-    before_each(function()
-      diffs.setup({ enabled = true })
-    end)
 
     describe('attach_diff', function()
       it('applies winhighlight to diff windows', function()
