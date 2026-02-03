@@ -51,8 +51,6 @@ end
 
 ---@class diffs.HunkOpts
 ---@field hide_prefix boolean
----@field treesitter diffs.TreesitterConfig
----@field vim diffs.VimConfig
 ---@field highlights diffs.Highlights
 
 ---@param bufnr integer
@@ -226,10 +224,10 @@ end
 ---@param hunk diffs.Hunk
 ---@param opts diffs.HunkOpts
 function M.highlight_hunk(bufnr, ns, hunk, opts)
-  local use_ts = hunk.lang and opts.treesitter.enabled
-  local use_vim = not use_ts and hunk.ft and opts.vim.enabled
+  local use_ts = hunk.lang and opts.highlights.treesitter.enabled
+  local use_vim = not use_ts and hunk.ft and opts.highlights.vim.enabled
 
-  local max_lines = use_ts and opts.treesitter.max_lines or opts.vim.max_lines
+  local max_lines = use_ts and opts.highlights.treesitter.max_lines or opts.highlights.vim.max_lines
   if (use_ts or use_vim) and #hunk.lines > max_lines then
     dbg(
       'skipping hunk %s:%d (%d lines > %d max)',

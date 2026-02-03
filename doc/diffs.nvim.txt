@@ -37,7 +37,6 @@ Using lazy.nvim: >lua
     {
       'barrettruth/diffs.nvim',
       dependencies = { 'tpope/vim-fugitive' },
-      opts = {},
     }
 <
 The plugin works automatically with no configuration required. For
@@ -46,6 +45,26 @@ customization, see |diffs-config|.
 ==============================================================================
 CONFIGURATION                                                   *diffs-config*
 
+Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
+>lua
+    vim.g.diffs = {
+      debug = false,
+      debounce_ms = 0,
+      hide_prefix = false,
+      highlights = {
+        background = true,
+        gutter = true,
+        treesitter = {
+          enabled = true,
+          max_lines = 500,
+        },
+        vim = {
+          enabled = false,
+          max_lines = 200,
+        },
+      },
+    }
+<
                                                               *diffs.Config*
     Fields: ~
         {debug}              (boolean, default: false)
@@ -64,6 +83,21 @@ CONFIGURATION                                                   *diffs-config*
                              is also enabled, the overlay inherits the line's
                              background color.
 
+        {highlights}         (table, default: see below)
+                             Controls which highlight features are enabled.
+                             See |diffs.Highlights| for fields.
+
+                                                          *diffs.Highlights*
+    Highlights table fields: ~
+        {background}         (boolean, default: true)
+                             Apply background highlighting to `+`/`-` lines
+                             using `DiffsAdd`/`DiffsDelete` groups (derived
+                             from `DiffAdd`/`DiffDelete` backgrounds).
+
+        {gutter}             (boolean, default: true)
+                             Highlight line numbers with matching colors.
+                             Only visible if line numbers are enabled.
+
         {treesitter}         (table, default: see below)
                              Treesitter highlighting options.
                              See |diffs.TreesitterConfig| for fields.
@@ -71,10 +105,6 @@ CONFIGURATION                                                   *diffs-config*
         {vim}                (table, default: see below)
                              Vim syntax highlighting options (experimental).
                              See |diffs.VimConfig| for fields.
-
-        {highlights}         (table, default: see below)
-                             Controls which highlight features are enabled.
-                             See |diffs.Highlights| for fields.
 
                                                     *diffs.TreesitterConfig*
     Treesitter config fields: ~
@@ -100,17 +130,6 @@ CONFIGURATION                                                   *diffs-config*
                              this many lines. Lower than the treesitter default
                              due to the per-character cost of |synID()|.
 
-                                                          *diffs.Highlights*
-    Highlights table fields: ~
-        {background}         (boolean, default: true)
-                             Apply background highlighting to `+`/`-` lines
-                             using `DiffsAdd`/`DiffsDelete` groups (derived
-                             from `DiffAdd`/`DiffDelete` backgrounds).
-
-        {gutter}             (boolean, default: true)
-                             Highlight line numbers with matching colors.
-                             Only visible if line numbers are enabled.
-
     Note: Header context (e.g., `@@ -10,3 +10,4 @@ func()`) is always
     highlighted with treesitter when a parser is available.
 
@@ -121,12 +140,6 @@ CONFIGURATION                                                   *diffs-config*
 
 ==============================================================================
 API                                                                *diffs-api*
-
-setup({opts})                                               *diffs.setup()*
-    Configure the plugin with `opts`.
-
-    Parameters: ~
-        {opts}  (|diffs.Config|, optional) Configuration table.
 
 attach({bufnr})                                             *diffs.attach()*
     Manually attach highlighting to a buffer. Called automatically for
@@ -183,10 +196,36 @@ which fires after vim-fugitive has already painted the buffer. Even with
 `debounce_ms = 0`, the re-painting goes through Neovim's event loop.
 
 To minimize the flash, use a low debounce value: >lua
-    require('diffs').setup({
+    vim.g.diffs = {
       debounce_ms = 0,
-    })
+    }
 <
+
+Conflicting Diff Plugins ~
+                                                    *diffs-plugin-conflicts*
+diffs.nvim may not interact well with other plugins that modify diff
+highlighting or the sign column in diff views. Known plugins that may
+conflict:
+
+  - diffview.nvim (sindrets/diffview.nvim)
+      Provides its own diff highlighting and conflict resolution UI.
+      When using diffview.nvim for viewing diffs, you may want to disable
+      diffs.nvim's diff mode attachment or use one plugin exclusively.
+
+  - mini.diff (echasnovski/mini.diff)
+      Visualizes buffer differences with its own highlighting system.
+      May override or conflict with diffs.nvim's background highlighting.
+
+  - gitsigns.nvim (lewis6991/gitsigns.nvim)
+      Generally compatible for sign column decorations, but both plugins
+      modifying line highlights may produce unexpected results.
+
+  - git-conflict.nvim (akinsho/git-conflict.nvim)
+      Provides conflict marker highlighting that may overlap with
+      diffs.nvim's highlighting in conflict scenarios.
+
+If you experience visual conflicts, try disabling the conflicting plugin's
+diff-related features.
 
 ==============================================================================
 HIGHLIGHT GROUPS                                          *diffs-highlights*
