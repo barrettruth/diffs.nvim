@@ -19,8 +19,6 @@ syntax highlighting.
 ## Requirements
 
 - Neovim 0.9.0+
-- [`vim-fugitive`](https://github.com/tpope/vim-fugitive) (optional, for unified
-  diff syntax highlighting)
 
 ## Installation
 
