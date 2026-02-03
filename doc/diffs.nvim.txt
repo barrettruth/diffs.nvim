@@ -48,9 +48,6 @@ CONFIGURATION                                                   *diffs-config*
 
                                                               *diffs.Config*
     Fields: ~
-        {enabled}            (boolean, default: true)
-                             Enable or disable highlighting globally.
-
         {debug}              (boolean, default: false)
                              Enable debug logging to |:messages| with
                              `[diffs]` prefix.
