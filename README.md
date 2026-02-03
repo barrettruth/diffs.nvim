@@ -40,26 +40,6 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 :help diffs.nvim
 ```
 
-## Highlight Groups
-
-diffs.nvim defines the following highlight groups. All use `default = true`, so
-colorschemes can override them.
-
-| Group             | Purpose                                            |
-| ----------------- | -------------------------------------------------- |
-| `DiffsAdd`        | Background for `+` lines in fugitive unified diffs |
-| `DiffsDelete`     | Background for `-` lines in fugitive unified diffs |
-| `DiffsAddNr`      | Line number highlight for `+` lines                |
-| `DiffsDeleteNr`   | Line number highlight for `-` lines                |
-| `DiffsDiffAdd`    | Background-only `DiffAdd` for `&diff` windows      |
-| `DiffsDiffDelete` | Background-only `DiffDelete` for `&diff` windows   |
-| `DiffsDiffChange` | Background-only `DiffChange` for `&diff` windows   |
-| `DiffsDiffText`   | Background-only `DiffText` for `&diff` windows     |
-
-By default, these are computed from your colorscheme's `DiffAdd`, `DiffDelete`,
-`DiffChange`, `DiffText`, and `Normal` groups. To customize, define them in your
-colorscheme before diffs.nvim loads, or link them to existing groups.
-
 ## Known Limitations
 
 - Syntax "flashing": diffs.nvim hooks into the `FileType fugitive` event
