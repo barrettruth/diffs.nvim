@@ -1,14 +1,14 @@
 rockspec_format = '3.0'
-package = 'fugitive-ts.nvim'
+package = 'diffs.nvim'
 version = 'scm-1'
 
 source = {
-  url = 'git+https://github.com/barrettruth/fugitive-ts.nvim.git',
+  url = 'git+https://github.com/barrettruth/diffs.nvim.git',
 }
 
 description = {
-  summary = 'Treesitter syntax highlighting for vim-fugitive',
-  homepage = 'https://github.com/barrettruth/fugitive-ts.nvim',
+  summary = 'Syntax highlighting for diffs in Neovim',
+  homepage = 'https://github.com/barrettruth/diffs.nvim',
   license = 'MIT',
 }
 

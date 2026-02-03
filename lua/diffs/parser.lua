@@ -1,4 +1,4 @@
----@class fugitive-ts.Hunk
+---@class diffs.Hunk
 ---@field filename string
 ---@field ft string?
 ---@field lang string?
@@ -9,7 +9,7 @@
 
 local M = {}
 
-local dbg = require('fugitive-ts.log').dbg
+local dbg = require('diffs.log').dbg
 
 ---@param filename string
 ---@return string?
@@ -38,10 +38,10 @@ local function get_lang_from_ft(ft)
 end
 
 ---@param bufnr integer
----@return fugitive-ts.Hunk[]
+---@return diffs.Hunk[]
 function M.parse_buffer(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-  ---@type fugitive-ts.Hunk[]
+  ---@type diffs.Hunk[]
   local hunks = {}
 
   ---@type string?

@@ -1,16 +1,16 @@
-if vim.g.loaded_fugitive_ts then
+if vim.g.loaded_diffs then
   return
 end
-vim.g.loaded_fugitive_ts = 1
+vim.g.loaded_diffs = 1
 
 vim.api.nvim_create_autocmd('FileType', {
   pattern = { 'fugitive', 'git' },
   callback = function(args)
-    local ft = require('fugitive-ts')
-    if args.match == 'git' and not ft.is_fugitive_buffer(args.buf) then
+    local diffs = require('diffs')
+    if args.match == 'git' and not diffs.is_fugitive_buffer(args.buf) then
       return
     end
-    ft.attach(args.buf)
+    diffs.attach(args.buf)
   end,
 })
 
@@ -18,9 +18,9 @@ vim.api.nvim_create_autocmd('OptionSet', {
   pattern = 'diff',
   callback = function()
     if vim.wo.diff then
-      require('fugitive-ts').attach_diff()
+      require('diffs').attach_diff()
     else
-      require('fugitive-ts').detach_diff()
+      require('diffs').detach_diff()
     end
   end,
 })
