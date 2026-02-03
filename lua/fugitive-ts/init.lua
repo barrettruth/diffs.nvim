@@ -10,6 +10,9 @@
 ---@field enabled boolean
 ---@field max_lines integer
 
+---@class fugitive-ts.DiffsplitConfig
+---@field enabled boolean
+
 ---@class fugitive-ts.Config
 ---@field enabled boolean
 ---@field debug boolean
@@ -18,6 +21,7 @@
 ---@field treesitter fugitive-ts.TreesitterConfig
 ---@field vim fugitive-ts.VimConfig
 ---@field highlights fugitive-ts.Highlights
+---@field diffsplit fugitive-ts.DiffsplitConfig
 
 ---@class fugitive-ts
 ---@field attach fun(bufnr?: integer)
@@ -80,6 +84,9 @@ local default_config = {
     background = true,
     gutter = true,
   },
+  diffsplit = {
+    enabled = true,
+  },
 }
 
 ---@type fugitive-ts.Config
@@ -87,6 +94,15 @@ local config = vim.deepcopy(default_config)
 
 ---@type table<integer, boolean>
 local attached_buffers = {}
+
+---@type table<integer, boolean>
+local diff_windows = {}
+
+---@param bufnr integer
+---@return boolean
+function M.is_fugitive_buffer(bufnr)
+  return vim.api.nvim_buf_get_name(bufnr):match('^fugitive://') ~= nil
+end
 
 ---@param msg string
 ---@param ... any
@@ -222,6 +238,62 @@ local function compute_highlight_groups()
   vim.api.nvim_set_hl(0, 'FugitiveTsDelete', { bg = blended_del })
   vim.api.nvim_set_hl(0, 'FugitiveTsAddNr', { fg = add_fg, bg = blended_add })
   vim.api.nvim_set_hl(0, 'FugitiveTsDeleteNr', { fg = del_fg, bg = blended_del })
+
+  local diff_change = resolve_hl('DiffChange')
+  local diff_text = resolve_hl('DiffText')
+
+  vim.api.nvim_set_hl(0, 'FugitiveTsDiffAdd', { bg = diff_add.bg })
+  vim.api.nvim_set_hl(0, 'FugitiveTsDiffDelete', { bg = diff_delete.bg })
+  vim.api.nvim_set_hl(0, 'FugitiveTsDiffChange', { bg = diff_change.bg })
+  vim.api.nvim_set_hl(0, 'FugitiveTsDiffText', { bg = diff_text.bg })
+end
+
+local DIFF_WINHIGHLIGHT = table.concat({
+  'DiffAdd:FugitiveTsDiffAdd',
+  'DiffDelete:FugitiveTsDiffDelete',
+  'DiffChange:FugitiveTsDiffChange',
+  'DiffText:FugitiveTsDiffText',
+}, ',')
+
+function M.attach_diff()
+  if not config.enabled or not config.diffsplit.enabled then
+    return
+  end
+
+  local tabpage = vim.api.nvim_get_current_tabpage()
+  local wins = vim.api.nvim_tabpage_list_wins(tabpage)
+
+  local has_fugitive = false
+  local diff_wins = {}
+
+  for _, win in ipairs(wins) do
+    if vim.api.nvim_win_is_valid(win) and vim.wo[win].diff then
+      table.insert(diff_wins, win)
+      local bufnr = vim.api.nvim_win_get_buf(win)
+      if M.is_fugitive_buffer(bufnr) then
+        has_fugitive = true
+      end
+    end
+  end
+
+  if not has_fugitive then
+    return
+  end
+
+  for _, win in ipairs(diff_wins) do
+    vim.api.nvim_set_option_value('winhighlight', DIFF_WINHIGHLIGHT, { win = win })
+    diff_windows[win] = true
+    dbg('applied diff winhighlight to window %d', win)
+  end
+end
+
+function M.detach_diff()
+  for win, _ in pairs(diff_windows) do
+    if vim.api.nvim_win_is_valid(win) then
+      vim.api.nvim_set_option_value('winhighlight', '', { win = win })
+    end
+    diff_windows[win] = nil
+  end
 end
 
 ---@param opts? fugitive-ts.Config
@@ -236,7 +308,14 @@ function M.setup(opts)
     treesitter = { opts.treesitter, 'table', true },
     vim = { opts.vim, 'table', true },
     highlights = { opts.highlights, 'table', true },
+    diffsplit = { opts.diffsplit, 'table', true },
   })
+
+  if opts.diffsplit then
+    vim.validate({
+      ['diffsplit.enabled'] = { opts.diffsplit.enabled, 'boolean', true },
+    })
+  end
 
   if opts.treesitter then
     vim.validate({
@@ -270,6 +349,15 @@ function M.setup(opts)
       compute_highlight_groups()
       for bufnr, _ in pairs(attached_buffers) do
         highlight_buffer(bufnr)
+      end
+    end,
+  })
+
+  vim.api.nvim_create_autocmd('WinClosed', {
+    callback = function(args)
+      local win = tonumber(args.match)
+      if win and diff_windows[win] then
+        diff_windows[win] = nil
       end
     end,
   })

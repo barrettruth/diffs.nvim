@@ -9,14 +9,11 @@ diffs.
 
 ## Features
 
-- **Language-aware highlighting**: Full treesitter syntax highlighting for code
-  in diff hunks
-- **Automatic language detection**: Detects language from filenames using
-  Neovim's filetype detection
-- **Header context highlighting**: Highlights function signatures in hunk
-  headers (`@@ ... @@ function foo()`)
-- **Performance optimized**: Debounced updates, configurable max lines per hunk
-- **Zero configuration**: Works out of the box with sensible defaults
+- Treesitter syntax highlighting in `:Git` diffs and commit views
+- `:Gdiffsplit` / `:Gvdiffsplit` syntax through diff backgrounds
+- Vim syntax fallback for languages without a treesitter parser
+- Hunk header context highlighting (`@@ ... @@ function foo()`)
+- Configurable debouncing, max lines, and diff prefix concealment
 
 ## Requirements
 
