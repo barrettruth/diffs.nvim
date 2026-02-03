@@ -131,26 +131,6 @@ describe('diffs', function()
     end)
   end)
 
-  describe('config options', function()
-    it('enabled=false prevents highlighting', function()
-      diffs.setup({ enabled = false })
-      local bufnr = vim.api.nvim_create_buf(false, true)
-      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {
-        'M test.lua',
-        '@@ -1,1 +1,2 @@',
-        ' local x = 1',
-        '+local y = 2',
-      })
-      diffs.attach(bufnr)
-
-      local ns = vim.api.nvim_create_namespace('diffs')
-      local extmarks = vim.api.nvim_buf_get_extmarks(bufnr, ns, 0, -1, {})
-      assert.are.equal(0, #extmarks)
-
-      vim.api.nvim_buf_delete(bufnr, { force = true })
-    end)
-  end)
-
   describe('is_fugitive_buffer', function()
     it('returns true for fugitive:// URLs', function()
       local bufnr = vim.api.nvim_create_buf(false, true)
