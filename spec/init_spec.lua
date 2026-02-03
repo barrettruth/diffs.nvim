@@ -20,16 +20,19 @@ describe('fugitive-ts', function()
         fugitive_ts.setup({
           enabled = false,
           debug = true,
-          languages = { ['.envrc'] = 'bash' },
-          disabled_languages = { 'markdown' },
           debounce_ms = 100,
-          max_lines_per_hunk = 1000,
           hide_prefix = false,
+          treesitter = {
+            enabled = true,
+            max_lines = 1000,
+          },
+          vim = {
+            enabled = false,
+            max_lines = 200,
+          },
           highlights = {
-            treesitter = true,
             background = true,
             gutter = true,
-            vim = false,
           },
         })
       end)
