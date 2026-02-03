@@ -39,10 +39,11 @@ luarocks install diffs.nvim
 
 ## Known Limitations
 
-- Syntax "flashing": diffs.nvim hooks into the `FileType fugitive` event
-  triggered by vim-fugitive, at which point the buffer is preliminarily painted.
-  The buffer is then re-painted after `debounce_ms` milliseconds, causing an
-  unavoidable visual "flash" even when `debounce_ms = 0`.
+- `vim-fugitive` syntax "flashing": diffs.nvim hooks into the
+  `FileType fugitive` event triggered by vim-fugitive, at which point the buffer
+  is preliminarily painted. The buffer is then re-painted after `debounce_ms`
+  milliseconds, causing an unavoidable visual "flash" even when
+  `debounce_ms = 0`.
 
 # Acknowledgements
 
