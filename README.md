@@ -39,11 +39,22 @@ luarocks install diffs.nvim
 
 ## Known Limitations
 
-- `vim-fugitive` syntax "flashing": diffs.nvim hooks into the
-  `FileType fugitive` event triggered by vim-fugitive, at which point the buffer
-  is preliminarily painted. The buffer is then re-painted after `debounce_ms`
-  milliseconds, causing an unavoidable visual "flash" even when
-  `debounce_ms = 0`.
+- **Syntax flashing**: diffs.nvim hooks into the `FileType fugitive` event
+  triggered by vim-fugitive, at which point the buffer is preliminarily painted.
+  The buffer is then re-painted after `debounce_ms` milliseconds, causing an
+  unavoidable visual "flash" even when `debounce_ms = 0`.
+
+- **Conflicting diff plugins**: `diffs.nvim` may not interact well with other
+  plugins that modify diff highlighting. Known plugins that may conflict:
+  - [`diffview.nvim`](https://github.com/sindrets/diffview.nvim) - provides its
+    own diff highlighting and conflict resolution UI
+  - [`mini.diff`](https://github.com/echasnovski/mini.diff) - visualizes buffer
+    differences with its own highlighting system
+  - [`gitsigns.nvim`](https://github.com/lewis6991/gitsigns.nvim) - generally
+    compatible, but both plugins modifying line highlights may produce
+    unexpected results
+  - [`git-conflict.nvim`](https://github.com/akinsho/git-conflict.nvim) -
+    conflict marker highlighting may overlap with `diffs.nvim`
 
 # Acknowledgements
 
