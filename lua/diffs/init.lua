@@ -11,7 +11,6 @@
 ---@field max_lines integer
 
 ---@class diffs.Config
----@field enabled boolean
 ---@field debug boolean
 ---@field debounce_ms integer
 ---@field hide_prefix boolean
@@ -65,7 +64,6 @@ end
 
 ---@type diffs.Config
 local default_config = {
-  enabled = true,
   debug = false,
   debounce_ms = 0,
   hide_prefix = false,
@@ -102,10 +100,6 @@ local dbg = log.dbg
 
 ---@param bufnr integer
 local function highlight_buffer(bufnr)
-  if not config.enabled then
-    return
-  end
-
   if not vim.api.nvim_buf_is_valid(bufnr) then
     return
   end
@@ -242,10 +236,6 @@ local DIFF_WINHIGHLIGHT = table.concat({
 }, ',')
 
 function M.attach_diff()
-  if not config.enabled then
-    return
-  end
-
   local tabpage = vim.api.nvim_get_current_tabpage()
   local wins = vim.api.nvim_tabpage_list_wins(tabpage)
 
@@ -282,7 +272,6 @@ function M.setup(opts)
   opts = opts or {}
 
   vim.validate({
-    enabled = { opts.enabled, 'boolean', true },
     debug = { opts.debug, 'boolean', true },
     debounce_ms = { opts.debounce_ms, 'number', true },
     hide_prefix = { opts.hide_prefix, 'boolean', true },
