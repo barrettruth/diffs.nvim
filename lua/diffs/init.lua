@@ -228,10 +228,10 @@ local function compute_highlight_groups()
   local diff_change = resolve_hl('DiffChange')
   local diff_text = resolve_hl('DiffText')
 
-  vim.api.nvim_set_hl(0, 'DiffsDiffAdd', { default = true, bg = diff_add.bg })
-  vim.api.nvim_set_hl(0, 'DiffsDiffDelete', { default = true, bg = diff_delete.bg })
-  vim.api.nvim_set_hl(0, 'DiffsDiffChange', { default = true, bg = diff_change.bg })
-  vim.api.nvim_set_hl(0, 'DiffsDiffText', { default = true, bg = diff_text.bg })
+  vim.api.nvim_set_hl(0, 'DiffsDiffAdd', { bg = diff_add.bg })
+  vim.api.nvim_set_hl(0, 'DiffsDiffDelete', { fg = diff_delete.fg, bg = diff_delete.bg })
+  vim.api.nvim_set_hl(0, 'DiffsDiffChange', { bg = diff_change.bg })
+  vim.api.nvim_set_hl(0, 'DiffsDiffText', { bg = diff_text.bg })
 end
 
 local DIFF_WINHIGHLIGHT = table.concat({
