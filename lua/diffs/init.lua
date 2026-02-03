@@ -1,35 +1,35 @@
----@class fugitive-ts.Highlights
+---@class diffs.Highlights
 ---@field background boolean
 ---@field gutter boolean
 
----@class fugitive-ts.TreesitterConfig
+---@class diffs.TreesitterConfig
 ---@field enabled boolean
 ---@field max_lines integer
 
----@class fugitive-ts.VimConfig
+---@class diffs.VimConfig
 ---@field enabled boolean
 ---@field max_lines integer
 
----@class fugitive-ts.Config
+---@class diffs.Config
 ---@field enabled boolean
 ---@field debug boolean
 ---@field debounce_ms integer
 ---@field hide_prefix boolean
----@field treesitter fugitive-ts.TreesitterConfig
----@field vim fugitive-ts.VimConfig
----@field highlights fugitive-ts.Highlights
+---@field treesitter diffs.TreesitterConfig
+---@field vim diffs.VimConfig
+---@field highlights diffs.Highlights
 
----@class fugitive-ts
+---@class diffs
 ---@field attach fun(bufnr?: integer)
 ---@field refresh fun(bufnr?: integer)
----@field setup fun(opts?: fugitive-ts.Config)
+---@field setup fun(opts?: diffs.Config)
 local M = {}
 
-local highlight = require('fugitive-ts.highlight')
-local log = require('fugitive-ts.log')
-local parser = require('fugitive-ts.parser')
+local highlight = require('diffs.highlight')
+local log = require('diffs.log')
+local parser = require('diffs.parser')
 
-local ns = vim.api.nvim_create_namespace('fugitive_ts')
+local ns = vim.api.nvim_create_namespace('diffs')
 
 ---@param hex integer
 ---@param bg_hex integer
@@ -63,7 +63,7 @@ local function resolve_hl(name)
   return hl
 end
 
----@type fugitive-ts.Config
+---@type diffs.Config
 local default_config = {
   enabled = true,
   debug = false,
@@ -83,7 +83,7 @@ local default_config = {
   },
 }
 
----@type fugitive-ts.Config
+---@type diffs.Config
 local config = vim.deepcopy(default_config)
 
 ---@type table<integer, boolean>
@@ -220,25 +220,25 @@ local function compute_highlight_groups()
   local blended_add = blend_color(add_bg, bg, 0.4)
   local blended_del = blend_color(del_bg, bg, 0.4)
 
-  vim.api.nvim_set_hl(0, 'FugitiveTsAdd', { bg = blended_add })
-  vim.api.nvim_set_hl(0, 'FugitiveTsDelete', { bg = blended_del })
-  vim.api.nvim_set_hl(0, 'FugitiveTsAddNr', { fg = add_fg, bg = blended_add })
-  vim.api.nvim_set_hl(0, 'FugitiveTsDeleteNr', { fg = del_fg, bg = blended_del })
+  vim.api.nvim_set_hl(0, 'DiffsAdd', { bg = blended_add })
+  vim.api.nvim_set_hl(0, 'DiffsDelete', { bg = blended_del })
+  vim.api.nvim_set_hl(0, 'DiffsAddNr', { fg = add_fg, bg = blended_add })
+  vim.api.nvim_set_hl(0, 'DiffsDeleteNr', { fg = del_fg, bg = blended_del })
 
   local diff_change = resolve_hl('DiffChange')
   local diff_text = resolve_hl('DiffText')
 
-  vim.api.nvim_set_hl(0, 'FugitiveTsDiffAdd', { bg = diff_add.bg })
-  vim.api.nvim_set_hl(0, 'FugitiveTsDiffDelete', { bg = diff_delete.bg })
-  vim.api.nvim_set_hl(0, 'FugitiveTsDiffChange', { bg = diff_change.bg })
-  vim.api.nvim_set_hl(0, 'FugitiveTsDiffText', { bg = diff_text.bg })
+  vim.api.nvim_set_hl(0, 'DiffsDiffAdd', { bg = diff_add.bg })
+  vim.api.nvim_set_hl(0, 'DiffsDiffDelete', { bg = diff_delete.bg })
+  vim.api.nvim_set_hl(0, 'DiffsDiffChange', { bg = diff_change.bg })
+  vim.api.nvim_set_hl(0, 'DiffsDiffText', { bg = diff_text.bg })
 end
 
 local DIFF_WINHIGHLIGHT = table.concat({
-  'DiffAdd:FugitiveTsDiffAdd',
-  'DiffDelete:FugitiveTsDiffDelete',
-  'DiffChange:FugitiveTsDiffChange',
-  'DiffText:FugitiveTsDiffText',
+  'DiffAdd:DiffsDiffAdd',
+  'DiffDelete:DiffsDiffDelete',
+  'DiffChange:DiffsDiffChange',
+  'DiffText:DiffsDiffText',
 }, ',')
 
 function M.attach_diff()
@@ -249,20 +249,15 @@ function M.attach_diff()
   local tabpage = vim.api.nvim_get_current_tabpage()
   local wins = vim.api.nvim_tabpage_list_wins(tabpage)
 
-  local has_fugitive = false
   local diff_wins = {}
 
   for _, win in ipairs(wins) do
     if vim.api.nvim_win_is_valid(win) and vim.wo[win].diff then
       table.insert(diff_wins, win)
-      local bufnr = vim.api.nvim_win_get_buf(win)
-      if M.is_fugitive_buffer(bufnr) then
-        has_fugitive = true
-      end
     end
   end
 
-  if not has_fugitive then
+  if #diff_wins == 0 then
     return
   end
 
@@ -282,7 +277,7 @@ function M.detach_diff()
   end
 end
 
----@param opts? fugitive-ts.Config
+---@param opts? diffs.Config
 function M.setup(opts)
   opts = opts or {}
 
@@ -318,13 +313,13 @@ function M.setup(opts)
   end
 
   if opts.debounce_ms and opts.debounce_ms < 0 then
-    error('fugitive-ts: debounce_ms must be >= 0')
+    error('diffs: debounce_ms must be >= 0')
   end
   if opts.treesitter and opts.treesitter.max_lines and opts.treesitter.max_lines < 1 then
-    error('fugitive-ts: treesitter.max_lines must be >= 1')
+    error('diffs: treesitter.max_lines must be >= 1')
   end
   if opts.vim and opts.vim.max_lines and opts.vim.max_lines < 1 then
-    error('fugitive-ts: vim.max_lines must be >= 1')
+    error('diffs: vim.max_lines must be >= 1')
   end
 
   config = vim.tbl_deep_extend('force', default_config, opts)
