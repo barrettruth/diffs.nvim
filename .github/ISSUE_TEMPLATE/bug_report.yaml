@@ -1,29 +1,31 @@
 name: Bug Report
 description: Report a bug
-title: "bug: "
+title: 'bug: '
 labels: [bug]
 body:
   - type: checkboxes
     attributes:
       label: Prerequisites
       options:
-        - label: I have searched [existing issues](https://github.com/barrettruth/diffs.nvim/issues)
+        - label:
+            I have searched [existing
+            issues](https://github.com/barrettruth/diffs.nvim/issues)
           required: true
         - label: I have updated to the latest version
           required: true
 
   - type: textarea
     attributes:
-      label: "Neovim version"
-      description: "Output of `nvim --version`"
+      label: 'Neovim version'
+      description: 'Output of `nvim --version`'
       render: text
     validations:
       required: true
 
   - type: input
     attributes:
-      label: "Operating system"
-      placeholder: "e.g. Arch Linux, macOS 15, Ubuntu 24.04"
+      label: 'Operating system'
+      placeholder: 'e.g. Arch Linux, macOS 15, Ubuntu 24.04'
     validations:
       required: true
 
@@ -47,8 +49,8 @@ body:
 
   - type: textarea
     attributes:
-      label: "Health check"
-      description: "Output of `:checkhealth diffs`"
+      label: 'Health check'
+      description: 'Output of `:checkhealth diffs`'
       render: text
 
   - type: textarea
