@@ -44,7 +44,7 @@ luarocks install diffs.nvim
   The buffer is then re-painted after `debounce_ms` milliseconds, causing an
   unavoidable visual "flash" even when `debounce_ms = 0`.
 
-## Acknowledgements
+# Acknowledgements
 
 - [vim-fugitive](https://github.com/tpope/vim-fugitive)
 - [codediff.nvim](https://github.com/esmuellert/codediff.nvim)

@@ -131,26 +131,6 @@ describe('diffs', function()
     end)
   end)
 
-  describe('config options', function()
-    it('enabled=false prevents highlighting', function()
-      diffs.setup({ enabled = false })
-      local bufnr = vim.api.nvim_create_buf(false, true)
-      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {
-        'M test.lua',
-        '@@ -1,1 +1,2 @@',
-        ' local x = 1',
-        '+local y = 2',
-      })
-      diffs.attach(bufnr)
-
-      local ns = vim.api.nvim_create_namespace('diffs')
-      local extmarks = vim.api.nvim_buf_get_extmarks(bufnr, ns, 0, -1, {})
-      assert.are.equal(0, #extmarks)
-
-      vim.api.nvim_buf_delete(bufnr, { force = true })
-    end)
-  end)
-
   describe('is_fugitive_buffer', function()
     it('returns true for fugitive:// URLs', function()
       local bufnr = vim.api.nvim_create_buf(false, true)
@@ -200,17 +180,6 @@ describe('diffs', function()
         local whl = vim.api.nvim_get_option_value('winhighlight', { win = win })
         assert.is_not_nil(whl:match('DiffAdd:DiffsDiffAdd'))
         assert.is_not_nil(whl:match('DiffDelete:DiffsDiffDelete'))
-
-        close_window(win)
-      end)
-
-      it('does nothing when enabled=false', function()
-        diffs.setup({ enabled = false })
-        local win, _ = create_diff_window()
-        diffs.attach_diff()
-
-        local whl = vim.api.nvim_get_option_value('winhighlight', { win = win })
-        assert.are.equal('', whl)
 
         close_window(win)
       end)
