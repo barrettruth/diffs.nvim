@@ -23,8 +23,12 @@ Features: ~
 REQUIREMENTS                                              *diffs-requirements*
 
 - Neovim 0.9.0+
-- vim-fugitive (https://github.com/tpope/vim-fugitive) for unified diff views
+- vim-fugitive (https://github.com/tpope/vim-fugitive) (optional, for unified
+  diff syntax highlighting in |:Git| and commit views)
 - Treesitter parsers for languages you want highlighted
+
+Note: The diff mode feature (background-only colors for |:diffthis|, vimdiff,
+etc.) works without vim-fugitive.
 
 ==============================================================================
 SETUP                                                            *diffs-setup*
@@ -188,13 +192,57 @@ To minimize the flash, use a low debounce value: >lua
 <
 
 ==============================================================================
+HIGHLIGHT GROUPS                                          *diffs-highlights*
+
+diffs.nvim defines custom highlight groups. All are set with `default = true`,
+so colorschemes can override them by defining them first.
+
+Fugitive unified diff highlights: ~
+                                                                  *DiffsAdd*
+    DiffsAdd            Background for `+` lines. Derived by blending
+                        `DiffAdd` background with `Normal` at 40% alpha.
+
+                                                               *DiffsDelete*
+    DiffsDelete         Background for `-` lines. Derived by blending
+                        `DiffDelete` background with `Normal` at 40% alpha.
+
+                                                                *DiffsAddNr*
+    DiffsAddNr          Line number for `+` lines. Foreground from
+                        `diffAdded`, background from `DiffsAdd`.
+
+                                                             *DiffsDeleteNr*
+    DiffsDeleteNr       Line number for `-` lines. Foreground from
+                        `diffRemoved`, background from `DiffsDelete`.
+
+Diff mode window highlights: ~
+These are background-only variants used for |winhighlight| remapping in
+`&diff` windows, allowing treesitter syntax to show through.
+
+                                                             *DiffsDiffAdd*
+    DiffsDiffAdd        Background-only version of `DiffAdd`.
+
+                                                          *DiffsDiffDelete*
+    DiffsDiffDelete     Background-only version of `DiffDelete`.
+
+                                                          *DiffsDiffChange*
+    DiffsDiffChange     Background-only version of `DiffChange`.
+
+                                                            *DiffsDiffText*
+    DiffsDiffText       Background-only version of `DiffText`.
+
+To customize these in your colorscheme: >lua
+    vim.api.nvim_set_hl(0, 'DiffsAdd', { bg = '#2e4a3a' })
+    vim.api.nvim_set_hl(0, 'DiffsDiffDelete', { link = 'DiffDelete' })
+<
+
+==============================================================================
 HEALTH CHECK                                                 *diffs-health*
 
 Run |:checkhealth| diffs to verify your setup.
 
 Checks performed:
 - Neovim version >= 0.9.0
-- vim-fugitive is installed
+- vim-fugitive is installed (optional)
 
 ==============================================================================
  vim:tw=78:ts=8:ft=help:norl:
