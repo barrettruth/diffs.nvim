@@ -1,13 +1,15 @@
 name: Feature Request
 description: Suggest a feature
-title: "feat: "
+title: 'feat: '
 labels: [enhancement]
 body:
   - type: checkboxes
     attributes:
       label: Prerequisites
       options:
-        - label: I have searched [existing issues](https://github.com/barrettruth/fugitive-ts.nvim/issues)
+        - label:
+            I have searched [existing
+            issues](https://github.com/barrettruth/diffs.nvim/issues)
           required: true
 
   - type: textarea

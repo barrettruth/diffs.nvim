@@ -1,54 +1,55 @@
-*fugitive-ts.nvim.txt*        Treesitter highlighting for vim-fugitive diffs
+*diffs.nvim.txt*                    Syntax highlighting for diffs in Neovim
 
 Author:  Barrett Ruth <br.barrettruth@gmail.com>
 License: MIT
 
 ==============================================================================
-INTRODUCTION                                                   *fugitive-ts.nvim*
+INTRODUCTION                                                       *diffs.nvim*
 
-fugitive-ts.nvim adds treesitter-based syntax highlighting to vim-fugitive
-diff views. It overlays language-aware highlights on top of fugitive's
-default regex-based diff highlighting.
+diffs.nvim adds syntax highlighting to diff views. It overlays language-aware
+highlights on top of default diff highlighting in vim-fugitive and Neovim's
+built-in diff mode.
 
 Features: ~
 - Syntax highlighting in |:Git| summary diffs and commit detail views
 - Syntax highlighting in |:Gdiffsplit| / |:Gvdiffsplit| side-by-side diffs
+- Background-only diff colors for any `&diff` buffer (vimdiff, diffthis, etc.)
 - Vim syntax fallback for languages without a treesitter parser
 - Blended diff background colors that preserve syntax visibility
 - Optional diff prefix (`+`/`-`/` `) concealment
 - Gutter (line number) highlighting
 
 ==============================================================================
-REQUIREMENTS                                          *fugitive-ts-requirements*
+REQUIREMENTS                                              *diffs-requirements*
 
 - Neovim 0.9.0+
-- vim-fugitive (https://github.com/tpope/vim-fugitive)
+- vim-fugitive (https://github.com/tpope/vim-fugitive) for unified diff views
 - Treesitter parsers for languages you want highlighted
 
 ==============================================================================
-SETUP                                                        *fugitive-ts-setup*
+SETUP                                                            *diffs-setup*
 
 Using lazy.nvim: >lua
     {
-      'barrettruth/fugitive-ts.nvim',
+      'barrettruth/diffs.nvim',
       dependencies = { 'tpope/vim-fugitive' },
       opts = {},
     }
 <
 The plugin works automatically with no configuration required. For
-customization, see |fugitive-ts-config|.
+customization, see |diffs-config|.
 
 ==============================================================================
-CONFIGURATION                                               *fugitive-ts-config*
+CONFIGURATION                                                   *diffs-config*
 
-                                                          *fugitive-ts.Config*
+                                                              *diffs.Config*
     Fields: ~
         {enabled}            (boolean, default: true)
                              Enable or disable highlighting globally.
 
         {debug}              (boolean, default: false)
                              Enable debug logging to |:messages| with
-                             `[fugitive-ts]` prefix.
+                             `[diffs]` prefix.
 
         {debounce_ms}        (integer, default: 0)
                              Debounce delay in milliseconds for re-highlighting
@@ -64,17 +65,17 @@ CONFIGURATION                                               *fugitive-ts-config*
 
         {treesitter}         (table, default: see below)
                              Treesitter highlighting options.
-                             See |fugitive-ts.TreesitterConfig| for fields.
+                             See |diffs.TreesitterConfig| for fields.
 
         {vim}                (table, default: see below)
                              Vim syntax highlighting options (experimental).
-                             See |fugitive-ts.VimConfig| for fields.
+                             See |diffs.VimConfig| for fields.
 
         {highlights}         (table, default: see below)
                              Controls which highlight features are enabled.
-                             See |fugitive-ts.Highlights| for fields.
+                             See |diffs.Highlights| for fields.
 
-                                                *fugitive-ts.TreesitterConfig*
+                                                    *diffs.TreesitterConfig*
     Treesitter config fields: ~
         {enabled}            (boolean, default: true)
                              Apply treesitter syntax highlighting to code.
@@ -83,7 +84,7 @@ CONFIGURATION                                               *fugitive-ts-config*
                              Skip treesitter highlighting for hunks larger than
                              this many lines. Prevents lag on massive diffs.
 
-                                                      *fugitive-ts.VimConfig*
+                                                          *diffs.VimConfig*
     Vim config fields: ~
         {enabled}            (boolean, default: false)
                              Use vim syntax highlighting as fallback when no
@@ -98,12 +99,12 @@ CONFIGURATION                                               *fugitive-ts-config*
                              this many lines. Lower than the treesitter default
                              due to the per-character cost of |synID()|.
 
-                                                       *fugitive-ts.Highlights*
+                                                          *diffs.Highlights*
     Highlights table fields: ~
         {background}         (boolean, default: true)
                              Apply background highlighting to `+`/`-` lines
-                             using `FugitiveTsAdd`/`FugitiveTsDelete` groups
-                             (derived from `DiffAdd`/`DiffDelete` backgrounds).
+                             using `DiffsAdd`/`DiffsDelete` groups (derived
+                             from `DiffAdd`/`DiffDelete` backgrounds).
 
         {gutter}             (boolean, default: true)
                              Highlight line numbers with matching colors.
@@ -118,22 +119,22 @@ CONFIGURATION                                               *fugitive-ts-config*
     |vim.filetype.add()| and |vim.treesitter.language.register()|.
 
 ==============================================================================
-API                                                            *fugitive-ts-api*
+API                                                                *diffs-api*
 
-setup({opts})                                           *fugitive-ts.setup()*
+setup({opts})                                               *diffs.setup()*
     Configure the plugin with `opts`.
 
     Parameters: ~
-        {opts}  (|fugitive-ts.Config|, optional) Configuration table.
+        {opts}  (|diffs.Config|, optional) Configuration table.
 
-attach({bufnr})                                         *fugitive-ts.attach()*
+attach({bufnr})                                             *diffs.attach()*
     Manually attach highlighting to a buffer. Called automatically for
     fugitive buffers via the `FileType fugitive` autocmd.
 
     Parameters: ~
         {bufnr}  (integer, optional) Buffer number. Defaults to current buffer.
 
-refresh({bufnr})                                       *fugitive-ts.refresh()*
+refresh({bufnr})                                           *diffs.refresh()*
     Manually refresh highlighting for a buffer. Useful after external changes
     or for debugging.
 
@@ -141,11 +142,11 @@ refresh({bufnr})                                       *fugitive-ts.refresh()*
         {bufnr}  (integer, optional) Buffer number. Defaults to current buffer.
 
 ==============================================================================
-IMPLEMENTATION                                    *fugitive-ts-implementation*
+IMPLEMENTATION                                        *diffs-implementation*
 
 Summary / commit detail views: ~
 1. `FileType fugitive` or `FileType git` (for `fugitive://` buffers)
-   triggers |fugitive-ts.attach()|
+   triggers |diffs.attach()|
 2. The buffer is parsed to detect file headers (`M path/to/file`,
    `diff --git a/... b/...`) and hunk headers (`@@ -10,3 +10,4 @@`)
 3. For each hunk:
@@ -154,45 +155,42 @@ Summary / commit detail views: ~
    - Code is parsed with |vim.treesitter.get_string_parser()|
    - If no treesitter parser and `vim.enabled`: vim syntax fallback via
      scratch buffer and |synID()|
-   - Background extmarks (`FugitiveTsAdd`/`FugitiveTsDelete`) at priority 198
+   - Background extmarks (`DiffsAdd`/`DiffsDelete`) at priority 198
    - `Normal` extmarks at priority 199 clear underlying diff foreground
    - Syntax highlights are applied as extmarks at priority 200
    - Conceal extmarks hide diff prefixes when `hide_prefix` is enabled
 4. Re-highlighting occurs on `TextChanged` (debounced) and `Syntax` events
 
-Diffsplit views: ~
-1. `OptionSet diff` detects when a window enters diff mode
-2. If any `&diff` window in the tabpage contains a `fugitive://` buffer,
-   all `&diff` windows receive a window-local 'winhighlight' override
-3. The override remaps `DiffAdd`/`DiffDelete`/`DiffChange`/`DiffText` to
+Diff mode views: ~
+1. `OptionSet diff` detects when any window enters diff mode
+2. All `&diff` windows in the tabpage receive a window-local 'winhighlight'
+   override that remaps `DiffAdd`/`DiffDelete`/`DiffChange`/`DiffText` to
    background-only variants, allowing existing treesitter highlighting to
    show through the diff colors
 
 ==============================================================================
-KNOWN LIMITATIONS                                   *fugitive-ts-limitations*
+KNOWN LIMITATIONS                                       *diffs-limitations*
 
 Syntax Highlighting Flash ~
-                                                     *fugitive-ts-flash*
+                                                             *diffs-flash*
 When opening a fugitive buffer, there is an unavoidable visual "flash" where
 the buffer briefly shows fugitive's default diff highlighting before
-fugitive-ts.nvim applies treesitter highlights.
+diffs.nvim applies treesitter highlights.
 
-This occurs because fugitive-ts.nvim hooks into the `FileType fugitive` event,
+This occurs because diffs.nvim hooks into the `FileType fugitive` event,
 which fires after vim-fugitive has already painted the buffer. Even with
 `debounce_ms = 0`, the re-painting goes through Neovim's event loop.
 
 To minimize the flash, use a low debounce value: >lua
-    require('fugitive-ts').setup({
+    require('diffs').setup({
       debounce_ms = 0,
     })
 <
-See https://github.com/barrettruth/fugitive-ts.nvim/issues/18 for discussion
-and potential solutions.
 
 ==============================================================================
-HEALTH CHECK                                             *fugitive-ts-health*
+HEALTH CHECK                                                 *diffs-health*
 
-Run |:checkhealth| fugitive-ts to verify your setup.
+Run |:checkhealth| diffs to verify your setup.
 
 Checks performed:
 - Neovim version >= 0.9.0

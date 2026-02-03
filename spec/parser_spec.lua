@@ -1,5 +1,5 @@
 require('spec.helpers')
-local parser = require('fugitive-ts.parser')
+local parser = require('diffs.parser')
 
 describe('parser', function()
   describe('parse_buffer', function()

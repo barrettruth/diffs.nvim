@@ -13,7 +13,7 @@ function M.dbg(msg, ...)
   if not enabled then
     return
   end
-  vim.notify('[fugitive-ts] ' .. string.format(msg, ...), vim.log.levels.DEBUG)
+  vim.notify('[diffs] ' .. string.format(msg, ...), vim.log.levels.DEBUG)
 end
 
 return M

@@ -1,0 +1,17 @@
+title: 'Q&A'
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this space for questions, ideas, and general discussion about diffs.nvim.
+        For bug reports, please [open an issue](https://github.com/barrettruth/diffs.nvim/issues/new/choose) instead.
+  - type: textarea
+    attributes:
+      label: Question or topic
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Context
+      description: Any relevant details (Neovim version, config, screenshots)
