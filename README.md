@@ -2,8 +2,8 @@
 
 **Syntax highlighting for diffs in Neovim**
 
-Enhance vim-fugitive and Neovim's built-in diff mode with language-aware syntax
-highlighting.
+Enhance `vim-fugitive` and Neovim's built-in diff mode with language-aware
+syntax highlighting.
 
 ![diffs.nvim preview](https://github.com/user-attachments/assets/d3d64c96-b824-4fcb-af7f-4aef3f7f498a)
 
@@ -19,7 +19,7 @@ highlighting.
 ## Requirements
 
 - Neovim 0.9.0+
-- [vim-fugitive](https://github.com/tpope/vim-fugitive) (optional, for unified
+- [`vim-fugitive`](https://github.com/tpope/vim-fugitive) (optional, for unified
   diff syntax highlighting)
 
 ## Installation
