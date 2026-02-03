@@ -7,7 +7,7 @@ body:
     attributes:
       label: Prerequisites
       options:
-        - label: I have searched [existing issues](https://github.com/barrettruth/fugitive-ts.nvim/issues)
+        - label: I have searched [existing issues](https://github.com/barrettruth/diffs.nvim/issues)
           required: true
         - label: I have updated to the latest version
           required: true
@@ -48,7 +48,7 @@ body:
   - type: textarea
     attributes:
       label: "Health check"
-      description: "Output of `:checkhealth fugitive-ts`"
+      description: "Output of `:checkhealth diffs`"
       render: text
 
   - type: textarea
@@ -68,7 +68,7 @@ body:
           spec = {
             'tpope/vim-fugitive',
             {
-              'barrettruth/fugitive-ts.nvim',
+              'barrettruth/diffs.nvim',
               opts = {},
             },
           },

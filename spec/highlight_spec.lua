@@ -1,5 +1,5 @@
 require('spec.helpers')
-local highlight = require('fugitive-ts.highlight')
+local highlight = require('diffs.highlight')
 
 describe('highlight', function()
   describe('highlight_hunk', function()
@@ -9,8 +9,8 @@ describe('highlight', function()
       ns = vim.api.nvim_create_namespace('fugitive_ts_test')
       local diff_add = vim.api.nvim_get_hl(0, { name = 'DiffAdd' })
       local diff_delete = vim.api.nvim_get_hl(0, { name = 'DiffDelete' })
-      vim.api.nvim_set_hl(0, 'FugitiveTsAdd', { bg = diff_add.bg })
-      vim.api.nvim_set_hl(0, 'FugitiveTsDelete', { bg = diff_delete.bg })
+      vim.api.nvim_set_hl(0, 'DiffsAdd', { bg = diff_add.bg })
+      vim.api.nvim_set_hl(0, 'DiffsDelete', { bg = diff_delete.bg })
     end)
 
     local function create_buffer(lines)
@@ -325,7 +325,7 @@ describe('highlight', function()
       local extmarks = get_extmarks(bufnr)
       local has_diff_add = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].line_hl_group == 'FugitiveTsAdd' then
+        if mark[4] and mark[4].line_hl_group == 'DiffsAdd' then
           has_diff_add = true
           break
         end
@@ -358,7 +358,7 @@ describe('highlight', function()
       local extmarks = get_extmarks(bufnr)
       local has_diff_delete = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].line_hl_group == 'FugitiveTsDelete' then
+        if mark[4] and mark[4].line_hl_group == 'DiffsDelete' then
           has_diff_delete = true
           break
         end
@@ -523,7 +523,7 @@ describe('highlight', function()
       local extmarks = get_extmarks(bufnr)
       local has_diff_add = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].line_hl_group == 'FugitiveTsAdd' then
+        if mark[4] and mark[4].line_hl_group == 'DiffsAdd' then
           has_diff_add = true
           break
         end
@@ -554,7 +554,7 @@ describe('highlight', function()
 
       local hunk = {
         filename = 'test.lua',
-        ft = 'lua',
+        ft = 'abap',
         lang = nil,
         start_line = 1,
         lines = { ' local x = 1', '+local y = 2' },
@@ -587,7 +587,7 @@ describe('highlight', function()
 
       local hunk = {
         filename = 'test.lua',
-        ft = 'lua',
+        ft = 'abap',
         lang = nil,
         start_line = 1,
         lines = { ' local x = 1', '+local y = 2' },
@@ -618,7 +618,7 @@ describe('highlight', function()
       local bufnr = create_buffer(lines)
       local hunk = {
         filename = 'test.lua',
-        ft = 'lua',
+        ft = 'abap',
         lang = nil,
         start_line = 1,
         lines = hunk_lines,
@@ -645,7 +645,7 @@ describe('highlight', function()
 
       local hunk = {
         filename = 'test.lua',
-        ft = 'lua',
+        ft = 'abap',
         lang = nil,
         start_line = 1,
         lines = { ' local x = 1', '+local y = 2' },
@@ -661,7 +661,7 @@ describe('highlight', function()
       local extmarks = get_extmarks(bufnr)
       local has_diff_add = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].line_hl_group == 'FugitiveTsAdd' then
+        if mark[4] and mark[4].line_hl_group == 'DiffsAdd' then
           has_diff_add = true
           break
         end
@@ -692,7 +692,7 @@ describe('highlight', function()
 
       local hunk = {
         filename = 'test.lua',
-        ft = 'lua',
+        ft = 'abap',
         lang = nil,
         start_line = 1,
         lines = { ' local x = 1', '+local y = 2' },

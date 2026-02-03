@@ -1,23 +1,23 @@
 require('spec.helpers')
-local fugitive_ts = require('fugitive-ts')
+local diffs = require('diffs')
 
-describe('fugitive-ts', function()
+describe('diffs', function()
   describe('setup', function()
     it('accepts empty config', function()
       assert.has_no.errors(function()
-        fugitive_ts.setup({})
+        diffs.setup({})
       end)
     end)
 
     it('accepts nil config', function()
       assert.has_no.errors(function()
-        fugitive_ts.setup()
+        diffs.setup()
       end)
     end)
 
     it('accepts full config', function()
       assert.has_no.errors(function()
-        fugitive_ts.setup({
+        diffs.setup({
           enabled = false,
           debug = true,
           debounce_ms = 100,
@@ -40,7 +40,7 @@ describe('fugitive-ts', function()
 
     it('accepts partial config', function()
       assert.has_no.errors(function()
-        fugitive_ts.setup({
+        diffs.setup({
           debounce_ms = 25,
         })
       end)
@@ -61,13 +61,13 @@ describe('fugitive-ts', function()
     end
 
     before_each(function()
-      fugitive_ts.setup({ enabled = true })
+      diffs.setup({ enabled = true })
     end)
 
     it('does not error on empty buffer', function()
       local bufnr = create_buffer({})
       assert.has_no.errors(function()
-        fugitive_ts.attach(bufnr)
+        diffs.attach(bufnr)
       end)
       delete_buffer(bufnr)
     end)
@@ -80,7 +80,7 @@ describe('fugitive-ts', function()
         '+local y = 2',
       })
       assert.has_no.errors(function()
-        fugitive_ts.attach(bufnr)
+        diffs.attach(bufnr)
       end)
       delete_buffer(bufnr)
     end)
@@ -88,9 +88,9 @@ describe('fugitive-ts', function()
     it('is idempotent', function()
       local bufnr = create_buffer({})
       assert.has_no.errors(function()
-        fugitive_ts.attach(bufnr)
-        fugitive_ts.attach(bufnr)
-        fugitive_ts.attach(bufnr)
+        diffs.attach(bufnr)
+        diffs.attach(bufnr)
+        diffs.attach(bufnr)
       end)
       delete_buffer(bufnr)
     end)
@@ -110,22 +110,22 @@ describe('fugitive-ts', function()
     end
 
     before_each(function()
-      fugitive_ts.setup({ enabled = true })
+      diffs.setup({ enabled = true })
     end)
 
     it('does not error on unattached buffer', function()
       local bufnr = create_buffer({})
       assert.has_no.errors(function()
-        fugitive_ts.refresh(bufnr)
+        diffs.refresh(bufnr)
       end)
       delete_buffer(bufnr)
     end)
 
     it('does not error on attached buffer', function()
       local bufnr = create_buffer({})
-      fugitive_ts.attach(bufnr)
+      diffs.attach(bufnr)
       assert.has_no.errors(function()
-        fugitive_ts.refresh(bufnr)
+        diffs.refresh(bufnr)
       end)
       delete_buffer(bufnr)
     end)
@@ -133,7 +133,7 @@ describe('fugitive-ts', function()
 
   describe('config options', function()
     it('enabled=false prevents highlighting', function()
-      fugitive_ts.setup({ enabled = false })
+      diffs.setup({ enabled = false })
       local bufnr = vim.api.nvim_create_buf(false, true)
       vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {
         'M test.lua',
@@ -141,9 +141,9 @@ describe('fugitive-ts', function()
         ' local x = 1',
         '+local y = 2',
       })
-      fugitive_ts.attach(bufnr)
+      diffs.attach(bufnr)
 
-      local ns = vim.api.nvim_create_namespace('fugitive_ts')
+      local ns = vim.api.nvim_create_namespace('diffs')
       local extmarks = vim.api.nvim_buf_get_extmarks(bufnr, ns, 0, -1, {})
       assert.are.equal(0, #extmarks)
 

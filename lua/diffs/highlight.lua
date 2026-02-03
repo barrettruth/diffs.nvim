@@ -1,10 +1,10 @@
 local M = {}
 
-local dbg = require('fugitive-ts.log').dbg
+local dbg = require('diffs.log').dbg
 
 ---@param bufnr integer
 ---@param ns integer
----@param hunk fugitive-ts.Hunk
+---@param hunk diffs.Hunk
 ---@param col_offset integer
 ---@param text string
 ---@param lang string
@@ -49,15 +49,15 @@ local function highlight_text(bufnr, ns, hunk, col_offset, text, lang)
   return extmark_count
 end
 
----@class fugitive-ts.HunkOpts
+---@class diffs.HunkOpts
 ---@field hide_prefix boolean
----@field treesitter fugitive-ts.TreesitterConfig
----@field vim fugitive-ts.VimConfig
----@field highlights fugitive-ts.Highlights
+---@field treesitter diffs.TreesitterConfig
+---@field vim diffs.VimConfig
+---@field highlights diffs.Highlights
 
 ---@param bufnr integer
 ---@param ns integer
----@param hunk fugitive-ts.Hunk
+---@param hunk diffs.Hunk
 ---@param code_lines string[]
 ---@return integer
 local function highlight_treesitter(bufnr, ns, hunk, code_lines)
@@ -125,9 +125,9 @@ local function highlight_treesitter(bufnr, ns, hunk, code_lines)
   return extmark_count
 end
 
----@alias fugitive-ts.SyntaxQueryFn fun(line: integer, col: integer): integer, string
+---@alias diffs.SyntaxQueryFn fun(line: integer, col: integer): integer, string
 
----@param query_fn fugitive-ts.SyntaxQueryFn
+---@param query_fn diffs.SyntaxQueryFn
 ---@param code_lines string[]
 ---@return {line: integer, col_start: integer, col_end: integer, hl_name: string}[]
 function M.coalesce_syntax_spans(query_fn, code_lines)
@@ -168,7 +168,7 @@ end
 
 ---@param bufnr integer
 ---@param ns integer
----@param hunk fugitive-ts.Hunk
+---@param hunk diffs.Hunk
 ---@param code_lines string[]
 ---@return integer
 local function highlight_vim_syntax(bufnr, ns, hunk, code_lines)
@@ -223,8 +223,8 @@ end
 
 ---@param bufnr integer
 ---@param ns integer
----@param hunk fugitive-ts.Hunk
----@param opts fugitive-ts.HunkOpts
+---@param hunk diffs.Hunk
+---@param opts diffs.HunkOpts
 function M.highlight_hunk(bufnr, ns, hunk, opts)
   local use_ts = hunk.lang and opts.treesitter.enabled
   local use_vim = not use_ts and hunk.ft and opts.vim.enabled
@@ -267,10 +267,8 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     local prefix = line:sub(1, 1)
 
     local is_diff_line = prefix == '+' or prefix == '-'
-    local line_hl = is_diff_line and (prefix == '+' and 'FugitiveTsAdd' or 'FugitiveTsDelete')
-      or nil
-    local number_hl = is_diff_line and (prefix == '+' and 'FugitiveTsAddNr' or 'FugitiveTsDeleteNr')
-      or nil
+    local line_hl = is_diff_line and (prefix == '+' and 'DiffsAdd' or 'DiffsDelete') or nil
+    local number_hl = is_diff_line and (prefix == '+' and 'DiffsAddNr' or 'DiffsDeleteNr') or nil
 
     if opts.hide_prefix then
       local virt_hl = (opts.highlights.background and line_hl) or nil
