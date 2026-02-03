@@ -31,20 +31,25 @@ describe('highlight', function()
 
     local function default_opts(overrides)
       local opts = {
-        max_lines = 500,
         hide_prefix = false,
+        treesitter = {
+          enabled = true,
+          max_lines = 500,
+        },
+        vim = {
+          enabled = false,
+          max_lines = 200,
+        },
         highlights = {
-          treesitter = true,
           background = false,
           gutter = false,
-          vim = false,
         },
       }
       if overrides then
         for k, v in pairs(overrides) do
-          if k == 'highlights' then
-            for hk, hv in pairs(v) do
-              opts.highlights[hk] = hv
+          if type(v) == 'table' and type(opts[k]) == 'table' then
+            for sk, sv in pairs(v) do
+              opts[k][sk] = sv
             end
           else
             opts[k] = v
@@ -126,7 +131,7 @@ describe('highlight', function()
       delete_buffer(bufnr)
     end)
 
-    it('does nothing for nil lang', function()
+    it('does nothing for nil lang and nil ft', function()
       local bufnr = create_buffer({
         '@@ -1,1 +1,2 @@',
         ' some content',
@@ -135,6 +140,7 @@ describe('highlight', function()
 
       local hunk = {
         filename = 'test.unknown',
+        ft = nil,
         lang = nil,
         start_line = 1,
         lines = { ' some content', '+more content' },
@@ -478,7 +484,7 @@ describe('highlight', function()
         bufnr,
         ns,
         hunk,
-        default_opts({ highlights = { treesitter = false, background = true } })
+        default_opts({ treesitter = { enabled = false }, highlights = { background = true } })
       )
 
       local extmarks = get_extmarks(bufnr)
@@ -511,7 +517,7 @@ describe('highlight', function()
         bufnr,
         ns,
         hunk,
-        default_opts({ highlights = { treesitter = false, background = true } })
+        default_opts({ treesitter = { enabled = false }, highlights = { background = true } })
       )
 
       local extmarks = get_extmarks(bufnr)
@@ -524,6 +530,243 @@ describe('highlight', function()
       end
       assert.is_true(has_diff_add)
       delete_buffer(bufnr)
+    end)
+
+    it('applies vim syntax extmarks when vim.enabled and no TS parser', function()
+      local orig_synID = vim.fn.synID
+      local orig_synIDtrans = vim.fn.synIDtrans
+      local orig_synIDattr = vim.fn.synIDattr
+      vim.fn.synID = function(_line, _col, _trans)
+        return 1
+      end
+      vim.fn.synIDtrans = function(id)
+        return id
+      end
+      vim.fn.synIDattr = function(_id, _what)
+        return 'Identifier'
+      end
+
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        ft = 'lua',
+        lang = nil,
+        start_line = 1,
+        lines = { ' local x = 1', '+local y = 2' },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ vim = { enabled = true } }))
+
+      vim.fn.synID = orig_synID
+      vim.fn.synIDtrans = orig_synIDtrans
+      vim.fn.synIDattr = orig_synIDattr
+
+      local extmarks = get_extmarks(bufnr)
+      local has_syntax_hl = false
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].hl_group and mark[4].hl_group ~= 'Normal' then
+          has_syntax_hl = true
+          break
+        end
+      end
+      assert.is_true(has_syntax_hl)
+      delete_buffer(bufnr)
+    end)
+
+    it('skips vim fallback when vim.enabled is false', function()
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        ft = 'lua',
+        lang = nil,
+        start_line = 1,
+        lines = { ' local x = 1', '+local y = 2' },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ vim = { enabled = false } }))
+
+      local extmarks = get_extmarks(bufnr)
+      local has_syntax_hl = false
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].hl_group and mark[4].hl_group ~= 'Normal' then
+          has_syntax_hl = true
+          break
+        end
+      end
+      assert.is_false(has_syntax_hl)
+      delete_buffer(bufnr)
+    end)
+
+    it('respects vim.max_lines', function()
+      local lines = { '@@ -1,100 +1,101 @@' }
+      local hunk_lines = {}
+      for i = 1, 250 do
+        table.insert(lines, ' line ' .. i)
+        table.insert(hunk_lines, ' line ' .. i)
+      end
+
+      local bufnr = create_buffer(lines)
+      local hunk = {
+        filename = 'test.lua',
+        ft = 'lua',
+        lang = nil,
+        start_line = 1,
+        lines = hunk_lines,
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ vim = { enabled = true, max_lines = 200 } })
+      )
+
+      local extmarks = get_extmarks(bufnr)
+      assert.are.equal(0, #extmarks)
+      delete_buffer(bufnr)
+    end)
+
+    it('applies background for vim fallback hunks', function()
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        ft = 'lua',
+        lang = nil,
+        start_line = 1,
+        lines = { ' local x = 1', '+local y = 2' },
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ vim = { enabled = true }, highlights = { background = true } })
+      )
+
+      local extmarks = get_extmarks(bufnr)
+      local has_diff_add = false
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].line_hl_group == 'FugitiveTsAdd' then
+          has_diff_add = true
+          break
+        end
+      end
+      assert.is_true(has_diff_add)
+      delete_buffer(bufnr)
+    end)
+
+    it('applies Normal blanking for vim fallback hunks', function()
+      local orig_synID = vim.fn.synID
+      local orig_synIDtrans = vim.fn.synIDtrans
+      local orig_synIDattr = vim.fn.synIDattr
+      vim.fn.synID = function(_line, _col, _trans)
+        return 1
+      end
+      vim.fn.synIDtrans = function(id)
+        return id
+      end
+      vim.fn.synIDattr = function(_id, _what)
+        return 'Identifier'
+      end
+
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        ft = 'lua',
+        lang = nil,
+        start_line = 1,
+        lines = { ' local x = 1', '+local y = 2' },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ vim = { enabled = true } }))
+
+      vim.fn.synID = orig_synID
+      vim.fn.synIDtrans = orig_synIDtrans
+      vim.fn.synIDattr = orig_synIDattr
+
+      local extmarks = get_extmarks(bufnr)
+      local has_normal = false
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].hl_group == 'Normal' then
+          has_normal = true
+          break
+        end
+      end
+      assert.is_true(has_normal)
+      delete_buffer(bufnr)
+    end)
+  end)
+
+  describe('coalesce_syntax_spans', function()
+    it('coalesces adjacent chars with same hl group', function()
+      local function query_fn(_line, _col)
+        return 1, 'Keyword'
+      end
+      local spans = highlight.coalesce_syntax_spans(query_fn, { 'hello' })
+      assert.are.equal(1, #spans)
+      assert.are.equal(1, spans[1].col_start)
+      assert.are.equal(6, spans[1].col_end)
+      assert.are.equal('Keyword', spans[1].hl_name)
+    end)
+
+    it('splits spans at hl group boundaries', function()
+      local function query_fn(_line, col)
+        if col <= 3 then
+          return 1, 'Keyword'
+        end
+        return 2, 'String'
+      end
+      local spans = highlight.coalesce_syntax_spans(query_fn, { 'abcdef' })
+      assert.are.equal(2, #spans)
+      assert.are.equal('Keyword', spans[1].hl_name)
+      assert.are.equal(1, spans[1].col_start)
+      assert.are.equal(4, spans[1].col_end)
+      assert.are.equal('String', spans[2].hl_name)
+      assert.are.equal(4, spans[2].col_start)
+      assert.are.equal(7, spans[2].col_end)
+    end)
+
+    it('skips syn_id 0 gaps', function()
+      local function query_fn(_line, col)
+        if col == 2 or col == 3 then
+          return 0, ''
+        end
+        return 1, 'Identifier'
+      end
+      local spans = highlight.coalesce_syntax_spans(query_fn, { 'abcd' })
+      assert.are.equal(2, #spans)
+      assert.are.equal(1, spans[1].col_start)
+      assert.are.equal(2, spans[1].col_end)
+      assert.are.equal(4, spans[2].col_start)
+      assert.are.equal(5, spans[2].col_end)
+    end)
+
+    it('skips empty hl_name spans', function()
+      local function query_fn(_line, _col)
+        return 1, ''
+      end
+      local spans = highlight.coalesce_syntax_spans(query_fn, { 'abc' })
+      assert.are.equal(0, #spans)
     end)
   end)
 end)
