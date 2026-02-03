@@ -76,6 +76,25 @@ describe('parser', function()
     end)
 
     it('detects hunks across multiple files', function()
+      local orig_get_lang = vim.treesitter.language.get_lang
+      local orig_inspect = vim.treesitter.language.inspect
+      vim.treesitter.language.get_lang = function(ft)
+        local result = orig_get_lang(ft)
+        if result then
+          return result
+        end
+        if ft == 'python' then
+          return 'python'
+        end
+        return nil
+      end
+      vim.treesitter.language.inspect = function(lang)
+        if lang == 'python' then
+          return {}
+        end
+        return orig_inspect(lang)
+      end
+
       local bufnr = create_buffer({
         'M lua/foo.lua',
         '@@ -1,1 +1,2 @@',
@@ -87,6 +106,9 @@ describe('parser', function()
         '+    pass',
       })
       local hunks = parser.parse_buffer(bufnr)
+
+      vim.treesitter.language.get_lang = orig_get_lang
+      vim.treesitter.language.inspect = orig_inspect
 
       assert.are.equal(2, #hunks)
       assert.are.equal('lua/foo.lua', hunks[1].filename)
