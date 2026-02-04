@@ -20,3 +20,9 @@ jobs:
       - uses: nvim-neorocks/nvim-busted-action@v1
         with:
           nvim_version: ${{ matrix.nvim }}
+          before: |
+            git clone --depth 1 https://github.com/the-mikedavis/tree-sitter-diff /tmp/ts-diff
+            cd /tmp/ts-diff && cc -shared -fPIC -o diff.so -I./src src/parser.c
+            mkdir -p ~/.local/share/nvim/site/parser ~/.local/share/nvim/site/queries/diff
+            cp diff.so ~/.local/share/nvim/site/parser/
+            cp queries/*.scm ~/.local/share/nvim/site/queries/diff/
