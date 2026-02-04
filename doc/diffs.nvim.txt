@@ -185,6 +185,17 @@ Diff mode views: ~
 ==============================================================================
 KNOWN LIMITATIONS                                       *diffs-limitations*
 
+Incomplete Syntax Context ~
+                                                      *diffs-syntax-context*
+Treesitter parses each diff hunk in isolation without surrounding code
+context. When a hunk shows lines added to an existing block (e.g., adding a
+plugin inside `return { ... }`), the parser doesn't see the `return`
+statement and may produce incorrect or unusual highlighting.
+
+This is inherent to parsing code fragments. No diff tooling solves this
+problem without significant complexity—the parser simply doesn't have enough
+information to understand the full syntactic structure.
+
 Syntax Highlighting Flash ~
                                                              *diffs-flash*
 When opening a fugitive buffer, there is an unavoidable visual "flash" where
