@@ -3,6 +3,8 @@ if vim.g.loaded_diffs then
 end
 vim.g.loaded_diffs = 1
 
+require('diffs.commands').setup()
+
 vim.api.nvim_create_autocmd('FileType', {
   pattern = { 'fugitive', 'git' },
   callback = function(args)

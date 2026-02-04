@@ -885,6 +885,111 @@ describe('highlight', function()
     end)
   end)
 
+  describe('extmark priority', function()
+    local ns
+
+    before_each(function()
+      ns = vim.api.nvim_create_namespace('diffs_test_priority')
+    end)
+
+    local function create_buffer(lines)
+      local bufnr = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
+      return bufnr
+    end
+
+    local function delete_buffer(bufnr)
+      if vim.api.nvim_buf_is_valid(bufnr) then
+        vim.api.nvim_buf_delete(bufnr, { force = true })
+      end
+    end
+
+    local function get_extmarks(bufnr)
+      return vim.api.nvim_buf_get_extmarks(bufnr, ns, 0, -1, { details = true })
+    end
+
+    local function default_opts()
+      return {
+        hide_prefix = false,
+        highlights = {
+          background = false,
+          gutter = false,
+          treesitter = { enabled = true, max_lines = 500 },
+          vim = { enabled = false, max_lines = 200 },
+        },
+      }
+    end
+
+    it('uses priority 200 for code languages', function()
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { ' local x = 1', '+local y = 2' },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
+
+      local extmarks = get_extmarks(bufnr)
+      local has_priority_200 = false
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].hl_group and mark[4].hl_group:match('^@.*%.lua$') then
+          if mark[4].priority == 200 then
+            has_priority_200 = true
+            break
+          end
+        end
+      end
+      assert.is_true(has_priority_200)
+      delete_buffer(bufnr)
+    end)
+
+    it('uses treesitter priority for diff language', function()
+      local bufnr = create_buffer({
+        'diff --git a/test.lua b/test.lua',
+        '--- a/test.lua',
+        '+++ b/test.lua',
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 5,
+        lines = { ' local x = 1', '+local y = 2' },
+        header_start_line = 1,
+        header_lines = {
+          'diff --git a/test.lua b/test.lua',
+          '--- a/test.lua',
+          '+++ b/test.lua',
+        },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
+
+      local extmarks = get_extmarks(bufnr)
+      local diff_extmark_priorities = {}
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].hl_group and mark[4].hl_group:match('^@.*%.diff$') then
+          table.insert(diff_extmark_priorities, mark[4].priority)
+        end
+      end
+      assert.is_true(#diff_extmark_priorities > 0)
+      for _, priority in ipairs(diff_extmark_priorities) do
+        assert.is_true(priority < 200)
+      end
+      delete_buffer(bufnr)
+    end)
+  end)
+
   describe('coalesce_syntax_spans', function()
     it('coalesces adjacent chars with same hl group', function()
       local function query_fn(_line, _col)

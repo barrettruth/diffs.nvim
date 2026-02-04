@@ -12,6 +12,7 @@ syntax highlighting.
 - Treesitter syntax highlighting in `:Git` diffs and commit views
 - Diff header highlighting (`diff --git`, `index`, `---`, `+++`)
 - `:Gdiffsplit` / `:Gvdiffsplit` syntax through diff backgrounds
+- `:Gdiff` unified diff against any git revision with syntax highlighting
 - Background-only diff colors for any `&diff` buffer (`:diffthis`, `vimdiff`)
 - Vim syntax fallback for languages without a treesitter parser
 - Hunk header context highlighting (`@@ ... @@ function foo()`)
