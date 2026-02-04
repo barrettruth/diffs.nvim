@@ -10,6 +10,7 @@ syntax highlighting.
 ## Features
 
 - Treesitter syntax highlighting in `:Git` diffs and commit views
+- Diff header highlighting (`diff --git`, `index`, `---`, `+++`)
 - `:Gdiffsplit` / `:Gvdiffsplit` syntax through diff backgrounds
 - Background-only diff colors for any `&diff` buffer (`:diffthis`, `vimdiff`)
 - Vim syntax fallback for languages without a treesitter parser
@@ -66,3 +67,4 @@ luarocks install diffs.nvim
 - [`vim-fugitive`](https://github.com/tpope/vim-fugitive)
 - [`codediff.nvim`](https://github.com/esmuellert/codediff.nvim)
 - [`diffview.nvim`](https://github.com/sindrets/diffview.nvim)
+- [@phanen](https://github.com/phanen) - diff header highlighting

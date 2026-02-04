@@ -729,6 +729,162 @@ describe('highlight', function()
     end)
   end)
 
+  describe('diff header highlighting', function()
+    local ns
+
+    before_each(function()
+      ns = vim.api.nvim_create_namespace('diffs_test_header')
+    end)
+
+    local function create_buffer(lines)
+      local bufnr = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
+      return bufnr
+    end
+
+    local function delete_buffer(bufnr)
+      if vim.api.nvim_buf_is_valid(bufnr) then
+        vim.api.nvim_buf_delete(bufnr, { force = true })
+      end
+    end
+
+    local function get_extmarks(bufnr)
+      return vim.api.nvim_buf_get_extmarks(bufnr, ns, 0, -1, { details = true })
+    end
+
+    local function default_opts()
+      return {
+        hide_prefix = false,
+        highlights = {
+          background = false,
+          gutter = false,
+          treesitter = { enabled = true, max_lines = 500 },
+          vim = { enabled = false, max_lines = 200 },
+        },
+      }
+    end
+
+    it('applies treesitter extmarks to diff header lines', function()
+      local bufnr = create_buffer({
+        'diff --git a/parser.lua b/parser.lua',
+        'index 3e8afa0..018159c 100644',
+        '--- a/parser.lua',
+        '+++ b/parser.lua',
+        '@@ -1,2 +1,3 @@',
+        ' local M = {}',
+        '+local x = 1',
+      })
+
+      local hunk = {
+        filename = 'parser.lua',
+        lang = 'lua',
+        start_line = 5,
+        lines = { ' local M = {}', '+local x = 1' },
+        header_start_line = 1,
+        header_lines = {
+          'diff --git a/parser.lua b/parser.lua',
+          'index 3e8afa0..018159c 100644',
+          '--- a/parser.lua',
+          '+++ b/parser.lua',
+        },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
+
+      local extmarks = get_extmarks(bufnr)
+      local header_extmarks = {}
+      for _, mark in ipairs(extmarks) do
+        if mark[2] < 4 and mark[4] and mark[4].hl_group then
+          table.insert(header_extmarks, mark)
+        end
+      end
+
+      assert.is_true(#header_extmarks > 0)
+
+      local has_function_hl = false
+      local has_keyword_hl = false
+      for _, mark in ipairs(header_extmarks) do
+        local hl = mark[4].hl_group
+        if hl == '@function' or hl == '@function.diff' then
+          has_function_hl = true
+        end
+        if hl == '@keyword' or hl == '@keyword.diff' then
+          has_keyword_hl = true
+        end
+      end
+      assert.is_true(has_function_hl or has_keyword_hl)
+      delete_buffer(bufnr)
+    end)
+
+    it('does not apply header highlights when header_lines missing', function()
+      local bufnr = create_buffer({
+        '@@ -1,2 +1,3 @@',
+        ' local M = {}',
+        '+local x = 1',
+      })
+
+      local hunk = {
+        filename = 'parser.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { ' local M = {}', '+local x = 1' },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
+
+      local extmarks = get_extmarks(bufnr)
+      local header_extmarks = 0
+      for _, mark in ipairs(extmarks) do
+        if mark[2] < 0 and mark[4] and mark[4].hl_group then
+          header_extmarks = header_extmarks + 1
+        end
+      end
+      assert.are.equal(0, header_extmarks)
+      delete_buffer(bufnr)
+    end)
+
+    it('does not apply header highlights when treesitter disabled', function()
+      local bufnr = create_buffer({
+        'diff --git a/parser.lua b/parser.lua',
+        'index 3e8afa0..018159c 100644',
+        '--- a/parser.lua',
+        '+++ b/parser.lua',
+        '@@ -1,2 +1,3 @@',
+        ' local M = {}',
+        '+local x = 1',
+      })
+
+      local hunk = {
+        filename = 'parser.lua',
+        lang = 'lua',
+        start_line = 5,
+        lines = { ' local M = {}', '+local x = 1' },
+        header_start_line = 1,
+        header_lines = {
+          'diff --git a/parser.lua b/parser.lua',
+          'index 3e8afa0..018159c 100644',
+          '--- a/parser.lua',
+          '+++ b/parser.lua',
+        },
+      }
+
+      local opts = default_opts()
+      opts.highlights.treesitter.enabled = false
+
+      highlight.highlight_hunk(bufnr, ns, hunk, opts)
+
+      local extmarks = get_extmarks(bufnr)
+      local header_extmarks = 0
+      for _, mark in ipairs(extmarks) do
+        if mark[2] < 4 and mark[4] and mark[4].hl_group and mark[4].hl_group:match('^@') then
+          header_extmarks = header_extmarks + 1
+        end
+      end
+      assert.are.equal(0, header_extmarks)
+      delete_buffer(bufnr)
+    end)
+  end)
+
   describe('coalesce_syntax_spans', function()
     it('coalesces adjacent chars with same hl group', function()
       local function query_fn(_line, _col)

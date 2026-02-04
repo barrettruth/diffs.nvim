@@ -20,3 +20,11 @@ jobs:
       - uses: nvim-neorocks/nvim-busted-action@v1
         with:
           nvim_version: ${{ matrix.nvim }}
+          before: |
+            git clone --depth 1 https://github.com/the-mikedavis/tree-sitter-diff /tmp/tree-sitter-diff
+            cd /tmp/tree-sitter-diff && cc -shared -fPIC -o diff.so -I./src src/parser.c
+            PARSER_DIR=$(nvim --headless -c 'lua print(vim.fn.stdpath("data") .. "/site/parser")' -c 'q' 2>&1 | tail -1)
+            echo "Installing parser to: $PARSER_DIR"
+            mkdir -p "$PARSER_DIR"
+            cp diff.so "$PARSER_DIR/"
+            nvim --headless -c 'lua print("diff parser available:", pcall(vim.treesitter.language.inspect, "diff"))' -c 'q'
