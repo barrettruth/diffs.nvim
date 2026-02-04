@@ -57,8 +57,9 @@ end
 ---@param ns integer
 ---@param hunk diffs.Hunk
 ---@param code_lines string[]
+---@param col_offset integer?
 ---@return integer
-local function highlight_treesitter(bufnr, ns, hunk, code_lines)
+local function highlight_treesitter(bufnr, ns, hunk, code_lines, col_offset)
   local lang = hunk.lang
   if not lang then
     return 0
@@ -101,6 +102,8 @@ local function highlight_treesitter(bufnr, ns, hunk, code_lines)
     end
   end
 
+  col_offset = col_offset or 1
+
   local extmark_count = 0
   for id, node, _ in query:iter_captures(trees[1]:root(), code) do
     local capture_name = '@' .. query.captures[id]
@@ -108,8 +111,8 @@ local function highlight_treesitter(bufnr, ns, hunk, code_lines)
 
     local buf_sr = hunk.start_line + sr
     local buf_er = hunk.start_line + er
-    local buf_sc = sc + 1
-    local buf_ec = ec + 1
+    local buf_sc = sc + col_offset
+    local buf_ec = ec + col_offset
 
     pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_sr, buf_sc, {
       end_row = buf_er,
@@ -255,6 +258,22 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     extmark_count = highlight_treesitter(bufnr, ns, hunk, code_lines)
   elseif use_vim then
     extmark_count = highlight_vim_syntax(bufnr, ns, hunk, code_lines)
+  end
+
+  if
+    hunk.count == 1
+    and hunk.header_start_line
+    and next(hunk.header_lines)
+    and opts.highlights.treesitter.enabled
+  then
+    extmark_count = extmark_count
+      + highlight_treesitter(bufnr, ns, {
+        filename = hunk.filename,
+        start_line = hunk.header_start_line - 1,
+        lang = 'diff',
+        lines = hunk.header_lines,
+        header_lines = {},
+      }, hunk.header_lines, 0)
   end
 
   local syntax_applied = extmark_count > 0

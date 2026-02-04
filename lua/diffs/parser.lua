@@ -6,6 +6,9 @@
 ---@field header_context string?
 ---@field header_context_col integer?
 ---@field lines string[]
+---@field count integer?
+---@field header_start_line integer?
+---@field header_lines string[]
 
 local M = {}
 
@@ -58,6 +61,12 @@ function M.parse_buffer(bufnr)
   local hunk_header_context_col = nil
   ---@type string[]
   local hunk_lines = {}
+  ---@type integer?
+  local hunk_count = nil
+  ---@type integer?
+  local header_start = nil
+  ---@type string[]
+  local header_lines = {}
 
   local function flush_hunk()
     if hunk_start and #hunk_lines > 0 and (current_lang or current_ft) then
@@ -69,6 +78,9 @@ function M.parse_buffer(bufnr)
         header_context = hunk_header_context,
         header_context_col = hunk_header_context_col,
         lines = hunk_lines,
+        header_start_line = header_start,
+        header_lines = header_lines,
+        count = hunk_count,
       })
     end
     hunk_start = nil
@@ -89,6 +101,9 @@ function M.parse_buffer(bufnr)
       elseif current_ft then
         dbg('file: %s -> ft: %s (no ts parser)', filename, current_ft)
       end
+      hunk_count = 0
+      header_start = i
+      header_lines = {}
     elseif line:match('^@@.-@@') then
       flush_hunk()
       hunk_start = i
@@ -96,6 +111,9 @@ function M.parse_buffer(bufnr)
       if context and context ~= '' then
         hunk_header_context = context
         hunk_header_context_col = #prefix
+      end
+      if hunk_count then
+        hunk_count = hunk_count + 1
       end
     elseif hunk_start then
       local prefix = line:sub(1, 1)
@@ -112,7 +130,11 @@ function M.parse_buffer(bufnr)
         current_filename = nil
         current_ft = nil
         current_lang = nil
+        header_start = nil
       end
+    end
+    if header_start then
+      table.insert(header_lines, line)
     end
   end
 
