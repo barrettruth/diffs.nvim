@@ -12,6 +12,7 @@ built-in diff mode.
 
 Features: ~
 - Syntax highlighting in |:Git| summary diffs and commit detail views
+- Diff header highlighting (`diff --git`, `index`, `---`, `+++`)
 - Syntax highlighting in |:Gdiffsplit| / |:Gvdiffsplit| side-by-side diffs
 - Background-only diff colors for any `&diff` buffer (vimdiff, diffthis, etc.)
 - Vim syntax fallback for languages without a treesitter parser
@@ -295,6 +296,14 @@ Run |:checkhealth| diffs to verify your setup.
 Checks performed:
 - Neovim version >= 0.9.0
 - vim-fugitive is installed (optional)
+
+==============================================================================
+ACKNOWLEDGEMENTS                                     *diffs-acknowledgements*
+
+- vim-fugitive (https://github.com/tpope/vim-fugitive)
+- codediff.nvim (https://github.com/esmuellert/codediff.nvim)
+- diffview.nvim (https://github.com/sindrets/diffview.nvim)
+- @phanen (https://github.com/phanen) - diff header highlighting
 
 ==============================================================================
  vim:tw=78:ts=8:ft=help:norl:

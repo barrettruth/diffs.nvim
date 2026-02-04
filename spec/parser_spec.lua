@@ -215,5 +215,75 @@ describe('parser', function()
       assert.are.equal(1, #hunks[2].lines)
       delete_buffer(bufnr)
     end)
+
+    it('attaches header_lines to first hunk only', function()
+      local bufnr = create_buffer({
+        'diff --git a/parser.lua b/parser.lua',
+        'index 3e8afa0..018159c 100644',
+        '--- a/parser.lua',
+        '+++ b/parser.lua',
+        '@@ -1,2 +1,3 @@',
+        ' local M = {}',
+        '+local x = 1',
+        '@@ -10,2 +11,3 @@',
+        ' function M.foo()',
+        '+  return true',
+        ' end',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(2, #hunks)
+      assert.is_not_nil(hunks[1].header_start_line)
+      assert.is_not_nil(hunks[1].header_lines)
+      assert.are.equal(1, hunks[1].header_start_line)
+      assert.is_nil(hunks[2].header_start_line)
+      assert.is_nil(hunks[2].header_lines)
+      delete_buffer(bufnr)
+    end)
+
+    it('header_lines contains only diff metadata, not hunk content', function()
+      local bufnr = create_buffer({
+        'diff --git a/parser.lua b/parser.lua',
+        'index 3e8afa0..018159c 100644',
+        '--- a/parser.lua',
+        '+++ b/parser.lua',
+        '@@ -1,2 +1,3 @@',
+        ' local M = {}',
+        '+local x = 1',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal(4, #hunks[1].header_lines)
+      assert.are.equal('diff --git a/parser.lua b/parser.lua', hunks[1].header_lines[1])
+      assert.are.equal('index 3e8afa0..018159c 100644', hunks[1].header_lines[2])
+      assert.are.equal('--- a/parser.lua', hunks[1].header_lines[3])
+      assert.are.equal('+++ b/parser.lua', hunks[1].header_lines[4])
+      delete_buffer(bufnr)
+    end)
+
+    it('handles fugitive status format with diff headers', function()
+      local bufnr = create_buffer({
+        'Head: main',
+        'Push: origin/main',
+        '',
+        'Unstaged (1)',
+        'M parser.lua',
+        'diff --git a/parser.lua b/parser.lua',
+        'index 3e8afa0..018159c 100644',
+        '--- a/parser.lua',
+        '+++ b/parser.lua',
+        '@@ -1,2 +1,3 @@',
+        ' local M = {}',
+        '+local x = 1',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal(6, hunks[1].header_start_line)
+      assert.are.equal(4, #hunks[1].header_lines)
+      assert.are.equal('diff --git a/parser.lua b/parser.lua', hunks[1].header_lines[1])
+      delete_buffer(bufnr)
+    end)
   end)
 end)
