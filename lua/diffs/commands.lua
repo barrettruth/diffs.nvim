@@ -91,6 +91,7 @@ end
 ---@class diffs.GdiffFileOpts
 ---@field vertical? boolean
 ---@field staged? boolean
+---@field untracked? boolean
 
 ---@param filepath string
 ---@param opts? diffs.GdiffFileOpts
@@ -106,16 +107,22 @@ function M.gdiff_file(filepath, opts)
   local old_lines, new_lines, err
   local diff_label
 
-  if opts.staged then
+  if opts.untracked then
+    old_lines = {}
+    new_lines, err = git.get_working_content(filepath)
+    if not new_lines then
+      vim.notify('[diffs.nvim]: ' .. (err or 'cannot read file'), vim.log.levels.ERROR)
+      return
+    end
+    diff_label = 'untracked'
+  elseif opts.staged then
     old_lines, err = git.get_file_content('HEAD', filepath)
     if not old_lines then
-      vim.notify('[diffs.nvim]: ' .. (err or 'file not in HEAD'), vim.log.levels.ERROR)
-      return
+      old_lines = {}
     end
     new_lines, err = git.get_index_content(filepath)
     if not new_lines then
-      vim.notify('[diffs.nvim]: ' .. (err or 'file not in index'), vim.log.levels.ERROR)
-      return
+      new_lines = {}
     end
     diff_label = 'staged'
   else
@@ -133,8 +140,7 @@ function M.gdiff_file(filepath, opts)
     end
     new_lines, err = git.get_working_content(filepath)
     if not new_lines then
-      vim.notify('[diffs.nvim]: ' .. (err or 'cannot read file'), vim.log.levels.ERROR)
-      return
+      new_lines = {}
     end
   end
 
@@ -157,6 +163,50 @@ function M.gdiff_file(filepath, opts)
   vim.api.nvim_win_set_buf(0, diff_buf)
 
   dbg('opened diff buffer %d for %s (%s)', diff_buf, rel_path, diff_label)
+
+  vim.schedule(function()
+    require('diffs').attach(diff_buf)
+  end)
+end
+
+---@class diffs.GdiffSectionOpts
+---@field vertical? boolean
+---@field staged? boolean
+
+---@param repo_root string
+---@param opts? diffs.GdiffSectionOpts
+function M.gdiff_section(repo_root, opts)
+  opts = opts or {}
+
+  local cmd = { 'git', '-C', repo_root, 'diff', '--no-ext-diff', '--no-color' }
+  if opts.staged then
+    table.insert(cmd, '--cached')
+  end
+
+  local result = vim.fn.systemlist(cmd)
+  if vim.v.shell_error ~= 0 then
+    vim.notify('[diffs.nvim]: git diff failed', vim.log.levels.ERROR)
+    return
+  end
+
+  if #result == 0 then
+    vim.notify('[diffs.nvim]: no changes in section', vim.log.levels.INFO)
+    return
+  end
+
+  local diff_label = opts.staged and 'staged' or 'unstaged'
+  local diff_buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(diff_buf, 0, -1, false, result)
+  vim.api.nvim_set_option_value('buftype', 'nofile', { buf = diff_buf })
+  vim.api.nvim_set_option_value('bufhidden', 'wipe', { buf = diff_buf })
+  vim.api.nvim_set_option_value('modifiable', false, { buf = diff_buf })
+  vim.api.nvim_set_option_value('filetype', 'diff', { buf = diff_buf })
+  vim.api.nvim_buf_set_name(diff_buf, 'diffs://' .. diff_label .. ':all')
+
+  vim.cmd(opts.vertical and 'vsplit' or 'split')
+  vim.api.nvim_win_set_buf(0, diff_buf)
+
+  dbg('opened section diff buffer %d (%s)', diff_buf, diff_label)
 
   vim.schedule(function()
     require('diffs').attach(diff_buf)

@@ -42,21 +42,39 @@ local function parse_file_line(line)
   return nil
 end
 
+---@param line string
+---@return diffs.FugitiveSection?
+local function parse_section_header(line)
+  if line:match('^Staged %(%d') then
+    return 'staged'
+  elseif line:match('^Unstaged %(%d') then
+    return 'unstaged'
+  elseif line:match('^Untracked %(%d') then
+    return 'untracked'
+  end
+  return nil
+end
+
 ---@param bufnr integer
 ---@param lnum integer
----@return string?, diffs.FugitiveSection
+---@return string?, diffs.FugitiveSection, boolean
 function M.get_file_at_line(bufnr, lnum)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local current_line = lines[lnum]
 
   if not current_line then
-    return nil, nil
+    return nil, nil, false
+  end
+
+  local section_header = parse_section_header(current_line)
+  if section_header then
+    return nil, section_header, true
   end
 
   local filename = parse_file_line(current_line)
   if filename then
     local section = M.get_section_at_line(bufnr, lnum)
-    return filename, section
+    return filename, section, false
   end
 
   local prefix = current_line:sub(1, 1)
@@ -66,7 +84,7 @@ function M.get_file_at_line(bufnr, lnum)
       filename = parse_file_line(prev_line)
       if filename then
         local section = M.get_section_at_line(bufnr, i)
-        return filename, section
+        return filename, section, false
       end
       if prev_line:match('^%w+ %(') or prev_line == '' then
         break
@@ -74,7 +92,7 @@ function M.get_file_at_line(bufnr, lnum)
     end
   end
 
-  return nil, nil
+  return nil, nil, false
 end
 
 ---@param bufnr integer
@@ -96,12 +114,7 @@ function M.diff_file_under_cursor(vertical)
   local bufnr = vim.api.nvim_get_current_buf()
   local lnum = vim.api.nvim_win_get_cursor(0)[1]
 
-  local filename, section = M.get_file_at_line(bufnr, lnum)
-
-  if not filename then
-    vim.notify('[diffs.nvim]: no file under cursor', vim.log.levels.WARN)
-    return
-  end
+  local filename, section, is_header = M.get_file_at_line(bufnr, lnum)
 
   local repo_root = get_repo_root_from_fugitive(bufnr)
   if not repo_root then
@@ -109,18 +122,32 @@ function M.diff_file_under_cursor(vertical)
     return
   end
 
+  if is_header then
+    dbg('diff_section: %s', section or 'unknown')
+    if section == 'untracked' then
+      vim.notify('[diffs.nvim]: cannot diff untracked section', vim.log.levels.WARN)
+      return
+    end
+    commands.gdiff_section(repo_root, {
+      vertical = vertical,
+      staged = section == 'staged',
+    })
+    return
+  end
+
+  if not filename then
+    vim.notify('[diffs.nvim]: no file under cursor', vim.log.levels.WARN)
+    return
+  end
+
   local filepath = repo_root .. '/' .. filename
 
   dbg('diff_file_under_cursor: %s (section: %s)', filename, section or 'unknown')
 
-  if section == 'untracked' then
-    vim.notify('[diffs.nvim]: cannot diff untracked file (no base version)', vim.log.levels.WARN)
-    return
-  end
-
   commands.gdiff_file(filepath, {
     vertical = vertical,
     staged = section == 'staged',
+    untracked = section == 'untracked',
   })
 end
 
