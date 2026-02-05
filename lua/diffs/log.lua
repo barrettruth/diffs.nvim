@@ -13,7 +13,7 @@ function M.dbg(msg, ...)
   if not enabled then
     return
   end
-  vim.notify('[diffs] ' .. string.format(msg, ...), vim.log.levels.DEBUG)
+  vim.notify('[diffs.nvim]: ' .. string.format(msg, ...), vim.log.levels.DEBUG)
 end
 
 return M

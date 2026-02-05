@@ -28,8 +28,8 @@ local function highlight_text(bufnr, ns, hunk, col_offset, text, lang)
   local extmark_count = 0
   local header_line = hunk.start_line - 1
 
-  for id, node, _ in query:iter_captures(trees[1]:root(), text) do
-    local capture_name = '@' .. query.captures[id]
+  for id, node, metadata in query:iter_captures(trees[1]:root(), text) do
+    local capture_name = '@' .. query.captures[id] .. '.' .. lang
     local sr, sc, er, ec = node:range()
 
     local buf_sr = header_line + sr
@@ -37,11 +37,13 @@ local function highlight_text(bufnr, ns, hunk, col_offset, text, lang)
     local buf_sc = col_offset + sc
     local buf_ec = col_offset + ec
 
+    local priority = lang == 'diff' and (tonumber(metadata.priority) or 100) or 200
+
     pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_sr, buf_sc, {
       end_row = buf_er,
       end_col = buf_ec,
       hl_group = capture_name,
-      priority = 200,
+      priority = priority,
     })
     extmark_count = extmark_count + 1
   end
@@ -105,8 +107,8 @@ local function highlight_treesitter(bufnr, ns, hunk, code_lines, col_offset)
   col_offset = col_offset or 1
 
   local extmark_count = 0
-  for id, node, _ in query:iter_captures(trees[1]:root(), code) do
-    local capture_name = '@' .. query.captures[id]
+  for id, node, metadata in query:iter_captures(trees[1]:root(), code) do
+    local capture_name = '@' .. query.captures[id] .. '.' .. lang
     local sr, sc, er, ec = node:range()
 
     local buf_sr = hunk.start_line + sr
@@ -114,11 +116,13 @@ local function highlight_treesitter(bufnr, ns, hunk, code_lines, col_offset)
     local buf_sc = sc + col_offset
     local buf_ec = ec + col_offset
 
+    local priority = lang == 'diff' and (tonumber(metadata.priority) or 100) or 200
+
     pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_sr, buf_sc, {
       end_row = buf_er,
       end_col = buf_ec,
       hl_group = capture_name,
-      priority = 200,
+      priority = priority,
     })
     extmark_count = extmark_count + 1
   end
