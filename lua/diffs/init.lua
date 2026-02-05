@@ -12,11 +12,16 @@
 ---@field treesitter diffs.TreesitterConfig
 ---@field vim diffs.VimConfig
 
+---@class diffs.FugitiveConfig
+---@field horizontal string|false
+---@field vertical string|false
+
 ---@class diffs.Config
 ---@field debug boolean
 ---@field debounce_ms integer
 ---@field hide_prefix boolean
 ---@field highlights diffs.Highlights
+---@field fugitive diffs.FugitiveConfig
 
 ---@class diffs
 ---@field attach fun(bufnr?: integer)
@@ -77,6 +82,10 @@ local default_config = {
       enabled = false,
       max_lines = 200,
     },
+  },
+  fugitive = {
+    horizontal = 'du',
+    vertical = 'dU',
   },
 }
 
@@ -219,6 +228,25 @@ local function init()
     end
   end
 
+  if opts.fugitive then
+    vim.validate({
+      ['fugitive.horizontal'] = {
+        opts.fugitive.horizontal,
+        function(v)
+          return v == false or type(v) == 'string'
+        end,
+        'string or false',
+      },
+      ['fugitive.vertical'] = {
+        opts.fugitive.vertical,
+        function(v)
+          return v == false or type(v) == 'string'
+        end,
+        'string or false',
+      },
+    })
+  end
+
   if opts.debounce_ms and opts.debounce_ms < 0 then
     error('diffs: debounce_ms must be >= 0')
   end
@@ -352,6 +380,12 @@ function M.detach_diff()
     end
     diff_windows[win] = nil
   end
+end
+
+---@return diffs.FugitiveConfig
+function M.get_fugitive_config()
+  init()
+  return config.fugitive
 end
 
 return M
