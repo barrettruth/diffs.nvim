@@ -14,9 +14,27 @@ local M = {}
 local dbg = require('diffs.log').dbg
 
 ---@param filename string
+---@return integer?
+local get_buf_from_filename = function(filename)
+  local git_dir = vim.b.git_dir
+  if not git_dir or not vim.fs.joinpath then
+    return
+  end
+  if
+    vim.fn.fnamemodify(vim.fn.bufname(filename), ':p')
+    == vim.fs.joinpath(vim.fn.fnamemodify(git_dir, ':h'), filename)
+  then
+    local buf = vim.fn.bufnr(filename)
+    return buf ~= -1 and buf or nil
+  end
+end
+
+---@param filename string
 ---@return string?
 local function get_ft_from_filename(filename)
-  local ft = vim.filetype.match({ filename = filename })
+  local buf = get_buf_from_filename(filename)
+  local ft = buf and vim.bo[buf].filetype or nil
+  ft = ft and ft ~= '' and ft or vim.filetype.match({ filename = filename, buf = buf })
   if not ft then
     dbg('no filetype for: %s', filename)
   end

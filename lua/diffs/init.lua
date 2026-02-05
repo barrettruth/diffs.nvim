@@ -294,10 +294,10 @@ function M.attach(bufnr)
 
   vim.api.nvim_create_autocmd('BufReadPost', {
     buffer = bufnr,
-    callback = function()
+    callback = vim.schedule_wrap(function()
       dbg('BufReadPost event, re-highlighting buffer %d', bufnr)
       highlight_buffer(bufnr)
-    end,
+    end),
   })
 
   vim.api.nvim_create_autocmd('BufWipeout', {
