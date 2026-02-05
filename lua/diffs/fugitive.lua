@@ -95,6 +95,42 @@ function M.get_file_at_line(bufnr, lnum)
   return nil, nil, false, nil
 end
 
+---@class diffs.HunkPosition
+---@field hunk_header string
+---@field offset integer
+
+---@param bufnr integer
+---@param lnum integer
+---@return diffs.HunkPosition?
+function M.get_hunk_position(bufnr, lnum)
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, lnum, false)
+  local current = lines[lnum]
+
+  if not current then
+    return nil
+  end
+
+  local prefix = current:sub(1, 1)
+  if prefix ~= '+' and prefix ~= '-' and prefix ~= ' ' then
+    return nil
+  end
+
+  for i = lnum - 1, 1, -1 do
+    local line = lines[i]
+    if line:match('^@@.-@@') then
+      return {
+        hunk_header = line,
+        offset = lnum - i,
+      }
+    end
+    if line:match('^[MADRCU?!]%s') or line:match('^%w+ %(') then
+      break
+    end
+  end
+
+  return nil
+end
+
 ---@param bufnr integer
 ---@return string?
 local function get_repo_root_from_fugitive(bufnr)
@@ -142,12 +178,14 @@ function M.diff_file_under_cursor(vertical)
 
   local filepath = repo_root .. '/' .. filename
   local old_filepath = old_filename and (repo_root .. '/' .. old_filename) or nil
+  local hunk_position = M.get_hunk_position(bufnr, lnum)
 
   dbg(
-    'diff_file_under_cursor: %s (section: %s, old: %s)',
+    'diff_file_under_cursor: %s (section: %s, old: %s, hunk_offset: %s)',
     filename,
     section or 'unknown',
-    old_filename or 'none'
+    old_filename or 'none',
+    hunk_position and tostring(hunk_position.offset) or 'none'
   )
 
   commands.gdiff_file(filepath, {
@@ -155,6 +193,7 @@ function M.diff_file_under_cursor(vertical)
     staged = section == 'staged',
     untracked = section == 'untracked',
     old_filepath = old_filepath,
+    hunk_position = hunk_position,
   })
 end
 
