@@ -285,5 +285,24 @@ describe('parser', function()
       assert.are.equal('diff --git a/parser.lua b/parser.lua', hunks[1].header_lines[1])
       delete_buffer(bufnr)
     end)
+
+    it('emits hunk for files with unknown filetype', function()
+      local bufnr = create_buffer({
+        'M config.obscuretype',
+        '@@ -1,2 +1,3 @@',
+        ' setting1 = value1',
+        '-setting2 = value2',
+        '+setting2 = MODIFIED',
+        '+setting4 = newvalue',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('config.obscuretype', hunks[1].filename)
+      assert.is_nil(hunks[1].ft)
+      assert.is_nil(hunks[1].lang)
+      assert.are.equal(4, #hunks[1].lines)
+      delete_buffer(bufnr)
+    end)
   end)
 end)

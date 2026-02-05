@@ -68,7 +68,7 @@ function M.parse_buffer(bufnr)
   local header_lines = {}
 
   local function flush_hunk()
-    if hunk_start and #hunk_lines > 0 and (current_lang or current_ft) then
+    if hunk_start and #hunk_lines > 0 then
       local hunk = {
         filename = current_filename,
         ft = current_ft,
