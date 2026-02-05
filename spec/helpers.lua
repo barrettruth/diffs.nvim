@@ -2,6 +2,8 @@ local plugin_dir = vim.fn.getcwd()
 vim.opt.runtimepath:prepend(plugin_dir)
 vim.opt.packpath = {}
 
+vim.cmd('filetype on')
+
 local function ensure_parser(lang)
   local ok = pcall(vim.treesitter.language.inspect, lang)
   if not ok then
