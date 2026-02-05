@@ -13,12 +13,33 @@ local M = {}
 
 local dbg = require('diffs.log').dbg
 
+---@param filepath string
+---@param n integer
+---@return string[]?
+local function read_first_lines(filepath, n)
+  local f = io.open(filepath, 'r')
+  if not f then
+    return nil
+  end
+  local lines = {}
+  for _ = 1, n do
+    local line = f:read('*l')
+    if not line then
+      break
+    end
+    table.insert(lines, line)
+  end
+  f:close()
+  return #lines > 0 and lines or nil
+end
+
 ---@param filename string
 ---@param repo_root string?
 ---@return string?
 local function get_ft_from_filename(filename, repo_root)
   if repo_root then
     local full_path = vim.fs.joinpath(repo_root, filename)
+
     local buf = vim.fn.bufnr(full_path)
     if buf ~= -1 then
       local ft = vim.api.nvim_get_option_value('filetype', { buf = buf })
@@ -30,10 +51,25 @@ local function get_ft_from_filename(filename, repo_root)
   end
 
   local ft = vim.filetype.match({ filename = filename })
-  if not ft then
-    dbg('no filetype for: %s', filename)
+  if ft then
+    dbg('filetype from filename: %s', ft)
+    return ft
   end
-  return ft
+
+  if repo_root then
+    local full_path = vim.fs.joinpath(repo_root, filename)
+    local contents = read_first_lines(full_path, 10)
+    if contents then
+      ft = vim.filetype.match({ filename = filename, contents = contents })
+      if ft then
+        dbg('filetype from file content: %s', ft)
+        return ft
+      end
+    end
+  end
+
+  dbg('no filetype for: %s', filename)
+  return nil
 end
 
 ---@param ft string
