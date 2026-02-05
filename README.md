@@ -69,4 +69,5 @@ luarocks install diffs.nvim
 - [`vim-fugitive`](https://github.com/tpope/vim-fugitive)
 - [`codediff.nvim`](https://github.com/esmuellert/codediff.nvim)
 - [`diffview.nvim`](https://github.com/sindrets/diffview.nvim)
-- [@phanen](https://github.com/phanen) - diff header highlighting
+- [@phanen](https://github.com/phanen) - diff header highlighting, unknown
+  filetype fix, shebang/modeline detection
