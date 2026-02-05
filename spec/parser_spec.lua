@@ -359,5 +359,67 @@ describe('parser', function()
       delete_buffer(file_buf)
       delete_buffer(diff_buf)
     end)
+
+    it('detects filetype from file content shebang without open buffer', function()
+      local repo_root = '/tmp/diffs-test-shebang'
+      vim.fn.mkdir(repo_root, 'p')
+
+      local file_path = repo_root .. '/build'
+      local f = io.open(file_path, 'w')
+      f:write('#!/bin/bash\n')
+      f:write('set -e\n')
+      f:write('echo "hello"\n')
+      f:close()
+
+      local diff_buf = create_buffer({
+        'M build',
+        '@@ -1,2 +1,3 @@',
+        ' #!/bin/bash',
+        '+set -e',
+        ' echo "hello"',
+      })
+      vim.api.nvim_buf_set_var(diff_buf, 'diffs_repo_root', repo_root)
+
+      local hunks = parser.parse_buffer(diff_buf)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('build', hunks[1].filename)
+      assert.are.equal('sh', hunks[1].ft)
+
+      delete_buffer(diff_buf)
+      os.remove(file_path)
+      vim.fn.delete(repo_root, 'rf')
+    end)
+
+    it('detects python from shebang without open buffer', function()
+      local repo_root = '/tmp/diffs-test-shebang-py'
+      vim.fn.mkdir(repo_root, 'p')
+
+      local file_path = repo_root .. '/deploy'
+      local f = io.open(file_path, 'w')
+      f:write('#!/usr/bin/env python3\n')
+      f:write('import sys\n')
+      f:write('print("hi")\n')
+      f:close()
+
+      local diff_buf = create_buffer({
+        'M deploy',
+        '@@ -1,2 +1,3 @@',
+        ' #!/usr/bin/env python3',
+        '+import sys',
+        ' print("hi")',
+      })
+      vim.api.nvim_buf_set_var(diff_buf, 'diffs_repo_root', repo_root)
+
+      local hunks = parser.parse_buffer(diff_buf)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('deploy', hunks[1].filename)
+      assert.are.equal('python', hunks[1].ft)
+
+      delete_buffer(diff_buf)
+      os.remove(file_path)
+      vim.fn.delete(repo_root, 'rf')
+    end)
   end)
 end)
