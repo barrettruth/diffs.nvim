@@ -92,6 +92,7 @@ end
 ---@field vertical? boolean
 ---@field staged? boolean
 ---@field untracked? boolean
+---@field old_filepath? string
 
 ---@param filepath string
 ---@param opts? diffs.GdiffFileOpts
@@ -103,6 +104,8 @@ function M.gdiff_file(filepath, opts)
     vim.notify('[diffs.nvim]: not in a git repository', vim.log.levels.ERROR)
     return
   end
+
+  local old_rel_path = opts.old_filepath and git.get_relative_path(opts.old_filepath) or rel_path
 
   local old_lines, new_lines, err
   local diff_label
@@ -116,7 +119,7 @@ function M.gdiff_file(filepath, opts)
     end
     diff_label = 'untracked'
   elseif opts.staged then
-    old_lines, err = git.get_file_content('HEAD', filepath)
+    old_lines, err = git.get_file_content('HEAD', opts.old_filepath or filepath)
     if not old_lines then
       old_lines = {}
     end
@@ -126,9 +129,9 @@ function M.gdiff_file(filepath, opts)
     end
     diff_label = 'staged'
   else
-    old_lines, err = git.get_index_content(filepath)
+    old_lines, err = git.get_index_content(opts.old_filepath or filepath)
     if not old_lines then
-      old_lines, err = git.get_file_content('HEAD', filepath)
+      old_lines, err = git.get_file_content('HEAD', opts.old_filepath or filepath)
       if not old_lines then
         old_lines = {}
         diff_label = 'untracked'
@@ -144,7 +147,7 @@ function M.gdiff_file(filepath, opts)
     end
   end
 
-  local diff_lines = generate_unified_diff(old_lines, new_lines, rel_path, rel_path)
+  local diff_lines = generate_unified_diff(old_lines, new_lines, old_rel_path, rel_path)
 
   if #diff_lines == 0 then
     vim.notify('[diffs.nvim]: no changes', vim.log.levels.INFO)

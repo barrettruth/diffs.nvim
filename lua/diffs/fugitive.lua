@@ -27,19 +27,19 @@ function M.get_section_at_line(bufnr, lnum)
 end
 
 ---@param line string
----@return string?
+---@return string?, string?
 local function parse_file_line(line)
-  local renamed = line:match('^R[%s%d]*[^%s]+%s*->%s*(.+)$')
-  if renamed then
-    return vim.trim(renamed)
+  local old, new = line:match('^R%d*%s+(.-)%s+->%s+(.+)$')
+  if old and new then
+    return vim.trim(new), vim.trim(old)
   end
 
   local filename = line:match('^[MADRCU?][MADRCU%s]*%s+(.+)$')
   if filename then
-    return vim.trim(filename)
+    return vim.trim(filename), nil
   end
 
-  return nil
+  return nil, nil
 end
 
 ---@param line string
@@ -57,34 +57,34 @@ end
 
 ---@param bufnr integer
 ---@param lnum integer
----@return string?, diffs.FugitiveSection, boolean
+---@return string?, diffs.FugitiveSection, boolean, string?
 function M.get_file_at_line(bufnr, lnum)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local current_line = lines[lnum]
 
   if not current_line then
-    return nil, nil, false
+    return nil, nil, false, nil
   end
 
   local section_header = parse_section_header(current_line)
   if section_header then
-    return nil, section_header, true
+    return nil, section_header, true, nil
   end
 
-  local filename = parse_file_line(current_line)
+  local filename, old_filename = parse_file_line(current_line)
   if filename then
     local section = M.get_section_at_line(bufnr, lnum)
-    return filename, section, false
+    return filename, section, false, old_filename
   end
 
   local prefix = current_line:sub(1, 1)
   if prefix == '+' or prefix == '-' or prefix == ' ' then
     for i = lnum - 1, 1, -1 do
       local prev_line = lines[i]
-      filename = parse_file_line(prev_line)
+      filename, old_filename = parse_file_line(prev_line)
       if filename then
         local section = M.get_section_at_line(bufnr, i)
-        return filename, section, false
+        return filename, section, false, old_filename
       end
       if prev_line:match('^%w+ %(') or prev_line == '' then
         break
@@ -92,7 +92,7 @@ function M.get_file_at_line(bufnr, lnum)
     end
   end
 
-  return nil, nil, false
+  return nil, nil, false, nil
 end
 
 ---@param bufnr integer
@@ -114,7 +114,7 @@ function M.diff_file_under_cursor(vertical)
   local bufnr = vim.api.nvim_get_current_buf()
   local lnum = vim.api.nvim_win_get_cursor(0)[1]
 
-  local filename, section, is_header = M.get_file_at_line(bufnr, lnum)
+  local filename, section, is_header, old_filename = M.get_file_at_line(bufnr, lnum)
 
   local repo_root = get_repo_root_from_fugitive(bufnr)
   if not repo_root then
@@ -141,13 +141,20 @@ function M.diff_file_under_cursor(vertical)
   end
 
   local filepath = repo_root .. '/' .. filename
+  local old_filepath = old_filename and (repo_root .. '/' .. old_filename) or nil
 
-  dbg('diff_file_under_cursor: %s (section: %s)', filename, section or 'unknown')
+  dbg(
+    'diff_file_under_cursor: %s (section: %s, old: %s)',
+    filename,
+    section or 'unknown',
+    old_filename or 'none'
+  )
 
   commands.gdiff_file(filepath, {
     vertical = vertical,
     staged = section == 'staged',
     untracked = section == 'untracked',
+    old_filepath = old_filepath,
   })
 end
 
