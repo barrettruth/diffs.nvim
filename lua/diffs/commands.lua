@@ -3,6 +3,18 @@ local M = {}
 local git = require('diffs.git')
 local dbg = require('diffs.log').dbg
 
+---@param diff_lines string[]
+---@param hunk_position { hunk_header: string, offset: integer }
+---@return integer?
+function M.find_hunk_line(diff_lines, hunk_position)
+  for i, line in ipairs(diff_lines) do
+    if line == hunk_position.hunk_header then
+      return i + hunk_position.offset
+    end
+  end
+  return nil
+end
+
 ---@param old_lines string[]
 ---@param new_lines string[]
 ---@param old_name string
@@ -98,6 +110,7 @@ end
 ---@field staged? boolean
 ---@field untracked? boolean
 ---@field old_filepath? string
+---@field hunk_position? { hunk_header: string, offset: integer }
 
 ---@param filepath string
 ---@param opts? diffs.GdiffFileOpts
@@ -174,6 +187,14 @@ function M.gdiff_file(filepath, opts)
 
   vim.cmd(opts.vertical and 'vsplit' or 'split')
   vim.api.nvim_win_set_buf(0, diff_buf)
+
+  if opts.hunk_position then
+    local target_line = M.find_hunk_line(diff_lines, opts.hunk_position)
+    if target_line then
+      vim.api.nvim_win_set_cursor(0, { target_line, 0 })
+      dbg('jumped to line %d for hunk', target_line)
+    end
+  end
 
   dbg('opened diff buffer %d for %s (%s)', diff_buf, rel_path, diff_label)
 
