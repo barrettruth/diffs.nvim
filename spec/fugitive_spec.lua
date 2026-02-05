@@ -127,7 +127,7 @@ describe('fugitive', function()
         'Staged (1)',
         'R100  old.lua -> new.lua',
       })
-      local filename, section, is_header, old_filename = fugitive.get_file_at_line(buf, 2)
+      local filename, section, _, old_filename = fugitive.get_file_at_line(buf, 2)
       assert.equals('new.lua', filename)
       assert.equals('staged', section)
       assert.equals('old.lua', old_filename)
@@ -139,7 +139,7 @@ describe('fugitive', function()
         'Staged (1)',
         'M  modified.lua',
       })
-      local filename, section, is_header, old_filename = fugitive.get_file_at_line(buf, 2)
+      local filename, section, _, old_filename = fugitive.get_file_at_line(buf, 2)
       assert.equals('modified.lua', filename)
       assert.equals('staged', section)
       assert.is_nil(old_filename)
@@ -151,7 +151,7 @@ describe('fugitive', function()
         'Staged (1)',
         'R  old file.lua -> new file.lua',
       })
-      local filename, section, is_header, old_filename = fugitive.get_file_at_line(buf, 2)
+      local filename, _, _, old_filename = fugitive.get_file_at_line(buf, 2)
       assert.equals('new file.lua', filename)
       assert.equals('old file.lua', old_filename)
       vim.api.nvim_buf_delete(buf, { force = true })
@@ -162,7 +162,7 @@ describe('fugitive', function()
         'Staged (1)',
         'R  src/old.lua -> src/new.lua',
       })
-      local filename, section, is_header, old_filename = fugitive.get_file_at_line(buf, 2)
+      local filename, _, _, old_filename = fugitive.get_file_at_line(buf, 2)
       assert.equals('src/new.lua', filename)
       assert.equals('src/old.lua', old_filename)
       vim.api.nvim_buf_delete(buf, { force = true })
@@ -173,7 +173,7 @@ describe('fugitive', function()
         'Staged (1)',
         'R  old/file.lua -> new/file.lua',
       })
-      local filename, section, is_header, old_filename = fugitive.get_file_at_line(buf, 2)
+      local filename, _, _, old_filename = fugitive.get_file_at_line(buf, 2)
       assert.equals('new/file.lua', filename)
       assert.equals('old/file.lua', old_filename)
       vim.api.nvim_buf_delete(buf, { force = true })
@@ -184,7 +184,7 @@ describe('fugitive', function()
         'Staged (1)',
         'R  a -> b.lua -> c.lua',
       })
-      local filename, section, is_header, old_filename = fugitive.get_file_at_line(buf, 2)
+      local filename, _, _, old_filename = fugitive.get_file_at_line(buf, 2)
       assert.equals('b.lua -> c.lua', filename)
       assert.equals('a', old_filename)
       vim.api.nvim_buf_delete(buf, { force = true })
@@ -195,7 +195,7 @@ describe('fugitive', function()
         'Staged (1)',
         'M  test.spec.lua',
       })
-      local filename, section, is_header, old_filename = fugitive.get_file_at_line(buf, 2)
+      local filename, _, _, old_filename = fugitive.get_file_at_line(buf, 2)
       assert.equals('test.spec.lua', filename)
       assert.is_nil(old_filename)
       vim.api.nvim_buf_delete(buf, { force = true })
@@ -206,7 +206,7 @@ describe('fugitive', function()
         'Unstaged (1)',
         'M  my-component-test.lua',
       })
-      local filename, section, is_header, old_filename = fugitive.get_file_at_line(buf, 2)
+      local filename, section = fugitive.get_file_at_line(buf, 2)
       assert.equals('my-component-test.lua', filename)
       assert.equals('unstaged', section)
       vim.api.nvim_buf_delete(buf, { force = true })
@@ -217,7 +217,7 @@ describe('fugitive', function()
         'Staged (1)',
         'A  test_file_123.lua',
       })
-      local filename, section, is_header, old_filename = fugitive.get_file_at_line(buf, 2)
+      local filename = fugitive.get_file_at_line(buf, 2)
       assert.equals('test_file_123.lua', filename)
       vim.api.nvim_buf_delete(buf, { force = true })
     end)
@@ -227,7 +227,7 @@ describe('fugitive', function()
         'Unstaged (1)',
         'M  .gitignore',
       })
-      local filename, section, is_header, old_filename = fugitive.get_file_at_line(buf, 2)
+      local filename = fugitive.get_file_at_line(buf, 2)
       assert.equals('.gitignore', filename)
       vim.api.nvim_buf_delete(buf, { force = true })
     end)
@@ -237,7 +237,7 @@ describe('fugitive', function()
         'Staged (1)',
         'R  src/old-file.spec.lua -> src/new-file.spec.lua',
       })
-      local filename, section, is_header, old_filename = fugitive.get_file_at_line(buf, 2)
+      local filename, _, _, old_filename = fugitive.get_file_at_line(buf, 2)
       assert.equals('src/new-file.spec.lua', filename)
       assert.equals('src/old-file.spec.lua', old_filename)
       vim.api.nvim_buf_delete(buf, { force = true })
@@ -248,7 +248,7 @@ describe('fugitive', function()
         'Unstaged (1)',
         'M  lua/diffs/ui/components/diff-view.lua',
       })
-      local filename, section, is_header, old_filename = fugitive.get_file_at_line(buf, 2)
+      local filename = fugitive.get_file_at_line(buf, 2)
       assert.equals('lua/diffs/ui/components/diff-view.lua', filename)
       vim.api.nvim_buf_delete(buf, { force = true })
     end)
@@ -269,7 +269,7 @@ describe('fugitive', function()
         'Unstaged (1)',
         'M  file.lua',
       })
-      local filename, section = fugitive.get_file_at_line(buf, 1)
+      local filename = fugitive.get_file_at_line(buf, 1)
       assert.is_nil(filename)
       vim.api.nvim_buf_delete(buf, { force = true })
     end)
