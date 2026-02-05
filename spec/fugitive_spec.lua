@@ -357,4 +357,124 @@ describe('fugitive', function()
       vim.api.nvim_buf_delete(buf, { force = true })
     end)
   end)
+
+  describe('get_hunk_position', function()
+    local function create_status_buffer(lines)
+      local buf = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+      return buf
+    end
+
+    it('returns nil when on file header line', function()
+      local buf = create_status_buffer({
+        'Unstaged (1)',
+        'M  file.lua',
+        '@@ -1,3 +1,4 @@',
+        ' local M = {}',
+        '+local new = true',
+      })
+      local pos = fugitive.get_hunk_position(buf, 2)
+      assert.is_nil(pos)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('returns nil when on @@ header line', function()
+      local buf = create_status_buffer({
+        'Unstaged (1)',
+        'M  file.lua',
+        '@@ -1,3 +1,4 @@',
+        ' local M = {}',
+      })
+      local pos = fugitive.get_hunk_position(buf, 3)
+      assert.is_nil(pos)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('returns hunk header and offset for + line', function()
+      local buf = create_status_buffer({
+        'Unstaged (1)',
+        'M  file.lua',
+        '@@ -1,3 +1,4 @@',
+        ' local M = {}',
+        '+local new = true',
+        ' return M',
+      })
+      local pos = fugitive.get_hunk_position(buf, 5)
+      assert.is_not_nil(pos)
+      assert.equals('@@ -1,3 +1,4 @@', pos.hunk_header)
+      assert.equals(2, pos.offset)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('returns hunk header and offset for - line', function()
+      local buf = create_status_buffer({
+        'Unstaged (1)',
+        'M  file.lua',
+        '@@ -1,3 +1,3 @@',
+        ' local M = {}',
+        '-local old = false',
+        ' return M',
+      })
+      local pos = fugitive.get_hunk_position(buf, 5)
+      assert.is_not_nil(pos)
+      assert.equals('@@ -1,3 +1,3 @@', pos.hunk_header)
+      assert.equals(2, pos.offset)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('returns hunk header and offset for context line', function()
+      local buf = create_status_buffer({
+        'Unstaged (1)',
+        'M  file.lua',
+        '@@ -1,3 +1,4 @@',
+        ' local M = {}',
+        '+local new = true',
+        ' return M',
+      })
+      local pos = fugitive.get_hunk_position(buf, 6)
+      assert.is_not_nil(pos)
+      assert.equals('@@ -1,3 +1,4 @@', pos.hunk_header)
+      assert.equals(3, pos.offset)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('returns correct offset for first line after @@', function()
+      local buf = create_status_buffer({
+        'Unstaged (1)',
+        'M  file.lua',
+        '@@ -1,3 +1,4 @@',
+        ' local M = {}',
+      })
+      local pos = fugitive.get_hunk_position(buf, 4)
+      assert.is_not_nil(pos)
+      assert.equals(1, pos.offset)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('handles @@ header with context text', function()
+      local buf = create_status_buffer({
+        'Unstaged (1)',
+        'M  file.lua',
+        '@@ -10,3 +10,4 @@ function M.hello()',
+        '   print("hi")',
+        '+  print("world")',
+      })
+      local pos = fugitive.get_hunk_position(buf, 5)
+      assert.is_not_nil(pos)
+      assert.equals('@@ -10,3 +10,4 @@ function M.hello()', pos.hunk_header)
+      assert.equals(2, pos.offset)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('returns nil when section header interrupts search', function()
+      local buf = create_status_buffer({
+        'Unstaged (1)',
+        'M  file.lua',
+        ' some orphan line',
+      })
+      local pos = fugitive.get_hunk_position(buf, 3)
+      assert.is_nil(pos)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+  end)
 end)
