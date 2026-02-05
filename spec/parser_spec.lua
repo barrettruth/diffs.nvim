@@ -304,5 +304,60 @@ describe('parser', function()
       assert.are.equal(4, #hunks[1].lines)
       delete_buffer(bufnr)
     end)
+
+    it('uses filetype from existing buffer when available', function()
+      local repo_root = '/tmp/test-repo'
+      local file_path = repo_root .. '/build'
+
+      local file_buf = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_buf_set_name(file_buf, file_path)
+      vim.api.nvim_set_option_value('filetype', 'bash', { buf = file_buf })
+
+      local diff_buf = create_buffer({
+        'M build',
+        '@@ -1,2 +1,3 @@',
+        ' echo "hello"',
+        '+set -e',
+        ' echo "done"',
+      })
+      vim.api.nvim_buf_set_var(diff_buf, 'diffs_repo_root', repo_root)
+
+      local hunks = parser.parse_buffer(diff_buf)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('build', hunks[1].filename)
+      assert.are.equal('bash', hunks[1].ft)
+
+      delete_buffer(file_buf)
+      delete_buffer(diff_buf)
+    end)
+
+    it('uses filetype from existing buffer via git_dir', function()
+      local git_dir = '/tmp/test-repo/.git'
+      local repo_root = '/tmp/test-repo'
+      local file_path = repo_root .. '/script'
+
+      local file_buf = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_buf_set_name(file_buf, file_path)
+      vim.api.nvim_set_option_value('filetype', 'python', { buf = file_buf })
+
+      local diff_buf = create_buffer({
+        'M script',
+        '@@ -1,2 +1,3 @@',
+        ' def main():',
+        '+    print("hi")',
+        '     pass',
+      })
+      vim.api.nvim_buf_set_var(diff_buf, 'git_dir', git_dir)
+
+      local hunks = parser.parse_buffer(diff_buf)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('script', hunks[1].filename)
+      assert.are.equal('python', hunks[1].ft)
+
+      delete_buffer(file_buf)
+      delete_buffer(diff_buf)
+    end)
   end)
 end)
