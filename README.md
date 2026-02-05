@@ -13,6 +13,7 @@ syntax highlighting.
 - Diff header highlighting (`diff --git`, `index`, `---`, `+++`)
 - `:Gdiffsplit` / `:Gvdiffsplit` syntax through diff backgrounds
 - `:Gdiff` unified diff against any git revision with syntax highlighting
+- Fugitive status buffer keymaps (`du`/`dU`) for unified diffs
 - Background-only diff colors for any `&diff` buffer (`:diffthis`, `vimdiff`)
 - Vim syntax fallback for languages without a treesitter parser
 - Hunk header context highlighting (`@@ ... @@ function foo()`)

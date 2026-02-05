@@ -65,6 +65,10 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
           max_lines = 200,
         },
       },
+      fugitive = {
+        horizontal = 'du',
+        vertical = 'dU',
+      },
     }
 <
                                                               *diffs.Config*
@@ -88,6 +92,10 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
         {highlights}         (table, default: see below)
                              Controls which highlight features are enabled.
                              See |diffs.Highlights| for fields.
+
+        {fugitive}           (table, default: see below)
+                             Fugitive status buffer keymap options.
+                             See |diffs.FugitiveConfig| for fields.
 
                                                           *diffs.Highlights*
     Highlights table fields: ~
@@ -167,6 +175,55 @@ COMMANDS                                                      *diffs-commands*
 
 :Ghdiff [revision]                                                  *:Ghdiff*
     Like |:Gdiff| but explicitly opens in a horizontal split.
+
+==============================================================================
+FUGITIVE STATUS KEYMAPS                                   *diffs-fugitive*
+
+When inside a vim-fugitive |:Git| status buffer, diffs.nvim provides keymaps
+to open unified diffs for files or entire sections.
+
+Keymaps: ~
+                                                          *diffs-du* *diffs-dU*
+    du          Open unified diff in a horizontal split.
+    dU          Open unified diff in a vertical split.
+
+These keymaps work on:
+- File lines (e.g., `M  src/foo.lua`) - opens diff for that file
+- Section headers (e.g., `Staged (3)`) - opens diff for all files in section
+- Hunk/context lines below a file - opens diff for the parent file
+
+Behavior by file status: ~
+
+    Status      Section     Base            Current         Result ~
+    M           Unstaged    index           working tree    unstaged changes
+    M           Staged      HEAD            index           staged changes
+    A           Staged      (empty)         index           file as all-added
+    D           Staged      HEAD            (empty)         file as all-removed
+    R           Staged      HEAD:oldname    index:newname   content diff
+    ?           Untracked   (empty)         working tree    file as all-added
+
+On section headers, the keymap runs `git diff` (or `git diff --cached` for
+staged) and displays all changes in that section as a single unified diff.
+Untracked section headers show a warning since there is no meaningful diff.
+
+Configuration: ~
+                                                      *diffs.FugitiveConfig*
+>lua
+    vim.g.diffs = {
+      fugitive = {
+        horizontal = 'du',  -- keymap for horizontal split, false to disable
+        vertical = 'dU',    -- keymap for vertical split, false to disable
+      },
+    }
+<
+    Fields: ~
+        {horizontal}         (string|false, default: 'du')
+                             Keymap for unified diff in horizontal split.
+                             Set to `false` to disable.
+
+        {vertical}           (string|false, default: 'dU')
+                             Keymap for unified diff in vertical split.
+                             Set to `false` to disable.
 
 ==============================================================================
 API                                                                *diffs-api*
