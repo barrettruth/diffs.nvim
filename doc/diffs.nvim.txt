@@ -14,6 +14,7 @@ Features: ~
 - Syntax highlighting in |:Git| summary diffs and commit detail views
 - Diff header highlighting (`diff --git`, `index`, `---`, `+++`)
 - Syntax highlighting in |:Gdiffsplit| / |:Gvdiffsplit| side-by-side diffs
+- |:Gdiff| command for unified diff against any git revision
 - Background-only diff colors for any `&diff` buffer (vimdiff, diffthis, etc.)
 - Vim syntax fallback for languages without a treesitter parser
 - Blended diff background colors that preserve syntax visibility
@@ -138,6 +139,34 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
     |vim.treesitter.language.get_lang()|. To customize filetype detection
     or register treesitter parsers for custom filetypes, use
     |vim.filetype.add()| and |vim.treesitter.language.register()|.
+
+==============================================================================
+COMMANDS                                                      *diffs-commands*
+
+:Gdiff [revision]                                                    *:Gdiff*
+    Open a unified diff of the current file against a git revision. Displays
+    in a horizontal split below the current window.
+
+    The diff buffer shows `+`/`-` lines with full syntax highlighting for the
+    code language, plus diff header highlighting for `diff --git`, `---`,
+    `+++`, and `@@` lines.
+
+    Parameters: ~
+        {revision}  (string, optional) Git revision to diff against.
+                    Defaults to HEAD.
+
+    Examples: >vim
+        :Gdiff          " diff against HEAD
+        :Gdiff main     " diff against main branch
+        :Gdiff HEAD~3   " diff against 3 commits ago
+        :Gdiff abc123   " diff against specific commit
+<
+
+:Gvdiff [revision]                                                  *:Gvdiff*
+    Like |:Gdiff| but opens in a vertical split.
+
+:Ghdiff [revision]                                                  *:Ghdiff*
+    Like |:Gdiff| but explicitly opens in a horizontal split.
 
 ==============================================================================
 API                                                                *diffs-api*
