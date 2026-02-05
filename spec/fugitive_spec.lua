@@ -173,5 +173,55 @@ describe('fugitive', function()
       assert.equals('unstaged', section2)
       vim.api.nvim_buf_delete(buf, { force = true })
     end)
+
+    it('detects section header for Staged', function()
+      local buf = create_status_buffer({
+        'Head: main',
+        '',
+        'Staged (2)',
+        'M  file1.lua',
+      })
+      local filename, section, is_header = fugitive.get_file_at_line(buf, 3)
+      assert.is_nil(filename)
+      assert.equals('staged', section)
+      assert.is_true(is_header)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('detects section header for Unstaged', function()
+      local buf = create_status_buffer({
+        'Unstaged (3)',
+        'M  file1.lua',
+      })
+      local filename, section, is_header = fugitive.get_file_at_line(buf, 1)
+      assert.is_nil(filename)
+      assert.equals('unstaged', section)
+      assert.is_true(is_header)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('detects section header for Untracked', function()
+      local buf = create_status_buffer({
+        'Untracked (1)',
+        '?  newfile.lua',
+      })
+      local filename, section, is_header = fugitive.get_file_at_line(buf, 1)
+      assert.is_nil(filename)
+      assert.equals('untracked', section)
+      assert.is_true(is_header)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('returns is_header=false for file lines', function()
+      local buf = create_status_buffer({
+        'Staged (1)',
+        'M  file.lua',
+      })
+      local filename, section, is_header = fugitive.get_file_at_line(buf, 2)
+      assert.equals('file.lua', filename)
+      assert.equals('staged', section)
+      assert.is_false(is_header)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
   end)
 end)
