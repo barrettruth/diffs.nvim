@@ -88,6 +88,81 @@ function M.gdiff(revision, vertical)
   end)
 end
 
+---@class diffs.GdiffFileOpts
+---@field vertical? boolean
+---@field staged? boolean
+
+---@param filepath string
+---@param opts? diffs.GdiffFileOpts
+function M.gdiff_file(filepath, opts)
+  opts = opts or {}
+
+  local rel_path = git.get_relative_path(filepath)
+  if not rel_path then
+    vim.notify('[diffs.nvim]: not in a git repository', vim.log.levels.ERROR)
+    return
+  end
+
+  local old_lines, new_lines, err
+  local diff_label
+
+  if opts.staged then
+    old_lines, err = git.get_file_content('HEAD', filepath)
+    if not old_lines then
+      vim.notify('[diffs.nvim]: ' .. (err or 'file not in HEAD'), vim.log.levels.ERROR)
+      return
+    end
+    new_lines, err = git.get_index_content(filepath)
+    if not new_lines then
+      vim.notify('[diffs.nvim]: ' .. (err or 'file not in index'), vim.log.levels.ERROR)
+      return
+    end
+    diff_label = 'staged'
+  else
+    old_lines, err = git.get_index_content(filepath)
+    if not old_lines then
+      old_lines, err = git.get_file_content('HEAD', filepath)
+      if not old_lines then
+        old_lines = {}
+        diff_label = 'untracked'
+      else
+        diff_label = 'unstaged'
+      end
+    else
+      diff_label = 'unstaged'
+    end
+    new_lines, err = git.get_working_content(filepath)
+    if not new_lines then
+      vim.notify('[diffs.nvim]: ' .. (err or 'cannot read file'), vim.log.levels.ERROR)
+      return
+    end
+  end
+
+  local diff_lines = generate_unified_diff(old_lines, new_lines, rel_path, rel_path)
+
+  if #diff_lines == 0 then
+    vim.notify('[diffs.nvim]: no changes', vim.log.levels.INFO)
+    return
+  end
+
+  local diff_buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(diff_buf, 0, -1, false, diff_lines)
+  vim.api.nvim_set_option_value('buftype', 'nofile', { buf = diff_buf })
+  vim.api.nvim_set_option_value('bufhidden', 'wipe', { buf = diff_buf })
+  vim.api.nvim_set_option_value('modifiable', false, { buf = diff_buf })
+  vim.api.nvim_set_option_value('filetype', 'diff', { buf = diff_buf })
+  vim.api.nvim_buf_set_name(diff_buf, 'diffs://' .. diff_label .. ':' .. rel_path)
+
+  vim.cmd(opts.vertical and 'vsplit' or 'split')
+  vim.api.nvim_win_set_buf(0, diff_buf)
+
+  dbg('opened diff buffer %d for %s (%s)', diff_buf, rel_path, diff_label)
+
+  vim.schedule(function()
+    require('diffs').attach(diff_buf)
+  end)
+end
+
 function M.setup()
   vim.api.nvim_create_user_command('Gdiff', function(opts)
     M.gdiff(opts.args ~= '' and opts.args or nil, false)
