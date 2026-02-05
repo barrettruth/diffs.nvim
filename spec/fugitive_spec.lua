@@ -109,14 +109,147 @@ describe('fugitive', function()
       vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
-    it('parses renamed file and returns new name', function()
+    it('parses renamed file and returns both names', function()
       local buf = create_status_buffer({
         'Staged (1)',
         'R  oldname.lua -> newname.lua',
       })
-      local filename, section = fugitive.get_file_at_line(buf, 2)
+      local filename, section, is_header, old_filename = fugitive.get_file_at_line(buf, 2)
       assert.equals('newname.lua', filename)
       assert.equals('staged', section)
+      assert.is_false(is_header)
+      assert.equals('oldname.lua', old_filename)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('parses renamed file with similarity index', function()
+      local buf = create_status_buffer({
+        'Staged (1)',
+        'R100  old.lua -> new.lua',
+      })
+      local filename, section, is_header, old_filename = fugitive.get_file_at_line(buf, 2)
+      assert.equals('new.lua', filename)
+      assert.equals('staged', section)
+      assert.equals('old.lua', old_filename)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('returns nil old_filename for non-renames', function()
+      local buf = create_status_buffer({
+        'Staged (1)',
+        'M  modified.lua',
+      })
+      local filename, section, is_header, old_filename = fugitive.get_file_at_line(buf, 2)
+      assert.equals('modified.lua', filename)
+      assert.equals('staged', section)
+      assert.is_nil(old_filename)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('handles renamed file with spaces in name', function()
+      local buf = create_status_buffer({
+        'Staged (1)',
+        'R  old file.lua -> new file.lua',
+      })
+      local filename, section, is_header, old_filename = fugitive.get_file_at_line(buf, 2)
+      assert.equals('new file.lua', filename)
+      assert.equals('old file.lua', old_filename)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('handles renamed file in subdirectory', function()
+      local buf = create_status_buffer({
+        'Staged (1)',
+        'R  src/old.lua -> src/new.lua',
+      })
+      local filename, section, is_header, old_filename = fugitive.get_file_at_line(buf, 2)
+      assert.equals('src/new.lua', filename)
+      assert.equals('src/old.lua', old_filename)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('handles renamed file moved to different directory', function()
+      local buf = create_status_buffer({
+        'Staged (1)',
+        'R  old/file.lua -> new/file.lua',
+      })
+      local filename, section, is_header, old_filename = fugitive.get_file_at_line(buf, 2)
+      assert.equals('new/file.lua', filename)
+      assert.equals('old/file.lua', old_filename)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('KNOWN LIMITATION: filename containing arrow parsed incorrectly', function()
+      local buf = create_status_buffer({
+        'Staged (1)',
+        'R  a -> b.lua -> c.lua',
+      })
+      local filename, section, is_header, old_filename = fugitive.get_file_at_line(buf, 2)
+      assert.equals('b.lua -> c.lua', filename)
+      assert.equals('a', old_filename)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('handles double extensions', function()
+      local buf = create_status_buffer({
+        'Staged (1)',
+        'M  test.spec.lua',
+      })
+      local filename, section, is_header, old_filename = fugitive.get_file_at_line(buf, 2)
+      assert.equals('test.spec.lua', filename)
+      assert.is_nil(old_filename)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('handles hyphenated filenames', function()
+      local buf = create_status_buffer({
+        'Unstaged (1)',
+        'M  my-component-test.lua',
+      })
+      local filename, section, is_header, old_filename = fugitive.get_file_at_line(buf, 2)
+      assert.equals('my-component-test.lua', filename)
+      assert.equals('unstaged', section)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('handles underscores and numbers', function()
+      local buf = create_status_buffer({
+        'Staged (1)',
+        'A  test_file_123.lua',
+      })
+      local filename, section, is_header, old_filename = fugitive.get_file_at_line(buf, 2)
+      assert.equals('test_file_123.lua', filename)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('handles dotfiles', function()
+      local buf = create_status_buffer({
+        'Unstaged (1)',
+        'M  .gitignore',
+      })
+      local filename, section, is_header, old_filename = fugitive.get_file_at_line(buf, 2)
+      assert.equals('.gitignore', filename)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('handles renamed with complex names', function()
+      local buf = create_status_buffer({
+        'Staged (1)',
+        'R  src/old-file.spec.lua -> src/new-file.spec.lua',
+      })
+      local filename, section, is_header, old_filename = fugitive.get_file_at_line(buf, 2)
+      assert.equals('src/new-file.spec.lua', filename)
+      assert.equals('src/old-file.spec.lua', old_filename)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('handles deeply nested paths', function()
+      local buf = create_status_buffer({
+        'Unstaged (1)',
+        'M  lua/diffs/ui/components/diff-view.lua',
+      })
+      local filename, section, is_header, old_filename = fugitive.get_file_at_line(buf, 2)
+      assert.equals('lua/diffs/ui/components/diff-view.lua', filename)
       vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
