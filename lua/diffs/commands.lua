@@ -70,6 +70,8 @@ function M.gdiff(revision, vertical)
     return
   end
 
+  local repo_root = git.get_repo_root(filepath)
+
   local diff_buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(diff_buf, 0, -1, false, diff_lines)
   vim.api.nvim_set_option_value('buftype', 'nofile', { buf = diff_buf })
@@ -77,6 +79,9 @@ function M.gdiff(revision, vertical)
   vim.api.nvim_set_option_value('modifiable', false, { buf = diff_buf })
   vim.api.nvim_set_option_value('filetype', 'diff', { buf = diff_buf })
   vim.api.nvim_buf_set_name(diff_buf, 'diffs://' .. revision .. ':' .. rel_path)
+  if repo_root then
+    vim.api.nvim_buf_set_var(diff_buf, 'diffs_repo_root', repo_root)
+  end
 
   vim.cmd(vertical and 'vsplit' or 'split')
   vim.api.nvim_win_set_buf(0, diff_buf)
@@ -154,6 +159,8 @@ function M.gdiff_file(filepath, opts)
     return
   end
 
+  local repo_root = git.get_repo_root(filepath)
+
   local diff_buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(diff_buf, 0, -1, false, diff_lines)
   vim.api.nvim_set_option_value('buftype', 'nofile', { buf = diff_buf })
@@ -161,6 +168,9 @@ function M.gdiff_file(filepath, opts)
   vim.api.nvim_set_option_value('modifiable', false, { buf = diff_buf })
   vim.api.nvim_set_option_value('filetype', 'diff', { buf = diff_buf })
   vim.api.nvim_buf_set_name(diff_buf, 'diffs://' .. diff_label .. ':' .. rel_path)
+  if repo_root then
+    vim.api.nvim_buf_set_var(diff_buf, 'diffs_repo_root', repo_root)
+  end
 
   vim.cmd(opts.vertical and 'vsplit' or 'split')
   vim.api.nvim_win_set_buf(0, diff_buf)
@@ -205,6 +215,7 @@ function M.gdiff_section(repo_root, opts)
   vim.api.nvim_set_option_value('modifiable', false, { buf = diff_buf })
   vim.api.nvim_set_option_value('filetype', 'diff', { buf = diff_buf })
   vim.api.nvim_buf_set_name(diff_buf, 'diffs://' .. diff_label .. ':all')
+  vim.api.nvim_buf_set_var(diff_buf, 'diffs_repo_root', repo_root)
 
   vim.cmd(opts.vertical and 'vsplit' or 'split')
   vim.api.nvim_win_set_buf(0, diff_buf)
