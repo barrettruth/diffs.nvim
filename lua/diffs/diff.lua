@@ -312,12 +312,27 @@ function M.compute_intra_hunks(hunk_lines, algorithm)
   ---@type diffs.CharSpan[]
   local all_del = {}
 
-  for _, group in ipairs(groups) do
+  dbg(
+    'intra: %d change groups, algorithm=%s, vscode=%s',
+    #groups,
+    algorithm,
+    vscode_handle and 'yes' or 'no'
+  )
+
+  for gi, group in ipairs(groups) do
+    dbg('group %d: %d del lines, %d add lines', gi, #group.del_lines, #group.add_lines)
     local ds, as
     if vscode_handle then
       ds, as = diff_group_vscode(group, vscode_handle)
     else
       ds, as = diff_group_native(group)
+    end
+    dbg('group %d result: %d del spans, %d add spans', gi, #ds, #as)
+    for _, s in ipairs(ds) do
+      dbg('  del span: line=%d col=%d..%d', s.line, s.col_start, s.col_end)
+    end
+    for _, s in ipairs(as) do
+      dbg('  add span: line=%d col=%d..%d', s.line, s.col_start, s.col_end)
     end
     vim.list_extend(all_del, ds)
     vim.list_extend(all_add, as)
