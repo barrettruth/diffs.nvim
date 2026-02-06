@@ -62,12 +62,12 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
         },
         vim = {
           enabled = false,
-          max_lines = 200,
+          max_lines = 500,
         },
         intra = {
           enabled = true,
           algorithm = 'auto',
-          max_lines = 200,
+          max_lines = 500,
         },
       },
       fugitive = {
@@ -165,7 +165,7 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              `vim.diff()`. `'vscode'`: require libvscodediff
                              (falls back to native if not available).
 
-        {max_lines}          (integer, default: 200)
+        {max_lines}          (integer, default: 500)
                              Skip character-level highlighting for hunks larger
                              than this many lines.
 
@@ -382,15 +382,16 @@ Fugitive unified diff highlights: ~
 
                                                               *DiffsAddText*
     DiffsAddText        Character-level background for changed characters
-                        within `+` lines. Derived by blending `DiffAdd`
-                        background with `Normal` at 70% alpha (brighter
-                        than line-level `DiffsAdd`). Only sets `bg`, so
-                        treesitter foreground colors show through.
+                        within `+` lines. Derived by blending `diffAdded`
+                        foreground with `Normal` background at 40% alpha.
+                        Uses the same base color as `DiffsAddNr` foreground,
+                        making changed characters clearly visible. Only sets
+                        `bg`, so treesitter foreground colors show through.
 
                                                            *DiffsDeleteText*
     DiffsDeleteText     Character-level background for changed characters
-                        within `-` lines. Derived by blending `DiffDelete`
-                        background with `Normal` at 70% alpha.
+                        within `-` lines. Derived by blending `diffRemoved`
+                        foreground with `Normal` background at 40% alpha.
 
 Diff mode window highlights: ~
 These are used for |winhighlight| remapping in `&diff` windows.

@@ -91,7 +91,7 @@ local default_config = {
     intra = {
       enabled = true,
       algorithm = 'auto',
-      max_lines = 200,
+      max_lines = 500,
     },
   },
   fugitive = {
@@ -183,8 +183,8 @@ local function compute_highlight_groups()
   local blended_add = blend_color(add_bg, bg, 0.4)
   local blended_del = blend_color(del_bg, bg, 0.4)
 
-  local blended_add_text = blend_color(add_bg, bg, 0.7)
-  local blended_del_text = blend_color(del_bg, bg, 0.7)
+  local blended_add_text = blend_color(add_fg, bg, 0.4)
+  local blended_del_text = blend_color(del_fg, bg, 0.4)
 
   vim.api.nvim_set_hl(0, 'DiffsAdd', { default = true, bg = blended_add })
   vim.api.nvim_set_hl(0, 'DiffsDelete', { default = true, bg = blended_del })
