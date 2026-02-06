@@ -64,6 +64,11 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
           enabled = false,
           max_lines = 200,
         },
+        intra = {
+          enabled = true,
+          algorithm = 'auto',
+          max_lines = 200,
+        },
       },
       fugitive = {
         horizontal = 'du',
@@ -116,6 +121,10 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              Vim syntax highlighting options (experimental).
                              See |diffs.VimConfig| for fields.
 
+        {intra}              (table, default: see below)
+                             Character-level (intra-line) diff highlighting.
+                             See |diffs.IntraConfig| for fields.
+
                                                     *diffs.TreesitterConfig*
     Treesitter config fields: ~
         {enabled}            (boolean, default: true)
@@ -139,6 +148,26 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              Skip vim syntax highlighting for hunks larger than
                              this many lines. Lower than the treesitter default
                              due to the per-character cost of |synID()|.
+
+                                                        *diffs.IntraConfig*
+    Intra config fields: ~
+        {enabled}            (boolean, default: true)
+                             Enable character-level diff highlighting within
+                             changed lines. When a line changes from `local x = 1`
+                             to `local x = 2`, only the `1`/`2` characters get
+                             an intense background overlay while the rest of the
+                             line keeps the softer line-level background.
+
+        {algorithm}          (string, default: 'auto')
+                             Diff algorithm for character-level analysis.
+                             `'auto'`: use libvscodediff if available, else
+                             native `vim.diff()`. `'native'`: always use
+                             `vim.diff()`. `'vscode'`: require libvscodediff
+                             (falls back to native if not available).
+
+        {max_lines}          (integer, default: 200)
+                             Skip character-level highlighting for hunks larger
+                             than this many lines.
 
     Note: Header context (e.g., `@@ -10,3 +10,4 @@ func()`) is always
     highlighted with treesitter when a parser is available.
@@ -259,6 +288,8 @@ Summary / commit detail views: ~
    - Background extmarks (`DiffsAdd`/`DiffsDelete`) at priority 198
    - `Normal` extmarks at priority 199 clear underlying diff foreground
    - Syntax highlights are applied as extmarks at priority 200
+   - Character-level diff extmarks (`DiffsAddText`/`DiffsDeleteText`) at
+     priority 201 overlay changed characters with an intense background
    - Conceal extmarks hide diff prefixes when `hide_prefix` is enabled
 4. Re-highlighting occurs on `TextChanged` (debounced) and `Syntax` events
 
@@ -349,6 +380,18 @@ Fugitive unified diff highlights: ~
     DiffsDeleteNr       Line number for `-` lines. Foreground from
                         `diffRemoved`, background from `DiffsDelete`.
 
+                                                              *DiffsAddText*
+    DiffsAddText        Character-level background for changed characters
+                        within `+` lines. Derived by blending `DiffAdd`
+                        background with `Normal` at 70% alpha (brighter
+                        than line-level `DiffsAdd`). Only sets `bg`, so
+                        treesitter foreground colors show through.
+
+                                                           *DiffsDeleteText*
+    DiffsDeleteText     Character-level background for changed characters
+                        within `-` lines. Derived by blending `DiffDelete`
+                        background with `Normal` at 70% alpha.
+
 Diff mode window highlights: ~
 These are used for |winhighlight| remapping in `&diff` windows.
 
@@ -382,6 +425,7 @@ Run |:checkhealth| diffs to verify your setup.
 Checks performed:
 - Neovim version >= 0.9.0
 - vim-fugitive is installed (optional)
+- libvscode_diff shared library is available (optional)
 
 ==============================================================================
 ACKNOWLEDGEMENTS                                     *diffs-acknowledgements*
