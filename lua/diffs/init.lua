@@ -183,8 +183,8 @@ local function compute_highlight_groups()
   local blended_add = blend_color(add_bg, bg, 0.4)
   local blended_del = blend_color(del_bg, bg, 0.4)
 
-  local blended_add_text = blend_color(add_fg, bg, 0.4)
-  local blended_del_text = blend_color(del_fg, bg, 0.4)
+  local blended_add_text = blend_color(add_fg, bg, 0.7)
+  local blended_del_text = blend_color(del_fg, bg, 0.7)
 
   vim.api.nvim_set_hl(0, 'DiffsAdd', { default = true, bg = blended_add })
   vim.api.nvim_set_hl(0, 'DiffsDelete', { default = true, bg = blended_del })
@@ -192,6 +192,15 @@ local function compute_highlight_groups()
   vim.api.nvim_set_hl(0, 'DiffsDeleteNr', { default = true, fg = del_fg, bg = blended_del })
   vim.api.nvim_set_hl(0, 'DiffsAddText', { default = true, bg = blended_add_text })
   vim.api.nvim_set_hl(0, 'DiffsDeleteText', { default = true, bg = blended_del_text })
+
+  dbg('highlight groups: Normal.bg=#%06x DiffAdd.bg=#%06x diffAdded.fg=#%06x', bg, add_bg, add_fg)
+  dbg(
+    'DiffsAdd.bg=#%06x DiffsAddText.bg=#%06x DiffsAddNr.fg=#%06x',
+    blended_add,
+    blended_add_text,
+    add_fg
+  )
+  dbg('DiffsDelete.bg=#%06x DiffsDeleteText.bg=#%06x', blended_del, blended_del_text)
 
   local diff_change = resolve_hl('DiffChange')
   local diff_text = resolve_hl('DiffText')
