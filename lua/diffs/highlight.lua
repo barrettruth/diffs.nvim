@@ -3,6 +3,33 @@ local M = {}
 local dbg = require('diffs.log').dbg
 local diff = require('diffs.diff')
 
+---@param filepath string
+---@param from_line integer
+---@param count integer
+---@return string[]
+local function read_line_range(filepath, from_line, count)
+  if count <= 0 then
+    return {}
+  end
+  local f = io.open(filepath, 'r')
+  if not f then
+    return {}
+  end
+  local result = {}
+  local line_num = 0
+  for line in f:lines() do
+    line_num = line_num + 1
+    if line_num >= from_line then
+      table.insert(result, line)
+      if #result >= count then
+        break
+      end
+    end
+  end
+  f:close()
+  return result
+end
+
 local PRIORITY_CLEAR = 198
 local PRIORITY_SYNTAX = 199
 local PRIORITY_LINE_BG = 200
@@ -177,8 +204,9 @@ end
 ---@param hunk diffs.Hunk
 ---@param code_lines string[]
 ---@param covered_lines? table<integer, true>
+---@param leading_offset? integer
 ---@return integer
-local function highlight_vim_syntax(bufnr, ns, hunk, code_lines, covered_lines)
+local function highlight_vim_syntax(bufnr, ns, hunk, code_lines, covered_lines, leading_offset)
   local ft = hunk.ft
   if not ft then
     return 0
@@ -187,6 +215,8 @@ local function highlight_vim_syntax(bufnr, ns, hunk, code_lines, covered_lines)
   if #code_lines == 0 then
     return 0
   end
+
+  leading_offset = leading_offset or 0
 
   local scratch = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(scratch, 0, -1, false, code_lines)
@@ -214,17 +244,21 @@ local function highlight_vim_syntax(bufnr, ns, hunk, code_lines, covered_lines)
 
   vim.api.nvim_buf_delete(scratch, { force = true })
 
+  local hunk_line_count = #hunk.lines
   local extmark_count = 0
   for _, span in ipairs(spans) do
-    local buf_line = hunk.start_line + span.line - 1
-    pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, span.col_start, {
-      end_col = span.col_end,
-      hl_group = span.hl_name,
-      priority = PRIORITY_SYNTAX,
-    })
-    extmark_count = extmark_count + 1
-    if covered_lines then
-      covered_lines[buf_line] = true
+    local adj = span.line - leading_offset
+    if adj >= 1 and adj <= hunk_line_count then
+      local buf_line = hunk.start_line + adj - 1
+      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, span.col_start, {
+        end_col = span.col_end,
+        hl_group = span.hl_name,
+        priority = PRIORITY_SYNTAX,
+      })
+      extmark_count = extmark_count + 1
+      if covered_lines then
+        covered_lines[buf_line] = true
+      end
     end
   end
 
@@ -255,6 +289,20 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
   ---@type table<integer, true>
   local covered_lines = {}
 
+  local context = opts.highlights.context or 0
+  local leading = {}
+  local trailing = {}
+  if (use_ts or use_vim) and context > 0 and hunk.file_new_start and hunk.repo_root then
+    local filepath = vim.fs.joinpath(hunk.repo_root, hunk.filename)
+    local lead_from = math.max(1, hunk.file_new_start - context)
+    local lead_count = hunk.file_new_start - lead_from
+    if lead_count > 0 then
+      leading = read_line_range(filepath, lead_from, lead_count)
+    end
+    local trail_from = hunk.file_new_start + (hunk.file_new_count or 0)
+    trailing = read_line_range(filepath, trail_from, context)
+  end
+
   local extmark_count = 0
   if use_ts then
     ---@type string[]
@@ -265,6 +313,11 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     local old_code = {}
     ---@type table<integer, integer>
     local old_map = {}
+
+    for _, pad_line in ipairs(leading) do
+      table.insert(new_code, pad_line)
+      table.insert(old_code, pad_line)
+    end
 
     for i, line in ipairs(hunk.lines) do
       local prefix = line:sub(1, 1)
@@ -282,6 +335,11 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
         table.insert(new_code, stripped)
         table.insert(old_code, stripped)
       end
+    end
+
+    for _, pad_line in ipairs(trailing) do
+      table.insert(new_code, pad_line)
+      table.insert(old_code, pad_line)
     end
 
     extmark_count = highlight_treesitter(bufnr, ns, new_code, hunk.lang, new_map, 1, covered_lines)
@@ -305,10 +363,16 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
   elseif use_vim then
     ---@type string[]
     local code_lines = {}
+    for _, pad_line in ipairs(leading) do
+      table.insert(code_lines, pad_line)
+    end
     for _, line in ipairs(hunk.lines) do
       table.insert(code_lines, line:sub(2))
     end
-    extmark_count = highlight_vim_syntax(bufnr, ns, hunk, code_lines, covered_lines)
+    for _, pad_line in ipairs(trailing) do
+      table.insert(code_lines, pad_line)
+    end
+    extmark_count = highlight_vim_syntax(bufnr, ns, hunk, code_lines, covered_lines, #leading)
   end
 
   if

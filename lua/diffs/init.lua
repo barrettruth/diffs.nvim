@@ -14,6 +14,7 @@
 ---@class diffs.Highlights
 ---@field background boolean
 ---@field gutter boolean
+---@field context integer
 ---@field treesitter diffs.TreesitterConfig
 ---@field vim diffs.VimConfig
 ---@field intra diffs.IntraConfig
@@ -80,6 +81,7 @@ local default_config = {
   highlights = {
     background = true,
     gutter = true,
+    context = 25,
     treesitter = {
       enabled = true,
       max_lines = 500,
@@ -231,6 +233,7 @@ local function init()
     vim.validate({
       ['highlights.background'] = { opts.highlights.background, 'boolean', true },
       ['highlights.gutter'] = { opts.highlights.gutter, 'boolean', true },
+      ['highlights.context'] = { opts.highlights.context, 'number', true },
       ['highlights.treesitter'] = { opts.highlights.treesitter, 'table', true },
       ['highlights.vim'] = { opts.highlights.vim, 'table', true },
       ['highlights.intra'] = { opts.highlights.intra, 'table', true },
@@ -290,6 +293,9 @@ local function init()
 
   if opts.debounce_ms and opts.debounce_ms < 0 then
     error('diffs: debounce_ms must be >= 0')
+  end
+  if opts.highlights and opts.highlights.context and opts.highlights.context < 0 then
+    error('diffs: highlights.context must be >= 0')
   end
   if
     opts.highlights

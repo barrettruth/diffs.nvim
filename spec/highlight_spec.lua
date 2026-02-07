@@ -37,6 +37,7 @@ describe('highlight', function()
         highlights = {
           background = false,
           gutter = false,
+          context = 0,
           treesitter = {
             enabled = true,
             max_lines = 500,
@@ -1055,6 +1056,99 @@ describe('highlight', function()
       assert.is_true(min_line_bg < min_char_bg)
       delete_buffer(bufnr)
     end)
+
+    it('context padding produces no extmarks on padding lines', function()
+      local repo_root = '/tmp/diffs-test-context'
+      vim.fn.mkdir(repo_root, 'p')
+
+      local f = io.open(repo_root .. '/test.lua', 'w')
+      f:write('local M = {}\n')
+      f:write('function M.hello()\n')
+      f:write('  return "hi"\n')
+      f:write('end\n')
+      f:write('return M\n')
+      f:close()
+
+      local bufnr = create_buffer({
+        '@@ -3,1 +3,2 @@',
+        ' return "hi"',
+        '+"bye"',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { '  return "hi"', '+"bye"' },
+        file_old_start = 3,
+        file_old_count = 1,
+        file_new_start = 3,
+        file_new_count = 2,
+        repo_root = repo_root,
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ highlights = { context = 25 } }))
+
+      local extmarks = get_extmarks(bufnr)
+      for _, mark in ipairs(extmarks) do
+        local row = mark[2]
+        assert.is_true(row >= 1 and row <= 2)
+      end
+
+      delete_buffer(bufnr)
+      os.remove(repo_root .. '/test.lua')
+      vim.fn.delete(repo_root, 'rf')
+    end)
+
+    it('context = 0 matches behavior without padding', function()
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { ' local x = 1', '+local y = 2' },
+        file_new_start = 1,
+        file_new_count = 2,
+        repo_root = '/nonexistent',
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ highlights = { context = 0 } }))
+
+      local extmarks = get_extmarks(bufnr)
+      assert.is_true(#extmarks > 0)
+      delete_buffer(bufnr)
+    end)
+
+    it('gracefully handles missing file for context padding', function()
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { ' local x = 1', '+local y = 2' },
+        file_new_start = 1,
+        file_new_count = 2,
+        repo_root = '/nonexistent/path',
+      }
+
+      assert.has_no.errors(function()
+        highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ highlights = { context = 25 } }))
+      end)
+
+      local extmarks = get_extmarks(bufnr)
+      assert.is_true(#extmarks > 0)
+      delete_buffer(bufnr)
+    end)
   end)
 
   describe('diff header highlighting', function()
@@ -1086,6 +1180,7 @@ describe('highlight', function()
         highlights = {
           background = false,
           gutter = false,
+          context = 0,
           treesitter = { enabled = true, max_lines = 500 },
           vim = { enabled = false, max_lines = 200 },
         },
@@ -1242,6 +1337,7 @@ describe('highlight', function()
         highlights = {
           background = false,
           gutter = false,
+          context = 0,
           treesitter = { enabled = true, max_lines = 500 },
           vim = { enabled = false, max_lines = 200 },
         },
