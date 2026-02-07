@@ -43,8 +43,9 @@ luarocks install diffs.nvim
 
 - **Incomplete syntax context**: Treesitter parses each diff hunk in isolation.
   To improve accuracy, `diffs.nvim` reads lines from disk before and after each
-  hunk for parsing context (controlled by `highlights.context`, default 25).
-  This resolves most boundary issues. Set `highlights.context = 0` to disable.
+  hunk for parsing context (`highlights.context`, enabled by default with 25
+  lines). This resolves most boundary issues. Set
+  `highlights.context.enabled = false` to disable.
 
 - **Syntax flashing**: `diffs.nvim` hooks into the `FileType fugitive` event
   triggered by `vim-fugitive`, at which point the buffer is preliminarily

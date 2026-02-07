@@ -11,10 +11,14 @@
 ---@field algorithm string
 ---@field max_lines integer
 
+---@class diffs.ContextConfig
+---@field enabled boolean
+---@field lines integer
+
 ---@class diffs.Highlights
 ---@field background boolean
 ---@field gutter boolean
----@field context integer
+---@field context diffs.ContextConfig
 ---@field treesitter diffs.TreesitterConfig
 ---@field vim diffs.VimConfig
 ---@field intra diffs.IntraConfig
@@ -81,7 +85,10 @@ local default_config = {
   highlights = {
     background = true,
     gutter = true,
-    context = 25,
+    context = {
+      enabled = true,
+      lines = 25,
+    },
     treesitter = {
       enabled = true,
       max_lines = 500,
@@ -233,11 +240,18 @@ local function init()
     vim.validate({
       ['highlights.background'] = { opts.highlights.background, 'boolean', true },
       ['highlights.gutter'] = { opts.highlights.gutter, 'boolean', true },
-      ['highlights.context'] = { opts.highlights.context, 'number', true },
+      ['highlights.context'] = { opts.highlights.context, 'table', true },
       ['highlights.treesitter'] = { opts.highlights.treesitter, 'table', true },
       ['highlights.vim'] = { opts.highlights.vim, 'table', true },
       ['highlights.intra'] = { opts.highlights.intra, 'table', true },
     })
+
+    if opts.highlights.context then
+      vim.validate({
+        ['highlights.context.enabled'] = { opts.highlights.context.enabled, 'boolean', true },
+        ['highlights.context.lines'] = { opts.highlights.context.lines, 'number', true },
+      })
+    end
 
     if opts.highlights.treesitter then
       vim.validate({
@@ -294,8 +308,13 @@ local function init()
   if opts.debounce_ms and opts.debounce_ms < 0 then
     error('diffs: debounce_ms must be >= 0')
   end
-  if opts.highlights and opts.highlights.context and opts.highlights.context < 0 then
-    error('diffs: highlights.context must be >= 0')
+  if
+    opts.highlights
+    and opts.highlights.context
+    and opts.highlights.context.lines
+    and opts.highlights.context.lines < 0
+  then
+    error('diffs: highlights.context.lines must be >= 0')
   end
   if
     opts.highlights
