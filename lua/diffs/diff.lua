@@ -11,6 +11,10 @@
 ---@field del_lines {idx: integer, text: string}[]
 ---@field add_lines {idx: integer, text: string}[]
 
+---@class diffs.DiffOpts
+---@field algorithm? string
+---@field linematch? integer
+
 local M = {}
 
 local dbg = require('diffs.log').dbg
@@ -60,7 +64,7 @@ function M.extract_change_groups(hunk_lines)
   return groups
 end
 
----@return {algorithm?: string, linematch?: integer}
+---@return diffs.DiffOpts
 local function parse_diffopt()
   local opts = {}
   for _, item in ipairs(vim.split(vim.o.diffopt, ',')) do
@@ -76,7 +80,7 @@ end
 
 ---@param old_text string
 ---@param new_text string
----@param diff_opts? {algorithm?: string, linematch?: integer}
+---@param diff_opts? diffs.DiffOpts
 ---@return {old_start: integer, old_count: integer, new_start: integer, new_count: integer}[]
 local function byte_diff(old_text, new_text, diff_opts)
   local vim_opts = { result_type = 'indices' }
@@ -119,7 +123,7 @@ end
 ---@param new_line string
 ---@param del_idx integer
 ---@param add_idx integer
----@param diff_opts? {algorithm?: string, linematch?: integer}
+---@param diff_opts? diffs.DiffOpts
 ---@return diffs.CharSpan[], diffs.CharSpan[]
 local function char_diff_pair(old_line, new_line, del_idx, add_idx, diff_opts)
   ---@type diffs.CharSpan[]
@@ -157,7 +161,7 @@ local function char_diff_pair(old_line, new_line, del_idx, add_idx, diff_opts)
 end
 
 ---@param group diffs.ChangeGroup
----@param diff_opts? {algorithm?: string, linematch?: integer}
+---@param diff_opts? diffs.DiffOpts
 ---@return diffs.CharSpan[], diffs.CharSpan[]
 local function diff_group_native(group, diff_opts)
   ---@type diffs.CharSpan[]
@@ -334,7 +338,7 @@ function M.compute_intra_hunks(hunk_lines, algorithm)
     end
   end
 
-  ---@type {algorithm?: string, linematch?: integer}?
+  ---@type diffs.DiffOpts?
   local diff_opts = nil
   if not vscode_handle then
     diff_opts = parse_diffopt()
