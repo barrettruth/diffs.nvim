@@ -45,7 +45,7 @@ describe('highlight', function()
           },
           intra = {
             enabled = false,
-            algorithm = 'native',
+            algorithm = 'default',
             max_lines = 500,
           },
         },
@@ -828,7 +828,7 @@ describe('highlight', function()
         default_opts({
           highlights = {
             background = true,
-            intra = { enabled = true, algorithm = 'native', max_lines = 500 },
+            intra = { enabled = true, algorithm = 'default', max_lines = 500 },
           },
         })
       )
@@ -873,7 +873,7 @@ describe('highlight', function()
         ns,
         hunk,
         default_opts({
-          highlights = { intra = { enabled = true, algorithm = 'native', max_lines = 500 } },
+          highlights = { intra = { enabled = true, algorithm = 'default', max_lines = 500 } },
         })
       )
 
@@ -913,7 +913,7 @@ describe('highlight', function()
         ns,
         hunk,
         default_opts({
-          highlights = { intra = { enabled = false, algorithm = 'native', max_lines = 500 } },
+          highlights = { intra = { enabled = false, algorithm = 'default', max_lines = 500 } },
         })
       )
 
@@ -947,7 +947,7 @@ describe('highlight', function()
         ns,
         hunk,
         default_opts({
-          highlights = { intra = { enabled = true, algorithm = 'native', max_lines = 500 } },
+          highlights = { intra = { enabled = true, algorithm = 'default', max_lines = 500 } },
         })
       )
 
@@ -984,7 +984,7 @@ describe('highlight', function()
         default_opts({
           highlights = {
             background = true,
-            intra = { enabled = true, algorithm = 'native', max_lines = 500 },
+            intra = { enabled = true, algorithm = 'default', max_lines = 500 },
           },
         })
       )
