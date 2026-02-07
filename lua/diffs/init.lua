@@ -18,6 +18,8 @@
 ---@class diffs.Highlights
 ---@field background boolean
 ---@field gutter boolean
+---@field blend_alpha? number
+---@field overrides? table<string, table>
 ---@field context diffs.ContextConfig
 ---@field treesitter diffs.TreesitterConfig
 ---@field vim diffs.VimConfig
@@ -192,8 +194,9 @@ local function compute_highlight_groups()
   local blended_add = blend_color(add_bg, bg, 0.4)
   local blended_del = blend_color(del_bg, bg, 0.4)
 
-  local blended_add_text = blend_color(add_fg, bg, 0.6)
-  local blended_del_text = blend_color(del_fg, bg, 0.6)
+  local alpha = config.highlights.blend_alpha or 0.6
+  local blended_add_text = blend_color(add_fg, bg, alpha)
+  local blended_del_text = blend_color(del_fg, bg, alpha)
 
   vim.api.nvim_set_hl(0, 'DiffsClear', { default = true, fg = normal.fg or 0xc0c0c0 })
   vim.api.nvim_set_hl(0, 'DiffsAdd', { default = true, bg = blended_add })
@@ -219,10 +222,20 @@ local function compute_highlight_groups()
   local diff_change = resolve_hl('DiffChange')
   local diff_text = resolve_hl('DiffText')
 
-  vim.api.nvim_set_hl(0, 'DiffsDiffAdd', { bg = diff_add.bg })
-  vim.api.nvim_set_hl(0, 'DiffsDiffDelete', { fg = diff_delete.fg, bg = diff_delete.bg })
-  vim.api.nvim_set_hl(0, 'DiffsDiffChange', { bg = diff_change.bg })
-  vim.api.nvim_set_hl(0, 'DiffsDiffText', { bg = diff_text.bg })
+  vim.api.nvim_set_hl(0, 'DiffsDiffAdd', { default = true, bg = diff_add.bg })
+  vim.api.nvim_set_hl(
+    0,
+    'DiffsDiffDelete',
+    { default = true, fg = diff_delete.fg, bg = diff_delete.bg }
+  )
+  vim.api.nvim_set_hl(0, 'DiffsDiffChange', { default = true, bg = diff_change.bg })
+  vim.api.nvim_set_hl(0, 'DiffsDiffText', { default = true, bg = diff_text.bg })
+
+  if config.highlights.overrides then
+    for group, hl in pairs(config.highlights.overrides) do
+      vim.api.nvim_set_hl(0, group, hl)
+    end
+  end
 end
 
 local function init()
@@ -244,6 +257,8 @@ local function init()
     vim.validate({
       ['highlights.background'] = { opts.highlights.background, 'boolean', true },
       ['highlights.gutter'] = { opts.highlights.gutter, 'boolean', true },
+      ['highlights.blend_alpha'] = { opts.highlights.blend_alpha, 'number', true },
+      ['highlights.overrides'] = { opts.highlights.overrides, 'table', true },
       ['highlights.context'] = { opts.highlights.context, 'table', true },
       ['highlights.treesitter'] = { opts.highlights.treesitter, 'table', true },
       ['highlights.vim'] = { opts.highlights.vim, 'table', true },
@@ -343,6 +358,13 @@ local function init()
     and opts.highlights.intra.max_lines < 1
   then
     error('diffs: highlights.intra.max_lines must be >= 1')
+  end
+  if
+    opts.highlights
+    and opts.highlights.blend_alpha
+    and (opts.highlights.blend_alpha < 0 or opts.highlights.blend_alpha > 1)
+  then
+    error('diffs: highlights.blend_alpha must be >= 0 and <= 1')
   end
 
   config = vim.tbl_deep_extend('force', default_config, opts)
