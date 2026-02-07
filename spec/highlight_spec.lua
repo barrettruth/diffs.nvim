@@ -1164,6 +1164,94 @@ describe('highlight', function()
       assert.is_true(#extmarks > 0)
       delete_buffer(bufnr)
     end)
+
+    it('highlights treesitter injections', function()
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+vim.cmd([[ echo 1 ]])',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { ' local x = 1', '+vim.cmd([[ echo 1 ]])' },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
+
+      local extmarks = get_extmarks(bufnr)
+      local has_vim_capture = false
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].hl_group and mark[4].hl_group:match('^@.*%.vim$') then
+          has_vim_capture = true
+          break
+        end
+      end
+      assert.is_true(has_vim_capture)
+      delete_buffer(bufnr)
+    end)
+
+    it('includes captures from both base and injected languages', function()
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+vim.cmd([[ echo 1 ]])',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { ' local x = 1', '+vim.cmd([[ echo 1 ]])' },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
+
+      local extmarks = get_extmarks(bufnr)
+      local has_lua = false
+      local has_vim = false
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].hl_group then
+          if mark[4].hl_group:match('^@.*%.lua$') then
+            has_lua = true
+          end
+          if mark[4].hl_group:match('^@.*%.vim$') then
+            has_vim = true
+          end
+        end
+      end
+      assert.is_true(has_lua)
+      assert.is_true(has_vim)
+      delete_buffer(bufnr)
+    end)
+
+    it('filters @spell and @nospell captures from injections', function()
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+vim.cmd([[ echo 1 ]])',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { ' local x = 1', '+vim.cmd([[ echo 1 ]])' },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
+
+      local extmarks = get_extmarks(bufnr)
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].hl_group then
+          assert.is_falsy(mark[4].hl_group:match('@spell'))
+          assert.is_falsy(mark[4].hl_group:match('@nospell'))
+        end
+      end
+      delete_buffer(bufnr)
+    end)
   end)
 
   describe('diff header highlighting', function()
