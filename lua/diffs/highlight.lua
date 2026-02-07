@@ -68,9 +68,8 @@ local function highlight_text(bufnr, ns, hunk, col_offset, text, lang, context_l
   local header_line = hunk.start_line - 1
 
   for id, node, metadata in query:iter_captures(trees[1]:root(), parse_text) do
-    local sr, sc, er, ec = node:range()
+    local sr, sc, _, ec = node:range()
     if sr == 0 then
-      er = 0
       local capture_name = '@' .. query.captures[id] .. '.' .. lang
 
       local buf_sr = header_line
