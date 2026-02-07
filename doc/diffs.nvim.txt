@@ -66,7 +66,7 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
         },
         vim = {
           enabled = false,
-          max_lines = 500,
+          max_lines = 200,
         },
         intra = {
           enabled = true,
