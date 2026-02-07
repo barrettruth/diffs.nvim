@@ -3,6 +3,11 @@ local M = {}
 local dbg = require('diffs.log').dbg
 local diff = require('diffs.diff')
 
+local PRIORITY_CLEAR = 198
+local PRIORITY_SYNTAX = 199
+local PRIORITY_LINE_BG = 200
+local PRIORITY_CHAR_BG = 201
+
 ---@param bufnr integer
 ---@param ns integer
 ---@param hunk diffs.Hunk
@@ -38,7 +43,7 @@ local function highlight_text(bufnr, ns, hunk, col_offset, text, lang)
     local buf_sc = col_offset + sc
     local buf_ec = col_offset + ec
 
-    local priority = lang == 'diff' and (tonumber(metadata.priority) or 100) or 200
+    local priority = lang == 'diff' and (tonumber(metadata.priority) or 100) or PRIORITY_SYNTAX
 
     pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_sr, buf_sc, {
       end_row = buf_er,
@@ -58,16 +63,21 @@ end
 
 ---@param bufnr integer
 ---@param ns integer
----@param hunk diffs.Hunk
 ---@param code_lines string[]
----@param col_offset integer?
+---@param lang string
+---@param line_map table<integer, integer>
+---@param col_offset integer
+---@param covered_lines? table<integer, true>
 ---@return integer
-local function highlight_treesitter(bufnr, ns, hunk, code_lines, col_offset)
-  local lang = hunk.lang
-  if not lang then
-    return 0
-  end
-
+local function highlight_treesitter(
+  bufnr,
+  ns,
+  code_lines,
+  lang,
+  line_map,
+  col_offset,
+  covered_lines
+)
   local code = table.concat(code_lines, '\n')
   if code == '' then
     return 0
@@ -91,41 +101,31 @@ local function highlight_treesitter(bufnr, ns, hunk, code_lines, col_offset)
     return 0
   end
 
-  if hunk.header_context and hunk.header_context_col then
-    local header_line = hunk.start_line - 1
-    pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, header_line, hunk.header_context_col, {
-      end_col = hunk.header_context_col + #hunk.header_context,
-      hl_group = 'Normal',
-      priority = 199,
-    })
-    local header_extmarks =
-      highlight_text(bufnr, ns, hunk, hunk.header_context_col, hunk.header_context, lang)
-    if header_extmarks > 0 then
-      dbg('header %s:%d applied %d extmarks', hunk.filename, hunk.start_line, header_extmarks)
-    end
-  end
-
-  col_offset = col_offset or 1
-
   local extmark_count = 0
   for id, node, metadata in query:iter_captures(trees[1]:root(), code) do
     local capture_name = '@' .. query.captures[id] .. '.' .. lang
     local sr, sc, er, ec = node:range()
 
-    local buf_sr = hunk.start_line + sr
-    local buf_er = hunk.start_line + er
-    local buf_sc = sc + col_offset
-    local buf_ec = ec + col_offset
+    local buf_sr = line_map[sr]
+    if buf_sr then
+      local buf_er = line_map[er] or buf_sr
 
-    local priority = lang == 'diff' and (tonumber(metadata.priority) or 100) or 200
+      local buf_sc = sc + col_offset
+      local buf_ec = ec + col_offset
 
-    pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_sr, buf_sc, {
-      end_row = buf_er,
-      end_col = buf_ec,
-      hl_group = capture_name,
-      priority = priority,
-    })
-    extmark_count = extmark_count + 1
+      local priority = lang == 'diff' and (tonumber(metadata.priority) or 100) or PRIORITY_SYNTAX
+
+      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_sr, buf_sc, {
+        end_row = buf_er,
+        end_col = buf_ec,
+        hl_group = capture_name,
+        priority = priority,
+      })
+      extmark_count = extmark_count + 1
+      if covered_lines then
+        covered_lines[buf_sr] = true
+      end
+    end
   end
 
   return extmark_count
@@ -176,8 +176,9 @@ end
 ---@param ns integer
 ---@param hunk diffs.Hunk
 ---@param code_lines string[]
+---@param covered_lines? table<integer, true>
 ---@return integer
-local function highlight_vim_syntax(bufnr, ns, hunk, code_lines)
+local function highlight_vim_syntax(bufnr, ns, hunk, code_lines, covered_lines)
   local ft = hunk.ft
   if not ft then
     return 0
@@ -219,9 +220,12 @@ local function highlight_vim_syntax(bufnr, ns, hunk, code_lines)
     pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, span.col_start, {
       end_col = span.col_end,
       hl_group = span.hl_name,
-      priority = 200,
+      priority = PRIORITY_SYNTAX,
     })
     extmark_count = extmark_count + 1
+    if covered_lines then
+      covered_lines[buf_line] = true
+    end
   end
 
   return extmark_count
@@ -248,21 +252,63 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     use_vim = false
   end
 
-  local apply_syntax = use_ts or use_vim
-
-  ---@type string[]
-  local code_lines = {}
-  if apply_syntax then
-    for _, line in ipairs(hunk.lines) do
-      table.insert(code_lines, line:sub(2))
-    end
-  end
+  ---@type table<integer, true>
+  local covered_lines = {}
 
   local extmark_count = 0
   if use_ts then
-    extmark_count = highlight_treesitter(bufnr, ns, hunk, code_lines)
+    ---@type string[]
+    local new_code = {}
+    ---@type table<integer, integer>
+    local new_map = {}
+    ---@type string[]
+    local old_code = {}
+    ---@type table<integer, integer>
+    local old_map = {}
+
+    for i, line in ipairs(hunk.lines) do
+      local prefix = line:sub(1, 1)
+      local stripped = line:sub(2)
+      local buf_line = hunk.start_line + i - 1
+
+      if prefix == '+' then
+        new_map[#new_code] = buf_line
+        table.insert(new_code, stripped)
+      elseif prefix == '-' then
+        old_map[#old_code] = buf_line
+        table.insert(old_code, stripped)
+      else
+        new_map[#new_code] = buf_line
+        table.insert(new_code, stripped)
+        table.insert(old_code, stripped)
+      end
+    end
+
+    extmark_count = highlight_treesitter(bufnr, ns, new_code, hunk.lang, new_map, 1, covered_lines)
+    extmark_count = extmark_count
+      + highlight_treesitter(bufnr, ns, old_code, hunk.lang, old_map, 1, covered_lines)
+
+    if hunk.header_context and hunk.header_context_col then
+      local header_line = hunk.start_line - 1
+      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, header_line, hunk.header_context_col, {
+        end_col = hunk.header_context_col + #hunk.header_context,
+        hl_group = 'DiffsClear',
+        priority = PRIORITY_CLEAR,
+      })
+      local header_extmarks =
+        highlight_text(bufnr, ns, hunk, hunk.header_context_col, hunk.header_context, hunk.lang)
+      if header_extmarks > 0 then
+        dbg('header %s:%d applied %d extmarks', hunk.filename, hunk.start_line, header_extmarks)
+      end
+      extmark_count = extmark_count + header_extmarks
+    end
   elseif use_vim then
-    extmark_count = highlight_vim_syntax(bufnr, ns, hunk, code_lines)
+    ---@type string[]
+    local code_lines = {}
+    for _, line in ipairs(hunk.lines) do
+      table.insert(code_lines, line:sub(2))
+    end
+    extmark_count = highlight_vim_syntax(bufnr, ns, hunk, code_lines, covered_lines)
   end
 
   if
@@ -271,17 +317,14 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     and #hunk.header_lines > 0
     and opts.highlights.treesitter.enabled
   then
+    ---@type table<integer, integer>
+    local header_map = {}
+    for i = 0, #hunk.header_lines - 1 do
+      header_map[i] = hunk.header_start_line - 1 + i
+    end
     extmark_count = extmark_count
-      + highlight_treesitter(bufnr, ns, {
-        filename = hunk.filename,
-        start_line = hunk.header_start_line - 1,
-        lang = 'diff',
-        lines = hunk.header_lines,
-        header_lines = {},
-      }, hunk.header_lines, 0)
+      + highlight_treesitter(bufnr, ns, hunk.header_lines, 'diff', header_map, 0)
   end
-
-  local syntax_applied = extmark_count > 0
 
   ---@type diffs.IntraChanges?
   local intra = nil
@@ -334,11 +377,11 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
       })
     end
 
-    if line_len > 1 and syntax_applied then
+    if line_len > 1 and covered_lines[buf_line] then
       pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 1, {
         end_col = line_len,
-        hl_group = 'Normal',
-        priority = 198,
+        hl_group = 'DiffsClear',
+        priority = PRIORITY_CLEAR,
       })
     end
 
@@ -348,7 +391,7 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
         hl_group = line_hl,
         hl_eol = true,
         number_hl_group = opts.highlights.gutter and number_hl or nil,
-        priority = 199,
+        priority = PRIORITY_LINE_BG,
       })
     end
 
@@ -367,7 +410,7 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
         local ok, err = pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, span.col_start, {
           end_col = span.col_end,
           hl_group = char_hl,
-          priority = 201,
+          priority = PRIORITY_CHAR_BG,
         })
         if not ok then
           dbg('char extmark FAILED: %s', err)
