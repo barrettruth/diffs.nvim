@@ -402,6 +402,12 @@ diffs.nvim defines custom highlight groups. Fugitive unified diff groups use
 `default = true`, so colorschemes can override them. Diff mode groups are
 always derived from the corresponding `Diff*` groups.
 
+All derived groups are computed by alpha-blending a source color into the
+`Normal` background. Line-level groups blend at 40% alpha for a subtle tint;
+character-level groups blend at 60% for more contrast. Line-number groups
+combine both: background from the line-level blend, foreground from the
+character-level blend.
+
 Fugitive unified diff highlights: ~
                                                                   *DiffsAdd*
     DiffsAdd            Background for `+` lines. Derived by blending
@@ -413,23 +419,23 @@ Fugitive unified diff highlights: ~
 
                                                                 *DiffsAddNr*
     DiffsAddNr          Line number for `+` lines. Foreground from
-                        `diffAdded`, background from `DiffsAdd`.
+                        `DiffsAddText`, background from `DiffsAdd`.
 
                                                              *DiffsDeleteNr*
     DiffsDeleteNr       Line number for `-` lines. Foreground from
-                        `diffRemoved`, background from `DiffsDelete`.
+                        `DiffsDeleteText`, background from `DiffsDelete`.
 
                                                               *DiffsAddText*
     DiffsAddText        Character-level background for changed characters
                         within `+` lines. Derived by blending `diffAdded`
-                        foreground with `Normal` background at 70% alpha.
+                        foreground with `Normal` background at 60% alpha.
                         Only sets `bg`, so treesitter foreground colors show
                         through.
 
                                                            *DiffsDeleteText*
     DiffsDeleteText     Character-level background for changed characters
                         within `-` lines. Derived by blending `diffRemoved`
-                        foreground with `Normal` background at 70% alpha.
+                        foreground with `Normal` background at 60% alpha.
 
 Diff mode window highlights: ~
 These are used for |winhighlight| remapping in `&diff` windows.
