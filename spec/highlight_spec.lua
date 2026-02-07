@@ -800,6 +800,72 @@ describe('highlight', function()
       delete_buffer(bufnr)
     end)
 
+    it('hl_eol background extmarks are multiline so hl_eol takes effect', function()
+      local bufnr = create_buffer({
+        '@@ -1,2 +1,1 @@',
+        '-local x = 1',
+        '+local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { '-local x = 1', '+local y = 2' },
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { background = true } })
+      )
+
+      local extmarks = get_extmarks(bufnr)
+      for _, mark in ipairs(extmarks) do
+        local d = mark[4]
+        if d and (d.hl_group == 'DiffsAdd' or d.hl_group == 'DiffsDelete') then
+          assert.is_true(d.end_row > mark[2])
+        end
+      end
+      delete_buffer(bufnr)
+    end)
+
+    it('number_hl_group does not bleed to adjacent lines', function()
+      local bufnr = create_buffer({
+        '@@ -1,3 +1,3 @@',
+        ' local a = 0',
+        '-local x = 1',
+        '+local y = 2',
+        ' local b = 3',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { ' local a = 0', '-local x = 1', '+local y = 2', ' local b = 3' },
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { background = true, gutter = true } })
+      )
+
+      local extmarks = get_extmarks(bufnr)
+      for _, mark in ipairs(extmarks) do
+        local d = mark[4]
+        if d and d.number_hl_group then
+          local start_row = mark[2]
+          local end_row = d.end_row or start_row
+          assert.are.equal(start_row, end_row)
+        end
+      end
+      delete_buffer(bufnr)
+    end)
+
     it('line bg priority > DiffsClear priority', function()
       local bufnr = create_buffer({
         '@@ -1,2 +1,1 @@',
