@@ -334,6 +334,7 @@ function M.compute_intra_hunks(hunk_lines, algorithm)
     end
   end
 
+  ---@type {algorithm?: string, linematch?: integer}?
   local diff_opts = nil
   if not vscode_handle then
     diff_opts = parse_diffopt()
