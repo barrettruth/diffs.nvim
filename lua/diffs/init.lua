@@ -198,8 +198,12 @@ local function compute_highlight_groups()
   vim.api.nvim_set_hl(0, 'DiffsClear', { default = true, fg = normal.fg or 0xc0c0c0 })
   vim.api.nvim_set_hl(0, 'DiffsAdd', { default = true, bg = blended_add })
   vim.api.nvim_set_hl(0, 'DiffsDelete', { default = true, bg = blended_del })
-  vim.api.nvim_set_hl(0, 'DiffsAddNr', { default = true, fg = add_fg, bg = blended_add_text })
-  vim.api.nvim_set_hl(0, 'DiffsDeleteNr', { default = true, fg = del_fg, bg = blended_del_text })
+  vim.api.nvim_set_hl(0, 'DiffsAddNr', { default = true, fg = blended_add_text, bg = blended_add })
+  vim.api.nvim_set_hl(
+    0,
+    'DiffsDeleteNr',
+    { default = true, fg = blended_del_text, bg = blended_del }
+  )
   vim.api.nvim_set_hl(0, 'DiffsAddText', { default = true, bg = blended_add_text })
   vim.api.nvim_set_hl(0, 'DiffsDeleteText', { default = true, bg = blended_del_text })
 
