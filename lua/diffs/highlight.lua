@@ -89,7 +89,7 @@ local function highlight_treesitter(
     return 0
   end
 
-  local trees = parser_obj:parse()
+  local trees = parser_obj:parse(true)
   if not trees or #trees == 0 then
     dbg('parse returned no trees for lang: %s', lang)
     return 0
@@ -102,8 +102,8 @@ local function highlight_treesitter(
   end
 
   local extmark_count = 0
-  for id, node, metadata in query:iter_captures(trees[1]:root(), code) do
-    local capture_name = '@' .. query.captures[id] .. '.' .. lang
+  local hl = function(name, node, metadata)
+    local capture_name = '@' .. name .. '.' .. lang
     local sr, sc, er, ec = node:range()
 
     local buf_sr = line_map[sr]
@@ -127,6 +127,21 @@ local function highlight_treesitter(
       end
     end
   end
+
+  parser_obj:for_each_tree(function(tstree, tree)
+    query = vim.treesitter.query.get(tree:lang(), 'highlights')
+    if not query then
+      dbg('no highlights query for lang: %s', lang)
+      return
+    end
+
+    for id, node, metadata in query:iter_captures(tstree:root(), code) do
+      local name = query.captures[id]
+      if name ~= 'spell' and name ~= 'nospell' then
+        hl(name, node, metadata)
+      end
+    end
+  end)
 
   return extmark_count
 end
