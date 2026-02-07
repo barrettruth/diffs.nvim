@@ -8,6 +8,11 @@
 ---@field lines string[]
 ---@field header_start_line integer?
 ---@field header_lines string[]?
+---@field file_old_start integer?
+---@field file_old_count integer?
+---@field file_new_start integer?
+---@field file_new_count integer?
+---@field repo_root string?
 
 local M = {}
 
@@ -132,6 +137,14 @@ function M.parse_buffer(bufnr)
   local header_start = nil
   ---@type string[]
   local header_lines = {}
+  ---@type integer?
+  local file_old_start = nil
+  ---@type integer?
+  local file_old_count = nil
+  ---@type integer?
+  local file_new_start = nil
+  ---@type integer?
+  local file_new_count = nil
 
   local function flush_hunk()
     if hunk_start and #hunk_lines > 0 then
@@ -143,6 +156,11 @@ function M.parse_buffer(bufnr)
         header_context = hunk_header_context,
         header_context_col = hunk_header_context_col,
         lines = hunk_lines,
+        file_old_start = file_old_start,
+        file_old_count = file_old_count,
+        file_new_start = file_new_start,
+        file_new_count = file_new_count,
+        repo_root = repo_root,
       }
       if hunk_count == 1 and header_start and #header_lines > 0 then
         hunk.header_start_line = header_start
@@ -154,6 +172,10 @@ function M.parse_buffer(bufnr)
     hunk_header_context = nil
     hunk_header_context_col = nil
     hunk_lines = {}
+    file_old_start = nil
+    file_old_count = nil
+    file_new_start = nil
+    file_new_count = nil
   end
 
   for i, line in ipairs(lines) do
@@ -174,6 +196,13 @@ function M.parse_buffer(bufnr)
     elseif line:match('^@@.-@@') then
       flush_hunk()
       hunk_start = i
+      local hs, hc, hs2, hc2 = line:match('^@@ %-(%d+),?(%d*) %+(%d+),?(%d*) @@')
+      if hs then
+        file_old_start = tonumber(hs)
+        file_old_count = tonumber(hc) or 1
+        file_new_start = tonumber(hs2)
+        file_new_count = tonumber(hc2) or 1
+      end
       local prefix, context = line:match('^(@@.-@@%s*)(.*)')
       if context and context ~= '' then
         hunk_header_context = context

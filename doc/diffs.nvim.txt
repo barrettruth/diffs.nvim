@@ -56,6 +56,10 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
       highlights = {
         background = true,
         gutter = true,
+        context = {
+          enabled = true,
+          lines = 25,
+        },
         treesitter = {
           enabled = true,
           max_lines = 500,
@@ -113,6 +117,10 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              Highlight line numbers with matching colors.
                              Only visible if line numbers are enabled.
 
+        {context}            (table, default: see below)
+                             Syntax parsing context options.
+                             See |diffs.ContextConfig| for fields.
+
         {treesitter}         (table, default: see below)
                              Treesitter highlighting options.
                              See |diffs.TreesitterConfig| for fields.
@@ -124,6 +132,20 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
         {intra}              (table, default: see below)
                              Character-level (intra-line) diff highlighting.
                              See |diffs.IntraConfig| for fields.
+
+                                                      *diffs.ContextConfig*
+    Context config fields: ~
+        {enabled}            (boolean, default: true)
+                             Read lines from disk before and after each hunk
+                             to provide surrounding syntax context. Improves
+                             accuracy at hunk boundaries where incomplete
+                             constructs (e.g., a function definition with no
+                             body) would otherwise confuse the parser.
+
+        {lines}              (integer, default: 25)
+                             Number of context lines to read in each
+                             direction. Lines are read with early exit —
+                             cost scales with this value, not file size.
 
                                                     *diffs.TreesitterConfig*
     Treesitter config fields: ~
@@ -305,14 +327,15 @@ KNOWN LIMITATIONS                                       *diffs-limitations*
 
 Incomplete Syntax Context ~
                                                       *diffs-syntax-context*
-Treesitter parses each diff hunk in isolation without surrounding code
-context. When a hunk shows lines added to an existing block (e.g., adding a
-plugin inside `return { ... }`), the parser doesn't see the `return`
-statement and may produce incorrect or unusual highlighting.
+Treesitter parses each diff hunk in isolation. To provide surrounding code
+context, diffs.nvim reads lines from disk before and after each hunk
+(see |diffs.ContextConfig|, enabled by default). This resolves most boundary
+issues where incomplete constructs (e.g., a function definition at the edge
+of a hunk with no body) would confuse the parser.
 
-This is inherent to parsing code fragments. No diff tooling solves this
-problem without significant complexity—the parser simply doesn't have enough
-information to understand the full syntactic structure.
+Set `highlights.context.enabled = false` to disable context padding. In rare
+cases, context padding may not help if the relevant surrounding code is very
+far from the hunk boundaries.
 
 Syntax Highlighting Flash ~
                                                              *diffs-flash*
