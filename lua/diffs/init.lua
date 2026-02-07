@@ -29,12 +29,27 @@
 ---@field horizontal string|false
 ---@field vertical string|false
 
+---@class diffs.ConflictKeymaps
+---@field ours string|false
+---@field theirs string|false
+---@field both string|false
+---@field none string|false
+---@field next string|false
+---@field prev string|false
+
+---@class diffs.ConflictConfig
+---@field enabled boolean
+---@field disable_diagnostics boolean
+---@field show_virtual_text boolean
+---@field keymaps diffs.ConflictKeymaps
+
 ---@class diffs.Config
 ---@field debug boolean
 ---@field debounce_ms integer
 ---@field hide_prefix boolean
 ---@field highlights diffs.Highlights
 ---@field fugitive diffs.FugitiveConfig
+---@field conflict diffs.ConflictConfig
 
 ---@class diffs
 ---@field attach fun(bufnr?: integer)
@@ -108,6 +123,19 @@ local default_config = {
   fugitive = {
     horizontal = 'du',
     vertical = 'dU',
+  },
+  conflict = {
+    enabled = true,
+    disable_diagnostics = true,
+    show_virtual_text = true,
+    keymaps = {
+      ours = 'doo',
+      theirs = 'dot',
+      both = 'dob',
+      none = 'don',
+      next = ']x',
+      prev = '[x',
+    },
   },
 }
 
@@ -231,6 +259,37 @@ local function compute_highlight_groups()
   vim.api.nvim_set_hl(0, 'DiffsDiffChange', { default = true, bg = diff_change.bg })
   vim.api.nvim_set_hl(0, 'DiffsDiffText', { default = true, bg = diff_text.bg })
 
+  local change_bg = diff_change.bg or 0x3a3a4a
+  local text_bg = diff_text.bg or 0x4a4a5a
+  local change_fg = diff_change.fg or diff_text.fg or 0x80a0c0
+
+  local blended_ours = blend_color(add_bg, bg, 0.4)
+  local blended_theirs = blend_color(change_bg, bg, 0.4)
+  local blended_base = blend_color(text_bg, bg, 0.3)
+  local blended_ours_nr = blend_color(add_fg, bg, alpha)
+  local blended_theirs_nr = blend_color(change_fg, bg, alpha)
+  local blended_base_nr = blend_color(change_fg, bg, 0.4)
+
+  vim.api.nvim_set_hl(0, 'DiffsConflictOurs', { default = true, bg = blended_ours })
+  vim.api.nvim_set_hl(0, 'DiffsConflictTheirs', { default = true, bg = blended_theirs })
+  vim.api.nvim_set_hl(0, 'DiffsConflictBase', { default = true, bg = blended_base })
+  vim.api.nvim_set_hl(0, 'DiffsConflictMarker', { default = true, fg = 0x808080, bold = true })
+  vim.api.nvim_set_hl(
+    0,
+    'DiffsConflictOursNr',
+    { default = true, fg = blended_ours_nr, bg = blended_ours }
+  )
+  vim.api.nvim_set_hl(
+    0,
+    'DiffsConflictTheirsNr',
+    { default = true, fg = blended_theirs_nr, bg = blended_theirs }
+  )
+  vim.api.nvim_set_hl(
+    0,
+    'DiffsConflictBaseNr',
+    { default = true, fg = blended_base_nr, bg = blended_base }
+  )
+
   if config.highlights.overrides then
     for group, hl in pairs(config.highlights.overrides) do
       vim.api.nvim_set_hl(0, group, hl)
@@ -322,6 +381,30 @@ local function init()
         'string or false',
       },
     })
+  end
+
+  if opts.conflict then
+    vim.validate({
+      ['conflict.enabled'] = { opts.conflict.enabled, 'boolean', true },
+      ['conflict.disable_diagnostics'] = { opts.conflict.disable_diagnostics, 'boolean', true },
+      ['conflict.show_virtual_text'] = { opts.conflict.show_virtual_text, 'boolean', true },
+      ['conflict.keymaps'] = { opts.conflict.keymaps, 'table', true },
+    })
+
+    if opts.conflict.keymaps then
+      local keymap_validator = function(v)
+        return v == false or type(v) == 'string'
+      end
+      for _, key in ipairs({ 'ours', 'theirs', 'both', 'none', 'next', 'prev' }) do
+        vim.validate({
+          ['conflict.keymaps.' .. key] = {
+            opts.conflict.keymaps[key],
+            keymap_validator,
+            'string or false',
+          },
+        })
+      end
+    end
   end
 
   if opts.debounce_ms and opts.debounce_ms < 0 then
@@ -486,6 +569,12 @@ end
 function M.get_fugitive_config()
   init()
   return config.fugitive
+end
+
+---@return diffs.ConflictConfig
+function M.get_conflict_config()
+  init()
+  return config.conflict
 end
 
 return M
