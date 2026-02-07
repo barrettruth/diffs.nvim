@@ -116,44 +116,50 @@ local function highlight_treesitter(
     return 0
   end
 
-  local trees = parser_obj:parse()
+  local trees = parser_obj:parse(true)
   if not trees or #trees == 0 then
     dbg('parse returned no trees for lang: %s', lang)
     return 0
   end
 
-  local query = vim.treesitter.query.get(lang, 'highlights')
-  if not query then
-    dbg('no highlights query for lang: %s', lang)
-    return 0
-  end
-
   local extmark_count = 0
-  for id, node, metadata in query:iter_captures(trees[1]:root(), code) do
-    local capture_name = '@' .. query.captures[id] .. '.' .. lang
-    local sr, sc, er, ec = node:range()
+  parser_obj:for_each_tree(function(tree, ltree)
+    local tree_lang = ltree:lang()
+    local query = vim.treesitter.query.get(tree_lang, 'highlights')
+    if not query then
+      return
+    end
 
-    local buf_sr = line_map[sr]
-    if buf_sr then
-      local buf_er = line_map[er] or buf_sr
+    for id, node, metadata in query:iter_captures(tree:root(), code) do
+      local capture = query.captures[id]
+      if capture ~= 'spell' and capture ~= 'nospell' then
+        local capture_name = '@' .. capture .. '.' .. tree_lang
+        local sr, sc, er, ec = node:range()
 
-      local buf_sc = sc + col_offset
-      local buf_ec = ec + col_offset
+        local buf_sr = line_map[sr]
+        if buf_sr then
+          local buf_er = line_map[er] or buf_sr
 
-      local priority = lang == 'diff' and (tonumber(metadata.priority) or 100) or PRIORITY_SYNTAX
+          local buf_sc = sc + col_offset
+          local buf_ec = ec + col_offset
 
-      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_sr, buf_sc, {
-        end_row = buf_er,
-        end_col = buf_ec,
-        hl_group = capture_name,
-        priority = priority,
-      })
-      extmark_count = extmark_count + 1
-      if covered_lines then
-        covered_lines[buf_sr] = true
+          local priority = tree_lang == 'diff' and (tonumber(metadata.priority) or 100)
+            or PRIORITY_SYNTAX
+
+          pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_sr, buf_sc, {
+            end_row = buf_er,
+            end_col = buf_ec,
+            hl_group = capture_name,
+            priority = priority,
+          })
+          extmark_count = extmark_count + 1
+          if covered_lines then
+            covered_lines[buf_sr] = true
+          end
+        end
       end
     end
-  end
+  end)
 
   return extmark_count
 end

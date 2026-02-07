@@ -12,6 +12,7 @@ local function ensure_parser(lang)
 end
 
 ensure_parser('lua')
+ensure_parser('vim')
 
 local M = {}
 
