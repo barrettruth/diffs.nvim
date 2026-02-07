@@ -56,6 +56,7 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
       highlights = {
         background = true,
         gutter = true,
+        blend_alpha = 0.6,
         context = {
           enabled = true,
           lines = 25,
@@ -116,6 +117,13 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
         {gutter}             (boolean, default: true)
                              Highlight line numbers with matching colors.
                              Only visible if line numbers are enabled.
+
+        {blend_alpha}        (number, default: 0.6)
+                             Alpha value for character-level blend intensity.
+                             Controls how strongly changed characters stand
+                             out from the line-level background. Must be
+                             between 0 and 1 (inclusive). Higher values
+                             produce more vivid character-level highlights.
 
         {context}            (table, default: see below)
                              Syntax parsing context options.

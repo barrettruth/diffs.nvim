@@ -18,6 +18,7 @@
 ---@class diffs.Highlights
 ---@field background boolean
 ---@field gutter boolean
+---@field blend_alpha? number
 ---@field context diffs.ContextConfig
 ---@field treesitter diffs.TreesitterConfig
 ---@field vim diffs.VimConfig
@@ -192,8 +193,9 @@ local function compute_highlight_groups()
   local blended_add = blend_color(add_bg, bg, 0.4)
   local blended_del = blend_color(del_bg, bg, 0.4)
 
-  local blended_add_text = blend_color(add_fg, bg, 0.6)
-  local blended_del_text = blend_color(del_fg, bg, 0.6)
+  local alpha = config.highlights.blend_alpha or 0.6
+  local blended_add_text = blend_color(add_fg, bg, alpha)
+  local blended_del_text = blend_color(del_fg, bg, alpha)
 
   vim.api.nvim_set_hl(0, 'DiffsClear', { default = true, fg = normal.fg or 0xc0c0c0 })
   vim.api.nvim_set_hl(0, 'DiffsAdd', { default = true, bg = blended_add })
@@ -248,6 +250,7 @@ local function init()
     vim.validate({
       ['highlights.background'] = { opts.highlights.background, 'boolean', true },
       ['highlights.gutter'] = { opts.highlights.gutter, 'boolean', true },
+      ['highlights.blend_alpha'] = { opts.highlights.blend_alpha, 'number', true },
       ['highlights.context'] = { opts.highlights.context, 'table', true },
       ['highlights.treesitter'] = { opts.highlights.treesitter, 'table', true },
       ['highlights.vim'] = { opts.highlights.vim, 'table', true },
@@ -347,6 +350,13 @@ local function init()
     and opts.highlights.intra.max_lines < 1
   then
     error('diffs: highlights.intra.max_lines must be >= 1')
+  end
+  if
+    opts.highlights
+    and opts.highlights.blend_alpha
+    and (opts.highlights.blend_alpha < 0 or opts.highlights.blend_alpha > 1)
+  then
+    error('diffs: highlights.blend_alpha must be >= 0 and <= 1')
   end
 
   config = vim.tbl_deep_extend('force', default_config, opts)
