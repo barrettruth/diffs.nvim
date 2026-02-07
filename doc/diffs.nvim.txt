@@ -56,6 +56,7 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
       highlights = {
         background = true,
         gutter = true,
+        context = 25,
         treesitter = {
           enabled = true,
           max_lines = 500,
@@ -112,6 +113,16 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
         {gutter}             (boolean, default: true)
                              Highlight line numbers with matching colors.
                              Only visible if line numbers are enabled.
+
+        {context}            (integer, default: 25)
+                             Number of lines to read from the source file
+                             before and after each hunk for syntax parsing
+                             context. Improves accuracy at hunk boundaries
+                             where incomplete constructs (e.g., a function
+                             definition with no body) would otherwise confuse
+                             the parser. Set to 0 to disable. Lines are read
+                             from disk with early exit — cost scales with the
+                             context value, not file size.
 
         {treesitter}         (table, default: see below)
                              Treesitter highlighting options.
@@ -305,14 +316,15 @@ KNOWN LIMITATIONS                                       *diffs-limitations*
 
 Incomplete Syntax Context ~
                                                       *diffs-syntax-context*
-Treesitter parses each diff hunk in isolation without surrounding code
-context. When a hunk shows lines added to an existing block (e.g., adding a
-plugin inside `return { ... }`), the parser doesn't see the `return`
-statement and may produce incorrect or unusual highlighting.
+Treesitter parses each diff hunk in isolation. To provide surrounding code
+context, diffs.nvim reads lines from disk before and after each hunk
+(controlled by `highlights.context`, default 25). This resolves most boundary
+issues where incomplete constructs (e.g., a function definition at the edge
+of a hunk with no body) would confuse the parser.
 
-This is inherent to parsing code fragments. No diff tooling solves this
-problem without significant complexity—the parser simply doesn't have enough
-information to understand the full syntactic structure.
+Set `highlights.context = 0` to disable context padding and restore the
+previous behavior. In rare cases, context padding may not help if the
+relevant surrounding code is very far from the hunk boundaries.
 
 Syntax Highlighting Flash ~
                                                              *diffs-flash*

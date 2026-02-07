@@ -421,5 +421,84 @@ describe('parser', function()
       os.remove(file_path)
       vim.fn.delete(repo_root, 'rf')
     end)
+
+    it('extracts file line numbers from @@ header', function()
+      local bufnr = create_buffer({
+        'M lua/test.lua',
+        '@@ -1,3 +1,4 @@',
+        ' local M = {}',
+        '+local new = true',
+        ' return M',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal(1, hunks[1].file_old_start)
+      assert.are.equal(3, hunks[1].file_old_count)
+      assert.are.equal(1, hunks[1].file_new_start)
+      assert.are.equal(4, hunks[1].file_new_count)
+      delete_buffer(bufnr)
+    end)
+
+    it('extracts large line numbers from @@ header', function()
+      local bufnr = create_buffer({
+        'M lua/test.lua',
+        '@@ -100,20 +200,30 @@',
+        ' local M = {}',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal(100, hunks[1].file_old_start)
+      assert.are.equal(20, hunks[1].file_old_count)
+      assert.are.equal(200, hunks[1].file_new_start)
+      assert.are.equal(30, hunks[1].file_new_count)
+      delete_buffer(bufnr)
+    end)
+
+    it('defaults count to 1 when omitted in @@ header', function()
+      local bufnr = create_buffer({
+        'M lua/test.lua',
+        '@@ -1 +1 @@',
+        ' local M = {}',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal(1, hunks[1].file_old_start)
+      assert.are.equal(1, hunks[1].file_old_count)
+      assert.are.equal(1, hunks[1].file_new_start)
+      assert.are.equal(1, hunks[1].file_new_count)
+      delete_buffer(bufnr)
+    end)
+
+    it('stores repo_root on hunk when available', function()
+      local bufnr = create_buffer({
+        'M lua/test.lua',
+        '@@ -1,3 +1,4 @@',
+        ' local M = {}',
+        '+local new = true',
+        ' return M',
+      })
+      vim.api.nvim_buf_set_var(bufnr, 'diffs_repo_root', '/tmp/test-repo')
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('/tmp/test-repo', hunks[1].repo_root)
+      delete_buffer(bufnr)
+    end)
+
+    it('repo_root is nil when not available', function()
+      local bufnr = create_buffer({
+        'M lua/test.lua',
+        '@@ -1,3 +1,4 @@',
+        ' local M = {}',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.is_nil(hunks[1].repo_root)
+      delete_buffer(bufnr)
+    end)
   end)
 end)

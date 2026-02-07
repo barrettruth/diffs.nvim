@@ -41,12 +41,10 @@ luarocks install diffs.nvim
 
 ## Known Limitations
 
-- **Incomplete syntax context**: Treesitter parses each diff hunk in isolation
-  without surrounding code context. When a hunk shows lines added to an existing
-  block (e.g., adding a plugin inside `return { ... }`), the parser doesn't see
-  the `return` statement and may produce incorrect highlighting. This is
-  inherent to parsing code fragments—no diff tooling solves this without
-  significant complexity.
+- **Incomplete syntax context**: Treesitter parses each diff hunk in isolation.
+  To improve accuracy, `diffs.nvim` reads lines from disk before and after each
+  hunk for parsing context (controlled by `highlights.context`, default 25).
+  This resolves most boundary issues. Set `highlights.context = 0` to disable.
 
 - **Syntax flashing**: `diffs.nvim` hooks into the `FileType fugitive` event
   triggered by `vim-fugitive`, at which point the buffer is preliminarily
