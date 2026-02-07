@@ -27,7 +27,7 @@ local PRIORITY_LINE_BG = 200
 function M.parse(lines)
   local regions = {}
   local state = 'idle'
-  ---@type diffs.ConflictRegion?
+  ---@type table?
   local current = nil
 
   for i, line in ipairs(lines) do
@@ -72,7 +72,7 @@ function M.parse(lines)
       if line:match('^>>>>>>>') then
         current.theirs_end = idx
         current.marker_theirs = idx
-        table.insert(regions, current)
+        table.insert(regions, current --[[@as diffs.ConflictRegion]])
         current = nil
         state = 'idle'
       elseif line:match('^<<<<<<<') then
