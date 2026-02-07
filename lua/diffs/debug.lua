@@ -18,14 +18,16 @@ function M.dump()
       end_col = details.end_col,
       hl_group = details.hl_group,
       priority = details.priority,
+      hl_eol = details.hl_eol,
       line_hl_group = details.line_hl_group,
       number_hl_group = details.number_hl_group,
       virt_text = details.virt_text,
     }
-    if not by_line[row] then
-      by_line[row] = { text = lines[row + 1] or '', marks = {} }
+    local key = tostring(row)
+    if not by_line[key] then
+      by_line[key] = { text = lines[row + 1] or '', marks = {} }
     end
-    table.insert(by_line[row].marks, entry)
+    table.insert(by_line[key].marks, entry)
   end
 
   local all_ns_marks = vim.api.nvim_buf_get_extmarks(bufnr, -1, 0, -1, { details = true })
