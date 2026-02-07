@@ -60,11 +60,35 @@ function M.extract_change_groups(hunk_lines)
   return groups
 end
 
+---@return {algorithm?: string, linematch?: integer}
+local function parse_diffopt()
+  local opts = {}
+  for _, item in ipairs(vim.split(vim.o.diffopt, ',')) do
+    local key, val = item:match('^(%w+):(.+)$')
+    if key == 'algorithm' then
+      opts.algorithm = val
+    elseif key == 'linematch' then
+      opts.linematch = tonumber(val)
+    end
+  end
+  return opts
+end
+
 ---@param old_text string
 ---@param new_text string
+---@param diff_opts? {algorithm?: string, linematch?: integer}
 ---@return {old_start: integer, old_count: integer, new_start: integer, new_count: integer}[]
-local function byte_diff(old_text, new_text)
-  local ok, result = pcall(vim.diff, old_text, new_text, { result_type = 'indices' })
+local function byte_diff(old_text, new_text, diff_opts)
+  local vim_opts = { result_type = 'indices' }
+  if diff_opts then
+    if diff_opts.algorithm then
+      vim_opts.algorithm = diff_opts.algorithm
+    end
+    if diff_opts.linematch then
+      vim_opts.linematch = diff_opts.linematch
+    end
+  end
+  local ok, result = pcall(vim.diff, old_text, new_text, vim_opts)
   if not ok or not result then
     return {}
   end
@@ -95,8 +119,9 @@ end
 ---@param new_line string
 ---@param del_idx integer
 ---@param add_idx integer
+---@param diff_opts? {algorithm?: string, linematch?: integer}
 ---@return diffs.CharSpan[], diffs.CharSpan[]
-local function char_diff_pair(old_line, new_line, del_idx, add_idx)
+local function char_diff_pair(old_line, new_line, del_idx, add_idx, diff_opts)
   ---@type diffs.CharSpan[]
   local del_spans = {}
   ---@type diffs.CharSpan[]
@@ -108,7 +133,7 @@ local function char_diff_pair(old_line, new_line, del_idx, add_idx)
   local old_text = table.concat(old_bytes, '\n') .. '\n'
   local new_text = table.concat(new_bytes, '\n') .. '\n'
 
-  local char_hunks = byte_diff(old_text, new_text)
+  local char_hunks = byte_diff(old_text, new_text, diff_opts)
 
   for _, ch in ipairs(char_hunks) do
     if ch.old_count > 0 then
@@ -132,8 +157,9 @@ local function char_diff_pair(old_line, new_line, del_idx, add_idx)
 end
 
 ---@param group diffs.ChangeGroup
+---@param diff_opts? {algorithm?: string, linematch?: integer}
 ---@return diffs.CharSpan[], diffs.CharSpan[]
-local function diff_group_native(group)
+local function diff_group_native(group, diff_opts)
   ---@type diffs.CharSpan[]
   local all_del = {}
   ---@type diffs.CharSpan[]
@@ -147,7 +173,8 @@ local function diff_group_native(group)
       group.del_lines[1].text,
       group.add_lines[1].text,
       group.del_lines[1].idx,
-      group.add_lines[1].idx
+      group.add_lines[1].idx,
+      diff_opts
     )
     vim.list_extend(all_del, ds)
     vim.list_extend(all_add, as)
@@ -166,7 +193,7 @@ local function diff_group_native(group)
   local old_block = table.concat(old_texts, '\n') .. '\n'
   local new_block = table.concat(new_texts, '\n') .. '\n'
 
-  local line_hunks = byte_diff(old_block, new_block)
+  local line_hunks = byte_diff(old_block, new_block, diff_opts)
 
   ---@type table<integer, integer>
   local old_to_new = {}
@@ -184,7 +211,8 @@ local function diff_group_native(group)
         group.del_lines[old_i].text,
         group.add_lines[new_i].text,
         group.del_lines[old_i].idx,
-        group.add_lines[new_i].idx
+        group.add_lines[new_i].idx,
+        diff_opts
       )
       vim.list_extend(all_del, ds)
       vim.list_extend(all_add, as)
@@ -202,7 +230,8 @@ local function diff_group_native(group)
             group.del_lines[oi].text,
             group.add_lines[ni].text,
             group.del_lines[oi].idx,
-            group.add_lines[ni].idx
+            group.add_lines[ni].idx,
+            diff_opts
           )
           vim.list_extend(all_del, ds)
           vim.list_extend(all_add, as)
@@ -295,16 +324,25 @@ function M.compute_intra_hunks(hunk_lines, algorithm)
     return nil
   end
 
-  algorithm = algorithm or 'auto'
+  algorithm = algorithm or 'default'
 
-  local lib = require('diffs.lib')
   local vscode_handle = nil
-  if algorithm ~= 'native' then
-    vscode_handle = lib.load()
+  if algorithm == 'vscode' then
+    vscode_handle = require('diffs.lib').load()
+    if not vscode_handle then
+      dbg('vscode algorithm requested but library not available, falling back to default')
+    end
   end
 
-  if algorithm == 'vscode' and not vscode_handle then
-    dbg('vscode algorithm requested but library not available, falling back to native')
+  local diff_opts = nil
+  if not vscode_handle then
+    diff_opts = parse_diffopt()
+    if diff_opts.algorithm then
+      dbg('diffopt algorithm: %s', diff_opts.algorithm)
+    end
+    if diff_opts.linematch then
+      dbg('diffopt linematch: %d', diff_opts.linematch)
+    end
   end
 
   ---@type diffs.CharSpan[]
@@ -325,7 +363,7 @@ function M.compute_intra_hunks(hunk_lines, algorithm)
     if vscode_handle then
       ds, as = diff_group_vscode(group, vscode_handle)
     else
-      ds, as = diff_group_native(group)
+      ds, as = diff_group_native(group, diff_opts)
     end
     dbg('group %d result: %d del spans, %d add spans', gi, #ds, #as)
     for _, s in ipairs(ds) do

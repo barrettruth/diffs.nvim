@@ -66,7 +66,7 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
         },
         intra = {
           enabled = true,
-          algorithm = 'auto',
+          algorithm = 'default',
           max_lines = 500,
         },
       },
@@ -158,12 +158,12 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              an intense background overlay while the rest of the
                              line keeps the softer line-level background.
 
-        {algorithm}          (string, default: 'auto')
+        {algorithm}          (string, default: 'default')
                              Diff algorithm for character-level analysis.
-                             `'auto'`: use libvscodediff if available, else
-                             native `vim.diff()`. `'native'`: always use
-                             `vim.diff()`. `'vscode'`: require libvscodediff
-                             (falls back to native if not available).
+                             `'default'`: use |vim.diff()| with settings
+                             inherited from |'diffopt'| (`algorithm` and
+                             `linematch`). `'vscode'`: use libvscodediff FFI
+                             (falls back to default if not available).
 
         {max_lines}          (integer, default: 500)
                              Skip character-level highlighting for hunks larger
@@ -285,8 +285,8 @@ Summary / commit detail views: ~
    - Code is parsed with |vim.treesitter.get_string_parser()|
    - If no treesitter parser and `vim.enabled`: vim syntax fallback via
      scratch buffer and |synID()|
-   - Background extmarks (`DiffsAdd`/`DiffsDelete`) at priority 198
-   - `Normal` extmarks at priority 199 clear underlying diff foreground
+   - `Normal` extmarks at priority 198 clear underlying diff foreground
+   - Background extmarks (`DiffsAdd`/`DiffsDelete`) at priority 199
    - Syntax highlights are applied as extmarks at priority 200
    - Character-level diff extmarks (`DiffsAddText`/`DiffsDeleteText`) at
      priority 201 overlay changed characters with an intense background
@@ -383,15 +383,14 @@ Fugitive unified diff highlights: ~
                                                               *DiffsAddText*
     DiffsAddText        Character-level background for changed characters
                         within `+` lines. Derived by blending `diffAdded`
-                        foreground with `Normal` background at 40% alpha.
-                        Uses the same base color as `DiffsAddNr` foreground,
-                        making changed characters clearly visible. Only sets
-                        `bg`, so treesitter foreground colors show through.
+                        foreground with `Normal` background at 70% alpha.
+                        Only sets `bg`, so treesitter foreground colors show
+                        through.
 
                                                            *DiffsDeleteText*
     DiffsDeleteText     Character-level background for changed characters
                         within `-` lines. Derived by blending `diffRemoved`
-                        foreground with `Normal` background at 40% alpha.
+                        foreground with `Normal` background at 70% alpha.
 
 Diff mode window highlights: ~
 These are used for |winhighlight| remapping in `&diff` windows.
