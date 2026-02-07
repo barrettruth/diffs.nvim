@@ -74,4 +74,4 @@ luarocks install diffs.nvim
 - [`gitsigns.nvim`](https://github.com/lewis6991/gitsigns.nvim)
 - [`git-conflict.nvim`](https://github.com/akinsho/git-conflict.nvim)
 - [@phanen](https://github.com/phanen) - diff header highlighting, unknown
-  filetype fix, shebang/modeline detection
+  filetype fix, shebang/modeline detection, treesitter injection support
