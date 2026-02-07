@@ -43,6 +43,11 @@ describe('highlight', function()
             enabled = false,
             max_lines = 200,
           },
+          intra = {
+            enabled = false,
+            algorithm = 'native',
+            max_lines = 500,
+          },
         },
       }
       if overrides then
@@ -322,7 +327,7 @@ describe('highlight', function()
       local extmarks = get_extmarks(bufnr)
       local has_diff_add = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].line_hl_group == 'DiffsAdd' then
+        if mark[4] and mark[4].hl_group == 'DiffsAdd' then
           has_diff_add = true
           break
         end
@@ -355,7 +360,7 @@ describe('highlight', function()
       local extmarks = get_extmarks(bufnr)
       local has_diff_delete = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].line_hl_group == 'DiffsDelete' then
+        if mark[4] and mark[4].hl_group == 'DiffsDelete' then
           has_diff_delete = true
           break
         end
@@ -388,7 +393,7 @@ describe('highlight', function()
       local extmarks = get_extmarks(bufnr)
       local has_line_hl = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].line_hl_group then
+        if mark[4] and (mark[4].hl_group == 'DiffsAdd' or mark[4].hl_group == 'DiffsDelete') then
           has_line_hl = true
           break
         end
@@ -520,7 +525,7 @@ describe('highlight', function()
       local extmarks = get_extmarks(bufnr)
       local has_diff_add = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].line_hl_group == 'DiffsAdd' then
+        if mark[4] and mark[4].hl_group == 'DiffsAdd' then
           has_diff_add = true
           break
         end
@@ -668,7 +673,7 @@ describe('highlight', function()
       local extmarks = get_extmarks(bufnr)
       local has_diff_add = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].line_hl_group == 'DiffsAdd' then
+        if mark[4] and mark[4].hl_group == 'DiffsAdd' then
           has_diff_add = true
           break
         end
@@ -725,6 +730,295 @@ describe('highlight', function()
         end
       end
       assert.is_true(has_normal)
+      delete_buffer(bufnr)
+    end)
+
+    it('uses hl_group not line_hl_group for line backgrounds', function()
+      local bufnr = create_buffer({
+        '@@ -1,2 +1,1 @@',
+        '-local x = 1',
+        '+local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { '-local x = 1', '+local y = 2' },
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { background = true } })
+      )
+
+      local extmarks = get_extmarks(bufnr)
+      for _, mark in ipairs(extmarks) do
+        local d = mark[4]
+        if d and (d.hl_group == 'DiffsAdd' or d.hl_group == 'DiffsDelete') then
+          assert.is_true(d.hl_eol == true)
+          assert.is_nil(d.line_hl_group)
+        end
+      end
+      delete_buffer(bufnr)
+    end)
+
+    it('line bg priority > Normal priority', function()
+      local bufnr = create_buffer({
+        '@@ -1,2 +1,1 @@',
+        '-local x = 1',
+        '+local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { '-local x = 1', '+local y = 2' },
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { background = true } })
+      )
+
+      local extmarks = get_extmarks(bufnr)
+      local normal_priority = nil
+      local line_bg_priority = nil
+      for _, mark in ipairs(extmarks) do
+        local d = mark[4]
+        if d and d.hl_group == 'Normal' then
+          normal_priority = d.priority
+        end
+        if d and (d.hl_group == 'DiffsAdd' or d.hl_group == 'DiffsDelete') then
+          line_bg_priority = d.priority
+        end
+      end
+      assert.is_not_nil(normal_priority)
+      assert.is_not_nil(line_bg_priority)
+      assert.is_true(line_bg_priority > normal_priority)
+      delete_buffer(bufnr)
+    end)
+
+    it('char-level extmarks have higher priority than line bg', function()
+      vim.api.nvim_set_hl(0, 'DiffsAddText', { bg = 0x00FF00 })
+      vim.api.nvim_set_hl(0, 'DiffsDeleteText', { bg = 0xFF0000 })
+
+      local bufnr = create_buffer({
+        '@@ -1,2 +1,2 @@',
+        '-local x = 1',
+        '+local x = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { '-local x = 1', '+local x = 2' },
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({
+          highlights = {
+            background = true,
+            intra = { enabled = true, algorithm = 'native', max_lines = 500 },
+          },
+        })
+      )
+
+      local extmarks = get_extmarks(bufnr)
+      local line_bg_priority = nil
+      local char_bg_priority = nil
+      for _, mark in ipairs(extmarks) do
+        local d = mark[4]
+        if d and (d.hl_group == 'DiffsAdd' or d.hl_group == 'DiffsDelete') then
+          line_bg_priority = d.priority
+        end
+        if d and (d.hl_group == 'DiffsAddText' or d.hl_group == 'DiffsDeleteText') then
+          char_bg_priority = d.priority
+        end
+      end
+      assert.is_not_nil(line_bg_priority)
+      assert.is_not_nil(char_bg_priority)
+      assert.is_true(char_bg_priority > line_bg_priority)
+      delete_buffer(bufnr)
+    end)
+
+    it('creates char-level extmarks for changed characters', function()
+      vim.api.nvim_set_hl(0, 'DiffsAddText', { bg = 0x00FF00 })
+      vim.api.nvim_set_hl(0, 'DiffsDeleteText', { bg = 0xFF0000 })
+
+      local bufnr = create_buffer({
+        '@@ -1,2 +1,2 @@',
+        '-local x = 1',
+        '+local x = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { '-local x = 1', '+local x = 2' },
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({
+          highlights = { intra = { enabled = true, algorithm = 'native', max_lines = 500 } },
+        })
+      )
+
+      local extmarks = get_extmarks(bufnr)
+      local add_text_marks = {}
+      local del_text_marks = {}
+      for _, mark in ipairs(extmarks) do
+        local d = mark[4]
+        if d and d.hl_group == 'DiffsAddText' then
+          table.insert(add_text_marks, mark)
+        end
+        if d and d.hl_group == 'DiffsDeleteText' then
+          table.insert(del_text_marks, mark)
+        end
+      end
+      assert.is_true(#add_text_marks > 0)
+      assert.is_true(#del_text_marks > 0)
+      delete_buffer(bufnr)
+    end)
+
+    it('does not create char-level extmarks when intra disabled', function()
+      local bufnr = create_buffer({
+        '@@ -1,2 +1,2 @@',
+        '-local x = 1',
+        '+local x = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { '-local x = 1', '+local x = 2' },
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({
+          highlights = { intra = { enabled = false, algorithm = 'native', max_lines = 500 } },
+        })
+      )
+
+      local extmarks = get_extmarks(bufnr)
+      for _, mark in ipairs(extmarks) do
+        local d = mark[4]
+        assert.is_not_equal('DiffsAddText', d and d.hl_group)
+        assert.is_not_equal('DiffsDeleteText', d and d.hl_group)
+      end
+      delete_buffer(bufnr)
+    end)
+
+    it('does not create char-level extmarks for pure additions', function()
+      vim.api.nvim_set_hl(0, 'DiffsAddText', { bg = 0x00FF00 })
+
+      local bufnr = create_buffer({
+        '@@ -1,0 +1,2 @@',
+        '+local x = 1',
+        '+local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { '+local x = 1', '+local y = 2' },
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({
+          highlights = { intra = { enabled = true, algorithm = 'native', max_lines = 500 } },
+        })
+      )
+
+      local extmarks = get_extmarks(bufnr)
+      for _, mark in ipairs(extmarks) do
+        local d = mark[4]
+        assert.is_not_equal('DiffsAddText', d and d.hl_group)
+        assert.is_not_equal('DiffsDeleteText', d and d.hl_group)
+      end
+      delete_buffer(bufnr)
+    end)
+
+    it('enforces priority order: Normal < line bg < syntax < char bg', function()
+      vim.api.nvim_set_hl(0, 'DiffsAddText', { bg = 0x00FF00 })
+      vim.api.nvim_set_hl(0, 'DiffsDeleteText', { bg = 0xFF0000 })
+
+      local bufnr = create_buffer({
+        '@@ -1,2 +1,2 @@',
+        '-local x = 1',
+        '+local x = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { '-local x = 1', '+local x = 2' },
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({
+          highlights = {
+            background = true,
+            intra = { enabled = true, algorithm = 'native', max_lines = 500 },
+          },
+        })
+      )
+
+      local extmarks = get_extmarks(bufnr)
+      local priorities = { normal = {}, line_bg = {}, syntax = {}, char_bg = {} }
+      for _, mark in ipairs(extmarks) do
+        local d = mark[4]
+        if d then
+          if d.hl_group == 'Normal' then
+            table.insert(priorities.normal, d.priority)
+          elseif d.hl_group == 'DiffsAdd' or d.hl_group == 'DiffsDelete' then
+            table.insert(priorities.line_bg, d.priority)
+          elseif d.hl_group == 'DiffsAddText' or d.hl_group == 'DiffsDeleteText' then
+            table.insert(priorities.char_bg, d.priority)
+          elseif d.hl_group and d.hl_group:match('^@.*%.lua$') then
+            table.insert(priorities.syntax, d.priority)
+          end
+        end
+      end
+
+      assert.is_true(#priorities.normal > 0)
+      assert.is_true(#priorities.line_bg > 0)
+      assert.is_true(#priorities.syntax > 0)
+      assert.is_true(#priorities.char_bg > 0)
+
+      local max_normal = math.max(unpack(priorities.normal))
+      local min_line_bg = math.min(unpack(priorities.line_bg))
+      local min_syntax = math.min(unpack(priorities.syntax))
+      local min_char_bg = math.min(unpack(priorities.char_bg))
+
+      assert.is_true(max_normal < min_line_bg)
+      assert.is_true(min_line_bg < min_syntax)
+      assert.is_true(min_syntax < min_char_bg)
       delete_buffer(bufnr)
     end)
   end)
