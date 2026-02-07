@@ -226,6 +226,9 @@ COMMANDS                                                      *diffs-commands*
     code language, plus diff header highlighting for `diff --git`, `---`,
     `+++`, and `@@` lines.
 
+    If a `diffs://` window already exists in the current tabpage, the new
+    diff replaces its buffer instead of creating another split.
+
     Parameters: ~
         {revision}  (string, optional) Git revision to diff against.
                     Defaults to HEAD.
@@ -258,6 +261,12 @@ Example configuration: >lua
     vim.keymap.set('n', '<leader>gd', '<Plug>(diffs-gdiff)')
     vim.keymap.set('n', '<leader>gD', '<Plug>(diffs-gvdiff)')
 <
+
+Diff buffer mappings: ~
+                                                              *diffs-q*
+    q               Close the diff window. Available in all `diffs://`
+                    buffers created by |:Gdiff|, |:Gvdiff|, |:Ghdiff|,
+                    or the fugitive status keymaps.
 
 ==============================================================================
 FUGITIVE STATUS KEYMAPS                                   *diffs-fugitive*
