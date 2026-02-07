@@ -72,7 +72,7 @@ function M.parse(lines)
       if line:match('^>>>>>>>') then
         current.theirs_end = idx
         current.marker_theirs = idx
-        table.insert(regions, current --[[@as diffs.ConflictRegion]])
+        table.insert(regions, current)
         current = nil
         state = 'idle'
       elseif line:match('^<<<<<<<') then
