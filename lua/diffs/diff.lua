@@ -137,7 +137,12 @@ local function char_diff_pair(old_line, new_line, del_idx, add_idx, diff_opts)
   local old_text = table.concat(old_bytes, '\n') .. '\n'
   local new_text = table.concat(new_bytes, '\n') .. '\n'
 
-  local char_hunks = byte_diff(old_text, new_text, diff_opts)
+  local char_opts = diff_opts
+  if diff_opts and diff_opts.linematch then
+    char_opts = { algorithm = diff_opts.algorithm }
+  end
+
+  local char_hunks = byte_diff(old_text, new_text, char_opts)
 
   for _, ch in ipairs(char_hunks) do
     if ch.old_count > 0 then

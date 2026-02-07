@@ -186,6 +186,7 @@ local function compute_highlight_groups()
   local blended_add_text = blend_color(add_fg, bg, 0.7)
   local blended_del_text = blend_color(del_fg, bg, 0.7)
 
+  vim.api.nvim_set_hl(0, 'DiffsClear', { default = true, fg = normal.fg or 0xc0c0c0 })
   vim.api.nvim_set_hl(0, 'DiffsAdd', { default = true, bg = blended_add })
   vim.api.nvim_set_hl(0, 'DiffsDelete', { default = true, bg = blended_del })
   vim.api.nvim_set_hl(0, 'DiffsAddNr', { default = true, fg = add_fg, bg = blended_add })
