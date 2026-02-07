@@ -19,6 +19,7 @@
 ---@field background boolean
 ---@field gutter boolean
 ---@field blend_alpha? number
+---@field overrides? table<string, table>
 ---@field context diffs.ContextConfig
 ---@field treesitter diffs.TreesitterConfig
 ---@field vim diffs.VimConfig
@@ -229,6 +230,12 @@ local function compute_highlight_groups()
   )
   vim.api.nvim_set_hl(0, 'DiffsDiffChange', { default = true, bg = diff_change.bg })
   vim.api.nvim_set_hl(0, 'DiffsDiffText', { default = true, bg = diff_text.bg })
+
+  if config.highlights.overrides then
+    for group, hl in pairs(config.highlights.overrides) do
+      vim.api.nvim_set_hl(0, group, hl)
+    end
+  end
 end
 
 local function init()
@@ -251,6 +258,7 @@ local function init()
       ['highlights.background'] = { opts.highlights.background, 'boolean', true },
       ['highlights.gutter'] = { opts.highlights.gutter, 'boolean', true },
       ['highlights.blend_alpha'] = { opts.highlights.blend_alpha, 'number', true },
+      ['highlights.overrides'] = { opts.highlights.overrides, 'table', true },
       ['highlights.context'] = { opts.highlights.context, 'table', true },
       ['highlights.treesitter'] = { opts.highlights.treesitter, 'table', true },
       ['highlights.vim'] = { opts.highlights.vim, 'table', true },

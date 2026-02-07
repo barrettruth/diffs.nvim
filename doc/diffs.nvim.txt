@@ -74,6 +74,7 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
           algorithm = 'default',
           max_lines = 500,
         },
+        overrides = {},
       },
       fugitive = {
         horizontal = 'du',
@@ -140,6 +141,13 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
         {intra}              (table, default: see below)
                              Character-level (intra-line) diff highlighting.
                              See |diffs.IntraConfig| for fields.
+
+        {overrides}          (table, default: {})
+                             Map of highlight group names to highlight
+                             definitions (see |nvim_set_hl()|). Applied
+                             after all computed groups without `default`,
+                             so overrides always win over both computed
+                             defaults and colorscheme definitions.
 
                                                       *diffs.ContextConfig*
     Context config fields: ~
@@ -468,6 +476,16 @@ These are used for |winhighlight| remapping in `&diff` windows.
 To customize these in your colorscheme: >lua
     vim.api.nvim_set_hl(0, 'DiffsAdd', { bg = '#2e4a3a' })
     vim.api.nvim_set_hl(0, 'DiffsDiffDelete', { link = 'DiffDelete' })
+<
+Or via `highlights.overrides` in config: >lua
+    vim.g.diffs = {
+      highlights = {
+        overrides = {
+          DiffsAdd = { bg = '#2e4a3a' },
+          DiffsDiffDelete = { link = 'DiffDelete' },
+        },
+      },
+    }
 <
 
 ==============================================================================
