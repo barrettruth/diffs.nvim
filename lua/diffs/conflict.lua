@@ -1,17 +1,3 @@
----@class diffs.ConflictKeymaps
----@field ours string|false
----@field theirs string|false
----@field both string|false
----@field none string|false
----@field next string|false
----@field prev string|false
-
----@class diffs.ConflictConfig
----@field enabled boolean
----@field disable_diagnostics boolean
----@field show_virtual_text boolean
----@field keymaps diffs.ConflictKeymaps
-
 ---@class diffs.ConflictRegion
 ---@field marker_ours integer
 ---@field ours_start integer
@@ -41,6 +27,7 @@ local PRIORITY_LINE_BG = 200
 function M.parse(lines)
   local regions = {}
   local state = 'idle'
+  ---@type diffs.ConflictRegion?
   local current = nil
 
   for i, line in ipairs(lines) do
