@@ -398,9 +398,9 @@ diff-related features.
 ==============================================================================
 HIGHLIGHT GROUPS                                          *diffs-highlights*
 
-diffs.nvim defines custom highlight groups. Fugitive unified diff groups use
-`default = true`, so colorschemes can override them. Diff mode groups are
-always derived from the corresponding `Diff*` groups.
+diffs.nvim defines custom highlight groups. All groups use `default = true`,
+so colorschemes can override them by defining the group before the plugin
+loads.
 
 All derived groups are computed by alpha-blending a source color into the
 `Normal` background. Line-level groups blend at 40% alpha for a subtle tint;
