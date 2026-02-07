@@ -40,3 +40,11 @@ vim.api.nvim_create_autocmd('OptionSet', {
     end
   end,
 })
+
+local cmds = require('diffs.commands')
+vim.keymap.set('n', '<Plug>(diffs-gdiff)', function()
+  cmds.gdiff(nil, false)
+end, { desc = 'Unified diff (horizontal)' })
+vim.keymap.set('n', '<Plug>(diffs-gvdiff)', function()
+  cmds.gdiff(nil, true)
+end, { desc = 'Unified diff (vertical)' })
