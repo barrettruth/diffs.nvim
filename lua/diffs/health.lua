@@ -15,6 +15,13 @@ function M.check()
   else
     vim.health.warn('vim-fugitive not detected (required for unified diff highlighting)')
   end
+
+  local lib = require('diffs.lib')
+  if lib.has_lib() then
+    vim.health.ok('libvscode_diff found at ' .. lib.lib_path())
+  else
+    vim.health.info('libvscode_diff not found (optional, using native vim.diff fallback)')
+  end
 end
 
 return M

@@ -6,11 +6,17 @@
 ---@field enabled boolean
 ---@field max_lines integer
 
+---@class diffs.IntraConfig
+---@field enabled boolean
+---@field algorithm string
+---@field max_lines integer
+
 ---@class diffs.Highlights
 ---@field background boolean
 ---@field gutter boolean
 ---@field treesitter diffs.TreesitterConfig
 ---@field vim diffs.VimConfig
+---@field intra diffs.IntraConfig
 
 ---@class diffs.FugitiveConfig
 ---@field horizontal string|false
@@ -81,6 +87,11 @@ local default_config = {
     vim = {
       enabled = false,
       max_lines = 200,
+    },
+    intra = {
+      enabled = true,
+      algorithm = 'auto',
+      max_lines = 500,
     },
   },
   fugitive = {
@@ -172,10 +183,24 @@ local function compute_highlight_groups()
   local blended_add = blend_color(add_bg, bg, 0.4)
   local blended_del = blend_color(del_bg, bg, 0.4)
 
+  local blended_add_text = blend_color(add_fg, bg, 0.7)
+  local blended_del_text = blend_color(del_fg, bg, 0.7)
+
   vim.api.nvim_set_hl(0, 'DiffsAdd', { default = true, bg = blended_add })
   vim.api.nvim_set_hl(0, 'DiffsDelete', { default = true, bg = blended_del })
   vim.api.nvim_set_hl(0, 'DiffsAddNr', { default = true, fg = add_fg, bg = blended_add })
   vim.api.nvim_set_hl(0, 'DiffsDeleteNr', { default = true, fg = del_fg, bg = blended_del })
+  vim.api.nvim_set_hl(0, 'DiffsAddText', { default = true, bg = blended_add_text })
+  vim.api.nvim_set_hl(0, 'DiffsDeleteText', { default = true, bg = blended_del_text })
+
+  dbg('highlight groups: Normal.bg=#%06x DiffAdd.bg=#%06x diffAdded.fg=#%06x', bg, add_bg, add_fg)
+  dbg(
+    'DiffsAdd.bg=#%06x DiffsAddText.bg=#%06x DiffsAddNr.fg=#%06x',
+    blended_add,
+    blended_add_text,
+    add_fg
+  )
+  dbg('DiffsDelete.bg=#%06x DiffsDeleteText.bg=#%06x', blended_del, blended_del_text)
 
   local diff_change = resolve_hl('DiffChange')
   local diff_text = resolve_hl('DiffText')
@@ -207,6 +232,7 @@ local function init()
       ['highlights.gutter'] = { opts.highlights.gutter, 'boolean', true },
       ['highlights.treesitter'] = { opts.highlights.treesitter, 'table', true },
       ['highlights.vim'] = { opts.highlights.vim, 'table', true },
+      ['highlights.intra'] = { opts.highlights.intra, 'table', true },
     })
 
     if opts.highlights.treesitter then
@@ -224,6 +250,20 @@ local function init()
       vim.validate({
         ['highlights.vim.enabled'] = { opts.highlights.vim.enabled, 'boolean', true },
         ['highlights.vim.max_lines'] = { opts.highlights.vim.max_lines, 'number', true },
+      })
+    end
+
+    if opts.highlights.intra then
+      vim.validate({
+        ['highlights.intra.enabled'] = { opts.highlights.intra.enabled, 'boolean', true },
+        ['highlights.intra.algorithm'] = {
+          opts.highlights.intra.algorithm,
+          function(v)
+            return v == nil or v == 'auto' or v == 'native' or v == 'vscode'
+          end,
+          "'auto', 'native', or 'vscode'",
+        },
+        ['highlights.intra.max_lines'] = { opts.highlights.intra.max_lines, 'number', true },
       })
     end
   end
@@ -265,6 +305,14 @@ local function init()
     and opts.highlights.vim.max_lines < 1
   then
     error('diffs: highlights.vim.max_lines must be >= 1')
+  end
+  if
+    opts.highlights
+    and opts.highlights.intra
+    and opts.highlights.intra.max_lines
+    and opts.highlights.intra.max_lines < 1
+  then
+    error('diffs: highlights.intra.max_lines must be >= 1')
   end
 
   config = vim.tbl_deep_extend('force', default_config, opts)

@@ -1,6 +1,7 @@
 local M = {}
 
 local dbg = require('diffs.log').dbg
+local diff = require('diffs.diff')
 
 ---@param bufnr integer
 ---@param ns integer
@@ -282,6 +283,40 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
 
   local syntax_applied = extmark_count > 0
 
+  ---@type diffs.IntraChanges?
+  local intra = nil
+  local intra_cfg = opts.highlights.intra
+  if intra_cfg and intra_cfg.enabled and #hunk.lines <= intra_cfg.max_lines then
+    dbg('computing intra for hunk %s:%d (%d lines)', hunk.filename, hunk.start_line, #hunk.lines)
+    intra = diff.compute_intra_hunks(hunk.lines, intra_cfg.algorithm)
+    if intra then
+      dbg('intra result: %d add spans, %d del spans', #intra.add_spans, #intra.del_spans)
+    else
+      dbg('intra result: nil (no change groups)')
+    end
+  elseif intra_cfg and not intra_cfg.enabled then
+    dbg('intra disabled by config')
+  elseif intra_cfg and #hunk.lines > intra_cfg.max_lines then
+    dbg('intra skipped: %d lines > %d max', #hunk.lines, intra_cfg.max_lines)
+  end
+
+  ---@type table<integer, diffs.CharSpan[]>
+  local char_spans_by_line = {}
+  if intra then
+    for _, span in ipairs(intra.add_spans) do
+      if not char_spans_by_line[span.line] then
+        char_spans_by_line[span.line] = {}
+      end
+      table.insert(char_spans_by_line[span.line], span)
+    end
+    for _, span in ipairs(intra.del_spans) do
+      if not char_spans_by_line[span.line] then
+        char_spans_by_line[span.line] = {}
+      end
+      table.insert(char_spans_by_line[span.line], span)
+    end
+  end
+
   for i, line in ipairs(hunk.lines) do
     local buf_line = hunk.start_line + i - 1
     local line_len = #line
@@ -299,23 +334,46 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
       })
     end
 
-    if opts.highlights.background and is_diff_line then
-      local extmark_opts = {
-        line_hl_group = line_hl,
-        priority = 198,
-      }
-      if opts.highlights.gutter then
-        extmark_opts.number_hl_group = number_hl
-      end
-      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, extmark_opts)
-    end
-
     if line_len > 1 and syntax_applied then
       pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 1, {
         end_col = line_len,
         hl_group = 'Normal',
+        priority = 198,
+      })
+    end
+
+    if opts.highlights.background and is_diff_line then
+      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
+        end_col = line_len,
+        hl_group = line_hl,
+        hl_eol = true,
+        number_hl_group = opts.highlights.gutter and number_hl or nil,
         priority = 199,
       })
+    end
+
+    if char_spans_by_line[i] then
+      local char_hl = prefix == '+' and 'DiffsAddText' or 'DiffsDeleteText'
+      for _, span in ipairs(char_spans_by_line[i]) do
+        dbg(
+          'char extmark: line=%d buf_line=%d col=%d..%d hl=%s text="%s"',
+          i,
+          buf_line,
+          span.col_start,
+          span.col_end,
+          char_hl,
+          line:sub(span.col_start + 1, span.col_end)
+        )
+        local ok, err = pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, span.col_start, {
+          end_col = span.col_end,
+          hl_group = char_hl,
+          priority = 201,
+        })
+        if not ok then
+          dbg('char extmark FAILED: %s', err)
+        end
+        extmark_count = extmark_count + 1
+      end
     end
   end
 
