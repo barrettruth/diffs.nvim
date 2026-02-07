@@ -86,8 +86,9 @@ function M.gdiff(revision, vertical)
 
   local diff_buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(diff_buf, 0, -1, false, diff_lines)
-  vim.api.nvim_set_option_value('buftype', 'nofile', { buf = diff_buf })
-  vim.api.nvim_set_option_value('bufhidden', 'wipe', { buf = diff_buf })
+  vim.api.nvim_set_option_value('buftype', 'nowrite', { buf = diff_buf })
+  vim.api.nvim_set_option_value('bufhidden', 'delete', { buf = diff_buf })
+  vim.api.nvim_set_option_value('swapfile', false, { buf = diff_buf })
   vim.api.nvim_set_option_value('modifiable', false, { buf = diff_buf })
   vim.api.nvim_set_option_value('filetype', 'diff', { buf = diff_buf })
   vim.api.nvim_buf_set_name(diff_buf, 'diffs://' .. revision .. ':' .. rel_path)
@@ -176,13 +177,17 @@ function M.gdiff_file(filepath, opts)
 
   local diff_buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(diff_buf, 0, -1, false, diff_lines)
-  vim.api.nvim_set_option_value('buftype', 'nofile', { buf = diff_buf })
-  vim.api.nvim_set_option_value('bufhidden', 'wipe', { buf = diff_buf })
+  vim.api.nvim_set_option_value('buftype', 'nowrite', { buf = diff_buf })
+  vim.api.nvim_set_option_value('bufhidden', 'delete', { buf = diff_buf })
+  vim.api.nvim_set_option_value('swapfile', false, { buf = diff_buf })
   vim.api.nvim_set_option_value('modifiable', false, { buf = diff_buf })
   vim.api.nvim_set_option_value('filetype', 'diff', { buf = diff_buf })
   vim.api.nvim_buf_set_name(diff_buf, 'diffs://' .. diff_label .. ':' .. rel_path)
   if repo_root then
     vim.api.nvim_buf_set_var(diff_buf, 'diffs_repo_root', repo_root)
+  end
+  if old_rel_path ~= rel_path then
+    vim.api.nvim_buf_set_var(diff_buf, 'diffs_old_filepath', old_rel_path)
   end
 
   vim.cmd(opts.vertical and 'vsplit' or 'split')
@@ -231,8 +236,9 @@ function M.gdiff_section(repo_root, opts)
   local diff_label = opts.staged and 'staged' or 'unstaged'
   local diff_buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(diff_buf, 0, -1, false, result)
-  vim.api.nvim_set_option_value('buftype', 'nofile', { buf = diff_buf })
-  vim.api.nvim_set_option_value('bufhidden', 'wipe', { buf = diff_buf })
+  vim.api.nvim_set_option_value('buftype', 'nowrite', { buf = diff_buf })
+  vim.api.nvim_set_option_value('bufhidden', 'delete', { buf = diff_buf })
+  vim.api.nvim_set_option_value('swapfile', false, { buf = diff_buf })
   vim.api.nvim_set_option_value('modifiable', false, { buf = diff_buf })
   vim.api.nvim_set_option_value('filetype', 'diff', { buf = diff_buf })
   vim.api.nvim_buf_set_name(diff_buf, 'diffs://' .. diff_label .. ':all')
@@ -246,6 +252,77 @@ function M.gdiff_section(repo_root, opts)
   vim.schedule(function()
     require('diffs').attach(diff_buf)
   end)
+end
+
+---@param bufnr integer
+function M.read_buffer(bufnr)
+  local name = vim.api.nvim_buf_get_name(bufnr)
+  local url_body = name:match('^diffs://(.+)$')
+  if not url_body then
+    return
+  end
+
+  local label, path = url_body:match('^([^:]+):(.+)$')
+  if not label or not path then
+    return
+  end
+
+  local ok, repo_root = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_repo_root')
+  if not ok or not repo_root then
+    return
+  end
+
+  local diff_lines
+
+  if path == 'all' then
+    local cmd = { 'git', '-C', repo_root, 'diff', '--no-ext-diff', '--no-color' }
+    if label == 'staged' then
+      table.insert(cmd, '--cached')
+    end
+    diff_lines = vim.fn.systemlist(cmd)
+    if vim.v.shell_error ~= 0 then
+      diff_lines = {}
+    end
+  else
+    local abs_path = repo_root .. '/' .. path
+
+    local old_ok, old_rel_path = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_old_filepath')
+    local old_abs_path = old_ok and old_rel_path and (repo_root .. '/' .. old_rel_path) or abs_path
+    local old_name = old_ok and old_rel_path or path
+
+    local old_lines, new_lines
+
+    if label == 'untracked' then
+      old_lines = {}
+      new_lines = git.get_working_content(abs_path) or {}
+    elseif label == 'staged' then
+      old_lines = git.get_file_content('HEAD', old_abs_path) or {}
+      new_lines = git.get_index_content(abs_path) or {}
+    elseif label == 'unstaged' then
+      old_lines = git.get_index_content(old_abs_path)
+      if not old_lines then
+        old_lines = git.get_file_content('HEAD', old_abs_path) or {}
+      end
+      new_lines = git.get_working_content(abs_path) or {}
+    else
+      old_lines = git.get_file_content(label, abs_path) or {}
+      new_lines = git.get_working_content(abs_path) or {}
+    end
+
+    diff_lines = generate_unified_diff(old_lines, new_lines, old_name, path)
+  end
+
+  vim.api.nvim_set_option_value('modifiable', true, { buf = bufnr })
+  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, diff_lines)
+  vim.api.nvim_set_option_value('modifiable', false, { buf = bufnr })
+  vim.api.nvim_set_option_value('buftype', 'nowrite', { buf = bufnr })
+  vim.api.nvim_set_option_value('bufhidden', 'delete', { buf = bufnr })
+  vim.api.nvim_set_option_value('swapfile', false, { buf = bufnr })
+  vim.api.nvim_set_option_value('filetype', 'diff', { buf = bufnr })
+
+  dbg('reloaded diff buffer %d (%s:%s)', bufnr, label, path)
+
+  require('diffs').attach(bufnr)
 end
 
 function M.setup()

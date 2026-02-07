@@ -23,6 +23,13 @@ vim.api.nvim_create_autocmd('FileType', {
   end,
 })
 
+vim.api.nvim_create_autocmd('BufReadCmd', {
+  pattern = 'diffs://*',
+  callback = function(args)
+    require('diffs.commands').read_buffer(args.buf)
+  end,
+})
+
 vim.api.nvim_create_autocmd('OptionSet', {
   pattern = 'diff',
   callback = function()
