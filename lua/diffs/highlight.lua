@@ -458,12 +458,17 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
 
     if opts.highlights.background and is_diff_line then
       pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
-        end_col = line_len,
+        end_row = buf_line + 1,
         hl_group = line_hl,
         hl_eol = true,
-        number_hl_group = opts.highlights.gutter and number_hl or nil,
         priority = PRIORITY_LINE_BG,
       })
+      if opts.highlights.gutter then
+        pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
+          number_hl_group = number_hl,
+          priority = PRIORITY_LINE_BG,
+        })
+      end
     end
 
     if char_spans_by_line[i] then
