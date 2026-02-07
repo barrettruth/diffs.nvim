@@ -108,7 +108,7 @@ local function apply_highlights(bufnr, regions, config)
 
     if config.show_virtual_text then
       pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, region.marker_ours, 0, {
-        virt_text = { { ' current', 'DiffsConflictMarker' } },
+        virt_text = { { ' (current)', 'DiffsConflictMarker' } },
         virt_text_pos = 'eol',
       })
     end
@@ -177,7 +177,7 @@ local function apply_highlights(bufnr, regions, config)
 
     if config.show_virtual_text then
       pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, region.marker_theirs, 0, {
-        virt_text = { { ' incoming', 'DiffsConflictMarker' } },
+        virt_text = { { ' (incoming)', 'DiffsConflictMarker' } },
         virt_text_pos = 'eol',
       })
     end
