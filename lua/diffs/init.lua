@@ -90,7 +90,7 @@ local default_config = {
     },
     intra = {
       enabled = true,
-      algorithm = 'auto',
+      algorithm = 'default',
       max_lines = 500,
     },
   },
@@ -259,9 +259,9 @@ local function init()
         ['highlights.intra.algorithm'] = {
           opts.highlights.intra.algorithm,
           function(v)
-            return v == nil or v == 'auto' or v == 'native' or v == 'vscode'
+            return v == nil or v == 'default' or v == 'vscode'
           end,
-          "'auto', 'native', or 'vscode'",
+          "'default' or 'vscode'",
         },
         ['highlights.intra.max_lines'] = { opts.highlights.intra.max_lines, 'number', true },
       })

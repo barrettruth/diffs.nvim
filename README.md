@@ -17,6 +17,7 @@ syntax highlighting.
 - Background-only diff colors for any `&diff` buffer (`:diffthis`, `vimdiff`)
 - Vim syntax fallback for languages without a treesitter parser
 - Hunk header context highlighting (`@@ ... @@ function foo()`)
+- Character-level (intra-line) diff highlighting for changed characters
 - Configurable debouncing, max lines, and diff prefix concealment
 
 ## Requirements
