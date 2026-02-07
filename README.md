@@ -18,7 +18,8 @@ syntax highlighting.
 - Vim syntax fallback for languages without a treesitter parser
 - Hunk header context highlighting (`@@ ... @@ function foo()`)
 - Character-level (intra-line) diff highlighting for changed characters
-- Configurable debouncing, max lines, and diff prefix concealment
+- Configurable debouncing, max lines, diff prefix concealment, blend alpha, and
+  highlight overrides
 
 ## Requirements
 

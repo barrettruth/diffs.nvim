@@ -56,6 +56,7 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
       highlights = {
         background = true,
         gutter = true,
+        blend_alpha = 0.6,
         context = {
           enabled = true,
           lines = 25,
@@ -66,13 +67,14 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
         },
         vim = {
           enabled = false,
-          max_lines = 500,
+          max_lines = 200,
         },
         intra = {
           enabled = true,
           algorithm = 'default',
           max_lines = 500,
         },
+        overrides = {},
       },
       fugitive = {
         horizontal = 'du',
@@ -117,6 +119,13 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              Highlight line numbers with matching colors.
                              Only visible if line numbers are enabled.
 
+        {blend_alpha}        (number, default: 0.6)
+                             Alpha value for character-level blend intensity.
+                             Controls how strongly changed characters stand
+                             out from the line-level background. Must be
+                             between 0 and 1 (inclusive). Higher values
+                             produce more vivid character-level highlights.
+
         {context}            (table, default: see below)
                              Syntax parsing context options.
                              See |diffs.ContextConfig| for fields.
@@ -132,6 +141,13 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
         {intra}              (table, default: see below)
                              Character-level (intra-line) diff highlighting.
                              See |diffs.IntraConfig| for fields.
+
+        {overrides}          (table, default: {})
+                             Map of highlight group names to highlight
+                             definitions (see |nvim_set_hl()|). Applied
+                             after all computed groups without `default`,
+                             so overrides always win over both computed
+                             defaults and colorscheme definitions.
 
                                                       *diffs.ContextConfig*
     Context config fields: ~
@@ -398,9 +414,9 @@ diff-related features.
 ==============================================================================
 HIGHLIGHT GROUPS                                          *diffs-highlights*
 
-diffs.nvim defines custom highlight groups. Fugitive unified diff groups use
-`default = true`, so colorschemes can override them. Diff mode groups are
-always derived from the corresponding `Diff*` groups.
+diffs.nvim defines custom highlight groups. All groups use `default = true`,
+so colorschemes can override them by defining the group before the plugin
+loads.
 
 All derived groups are computed by alpha-blending a source color into the
 `Normal` background. Line-level groups blend at 40% alpha for a subtle tint;
@@ -460,6 +476,16 @@ These are used for |winhighlight| remapping in `&diff` windows.
 To customize these in your colorscheme: >lua
     vim.api.nvim_set_hl(0, 'DiffsAdd', { bg = '#2e4a3a' })
     vim.api.nvim_set_hl(0, 'DiffsDiffDelete', { link = 'DiffDelete' })
+<
+Or via `highlights.overrides` in config: >lua
+    vim.g.diffs = {
+      highlights = {
+        overrides = {
+          DiffsAdd = { bg = '#2e4a3a' },
+          DiffsDiffDelete = { link = 'DiffDelete' },
+        },
+      },
+    }
 <
 
 ==============================================================================
