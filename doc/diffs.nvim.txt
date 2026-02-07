@@ -228,6 +228,22 @@ COMMANDS                                                      *diffs-commands*
     Like |:Gdiff| but explicitly opens in a horizontal split.
 
 ==============================================================================
+MAPPINGS                                                     *diffs-mappings*
+
+                                                        *<Plug>(diffs-gdiff)*
+<Plug>(diffs-gdiff)     Show unified diff against HEAD in a horizontal
+                        split. Equivalent to |:Gdiff| with no arguments.
+
+                                                       *<Plug>(diffs-gvdiff)*
+<Plug>(diffs-gvdiff)    Show unified diff against HEAD in a vertical
+                        split. Equivalent to |:Gvdiff| with no arguments.
+
+Example configuration: >lua
+    vim.keymap.set('n', '<leader>gd', '<Plug>(diffs-gdiff)')
+    vim.keymap.set('n', '<leader>gD', '<Plug>(diffs-gvdiff)')
+<
+
+==============================================================================
 FUGITIVE STATUS KEYMAPS                                   *diffs-fugitive*
 
 When inside a vim-fugitive |:Git| status buffer, diffs.nvim provides keymaps
