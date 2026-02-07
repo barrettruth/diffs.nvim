@@ -220,6 +220,40 @@ describe('highlight', function()
       delete_buffer(bufnr)
     end)
 
+    it('highlights function keyword in header context', function()
+      local bufnr = create_buffer({
+        '@@ -5,3 +5,4 @@ function M.setup()',
+        ' local x = 1',
+        '+local y = 2',
+        ' return x',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        header_context = 'function M.setup()',
+        header_context_col = 18,
+        lines = { ' local x = 1', '+local y = 2', ' return x' },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
+
+      local extmarks = get_extmarks(bufnr)
+      local has_keyword_function = false
+      for _, mark in ipairs(extmarks) do
+        if mark[2] == 0 and mark[4] and mark[4].hl_group then
+          local hl = mark[4].hl_group
+          if hl == '@keyword.function.lua' or hl == '@keyword.lua' then
+            has_keyword_function = true
+            break
+          end
+        end
+      end
+      assert.is_true(has_keyword_function)
+      delete_buffer(bufnr)
+    end)
+
     it('does not highlight header when no header_context', function()
       local bufnr = create_buffer({
         '@@ -10,3 +10,4 @@',
