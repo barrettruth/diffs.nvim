@@ -289,7 +289,8 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
   ---@type table<integer, true>
   local covered_lines = {}
 
-  local context = opts.highlights.context or 0
+  local ctx_cfg = opts.highlights.context
+  local context = (ctx_cfg and ctx_cfg.enabled) and ctx_cfg.lines or 0
   local leading = {}
   local trailing = {}
   if (use_ts or use_vim) and context > 0 and hunk.file_new_start and hunk.repo_root then

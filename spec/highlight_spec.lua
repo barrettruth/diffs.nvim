@@ -37,7 +37,7 @@ describe('highlight', function()
         highlights = {
           background = false,
           gutter = false,
-          context = 0,
+          context = { enabled = false, lines = 0 },
           treesitter = {
             enabled = true,
             max_lines = 500,
@@ -1087,7 +1087,12 @@ describe('highlight', function()
         repo_root = repo_root,
       }
 
-      highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ highlights = { context = 25 } }))
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { context = { enabled = true, lines = 25 } } })
+      )
 
       local extmarks = get_extmarks(bufnr)
       for _, mark in ipairs(extmarks) do
@@ -1100,7 +1105,7 @@ describe('highlight', function()
       vim.fn.delete(repo_root, 'rf')
     end)
 
-    it('context = 0 matches behavior without padding', function()
+    it('context disabled matches behavior without padding', function()
       local bufnr = create_buffer({
         '@@ -1,1 +1,2 @@',
         ' local x = 1',
@@ -1117,7 +1122,12 @@ describe('highlight', function()
         repo_root = '/nonexistent',
       }
 
-      highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ highlights = { context = 0 } }))
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { context = { enabled = false, lines = 0 } } })
+      )
 
       local extmarks = get_extmarks(bufnr)
       assert.is_true(#extmarks > 0)
@@ -1142,7 +1152,12 @@ describe('highlight', function()
       }
 
       assert.has_no.errors(function()
-        highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ highlights = { context = 25 } }))
+        highlight.highlight_hunk(
+          bufnr,
+          ns,
+          hunk,
+          default_opts({ highlights = { context = { enabled = true, lines = 25 } } })
+        )
       end)
 
       local extmarks = get_extmarks(bufnr)
@@ -1180,7 +1195,7 @@ describe('highlight', function()
         highlights = {
           background = false,
           gutter = false,
-          context = 0,
+          context = { enabled = false, lines = 0 },
           treesitter = { enabled = true, max_lines = 500 },
           vim = { enabled = false, max_lines = 200 },
         },
@@ -1337,7 +1352,7 @@ describe('highlight', function()
         highlights = {
           background = false,
           gutter = false,
-          context = 0,
+          context = { enabled = false, lines = 0 },
           treesitter = { enabled = true, max_lines = 500 },
           vim = { enabled = false, max_lines = 200 },
         },
