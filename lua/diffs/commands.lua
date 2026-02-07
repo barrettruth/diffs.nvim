@@ -3,6 +3,27 @@ local M = {}
 local git = require('diffs.git')
 local dbg = require('diffs.log').dbg
 
+---@return integer?
+function M.find_diffs_window()
+  local tabpage = vim.api.nvim_get_current_tabpage()
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(tabpage)) do
+    if vim.api.nvim_win_is_valid(win) then
+      local buf = vim.api.nvim_win_get_buf(win)
+      local name = vim.api.nvim_buf_get_name(buf)
+      if name:match('^diffs://') then
+        return win
+      end
+    end
+  end
+  return nil
+end
+
+---@param bufnr integer
+function M.setup_diff_buf(bufnr)
+  vim.diagnostic.enable(false, { bufnr = bufnr })
+  vim.keymap.set('n', 'q', '<cmd>close<CR>', { buffer = bufnr })
+end
+
 ---@param diff_lines string[]
 ---@param hunk_position { hunk_header: string, offset: integer }
 ---@return integer?
@@ -96,9 +117,16 @@ function M.gdiff(revision, vertical)
     vim.api.nvim_buf_set_var(diff_buf, 'diffs_repo_root', repo_root)
   end
 
-  vim.cmd(vertical and 'vsplit' or 'split')
-  vim.api.nvim_win_set_buf(0, diff_buf)
+  local existing_win = M.find_diffs_window()
+  if existing_win then
+    vim.api.nvim_set_current_win(existing_win)
+    vim.api.nvim_win_set_buf(existing_win, diff_buf)
+  else
+    vim.cmd(vertical and 'vsplit' or 'split')
+    vim.api.nvim_win_set_buf(0, diff_buf)
+  end
 
+  M.setup_diff_buf(diff_buf)
   dbg('opened diff buffer %d for %s against %s', diff_buf, rel_path, revision)
 
   vim.schedule(function()
@@ -190,8 +218,14 @@ function M.gdiff_file(filepath, opts)
     vim.api.nvim_buf_set_var(diff_buf, 'diffs_old_filepath', old_rel_path)
   end
 
-  vim.cmd(opts.vertical and 'vsplit' or 'split')
-  vim.api.nvim_win_set_buf(0, diff_buf)
+  local existing_win = M.find_diffs_window()
+  if existing_win then
+    vim.api.nvim_set_current_win(existing_win)
+    vim.api.nvim_win_set_buf(existing_win, diff_buf)
+  else
+    vim.cmd(opts.vertical and 'vsplit' or 'split')
+    vim.api.nvim_win_set_buf(0, diff_buf)
+  end
 
   if opts.hunk_position then
     local target_line = M.find_hunk_line(diff_lines, opts.hunk_position)
@@ -201,6 +235,7 @@ function M.gdiff_file(filepath, opts)
     end
   end
 
+  M.setup_diff_buf(diff_buf)
   dbg('opened diff buffer %d for %s (%s)', diff_buf, rel_path, diff_label)
 
   vim.schedule(function()
@@ -244,9 +279,16 @@ function M.gdiff_section(repo_root, opts)
   vim.api.nvim_buf_set_name(diff_buf, 'diffs://' .. diff_label .. ':all')
   vim.api.nvim_buf_set_var(diff_buf, 'diffs_repo_root', repo_root)
 
-  vim.cmd(opts.vertical and 'vsplit' or 'split')
-  vim.api.nvim_win_set_buf(0, diff_buf)
+  local existing_win = M.find_diffs_window()
+  if existing_win then
+    vim.api.nvim_set_current_win(existing_win)
+    vim.api.nvim_win_set_buf(existing_win, diff_buf)
+  else
+    vim.cmd(opts.vertical and 'vsplit' or 'split')
+    vim.api.nvim_win_set_buf(0, diff_buf)
+  end
 
+  M.setup_diff_buf(diff_buf)
   dbg('opened section diff buffer %d (%s)', diff_buf, diff_label)
 
   vim.schedule(function()
