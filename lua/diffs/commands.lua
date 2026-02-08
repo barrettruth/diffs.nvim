@@ -38,7 +38,7 @@ end
 
 ---@param lines string[]
 ---@return string[]
-local function filter_combined_diffs(lines)
+function M.filter_combined_diffs(lines)
   local result = {}
   local skip = false
   for _, line in ipairs(lines) do
@@ -300,7 +300,7 @@ function M.gdiff_section(repo_root, opts)
     return
   end
 
-  result = filter_combined_diffs(result)
+  result = M.filter_combined_diffs(result)
 
   if #result == 0 then
     vim.notify('[diffs.nvim]: no changes in section', vim.log.levels.INFO)
@@ -365,7 +365,7 @@ function M.read_buffer(bufnr)
       diff_lines = {}
     end
 
-    diff_lines = filter_combined_diffs(diff_lines)
+    diff_lines = M.filter_combined_diffs(diff_lines)
   else
     local abs_path = repo_root .. '/' .. path
 
