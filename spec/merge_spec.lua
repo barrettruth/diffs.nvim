@@ -1,4 +1,3 @@
-local conflict = require('diffs.conflict')
 local helpers = require('spec.helpers')
 local merge = require('diffs.merge')
 

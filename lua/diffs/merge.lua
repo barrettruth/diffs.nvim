@@ -147,24 +147,6 @@ local function add_resolved_virtual_text(diff_bufnr, hunk)
   })
 end
 
----@param diff_bufnr integer
----@param hunk diffs.MergeHunkInfo
----@param working_bufnr integer
----@param replacement string[]
----@param config diffs.ConflictConfig
-local function do_resolve(diff_bufnr, hunk, working_bufnr, replacement, config)
-  local region = M.match_hunk_to_conflict(hunk, working_bufnr)
-  if not region then
-    vim.notify('[diffs.nvim]: hunk does not correspond to a conflict region', vim.log.levels.INFO)
-    return
-  end
-
-  conflict.replace_region(working_bufnr, region, replacement)
-  conflict.refresh(working_bufnr, config)
-  mark_resolved(diff_bufnr, hunk.index)
-  add_resolved_virtual_text(diff_bufnr, hunk)
-end
-
 ---@param bufnr integer
 ---@param config diffs.ConflictConfig
 function M.resolve_ours(bufnr, config)
