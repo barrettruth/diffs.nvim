@@ -138,6 +138,7 @@ end
 ---@field vertical? boolean
 ---@field staged? boolean
 ---@field untracked? boolean
+---@field unmerged? boolean
 ---@field old_filepath? string
 ---@field hunk_position? { hunk_header: string, offset: integer }
 
@@ -157,7 +158,17 @@ function M.gdiff_file(filepath, opts)
   local old_lines, new_lines, err
   local diff_label
 
-  if opts.untracked then
+  if opts.unmerged then
+    old_lines = git.get_file_content(':2', filepath)
+    if not old_lines then
+      old_lines = {}
+    end
+    new_lines = git.get_file_content(':3', filepath)
+    if not new_lines then
+      new_lines = {}
+    end
+    diff_label = 'unmerged'
+  elseif opts.untracked then
     old_lines = {}
     new_lines, err = git.get_working_content(filepath)
     if not new_lines then
@@ -236,6 +247,14 @@ function M.gdiff_file(filepath, opts)
   end
 
   M.setup_diff_buf(diff_buf)
+
+  if diff_label == 'unmerged' then
+    vim.api.nvim_buf_set_var(diff_buf, 'diffs_unmerged', true)
+    vim.api.nvim_buf_set_var(diff_buf, 'diffs_working_path', filepath)
+    local conflict_config = require('diffs').get_conflict_config()
+    require('diffs.merge').setup_keymaps(diff_buf, conflict_config)
+  end
+
   dbg('opened diff buffer %d for %s (%s)', diff_buf, rel_path, diff_label)
 
   vim.schedule(function()
@@ -334,7 +353,10 @@ function M.read_buffer(bufnr)
 
     local old_lines, new_lines
 
-    if label == 'untracked' then
+    if label == 'unmerged' then
+      old_lines = git.get_file_content(':2', abs_path) or {}
+      new_lines = git.get_file_content(':3', abs_path) or {}
+    elseif label == 'untracked' then
       old_lines = {}
       new_lines = git.get_working_content(abs_path) or {}
     elseif label == 'staged' then
