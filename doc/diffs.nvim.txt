@@ -280,6 +280,41 @@ Example configuration: >lua
     vim.keymap.set('n', '<leader>gD', '<Plug>(diffs-gvdiff)')
 <
 
+                                              *<Plug>(diffs-conflict-ours)*
+<Plug>(diffs-conflict-ours)
+                        Accept current (ours) change. Replaces the
+                        conflict block with ours content.
+
+                                            *<Plug>(diffs-conflict-theirs)*
+<Plug>(diffs-conflict-theirs)
+                        Accept incoming (theirs) change. Replaces the
+                        conflict block with theirs content.
+
+                                              *<Plug>(diffs-conflict-both)*
+<Plug>(diffs-conflict-both)
+                        Accept both changes (ours then theirs).
+
+                                              *<Plug>(diffs-conflict-none)*
+<Plug>(diffs-conflict-none)
+                        Reject both changes (delete entire block).
+
+                                              *<Plug>(diffs-conflict-next)*
+<Plug>(diffs-conflict-next)
+                        Jump to next conflict marker. Wraps around.
+
+                                              *<Plug>(diffs-conflict-prev)*
+<Plug>(diffs-conflict-prev)
+                        Jump to previous conflict marker. Wraps around.
+
+Example configuration: >lua
+    vim.keymap.set('n', 'co', '<Plug>(diffs-conflict-ours)')
+    vim.keymap.set('n', 'ct', '<Plug>(diffs-conflict-theirs)')
+    vim.keymap.set('n', 'cb', '<Plug>(diffs-conflict-both)')
+    vim.keymap.set('n', 'cn', '<Plug>(diffs-conflict-none)')
+    vim.keymap.set('n', ']x', '<Plug>(diffs-conflict-next)')
+    vim.keymap.set('n', '[x', '<Plug>(diffs-conflict-prev)')
+<
+
 Diff buffer mappings: ~
                                                               *diffs-q*
     q               Close the diff window. Available in all `diffs://`

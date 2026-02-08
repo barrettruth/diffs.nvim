@@ -348,35 +348,19 @@ end
 local function setup_keymaps(bufnr, config)
   local km = config.keymaps
 
-  if km.ours then
-    vim.keymap.set('n', km.ours, function()
-      M.resolve_ours(bufnr, config)
-    end, { buffer = bufnr })
-  end
-  if km.theirs then
-    vim.keymap.set('n', km.theirs, function()
-      M.resolve_theirs(bufnr, config)
-    end, { buffer = bufnr })
-  end
-  if km.both then
-    vim.keymap.set('n', km.both, function()
-      M.resolve_both(bufnr, config)
-    end, { buffer = bufnr })
-  end
-  if km.none then
-    vim.keymap.set('n', km.none, function()
-      M.resolve_none(bufnr, config)
-    end, { buffer = bufnr })
-  end
-  if km.next then
-    vim.keymap.set('n', km.next, function()
-      M.goto_next(bufnr)
-    end, { buffer = bufnr })
-  end
-  if km.prev then
-    vim.keymap.set('n', km.prev, function()
-      M.goto_prev(bufnr)
-    end, { buffer = bufnr })
+  local maps = {
+    { km.ours, '<Plug>(diffs-conflict-ours)' },
+    { km.theirs, '<Plug>(diffs-conflict-theirs)' },
+    { km.both, '<Plug>(diffs-conflict-both)' },
+    { km.none, '<Plug>(diffs-conflict-none)' },
+    { km.next, '<Plug>(diffs-conflict-next)' },
+    { km.prev, '<Plug>(diffs-conflict-prev)' },
+  }
+
+  for _, map in ipairs(maps) do
+    if map[1] then
+      vim.keymap.set('n', map[1], map[2], { buffer = bufnr })
+    end
   end
 end
 
