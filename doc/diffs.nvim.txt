@@ -20,6 +20,7 @@ Features: ~
 - Blended diff background colors that preserve syntax visibility
 - Optional diff prefix (`+`/`-`/` `) concealment
 - Gutter (line number) highlighting
+- Inline merge conflict marker detection, highlighting, and resolution
 
 ==============================================================================
 REQUIREMENTS                                              *diffs-requirements*
@@ -80,6 +81,19 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
         horizontal = 'du',
         vertical = 'dU',
       },
+      conflict = {
+        enabled = true,
+        disable_diagnostics = true,
+        show_virtual_text = true,
+        keymaps = {
+          ours = 'doo',
+          theirs = 'dot',
+          both = 'dob',
+          none = 'don',
+          next = ']x',
+          prev = '[x',
+        },
+      },
     }
 <
                                                               *diffs.Config*
@@ -107,6 +121,10 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
         {fugitive}           (table, default: see below)
                              Fugitive status buffer keymap options.
                              See |diffs.FugitiveConfig| for fields.
+
+        {conflict}           (table, default: see below)
+                             Inline merge conflict resolution options.
+                             See |diffs.ConflictConfig| for fields.
 
                                                           *diffs.Highlights*
     Highlights table fields: ~
@@ -318,6 +336,94 @@ Configuration: ~
                              Set to `false` to disable.
 
 ==============================================================================
+CONFLICT RESOLUTION                                          *diffs-conflict*
+
+diffs.nvim detects inline merge conflict markers (`<<<<<<<`/`=======`/
+`>>>>>>>`) in working files and provides highlighting and resolution keymaps.
+Both standard and diff3 (`|||||||`) formats are supported.
+
+Conflict regions are detected automatically on `BufReadPost` and re-scanned
+on `TextChanged`. When all conflicts in a buffer are resolved, highlighting
+is removed and diagnostics are re-enabled.
+
+Configuration: ~
+                                                      *diffs.ConflictConfig*
+>lua
+    vim.g.diffs = {
+      conflict = {
+        enabled = true,
+        disable_diagnostics = true,
+        show_virtual_text = true,
+        keymaps = {
+          ours = 'doo',
+          theirs = 'dot',
+          both = 'dob',
+          none = 'don',
+          next = ']x',
+          prev = '[x',
+        },
+      },
+    }
+<
+    Fields: ~
+        {enabled}            (boolean, default: true)
+                             Enable conflict marker detection and
+                             resolution. Set to `false` to disable
+                             entirely.
+
+        {disable_diagnostics} (boolean, default: true)
+                             Suppress LSP diagnostics on buffers with
+                             conflict markers. Markers produce syntax
+                             errors that clutter the diagnostic list.
+                             Diagnostics are re-enabled when all conflicts
+                             are resolved. Set `false` to leave
+                             diagnostics alone.
+
+        {show_virtual_text}  (boolean, default: true)
+                             Show virtual text labels (" current" and
+                             " incoming") at the end of `<<<<<<<` and
+                             `>>>>>>>` marker lines.
+
+        {keymaps}            (table, default: see above)
+                             Buffer-local keymaps for conflict resolution
+                             and navigation. Each value accepts a string
+                             (custom key) or `false` (disabled).
+
+                                                  *diffs.ConflictKeymaps*
+    Keymap fields: ~
+        {ours}               (string|false, default: 'doo')
+                             Accept current (ours) change.
+
+        {theirs}             (string|false, default: 'dot')
+                             Accept incoming (theirs) change.
+
+        {both}               (string|false, default: 'dob')
+                             Accept both changes (ours then theirs).
+
+        {none}               (string|false, default: 'don')
+                             Reject both changes (delete entire block).
+
+        {next}               (string|false, default: ']x')
+                             Jump to next conflict marker. Wraps around.
+
+        {prev}               (string|false, default: '[x')
+                             Jump to previous conflict marker. Wraps
+                             around.
+
+User events: ~
+                                                   *DiffsConflictResolved*
+    DiffsConflictResolved   Fired when the last conflict in a buffer is
+                            resolved. Useful for triggering custom actions
+                            (e.g., auto-staging the file). >lua
+                                vim.api.nvim_create_autocmd('User', {
+                                  pattern = 'DiffsConflictResolved',
+                                  callback = function()
+                                    print('all conflicts resolved!')
+                                  end,
+                                })
+<
+
+==============================================================================
 API                                                                *diffs-api*
 
 attach({bufnr})                                             *diffs.attach()*
@@ -414,8 +520,9 @@ conflict:
       modifying line highlights may produce unexpected results.
 
   - git-conflict.nvim (akinsho/git-conflict.nvim)
-      Provides conflict marker highlighting that may overlap with
-      diffs.nvim's highlighting in conflict scenarios.
+      Provides conflict marker highlighting and resolution keymaps.
+      diffs.nvim now has built-in conflict resolution (see
+      |diffs-conflict|). Disable one or the other to avoid overlap.
 
 If you experience visual conflicts, try disabling the conflicting plugin's
 diff-related features.
@@ -461,6 +568,37 @@ Fugitive unified diff highlights: ~
     DiffsDeleteText     Character-level background for changed characters
                         within `-` lines. Derived by blending `diffRemoved`
                         foreground with `Normal` background at 60% alpha.
+
+Conflict highlights: ~
+                                                        *DiffsConflictOurs*
+    DiffsConflictOurs   Background for "ours" (current) content lines.
+                        Derived by blending `DiffAdd` background with
+                        `Normal` at 40% alpha (green tint).
+
+                                                      *DiffsConflictTheirs*
+    DiffsConflictTheirs Background for "theirs" (incoming) content lines.
+                        Derived by blending `DiffChange` background with
+                        `Normal` at 40% alpha.
+
+                                                        *DiffsConflictBase*
+    DiffsConflictBase   Background for base (ancestor) content lines in
+                        diff3 conflicts. Derived by blending `DiffText`
+                        background with `Normal` at 30% alpha (muted).
+
+                                                      *DiffsConflictMarker*
+    DiffsConflictMarker Dimmed foreground with bold for `<<<<<<<`,
+                        `=======`, `>>>>>>>`, and `|||||||` marker lines.
+
+                                                      *DiffsConflictOursNr*
+    DiffsConflictOursNr Line number for "ours" content lines. Foreground
+                        from higher-alpha blend, background from line-level
+                        blend.
+
+                                                    *DiffsConflictTheirsNr*
+    DiffsConflictTheirsNr Line number for "theirs" content lines.
+
+                                                      *DiffsConflictBaseNr*
+    DiffsConflictBaseNr Line number for base content lines (diff3).
 
 Diff mode window highlights: ~
 These are used for |winhighlight| remapping in `&diff` windows.
