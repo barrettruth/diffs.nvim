@@ -30,6 +30,15 @@ vim.api.nvim_create_autocmd('BufReadCmd', {
   end,
 })
 
+vim.api.nvim_create_autocmd('BufReadPost', {
+  callback = function(args)
+    local conflict_config = require('diffs').get_conflict_config()
+    if conflict_config.enabled then
+      require('diffs.conflict').attach(args.buf, conflict_config)
+    end
+  end,
+})
+
 vim.api.nvim_create_autocmd('OptionSet', {
   pattern = 'diff',
   callback = function()
