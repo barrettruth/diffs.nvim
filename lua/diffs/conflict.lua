@@ -199,7 +199,7 @@ end
 ---@param bufnr integer
 ---@param region diffs.ConflictRegion
 ---@param replacement string[]
-local function replace_region(bufnr, region, replacement)
+function M.replace_region(bufnr, region, replacement)
   vim.api.nvim_buf_set_lines(
     bufnr,
     region.marker_ours,
@@ -211,7 +211,7 @@ end
 
 ---@param bufnr integer
 ---@param config diffs.ConflictConfig
-local function refresh(bufnr, config)
+function M.refresh(bufnr, config)
   local regions = parse_buffer(bufnr)
   if #regions == 0 then
     vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
@@ -244,8 +244,8 @@ function M.resolve_ours(bufnr, config)
     return
   end
   local lines = vim.api.nvim_buf_get_lines(bufnr, region.ours_start, region.ours_end, false)
-  replace_region(bufnr, region, lines)
-  refresh(bufnr, config)
+  M.replace_region(bufnr, region, lines)
+  M.refresh(bufnr, config)
 end
 
 ---@param bufnr integer
@@ -262,8 +262,8 @@ function M.resolve_theirs(bufnr, config)
     return
   end
   local lines = vim.api.nvim_buf_get_lines(bufnr, region.theirs_start, region.theirs_end, false)
-  replace_region(bufnr, region, lines)
-  refresh(bufnr, config)
+  M.replace_region(bufnr, region, lines)
+  M.refresh(bufnr, config)
 end
 
 ---@param bufnr integer
@@ -288,8 +288,8 @@ function M.resolve_both(bufnr, config)
   for _, l in ipairs(theirs) do
     table.insert(combined, l)
   end
-  replace_region(bufnr, region, combined)
-  refresh(bufnr, config)
+  M.replace_region(bufnr, region, combined)
+  M.refresh(bufnr, config)
 end
 
 ---@param bufnr integer
@@ -305,8 +305,8 @@ function M.resolve_none(bufnr, config)
   if not region then
     return
   end
-  replace_region(bufnr, region, {})
-  refresh(bufnr, config)
+  M.replace_region(bufnr, region, {})
+  M.refresh(bufnr, config)
 end
 
 ---@param bufnr integer
@@ -417,7 +417,7 @@ function M.attach(bufnr, config)
       if not attached_buffers[bufnr] then
         return true
       end
-      refresh(bufnr, config)
+      M.refresh(bufnr, config)
     end,
   })
 
