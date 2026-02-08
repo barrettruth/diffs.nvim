@@ -214,11 +214,19 @@ end
 local function refresh(bufnr, config)
   local regions = parse_buffer(bufnr)
   if #regions == 0 then
-    M.detach(bufnr)
+    vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
+    if diagnostics_suppressed[bufnr] then
+      pcall(vim.diagnostic.enable, true, { bufnr = bufnr })
+      diagnostics_suppressed[bufnr] = nil
+    end
     vim.api.nvim_exec_autocmds('User', { pattern = 'DiffsConflictResolved' })
     return
   end
   apply_highlights(bufnr, regions, config)
+  if config.disable_diagnostics and not diagnostics_suppressed[bufnr] then
+    pcall(vim.diagnostic.enable, false, { bufnr = bufnr })
+    diagnostics_suppressed[bufnr] = true
+  end
 end
 
 ---@param bufnr integer

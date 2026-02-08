@@ -631,6 +631,39 @@ describe('conflict', function()
       helpers.delete_buffer(bufnr)
     end)
 
+    it('re-highlights when markers return after resolution', function()
+      local bufnr = create_file_buffer({
+        '<<<<<<< HEAD',
+        'local x = 1',
+        '=======',
+        'local x = 2',
+        '>>>>>>> feature',
+      })
+      vim.api.nvim_set_current_buf(bufnr)
+      local cfg = default_config()
+      conflict.attach(bufnr, cfg)
+
+      assert.is_true(#get_extmarks(bufnr) > 0)
+
+      vim.api.nvim_win_set_cursor(0, { 2, 0 })
+      conflict.resolve_ours(bufnr, cfg)
+      assert.are.equal(0, #get_extmarks(bufnr))
+
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {
+        '<<<<<<< HEAD',
+        'local x = 1',
+        '=======',
+        'local x = 2',
+        '>>>>>>> feature',
+      })
+      vim.api.nvim_exec_autocmds('TextChanged', { buffer = bufnr })
+
+      assert.is_true(#get_extmarks(bufnr) > 0)
+
+      conflict.detach(bufnr)
+      helpers.delete_buffer(bufnr)
+    end)
+
     it('detaches after last conflict resolved', function()
       local bufnr = create_file_buffer({
         '<<<<<<< HEAD',
