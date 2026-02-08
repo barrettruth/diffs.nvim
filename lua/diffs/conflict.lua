@@ -216,6 +216,7 @@ local function refresh(bufnr, config)
   if #regions == 0 then
     vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
     if diagnostics_suppressed[bufnr] then
+      pcall(vim.diagnostic.reset, nil, bufnr)
       pcall(vim.diagnostic.enable, true, { bufnr = bufnr })
       diagnostics_suppressed[bufnr] = nil
     end
@@ -385,6 +386,7 @@ function M.detach(bufnr)
   attached_buffers[bufnr] = nil
 
   if diagnostics_suppressed[bufnr] then
+    pcall(vim.diagnostic.reset, nil, bufnr)
     pcall(vim.diagnostic.enable, true, { bufnr = bufnr })
     diagnostics_suppressed[bufnr] = nil
   end

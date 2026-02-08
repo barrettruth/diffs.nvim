@@ -18,6 +18,7 @@ syntax highlighting.
 - Vim syntax fallback for languages without a treesitter parser
 - Hunk header context highlighting (`@@ ... @@ function foo()`)
 - Character-level (intra-line) diff highlighting for changed characters
+- Inline merge conflict detection, highlighting, and resolution keymaps
 - Configurable debouncing, max lines, diff prefix concealment, blend alpha, and
   highlight overrides
 
@@ -63,7 +64,8 @@ luarocks install diffs.nvim
     compatible, but both plugins modifying line highlights may produce
     unexpected results
   - [`git-conflict.nvim`](https://github.com/akinsho/git-conflict.nvim) -
-    conflict marker highlighting may overlap with `diffs.nvim`
+    `diffs.nvim` now includes built-in conflict resolution; disable one or the
+    other to avoid overlap
 
 # Acknowledgements
 
