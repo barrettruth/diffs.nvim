@@ -36,6 +36,24 @@ function M.find_hunk_line(diff_lines, hunk_position)
   return nil
 end
 
+---@param lines string[]
+---@return string[]
+local function filter_combined_diffs(lines)
+  local result = {}
+  local skip = false
+  for _, line in ipairs(lines) do
+    if line:match('^diff %-%-cc ') then
+      skip = true
+    elseif line:match('^diff %-%-git ') then
+      skip = false
+    end
+    if not skip then
+      table.insert(result, line)
+    end
+  end
+  return result
+end
+
 ---@param old_lines string[]
 ---@param new_lines string[]
 ---@param old_name string
@@ -282,6 +300,8 @@ function M.gdiff_section(repo_root, opts)
     return
   end
 
+  result = filter_combined_diffs(result)
+
   if #result == 0 then
     vim.notify('[diffs.nvim]: no changes in section', vim.log.levels.INFO)
     return
@@ -344,6 +364,8 @@ function M.read_buffer(bufnr)
     if vim.v.shell_error ~= 0 then
       diff_lines = {}
     end
+
+    diff_lines = filter_combined_diffs(diff_lines)
   else
     local abs_path = repo_root .. '/' .. path
 
