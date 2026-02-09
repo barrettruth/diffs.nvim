@@ -10,9 +10,7 @@ syntax highlighting.
 ## Features
 
 - Treesitter syntax highlighting in fugitive diffs and commit views
-- Character-level intra-line diff highlighting (with optional
-  [vscode-diff](https://github.com/esmuellert/codediff.nvim) FFI backend for
-  word-level accuracy)
+- Word-level intra-line diff highlighting, including VSCode's diffing algorithm
 - `:Gdiff` unified diff against any revision
 - Background-only diff colors for `&diff` buffers
 - Inline merge conflict detection, highlighting, and resolution
