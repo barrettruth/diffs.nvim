@@ -238,7 +238,7 @@ local function highlight_vim_syntax(bufnr, ns, hunk, code_lines, covered_lines, 
 
   local spans = {}
 
-  vim.api.nvim_buf_call(scratch, function()
+  pcall(vim.api.nvim_buf_call, scratch, function()
     vim.cmd('setlocal syntax=' .. ft)
     vim.cmd('redraw')
 
@@ -256,7 +256,7 @@ local function highlight_vim_syntax(bufnr, ns, hunk, code_lines, covered_lines, 
     spans = M.coalesce_syntax_spans(query_fn, code_lines)
   end)
 
-  vim.api.nvim_buf_delete(scratch, { force = true })
+  pcall(vim.api.nvim_buf_delete, scratch, { force = true })
 
   local hunk_line_count = #hunk.lines
   local extmark_count = 0
