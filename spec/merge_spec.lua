@@ -509,6 +509,44 @@ describe('merge', function()
       helpers.delete_buffer(w_bufnr)
     end)
 
+    it('goto_next notifies on wrap-around', function()
+      local working_path = '/tmp/diffs_test_wrap_notify.lua'
+      local w_bufnr = create_working_buffer({
+        '<<<<<<< HEAD',
+        'local x = 1',
+        '=======',
+        'local x = 2',
+        '>>>>>>> feature',
+      }, working_path)
+
+      local d_bufnr = create_diff_buffer({
+        'diff --git a/file.lua b/file.lua',
+        '--- a/file.lua',
+        '+++ b/file.lua',
+        '@@ -1,1 +1,1 @@',
+        '-local x = 1',
+        '+local x = 2',
+      }, working_path)
+      vim.api.nvim_set_current_buf(d_bufnr)
+      vim.api.nvim_win_set_cursor(0, { 6, 0 })
+
+      local notified = false
+      local orig_notify = vim.notify
+      vim.notify = function(msg)
+        if msg:match('wrapped to first hunk') then
+          notified = true
+        end
+      end
+
+      merge.goto_next(d_bufnr)
+      vim.notify = orig_notify
+
+      assert.is_true(notified)
+
+      helpers.delete_buffer(d_bufnr)
+      helpers.delete_buffer(w_bufnr)
+    end)
+
     it('goto_prev jumps to previous conflict hunk', function()
       local working_path = '/tmp/diffs_test_prev.lua'
       local w_bufnr = create_working_buffer({
@@ -572,6 +610,44 @@ describe('merge', function()
 
       merge.goto_prev(d_bufnr)
       assert.are.equal(4, vim.api.nvim_win_get_cursor(0)[1])
+
+      helpers.delete_buffer(d_bufnr)
+      helpers.delete_buffer(w_bufnr)
+    end)
+
+    it('goto_prev notifies on wrap-around', function()
+      local working_path = '/tmp/diffs_test_prev_wrap_notify.lua'
+      local w_bufnr = create_working_buffer({
+        '<<<<<<< HEAD',
+        'local x = 1',
+        '=======',
+        'local x = 2',
+        '>>>>>>> feature',
+      }, working_path)
+
+      local d_bufnr = create_diff_buffer({
+        'diff --git a/file.lua b/file.lua',
+        '--- a/file.lua',
+        '+++ b/file.lua',
+        '@@ -1,1 +1,1 @@',
+        '-local x = 1',
+        '+local x = 2',
+      }, working_path)
+      vim.api.nvim_set_current_buf(d_bufnr)
+      vim.api.nvim_win_set_cursor(0, { 1, 0 })
+
+      local notified = false
+      local orig_notify = vim.notify
+      vim.notify = function(msg)
+        if msg:match('wrapped to last hunk') then
+          notified = true
+        end
+      end
+
+      merge.goto_prev(d_bufnr)
+      vim.notify = orig_notify
+
+      assert.is_true(notified)
 
       helpers.delete_buffer(d_bufnr)
       helpers.delete_buffer(w_bufnr)
