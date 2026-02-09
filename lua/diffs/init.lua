@@ -15,6 +15,12 @@
 ---@field enabled boolean
 ---@field lines integer
 
+---@class diffs.PrioritiesConfig
+---@field clear integer
+---@field syntax integer
+---@field line_bg integer
+---@field char_bg integer
+
 ---@class diffs.Highlights
 ---@field background boolean
 ---@field gutter boolean
@@ -24,6 +30,7 @@
 ---@field treesitter diffs.TreesitterConfig
 ---@field vim diffs.VimConfig
 ---@field intra diffs.IntraConfig
+---@field priorities diffs.PrioritiesConfig
 
 ---@class diffs.FugitiveConfig
 ---@field horizontal string|false
@@ -43,6 +50,7 @@
 ---@field show_virtual_text boolean
 ---@field format_virtual_text? fun(side: string, keymap: string|false): string?
 ---@field show_actions boolean
+---@field priority integer
 ---@field keymaps diffs.ConflictKeymaps
 
 ---@class diffs.Config
@@ -121,6 +129,12 @@ local default_config = {
       algorithm = 'default',
       max_lines = 500,
     },
+    priorities = {
+      clear = 198,
+      syntax = 199,
+      line_bg = 200,
+      char_bg = 201,
+    },
   },
   fugitive = {
     horizontal = 'du',
@@ -131,6 +145,7 @@ local default_config = {
     disable_diagnostics = true,
     show_virtual_text = true,
     show_actions = false,
+    priority = 200,
     keymaps = {
       ours = 'doo',
       theirs = 'dot',
@@ -328,6 +343,7 @@ local function init()
       ['highlights.treesitter'] = { opts.highlights.treesitter, 'table', true },
       ['highlights.vim'] = { opts.highlights.vim, 'table', true },
       ['highlights.intra'] = { opts.highlights.intra, 'table', true },
+      ['highlights.priorities'] = { opts.highlights.priorities, 'table', true },
     })
 
     if opts.highlights.context then
@@ -368,6 +384,15 @@ local function init()
         ['highlights.intra.max_lines'] = { opts.highlights.intra.max_lines, 'number', true },
       })
     end
+
+    if opts.highlights.priorities then
+      vim.validate({
+        ['highlights.priorities.clear'] = { opts.highlights.priorities.clear, 'number', true },
+        ['highlights.priorities.syntax'] = { opts.highlights.priorities.syntax, 'number', true },
+        ['highlights.priorities.line_bg'] = { opts.highlights.priorities.line_bg, 'number', true },
+        ['highlights.priorities.char_bg'] = { opts.highlights.priorities.char_bg, 'number', true },
+      })
+    end
   end
 
   if opts.fugitive then
@@ -396,6 +421,7 @@ local function init()
       ['conflict.show_virtual_text'] = { opts.conflict.show_virtual_text, 'boolean', true },
       ['conflict.format_virtual_text'] = { opts.conflict.format_virtual_text, 'function', true },
       ['conflict.show_actions'] = { opts.conflict.show_actions, 'boolean', true },
+      ['conflict.priority'] = { opts.conflict.priority, 'number', true },
       ['conflict.keymaps'] = { opts.conflict.keymaps, 'table', true },
     })
 
@@ -456,6 +482,17 @@ local function init()
     and (opts.highlights.blend_alpha < 0 or opts.highlights.blend_alpha > 1)
   then
     error('diffs: highlights.blend_alpha must be >= 0 and <= 1')
+  end
+  if opts.highlights and opts.highlights.priorities then
+    for _, key in ipairs({ 'clear', 'syntax', 'line_bg', 'char_bg' }) do
+      local v = opts.highlights.priorities[key]
+      if v and v < 0 then
+        error('diffs: highlights.priorities.' .. key .. ' must be >= 0')
+      end
+    end
+  end
+  if opts.conflict and opts.conflict.priority and opts.conflict.priority < 0 then
+    error('diffs: conflict.priority must be >= 0')
   end
 
   config = vim.tbl_deep_extend('force', default_config, opts)

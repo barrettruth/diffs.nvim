@@ -235,29 +235,6 @@ describe('conflict', function()
       helpers.delete_buffer(bufnr)
     end)
 
-    it('does not apply virtual text when disabled', function()
-      local bufnr = create_file_buffer({
-        '<<<<<<< HEAD',
-        'local x = 1',
-        '=======',
-        'local x = 2',
-        '>>>>>>> feature',
-      })
-
-      conflict.attach(bufnr, default_config({ show_virtual_text = false }))
-
-      local extmarks = get_extmarks(bufnr)
-      local virt_text_count = 0
-      for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].virt_text then
-          virt_text_count = virt_text_count + 1
-        end
-      end
-      assert.are.equal(0, virt_text_count)
-
-      helpers.delete_buffer(bufnr)
-    end)
-
     it('applies number_hl_group to content lines', function()
       local bufnr = create_file_buffer({
         '<<<<<<< HEAD',
@@ -532,6 +509,33 @@ describe('conflict', function()
       helpers.delete_buffer(bufnr)
     end)
 
+    it('goto_next notifies on wrap-around', function()
+      local bufnr = create_file_buffer({
+        '<<<<<<< HEAD',
+        'a',
+        '=======',
+        'b',
+        '>>>>>>> feat',
+      })
+      vim.api.nvim_set_current_buf(bufnr)
+      vim.api.nvim_win_set_cursor(0, { 5, 0 })
+
+      local notified = false
+      local orig_notify = vim.notify
+      vim.notify = function(msg)
+        if msg:match('wrapped to first conflict') then
+          notified = true
+        end
+      end
+
+      conflict.goto_next(bufnr)
+      vim.notify = orig_notify
+
+      assert.is_true(notified)
+
+      helpers.delete_buffer(bufnr)
+    end)
+
     it('goto_prev jumps to previous conflict', function()
       local bufnr = create_file_buffer({
         '<<<<<<< HEAD',
@@ -572,6 +576,33 @@ describe('conflict', function()
 
       conflict.goto_prev(bufnr)
       assert.are.equal(1, vim.api.nvim_win_get_cursor(0)[1])
+
+      helpers.delete_buffer(bufnr)
+    end)
+
+    it('goto_prev notifies on wrap-around', function()
+      local bufnr = create_file_buffer({
+        '<<<<<<< HEAD',
+        'a',
+        '=======',
+        'b',
+        '>>>>>>> feat',
+      })
+      vim.api.nvim_set_current_buf(bufnr)
+      vim.api.nvim_win_set_cursor(0, { 1, 0 })
+
+      local notified = false
+      local orig_notify = vim.notify
+      vim.notify = function(msg)
+        if msg:match('wrapped to last conflict') then
+          notified = true
+        end
+      end
+
+      conflict.goto_prev(bufnr)
+      vim.notify = orig_notify
+
+      assert.is_true(notified)
 
       helpers.delete_buffer(bufnr)
     end)

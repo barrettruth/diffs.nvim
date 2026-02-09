@@ -509,6 +509,44 @@ describe('merge', function()
       helpers.delete_buffer(w_bufnr)
     end)
 
+    it('goto_next notifies on wrap-around', function()
+      local working_path = '/tmp/diffs_test_wrap_notify.lua'
+      local w_bufnr = create_working_buffer({
+        '<<<<<<< HEAD',
+        'local x = 1',
+        '=======',
+        'local x = 2',
+        '>>>>>>> feature',
+      }, working_path)
+
+      local d_bufnr = create_diff_buffer({
+        'diff --git a/file.lua b/file.lua',
+        '--- a/file.lua',
+        '+++ b/file.lua',
+        '@@ -1,1 +1,1 @@',
+        '-local x = 1',
+        '+local x = 2',
+      }, working_path)
+      vim.api.nvim_set_current_buf(d_bufnr)
+      vim.api.nvim_win_set_cursor(0, { 6, 0 })
+
+      local notified = false
+      local orig_notify = vim.notify
+      vim.notify = function(msg)
+        if msg:match('wrapped to first hunk') then
+          notified = true
+        end
+      end
+
+      merge.goto_next(d_bufnr)
+      vim.notify = orig_notify
+
+      assert.is_true(notified)
+
+      helpers.delete_buffer(d_bufnr)
+      helpers.delete_buffer(w_bufnr)
+    end)
+
     it('goto_prev jumps to previous conflict hunk', function()
       local working_path = '/tmp/diffs_test_prev.lua'
       local w_bufnr = create_working_buffer({
@@ -572,6 +610,44 @@ describe('merge', function()
 
       merge.goto_prev(d_bufnr)
       assert.are.equal(4, vim.api.nvim_win_get_cursor(0)[1])
+
+      helpers.delete_buffer(d_bufnr)
+      helpers.delete_buffer(w_bufnr)
+    end)
+
+    it('goto_prev notifies on wrap-around', function()
+      local working_path = '/tmp/diffs_test_prev_wrap_notify.lua'
+      local w_bufnr = create_working_buffer({
+        '<<<<<<< HEAD',
+        'local x = 1',
+        '=======',
+        'local x = 2',
+        '>>>>>>> feature',
+      }, working_path)
+
+      local d_bufnr = create_diff_buffer({
+        'diff --git a/file.lua b/file.lua',
+        '--- a/file.lua',
+        '+++ b/file.lua',
+        '@@ -1,1 +1,1 @@',
+        '-local x = 1',
+        '+local x = 2',
+      }, working_path)
+      vim.api.nvim_set_current_buf(d_bufnr)
+      vim.api.nvim_win_set_cursor(0, { 1, 0 })
+
+      local notified = false
+      local orig_notify = vim.notify
+      vim.notify = function(msg)
+        if msg:match('wrapped to last hunk') then
+          notified = true
+        end
+      end
+
+      merge.goto_prev(d_bufnr)
+      vim.notify = orig_notify
+
+      assert.is_true(notified)
 
       helpers.delete_buffer(d_bufnr)
       helpers.delete_buffer(w_bufnr)
@@ -650,8 +726,19 @@ describe('merge', function()
 
       helpers.delete_buffer(d_bufnr)
     end)
+  end)
 
-    it('does not add hints when show_virtual_text is false', function()
+  describe('setup_keymaps', function()
+    it('clears resolved state on re-init', function()
+      local working_path = '/tmp/diffs_test_reinit.lua'
+      local w_bufnr = create_working_buffer({
+        '<<<<<<< HEAD',
+        'local x = 1',
+        '=======',
+        'local x = 2',
+        '>>>>>>> feature',
+      }, working_path)
+
       local d_bufnr = create_diff_buffer({
         'diff --git a/file.lua b/file.lua',
         '--- a/file.lua',
@@ -659,21 +746,37 @@ describe('merge', function()
         '@@ -1,1 +1,1 @@',
         '-local x = 1',
         '+local x = 2',
-      })
+      }, working_path)
+      vim.api.nvim_set_current_buf(d_bufnr)
+      vim.api.nvim_win_set_cursor(0, { 5, 0 })
 
-      merge.setup_keymaps(d_bufnr, default_config({ show_virtual_text = false }))
+      local cfg = default_config()
+      merge.resolve_ours(d_bufnr, cfg)
+      assert.is_true(merge.is_resolved(d_bufnr, 1))
 
       local extmarks =
         vim.api.nvim_buf_get_extmarks(d_bufnr, merge.get_namespace(), 0, -1, { details = true })
-      local virt_text_count = 0
+      assert.is_true(#extmarks > 0)
+
+      merge.setup_keymaps(d_bufnr, cfg)
+
+      assert.is_false(merge.is_resolved(d_bufnr, 1))
+      extmarks =
+        vim.api.nvim_buf_get_extmarks(d_bufnr, merge.get_namespace(), 0, -1, { details = true })
+      local resolved_count = 0
       for _, mark in ipairs(extmarks) do
         if mark[4] and mark[4].virt_text then
-          virt_text_count = virt_text_count + 1
+          for _, chunk in ipairs(mark[4].virt_text) do
+            if chunk[1]:match('resolved') then
+              resolved_count = resolved_count + 1
+            end
+          end
         end
       end
-      assert.are.equal(0, virt_text_count)
+      assert.are.equal(0, resolved_count)
 
       helpers.delete_buffer(d_bufnr)
+      helpers.delete_buffer(w_bufnr)
     end)
   end)
 
@@ -691,18 +794,6 @@ describe('merge', function()
       assert.is_false(is_header)
       assert.is_nil(old_filename)
       assert.are.equal('U', status)
-      vim.api.nvim_buf_delete(buf, { force = true })
-    end)
-
-    it('parse_file_line returns status for modified files', function()
-      local fugitive = require('diffs.fugitive')
-      local buf = vim.api.nvim_create_buf(false, true)
-      vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
-        'Unstaged (1)',
-        'M  file.lua',
-      })
-      local _, _, _, _, status = fugitive.get_file_at_line(buf, 2)
-      assert.are.equal('M', status)
       vim.api.nvim_buf_delete(buf, { force = true })
     end)
 

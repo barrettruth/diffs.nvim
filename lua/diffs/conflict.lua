@@ -20,8 +20,6 @@ local attached_buffers = {}
 ---@type table<integer, boolean>
 local diagnostics_suppressed = {}
 
-local PRIORITY_LINE_BG = 200
-
 ---@param lines string[]
 ---@return diffs.ConflictRegion[]
 function M.parse(lines)
@@ -114,7 +112,7 @@ local function apply_highlights(bufnr, regions, config)
       end_row = region.marker_ours + 1,
       hl_group = 'DiffsConflictMarker',
       hl_eol = true,
-      priority = PRIORITY_LINE_BG,
+      priority = config.priority,
     })
 
     if config.show_virtual_text then
@@ -156,11 +154,11 @@ local function apply_highlights(bufnr, regions, config)
         end_row = line + 1,
         hl_group = 'DiffsConflictOurs',
         hl_eol = true,
-        priority = PRIORITY_LINE_BG,
+        priority = config.priority,
       })
       pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, line, 0, {
         number_hl_group = 'DiffsConflictOursNr',
-        priority = PRIORITY_LINE_BG,
+        priority = config.priority,
       })
     end
 
@@ -169,7 +167,7 @@ local function apply_highlights(bufnr, regions, config)
         end_row = region.marker_base + 1,
         hl_group = 'DiffsConflictMarker',
         hl_eol = true,
-        priority = PRIORITY_LINE_BG,
+        priority = config.priority,
       })
 
       for line = region.base_start, region.base_end - 1 do
@@ -177,11 +175,11 @@ local function apply_highlights(bufnr, regions, config)
           end_row = line + 1,
           hl_group = 'DiffsConflictBase',
           hl_eol = true,
-          priority = PRIORITY_LINE_BG,
+          priority = config.priority,
         })
         pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, line, 0, {
           number_hl_group = 'DiffsConflictBaseNr',
-          priority = PRIORITY_LINE_BG,
+          priority = config.priority,
         })
       end
     end
@@ -190,7 +188,7 @@ local function apply_highlights(bufnr, regions, config)
       end_row = region.marker_sep + 1,
       hl_group = 'DiffsConflictMarker',
       hl_eol = true,
-      priority = PRIORITY_LINE_BG,
+      priority = config.priority,
     })
 
     for line = region.theirs_start, region.theirs_end - 1 do
@@ -198,11 +196,11 @@ local function apply_highlights(bufnr, regions, config)
         end_row = line + 1,
         hl_group = 'DiffsConflictTheirs',
         hl_eol = true,
-        priority = PRIORITY_LINE_BG,
+        priority = config.priority,
       })
       pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, line, 0, {
         number_hl_group = 'DiffsConflictTheirsNr',
-        priority = PRIORITY_LINE_BG,
+        priority = config.priority,
       })
     end
 
@@ -210,7 +208,7 @@ local function apply_highlights(bufnr, regions, config)
       end_row = region.marker_theirs + 1,
       hl_group = 'DiffsConflictMarker',
       hl_eol = true,
-      priority = PRIORITY_LINE_BG,
+      priority = config.priority,
     })
 
     if config.show_virtual_text then
@@ -364,6 +362,7 @@ function M.goto_next(bufnr)
       return
     end
   end
+  vim.notify('[diffs.nvim]: wrapped to first conflict', vim.log.levels.INFO)
   vim.api.nvim_win_set_cursor(0, { regions[1].marker_ours + 1, 0 })
 end
 
@@ -381,6 +380,7 @@ function M.goto_prev(bufnr)
       return
     end
   end
+  vim.notify('[diffs.nvim]: wrapped to last conflict', vim.log.levels.INFO)
   vim.api.nvim_win_set_cursor(0, { regions[#regions].marker_ours + 1, 0 })
 end
 

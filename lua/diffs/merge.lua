@@ -298,6 +298,7 @@ function M.goto_next(bufnr)
     end
   end
 
+  vim.notify('[diffs.nvim]: wrapped to first hunk', vim.log.levels.INFO)
   vim.api.nvim_win_set_cursor(0, { candidates[1].start_line + 1, 0 })
 end
 
@@ -335,6 +336,7 @@ function M.goto_prev(bufnr)
     end
   end
 
+  vim.notify('[diffs.nvim]: wrapped to last hunk', vim.log.levels.INFO)
   vim.api.nvim_win_set_cursor(0, { candidates[#candidates].start_line + 1, 0 })
 end
 
@@ -378,6 +380,9 @@ end
 ---@param bufnr integer
 ---@param config diffs.ConflictConfig
 function M.setup_keymaps(bufnr, config)
+  resolved_hunks[bufnr] = nil
+  vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
+
   local km = config.keymaps
 
   local maps = {
