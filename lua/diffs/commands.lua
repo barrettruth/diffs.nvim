@@ -87,6 +87,33 @@ local function generate_unified_diff(old_lines, new_lines, old_name, new_name)
   return result
 end
 
+---@param raw_lines string[]
+---@param repo_root string
+---@return string[]
+local function replace_combined_diffs(raw_lines, repo_root)
+  local unmerged_files = {}
+  for _, line in ipairs(raw_lines) do
+    local cc_file = line:match('^diff %-%-cc (.+)$')
+    if cc_file then
+      table.insert(unmerged_files, cc_file)
+    end
+  end
+
+  local result = M.filter_combined_diffs(raw_lines)
+
+  for _, filename in ipairs(unmerged_files) do
+    local filepath = repo_root .. '/' .. filename
+    local old_lines = git.get_file_content(':2', filepath) or {}
+    local new_lines = git.get_file_content(':3', filepath) or {}
+    local diff_lines = generate_unified_diff(old_lines, new_lines, filename, filename)
+    for _, dl in ipairs(diff_lines) do
+      table.insert(result, dl)
+    end
+  end
+
+  return result
+end
+
 ---@param revision? string
 ---@param vertical? boolean
 function M.gdiff(revision, vertical)
@@ -300,7 +327,7 @@ function M.gdiff_section(repo_root, opts)
     return
   end
 
-  result = M.filter_combined_diffs(result)
+  result = replace_combined_diffs(result, repo_root)
 
   if #result == 0 then
     vim.notify('[diffs.nvim]: no changes in section', vim.log.levels.INFO)
@@ -365,7 +392,7 @@ function M.read_buffer(bufnr)
       diff_lines = {}
     end
 
-    diff_lines = M.filter_combined_diffs(diff_lines)
+    diff_lines = replace_combined_diffs(diff_lines, repo_root)
   else
     local abs_path = repo_root .. '/' .. path
 
