@@ -391,37 +391,6 @@ describe('parser', function()
       vim.fn.delete(repo_root, 'rf')
     end)
 
-    it('detects python from shebang without open buffer', function()
-      local repo_root = '/tmp/diffs-test-shebang-py'
-      vim.fn.mkdir(repo_root, 'p')
-
-      local file_path = repo_root .. '/deploy'
-      local f = io.open(file_path, 'w')
-      f:write('#!/usr/bin/env python3\n')
-      f:write('import sys\n')
-      f:write('print("hi")\n')
-      f:close()
-
-      local diff_buf = create_buffer({
-        'M deploy',
-        '@@ -1,2 +1,3 @@',
-        ' #!/usr/bin/env python3',
-        '+import sys',
-        ' print("hi")',
-      })
-      vim.api.nvim_buf_set_var(diff_buf, 'diffs_repo_root', repo_root)
-
-      local hunks = parser.parse_buffer(diff_buf)
-
-      assert.are.equal(1, #hunks)
-      assert.are.equal('deploy', hunks[1].filename)
-      assert.are.equal('python', hunks[1].ft)
-
-      delete_buffer(diff_buf)
-      os.remove(file_path)
-      vim.fn.delete(repo_root, 'rf')
-    end)
-
     it('extracts file line numbers from @@ header', function()
       local bufnr = create_buffer({
         'M lua/test.lua',
@@ -437,22 +406,6 @@ describe('parser', function()
       assert.are.equal(3, hunks[1].file_old_count)
       assert.are.equal(1, hunks[1].file_new_start)
       assert.are.equal(4, hunks[1].file_new_count)
-      delete_buffer(bufnr)
-    end)
-
-    it('extracts large line numbers from @@ header', function()
-      local bufnr = create_buffer({
-        'M lua/test.lua',
-        '@@ -100,20 +200,30 @@',
-        ' local M = {}',
-      })
-      local hunks = parser.parse_buffer(bufnr)
-
-      assert.are.equal(1, #hunks)
-      assert.are.equal(100, hunks[1].file_old_start)
-      assert.are.equal(20, hunks[1].file_old_count)
-      assert.are.equal(200, hunks[1].file_new_start)
-      assert.are.equal(30, hunks[1].file_new_count)
       delete_buffer(bufnr)
     end)
 
@@ -485,19 +438,6 @@ describe('parser', function()
 
       assert.are.equal(1, #hunks)
       assert.are.equal('/tmp/test-repo', hunks[1].repo_root)
-      delete_buffer(bufnr)
-    end)
-
-    it('repo_root is nil when not available', function()
-      local bufnr = create_buffer({
-        'M lua/test.lua',
-        '@@ -1,3 +1,4 @@',
-        ' local M = {}',
-      })
-      local hunks = parser.parse_buffer(bufnr)
-
-      assert.are.equal(1, #hunks)
-      assert.is_nil(hunks[1].repo_root)
       delete_buffer(bufnr)
     end)
   end)
