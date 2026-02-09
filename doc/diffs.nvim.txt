@@ -315,6 +315,32 @@ Example configuration: >lua
     vim.keymap.set('n', '[x', '<Plug>(diffs-conflict-prev)')
 <
 
+                                                 *<Plug>(diffs-merge-ours)*
+<Plug>(diffs-merge-ours)
+                        Accept ours in a merge diff view. Resolves the
+                        conflict in the working file with ours content.
+
+                                               *<Plug>(diffs-merge-theirs)*
+<Plug>(diffs-merge-theirs)
+                        Accept theirs in a merge diff view.
+
+                                                 *<Plug>(diffs-merge-both)*
+<Plug>(diffs-merge-both)
+                        Accept both (ours then theirs) in a merge diff view.
+
+                                                 *<Plug>(diffs-merge-none)*
+<Plug>(diffs-merge-none)
+                        Reject both in a merge diff view.
+
+                                                 *<Plug>(diffs-merge-next)*
+<Plug>(diffs-merge-next)
+                        Jump to next unresolved conflict hunk in merge diff.
+
+                                                 *<Plug>(diffs-merge-prev)*
+<Plug>(diffs-merge-prev)
+                        Jump to previous unresolved conflict hunk in merge
+                        diff.
+
 Diff buffer mappings: ~
                                                               *diffs-q*
     q               Close the diff window. Available in all `diffs://`
@@ -345,6 +371,7 @@ Behavior by file status: ~
     A           Staged      (empty)         index           file as all-added
     D           Staged      HEAD            (empty)         file as all-removed
     R           Staged      HEAD:oldname    index:newname   content diff
+    U           Unstaged    :2: (ours)      :3: (theirs)    merge diff
     ?           Untracked   (empty)         working tree    file as all-added
 
 On section headers, the keymap runs `git diff` (or `git diff --cached` for
@@ -457,6 +484,31 @@ User events: ~
                                   end,
                                 })
 <
+
+==============================================================================
+MERGE DIFF RESOLUTION                                       *diffs-merge*
+
+When pressing `du`/`dU` on an unmerged (`U`) file in the fugitive status
+buffer, diffs.nvim opens a unified diff of ours (`git show :2:path`) vs
+theirs (`git show :3:path`) with full treesitter and intra-line highlighting.
+
+The same conflict resolution keymaps (`doo`/`dot`/`dob`/`don`/`]x`/`[x`)
+are available on the diff buffer. They resolve conflicts in the working
+file by matching diff hunks to conflict markers:
+
+- `doo` replaces the conflict region with ours content
+- `dot` replaces the conflict region with theirs content
+- `dob` replaces with both (ours then theirs)
+- `don` removes the conflict region entirely
+- `]x`/`[x` navigate between unresolved conflict hunks
+
+Resolved hunks are marked with `(resolved)` virtual text. Hunks that
+correspond to auto-merged content (no conflict markers) show an
+informational notification and are left unchanged.
+
+The working file buffer is modified in place; save it when ready.
+Phase 1 inline conflict highlights (see |diffs-conflict|) are refreshed
+automatically after each resolution.
 
 ==============================================================================
 API                                                                *diffs-api*
