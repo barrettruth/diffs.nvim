@@ -444,13 +444,10 @@ Configuration: ~
                              diagnostics alone.
 
         {show_virtual_text}  (boolean, default: true)
-                             Show virtual text labels at the end of
-                             `<<<<<<<` and `>>>>>>>` marker lines.
-                             Default labels include keymap hints:
-                             `(current — doo)` and `(incoming — dot)`.
-                             If a keymap is `false`, the hint is omitted.
-                             Also controls hunk hints in merge diff
-                             views.
+                             Show `(current)` and `(incoming)` labels at
+                             the end of `<<<<<<<` and `>>>>>>>` marker
+                             lines. Also controls hunk hints in merge
+                             diff views.
 
         {format_virtual_text} (function|nil, default: nil)
                              Custom formatter for virtual text labels.

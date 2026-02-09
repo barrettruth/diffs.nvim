@@ -692,7 +692,7 @@ describe('conflict', function()
       conflict.detach(vim.api.nvim_get_current_buf())
     end)
 
-    it('includes keymap hints in default virtual text', function()
+    it('default labels show current and incoming without keymaps', function()
       local bufnr = create_file_buffer({
         '<<<<<<< HEAD',
         'local x = 1',
@@ -702,33 +702,6 @@ describe('conflict', function()
       })
 
       conflict.attach(bufnr, default_config())
-
-      local extmarks = get_extmarks(bufnr)
-      local labels = {}
-      for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].virt_text then
-          table.insert(labels, mark[4].virt_text[1][1])
-        end
-      end
-      assert.are.equal(2, #labels)
-      assert.is_truthy(labels[1]:find('current'))
-      assert.is_truthy(labels[1]:find('doo'))
-      assert.is_truthy(labels[2]:find('incoming'))
-      assert.is_truthy(labels[2]:find('dot'))
-
-      helpers.delete_buffer(bufnr)
-    end)
-
-    it('omits keymap from label when keymap is false', function()
-      local bufnr = create_file_buffer({
-        '<<<<<<< HEAD',
-        'local x = 1',
-        '=======',
-        'local x = 2',
-        '>>>>>>> feature',
-      })
-
-      conflict.attach(bufnr, default_config({ keymaps = { ours = false, theirs = false } }))
 
       local extmarks = get_extmarks(bufnr)
       local labels = {}

@@ -96,15 +96,11 @@ end
 ---@param config diffs.ConflictConfig
 ---@return string?
 local function get_virtual_text_label(side, config)
-  local keymap = side == 'ours' and config.keymaps.ours or config.keymaps.theirs
   if config.format_virtual_text then
+    local keymap = side == 'ours' and config.keymaps.ours or config.keymaps.theirs
     return config.format_virtual_text(side, keymap)
   end
-  local label = side == 'ours' and 'current' or 'incoming'
-  if keymap then
-    return ('%s \226\128\148 %s'):format(label, keymap)
-  end
-  return label
+  return side == 'ours' and 'current' or 'incoming'
 end
 
 ---@param bufnr integer
