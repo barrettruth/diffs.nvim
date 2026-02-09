@@ -625,15 +625,10 @@ KNOWN LIMITATIONS                                       *diffs-limitations*
 
 Incomplete Syntax Context ~
                                                       *diffs-syntax-context*
-Treesitter parses each diff hunk in isolation. To provide surrounding code
-context, diffs.nvim reads lines from disk before and after each hunk
-(see |diffs.ContextConfig|, enabled by default). This resolves most boundary
-issues where incomplete constructs (e.g., a function definition at the edge
-of a hunk with no body) would confuse the parser.
-
-Set `highlights.context.enabled = false` to disable context padding. In rare
-cases, context padding may not help if the relevant surrounding code is very
-far from the hunk boundaries.
+Treesitter parses each diff hunk in isolation. Context lines within the hunk
+(lines with a ` ` prefix) provide syntactic context for the parser. In rare
+cases, hunks that start or end mid-expression may produce imperfect highlights
+due to treesitter error recovery.
 
 Syntax Highlighting Flash ~
                                                              *diffs-flash*
