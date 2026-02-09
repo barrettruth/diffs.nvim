@@ -1,13 +1,19 @@
 local M = {}
 
+local repo_root_cache = {}
+
 ---@param filepath string
 ---@return string?
 function M.get_repo_root(filepath)
   local dir = vim.fn.fnamemodify(filepath, ':h')
+  if repo_root_cache[dir] ~= nil then
+    return repo_root_cache[dir]
+  end
   local result = vim.fn.systemlist({ 'git', '-C', dir, 'rev-parse', '--show-toplevel' })
   if vim.v.shell_error ~= 0 then
     return nil
   end
+  repo_root_cache[dir] = result[1]
   return result[1]
 end
 
