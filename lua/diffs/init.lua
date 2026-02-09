@@ -203,7 +203,9 @@ local function create_debounced_highlight(bufnr)
           timer = nil
           t:close()
         end
-        highlight_buffer(bufnr)
+        if vim.api.nvim_buf_is_valid(bufnr) then
+          highlight_buffer(bufnr)
+        end
       end)
     )
   end

@@ -8,6 +8,9 @@ local cached_handle = nil
 ---@type boolean
 local download_in_progress = false
 
+---@type fun(handle: table?)[]
+local pending_callbacks = {}
+
 ---@return string
 local function get_os()
   local os_name = jit.os:lower()
@@ -164,9 +167,10 @@ function M.ensure(callback)
     return
   end
 
+  table.insert(pending_callbacks, callback)
+
   if download_in_progress then
-    dbg('download already in progress')
-    callback(nil)
+    dbg('download already in progress, queued callback')
     return
   end
 
@@ -192,21 +196,25 @@ function M.ensure(callback)
   vim.system(cmd, {}, function(result)
     download_in_progress = false
     vim.schedule(function()
+      local handle = nil
       if result.code ~= 0 then
         vim.notify('[diffs] failed to download libvscode_diff', vim.log.levels.WARN)
         dbg('curl failed: %s', result.stderr or '')
-        callback(nil)
-        return
+      else
+        local f = io.open(version_path(), 'w')
+        if f then
+          f:write(EXPECTED_VERSION)
+          f:close()
+        end
+        vim.notify('[diffs] libvscode_diff downloaded', vim.log.levels.INFO)
+        handle = M.load()
       end
 
-      local f = io.open(version_path(), 'w')
-      if f then
-        f:write(EXPECTED_VERSION)
-        f:close()
+      local cbs = pending_callbacks
+      pending_callbacks = {}
+      for _, cb in ipairs(cbs) do
+        cb(handle)
       end
-
-      vim.notify('[diffs] libvscode_diff downloaded', vim.log.levels.INFO)
-      callback(M.load())
     end)
   end)
 end
