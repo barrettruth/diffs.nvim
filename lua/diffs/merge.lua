@@ -380,6 +380,9 @@ end
 ---@param bufnr integer
 ---@param config diffs.ConflictConfig
 function M.setup_keymaps(bufnr, config)
+  resolved_hunks[bufnr] = nil
+  vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
+
   local km = config.keymaps
 
   local maps = {

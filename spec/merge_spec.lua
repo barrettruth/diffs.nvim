@@ -753,6 +753,58 @@ describe('merge', function()
     end)
   end)
 
+  describe('setup_keymaps', function()
+    it('clears resolved state on re-init', function()
+      local working_path = '/tmp/diffs_test_reinit.lua'
+      local w_bufnr = create_working_buffer({
+        '<<<<<<< HEAD',
+        'local x = 1',
+        '=======',
+        'local x = 2',
+        '>>>>>>> feature',
+      }, working_path)
+
+      local d_bufnr = create_diff_buffer({
+        'diff --git a/file.lua b/file.lua',
+        '--- a/file.lua',
+        '+++ b/file.lua',
+        '@@ -1,1 +1,1 @@',
+        '-local x = 1',
+        '+local x = 2',
+      }, working_path)
+      vim.api.nvim_set_current_buf(d_bufnr)
+      vim.api.nvim_win_set_cursor(0, { 5, 0 })
+
+      local cfg = default_config()
+      merge.resolve_ours(d_bufnr, cfg)
+      assert.is_true(merge.is_resolved(d_bufnr, 1))
+
+      local extmarks =
+        vim.api.nvim_buf_get_extmarks(d_bufnr, merge.get_namespace(), 0, -1, { details = true })
+      assert.is_true(#extmarks > 0)
+
+      merge.setup_keymaps(d_bufnr, cfg)
+
+      assert.is_false(merge.is_resolved(d_bufnr, 1))
+      extmarks =
+        vim.api.nvim_buf_get_extmarks(d_bufnr, merge.get_namespace(), 0, -1, { details = true })
+      local resolved_count = 0
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].virt_text then
+          for _, chunk in ipairs(mark[4].virt_text) do
+            if chunk[1]:match('resolved') then
+              resolved_count = resolved_count + 1
+            end
+          end
+        end
+      end
+      assert.are.equal(0, resolved_count)
+
+      helpers.delete_buffer(d_bufnr)
+      helpers.delete_buffer(w_bufnr)
+    end)
+  end)
+
   describe('fugitive integration', function()
     it('parse_file_line returns status for unmerged files', function()
       local fugitive = require('diffs.fugitive')
