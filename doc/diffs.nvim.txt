@@ -75,6 +75,12 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
           algorithm = 'default',
           max_lines = 500,
         },
+        priorities = {
+          clear = 198,
+          syntax = 199,
+          line_bg = 200,
+          char_bg = 201,
+        },
         overrides = {},
       },
       fugitive = {
@@ -161,6 +167,10 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              Character-level (intra-line) diff highlighting.
                              See |diffs.IntraConfig| for fields.
 
+        {priorities}         (table, default: see below)
+                             Extmark priority values.
+                             See |diffs.PrioritiesConfig| for fields.
+
         {overrides}          (table, default: {})
                              Map of highlight group names to highlight
                              definitions (see |nvim_set_hl()|). Applied
@@ -181,6 +191,28 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              Number of context lines to read in each
                              direction. Lines are read with early exit —
                              cost scales with this value, not file size.
+
+                                                   *diffs.PrioritiesConfig*
+    Priorities config fields: ~
+        {clear}              (integer, default: 198)
+                             Priority for `DiffsClear` extmarks that reset
+                             underlying diff foreground colors. Must be
+                             below {syntax}.
+
+        {syntax}             (integer, default: 199)
+                             Priority for treesitter and vim syntax extmarks.
+                             Must be below {line_bg} so that colorscheme
+                             backgrounds on syntax groups do not obscure
+                             line-level diff backgrounds.
+
+        {line_bg}            (integer, default: 200)
+                             Priority for `DiffsAdd`/`DiffsDelete` line
+                             background extmarks. Must be below {char_bg}.
+
+        {char_bg}            (integer, default: 201)
+                             Priority for `DiffsAddText`/`DiffsDeleteText`
+                             character-level background extmarks. Highest
+                             priority so changed characters stand out.
 
                                                     *diffs.TreesitterConfig*
     Treesitter config fields: ~
@@ -418,6 +450,7 @@ Configuration: ~
         disable_diagnostics = true,
         show_virtual_text = true,
         show_actions = false,
+        priority = 200,
         keymaps = {
           ours = 'doo',
           theirs = 'dot',
@@ -470,6 +503,11 @@ Configuration: ~
                              keymaps. Renders as virtual lines using the
                              `DiffsConflictActions` highlight group.
                              Only keymaps that are not `false` appear.
+
+        {priority}           (integer, default: 200)
+                             Extmark priority for conflict region
+                             backgrounds and markers. Adjust if other
+                             plugins use the same priority range.
 
         {keymaps}            (table, default: see above)
                              Buffer-local keymaps for conflict resolution
@@ -566,12 +604,13 @@ Summary / commit detail views: ~
    - Code is parsed with |vim.treesitter.get_string_parser()|
    - If no treesitter parser and `vim.enabled`: vim syntax fallback via
      scratch buffer and |synID()|
-   - `Normal` extmarks at priority 198 clear underlying diff foreground
-   - Background extmarks (`DiffsAdd`/`DiffsDelete`) at priority 199
-   - Syntax highlights are applied as extmarks at priority 200
+   - `DiffsClear` extmarks at priority 198 clear underlying diff foreground
+   - Syntax highlights are applied as extmarks at priority 199
+   - Background extmarks (`DiffsAdd`/`DiffsDelete`) at priority 200
    - Character-level diff extmarks (`DiffsAddText`/`DiffsDeleteText`) at
      priority 201 overlay changed characters with an intense background
    - Conceal extmarks hide diff prefixes when `hide_prefix` is enabled
+   - All priorities are configurable via |diffs.PrioritiesConfig|
 4. Re-highlighting occurs on `TextChanged` (debounced) and `Syntax` events
 
 Diff mode views: ~

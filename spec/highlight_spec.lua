@@ -51,6 +51,12 @@ describe('highlight', function()
             algorithm = 'default',
             max_lines = 500,
           },
+          priorities = {
+            clear = 198,
+            syntax = 199,
+            line_bg = 200,
+            char_bg = 201,
+          },
         },
       }
       if overrides then
@@ -962,6 +968,7 @@ describe('highlight', function()
           context = { enabled = false, lines = 0 },
           treesitter = { enabled = true, max_lines = 500 },
           vim = { enabled = false, max_lines = 200 },
+          priorities = { clear = 198, syntax = 199, line_bg = 200, char_bg = 201 },
         },
       }
     end
@@ -1078,6 +1085,7 @@ describe('highlight', function()
           context = { enabled = false, lines = 0 },
           treesitter = { enabled = true, max_lines = 500 },
           vim = { enabled = false, max_lines = 200 },
+          priorities = { clear = 198, syntax = 199, line_bg = 200, char_bg = 201 },
         },
       }
     end
