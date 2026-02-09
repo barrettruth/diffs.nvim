@@ -36,6 +36,24 @@ function M.find_hunk_line(diff_lines, hunk_position)
   return nil
 end
 
+---@param lines string[]
+---@return string[]
+function M.filter_combined_diffs(lines)
+  local result = {}
+  local skip = false
+  for _, line in ipairs(lines) do
+    if line:match('^diff %-%-cc ') then
+      skip = true
+    elseif line:match('^diff %-%-git ') then
+      skip = false
+    end
+    if not skip then
+      table.insert(result, line)
+    end
+  end
+  return result
+end
+
 ---@param old_lines string[]
 ---@param new_lines string[]
 ---@param old_name string
@@ -64,6 +82,33 @@ local function generate_unified_diff(old_lines, new_lines, old_name, new_name)
   }
   for _, line in ipairs(diff_lines) do
     table.insert(result, line)
+  end
+
+  return result
+end
+
+---@param raw_lines string[]
+---@param repo_root string
+---@return string[]
+local function replace_combined_diffs(raw_lines, repo_root)
+  local unmerged_files = {}
+  for _, line in ipairs(raw_lines) do
+    local cc_file = line:match('^diff %-%-cc (.+)$')
+    if cc_file then
+      table.insert(unmerged_files, cc_file)
+    end
+  end
+
+  local result = M.filter_combined_diffs(raw_lines)
+
+  for _, filename in ipairs(unmerged_files) do
+    local filepath = repo_root .. '/' .. filename
+    local old_lines = git.get_file_content(':2', filepath) or {}
+    local new_lines = git.get_file_content(':3', filepath) or {}
+    local diff_lines = generate_unified_diff(old_lines, new_lines, filename, filename)
+    for _, dl in ipairs(diff_lines) do
+      table.insert(result, dl)
+    end
   end
 
   return result
@@ -138,6 +183,7 @@ end
 ---@field vertical? boolean
 ---@field staged? boolean
 ---@field untracked? boolean
+---@field unmerged? boolean
 ---@field old_filepath? string
 ---@field hunk_position? { hunk_header: string, offset: integer }
 
@@ -157,7 +203,17 @@ function M.gdiff_file(filepath, opts)
   local old_lines, new_lines, err
   local diff_label
 
-  if opts.untracked then
+  if opts.unmerged then
+    old_lines = git.get_file_content(':2', filepath)
+    if not old_lines then
+      old_lines = {}
+    end
+    new_lines = git.get_file_content(':3', filepath)
+    if not new_lines then
+      new_lines = {}
+    end
+    diff_label = 'unmerged'
+  elseif opts.untracked then
     old_lines = {}
     new_lines, err = git.get_working_content(filepath)
     if not new_lines then
@@ -236,6 +292,14 @@ function M.gdiff_file(filepath, opts)
   end
 
   M.setup_diff_buf(diff_buf)
+
+  if diff_label == 'unmerged' then
+    vim.api.nvim_buf_set_var(diff_buf, 'diffs_unmerged', true)
+    vim.api.nvim_buf_set_var(diff_buf, 'diffs_working_path', filepath)
+    local conflict_config = require('diffs').get_conflict_config()
+    require('diffs.merge').setup_keymaps(diff_buf, conflict_config)
+  end
+
   dbg('opened diff buffer %d for %s (%s)', diff_buf, rel_path, diff_label)
 
   vim.schedule(function()
@@ -262,6 +326,8 @@ function M.gdiff_section(repo_root, opts)
     vim.notify('[diffs.nvim]: git diff failed', vim.log.levels.ERROR)
     return
   end
+
+  result = replace_combined_diffs(result, repo_root)
 
   if #result == 0 then
     vim.notify('[diffs.nvim]: no changes in section', vim.log.levels.INFO)
@@ -325,6 +391,8 @@ function M.read_buffer(bufnr)
     if vim.v.shell_error ~= 0 then
       diff_lines = {}
     end
+
+    diff_lines = replace_combined_diffs(diff_lines, repo_root)
   else
     local abs_path = repo_root .. '/' .. path
 
@@ -334,7 +402,10 @@ function M.read_buffer(bufnr)
 
     local old_lines, new_lines
 
-    if label == 'untracked' then
+    if label == 'unmerged' then
+      old_lines = git.get_file_content(':2', abs_path) or {}
+      new_lines = git.get_file_content(':3', abs_path) or {}
+    elseif label == 'untracked' then
       old_lines = {}
       new_lines = git.get_working_content(abs_path) or {}
     elseif label == 'staged' then

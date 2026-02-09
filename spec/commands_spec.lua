@@ -40,6 +40,78 @@ describe('commands', function()
     end)
   end)
 
+  describe('filter_combined_diffs', function()
+    it('strips diff --cc entries entirely', function()
+      local lines = {
+        'diff --cc main.lua',
+        'index d13ab94,b113aee..0000000',
+        '--- a/main.lua',
+        '+++ b/main.lua',
+        '@@@ -1,7 -1,7 +1,11 @@@',
+        '  local M = {}',
+        '++<<<<<<< HEAD',
+        ' +  return 1',
+        '++=======',
+        '+   return 2',
+        '++>>>>>>> theirs',
+        '  end',
+      }
+      local result = commands.filter_combined_diffs(lines)
+      assert.are.equal(0, #result)
+    end)
+
+    it('preserves diff --git entries', function()
+      local lines = {
+        'diff --git a/file.lua b/file.lua',
+        '--- a/file.lua',
+        '+++ b/file.lua',
+        '@@ -1,3 +1,3 @@',
+        ' local M = {}',
+        '-local x = 1',
+        '+local x = 2',
+        ' return M',
+      }
+      local result = commands.filter_combined_diffs(lines)
+      assert.are.equal(8, #result)
+      assert.are.same(lines, result)
+    end)
+
+    it('strips combined but keeps unified in mixed output', function()
+      local lines = {
+        'diff --cc conflict.lua',
+        'index aaa,bbb..000',
+        '@@@ -1,1 -1,1 +1,5 @@@',
+        '++<<<<<<< HEAD',
+        'diff --git a/clean.lua b/clean.lua',
+        '--- a/clean.lua',
+        '+++ b/clean.lua',
+        '@@ -1,1 +1,1 @@',
+        '-old',
+        '+new',
+      }
+      local result = commands.filter_combined_diffs(lines)
+      assert.are.equal(6, #result)
+      assert.are.equal('diff --git a/clean.lua b/clean.lua', result[1])
+      assert.are.equal('+new', result[6])
+    end)
+
+    it('returns empty for empty input', function()
+      local result = commands.filter_combined_diffs({})
+      assert.are.equal(0, #result)
+    end)
+
+    it('returns empty when all entries are combined', function()
+      local lines = {
+        'diff --cc a.lua',
+        'some content',
+        'diff --cc b.lua',
+        'more content',
+      }
+      local result = commands.filter_combined_diffs(lines)
+      assert.are.equal(0, #result)
+    end)
+  end)
+
   describe('find_hunk_line', function()
     it('finds matching @@ header and returns target line', function()
       local diff_lines = {
