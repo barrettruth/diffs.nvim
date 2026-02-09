@@ -340,6 +340,43 @@ end
 
 ---@param bufnr integer
 ---@param config diffs.ConflictConfig
+local function apply_hunk_hints(bufnr, config)
+  if not config.show_virtual_text then
+    return
+  end
+
+  local hunks = M.parse_hunks(bufnr)
+  for _, hunk in ipairs(hunks) do
+    if M.is_resolved(bufnr, hunk.index) then
+      add_resolved_virtual_text(bufnr, hunk)
+    else
+      local parts = {}
+      local actions = {
+        { 'current', config.keymaps.ours },
+        { 'incoming', config.keymaps.theirs },
+        { 'both', config.keymaps.both },
+        { 'none', config.keymaps.none },
+      }
+      for _, action in ipairs(actions) do
+        if action[2] then
+          if #parts > 0 then
+            table.insert(parts, { ' | ', 'Comment' })
+          end
+          table.insert(parts, { ('%s: %s'):format(action[2], action[1]), 'Comment' })
+        end
+      end
+      if #parts > 0 then
+        pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, hunk.start_line, 0, {
+          virt_text = parts,
+          virt_text_pos = 'eol',
+        })
+      end
+    end
+  end
+end
+
+---@param bufnr integer
+---@param config diffs.ConflictConfig
 function M.setup_keymaps(bufnr, config)
   local km = config.keymaps
 
@@ -357,6 +394,8 @@ function M.setup_keymaps(bufnr, config)
       vim.keymap.set('n', map[1], map[2], { buffer = bufnr })
     end
   end
+
+  apply_hunk_hints(bufnr, config)
 
   vim.api.nvim_create_autocmd('BufWipeout', {
     buffer = bufnr,

@@ -9,18 +9,12 @@ syntax highlighting.
 
 ## Features
 
-- Treesitter syntax highlighting in `:Git` diffs and commit views
-- Diff header highlighting (`diff --git`, `index`, `---`, `+++`)
-- `:Gdiffsplit` / `:Gvdiffsplit` syntax through diff backgrounds
-- `:Gdiff` unified diff against any git revision with syntax highlighting
-- Fugitive status buffer keymaps (`du`/`dU`) for unified diffs
-- Background-only diff colors for any `&diff` buffer (`:diffthis`, `vimdiff`)
-- Vim syntax fallback for languages without a treesitter parser
-- Hunk header context highlighting (`@@ ... @@ function foo()`)
-- Character-level (intra-line) diff highlighting for changed characters
-- Inline merge conflict detection, highlighting, and resolution keymaps
-- Configurable debouncing, max lines, diff prefix concealment, blend alpha, and
-  highlight overrides
+- Treesitter syntax highlighting in fugitive diffs and commit views
+- Character-level intra-line diff highlighting
+- `:Gdiff` unified diff against any revision
+- Background-only diff colors for `&diff` buffers
+- Inline merge conflict detection, highlighting, and resolution
+- Vim syntax fallback, context padding, configurable blend/debounce
 
 ## Requirements
 

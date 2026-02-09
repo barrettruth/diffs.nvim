@@ -85,6 +85,7 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
         enabled = true,
         disable_diagnostics = true,
         show_virtual_text = true,
+        show_actions = false,
         keymaps = {
           ours = 'doo',
           theirs = 'dot',
@@ -416,6 +417,7 @@ Configuration: ~
         enabled = true,
         disable_diagnostics = true,
         show_virtual_text = true,
+        show_actions = false,
         keymaps = {
           ours = 'doo',
           theirs = 'dot',
@@ -442,9 +444,32 @@ Configuration: ~
                              diagnostics alone.
 
         {show_virtual_text}  (boolean, default: true)
-                             Show virtual text labels (" current" and
-                             " incoming") at the end of `<<<<<<<` and
-                             `>>>>>>>` marker lines.
+                             Show `(current)` and `(incoming)` labels at
+                             the end of `<<<<<<<` and `>>>>>>>` marker
+                             lines. Also controls hunk hints in merge
+                             diff views.
+
+        {format_virtual_text} (function|nil, default: nil)
+                             Custom formatter for virtual text labels.
+                             Receives `(side, keymap)` where `side` is
+                             `"ours"` or `"theirs"` and `keymap` is the
+                             configured keymap string or `false`. Return
+                             a string (label text without parens) or
+                             `nil` to hide the label. Example: >lua
+                                 format_virtual_text = function(side, keymap)
+                                   if keymap then
+                                     return side .. ' [' .. keymap .. ']'
+                                   end
+                                   return side
+                                 end
+<
+
+        {show_actions}       (boolean, default: false)
+                             Show a codelens-style action line above each
+                             `<<<<<<<` marker listing available resolution
+                             keymaps. Renders as virtual lines using the
+                             `DiffsConflictActions` highlight group.
+                             Only keymaps that are not `false` appear.
 
         {keymaps}            (table, default: see above)
                              Buffer-local keymaps for conflict resolution
@@ -686,6 +711,10 @@ Conflict highlights: ~
 
                                                       *DiffsConflictBaseNr*
     DiffsConflictBaseNr Line number for base content lines (diff3).
+
+                                                    *DiffsConflictActions*
+    DiffsConflictActions Dimmed foreground (no bold) for the codelens-style
+                        action line shown when `show_actions` is true.
 
 Diff mode window highlights: ~
 These are used for |winhighlight| remapping in `&diff` windows.

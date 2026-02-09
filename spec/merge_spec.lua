@@ -6,6 +6,7 @@ local function default_config(overrides)
     enabled = true,
     disable_diagnostics = false,
     show_virtual_text = true,
+    show_actions = false,
     keymaps = {
       ours = 'doo',
       theirs = 'dot',
@@ -614,6 +615,65 @@ describe('merge', function()
 
       helpers.delete_buffer(d_bufnr)
       helpers.delete_buffer(w_bufnr)
+    end)
+  end)
+
+  describe('hunk hints', function()
+    it('adds keymap hints on hunk header lines', function()
+      local d_bufnr = create_diff_buffer({
+        'diff --git a/file.lua b/file.lua',
+        '--- a/file.lua',
+        '+++ b/file.lua',
+        '@@ -1,1 +1,1 @@',
+        '-local x = 1',
+        '+local x = 2',
+      })
+
+      merge.setup_keymaps(d_bufnr, default_config())
+
+      local extmarks =
+        vim.api.nvim_buf_get_extmarks(d_bufnr, merge.get_namespace(), 0, -1, { details = true })
+      local hint_marks = {}
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].virt_text then
+          local text = ''
+          for _, chunk in ipairs(mark[4].virt_text) do
+            text = text .. chunk[1]
+          end
+          table.insert(hint_marks, { line = mark[2], text = text })
+        end
+      end
+      assert.are.equal(1, #hint_marks)
+      assert.are.equal(3, hint_marks[1].line)
+      assert.is_truthy(hint_marks[1].text:find('doo'))
+      assert.is_truthy(hint_marks[1].text:find('dot'))
+
+      helpers.delete_buffer(d_bufnr)
+    end)
+
+    it('does not add hints when show_virtual_text is false', function()
+      local d_bufnr = create_diff_buffer({
+        'diff --git a/file.lua b/file.lua',
+        '--- a/file.lua',
+        '+++ b/file.lua',
+        '@@ -1,1 +1,1 @@',
+        '-local x = 1',
+        '+local x = 2',
+      })
+
+      merge.setup_keymaps(d_bufnr, default_config({ show_virtual_text = false }))
+
+      local extmarks =
+        vim.api.nvim_buf_get_extmarks(d_bufnr, merge.get_namespace(), 0, -1, { details = true })
+      local virt_text_count = 0
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].virt_text then
+          virt_text_count = virt_text_count + 1
+        end
+      end
+      assert.are.equal(0, virt_text_count)
+
+      helpers.delete_buffer(d_bufnr)
     end)
   end)
 
