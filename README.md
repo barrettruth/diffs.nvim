@@ -10,11 +10,13 @@ syntax highlighting.
 ## Features
 
 - Treesitter syntax highlighting in fugitive diffs and commit views
-- Character-level intra-line diff highlighting
+- Character-level intra-line diff highlighting (with optional
+  [vscode-diff](https://github.com/esmuellert/codediff.nvim) FFI backend for
+  word-level accuracy)
 - `:Gdiff` unified diff against any revision
 - Background-only diff colors for `&diff` buffers
 - Inline merge conflict detection, highlighting, and resolution
-- Vim syntax fallback, context padding, configurable blend/debounce
+- Vim syntax fallback, configurable blend/debounce/priorities
 
 ## Requirements
 
@@ -38,10 +40,9 @@ luarocks install diffs.nvim
 ## Known Limitations
 
 - **Incomplete syntax context**: Treesitter parses each diff hunk in isolation.
-  To improve accuracy, `diffs.nvim` reads lines from disk before and after each
-  hunk for parsing context (`highlights.context`, enabled by default with 25
-  lines). This resolves most boundary issues. Set
-  `highlights.context.enabled = false` to disable.
+  Context lines within the hunk (` ` prefix) provide syntactic context for the
+  parser. In rare cases, hunks that start or end mid-expression may produce
+  imperfect highlights due to treesitter error recovery.
 
 - **Syntax flashing**: `diffs.nvim` hooks into the `FileType fugitive` event
   triggered by `vim-fugitive`, at which point the buffer is preliminarily
@@ -64,7 +65,9 @@ luarocks install diffs.nvim
 # Acknowledgements
 
 - [`vim-fugitive`](https://github.com/tpope/vim-fugitive)
-- [`codediff.nvim`](https://github.com/esmuellert/codediff.nvim)
+- [@esmuellert](https://github.com/esmuellert) /
+  [`codediff.nvim`](https://github.com/esmuellert/codediff.nvim) - vscode-diff
+  algorithm FFI backend for word-level intra-line accuracy
 - [`diffview.nvim`](https://github.com/sindrets/diffview.nvim)
 - [`difftastic`](https://github.com/Wilfred/difftastic)
 - [`mini.diff`](https://github.com/echasnovski/mini.diff)
