@@ -26,17 +26,62 @@ function M.get_section_at_line(bufnr, lnum)
   return nil
 end
 
+---@param s string
+---@return string
+local function unquote(s)
+  if s:sub(1, 1) ~= '"' then
+    return s
+  end
+  local inner = s:sub(2, -2)
+  local result = {}
+  local i = 1
+  while i <= #inner do
+    if inner:sub(i, i) == '\\' and i < #inner then
+      local next_char = inner:sub(i + 1, i + 1)
+      if next_char == 'n' then
+        table.insert(result, '\n')
+        i = i + 2
+      elseif next_char == 't' then
+        table.insert(result, '\t')
+        i = i + 2
+      elseif next_char == '"' then
+        table.insert(result, '"')
+        i = i + 2
+      elseif next_char == '\\' then
+        table.insert(result, '\\')
+        i = i + 2
+      elseif next_char:match('%d') then
+        local oct = inner:match('^(%d%d%d)', i + 1)
+        if oct then
+          table.insert(result, string.char(tonumber(oct, 8)))
+          i = i + 4
+        else
+          table.insert(result, next_char)
+          i = i + 2
+        end
+      else
+        table.insert(result, next_char)
+        i = i + 2
+      end
+    else
+      table.insert(result, inner:sub(i, i))
+      i = i + 1
+    end
+  end
+  return table.concat(result)
+end
+
 ---@param line string
 ---@return string?, string?, string?
 local function parse_file_line(line)
   local old, new = line:match('^R%d*%s+(.-)%s+->%s+(.+)$')
   if old and new then
-    return vim.trim(new), vim.trim(old), 'R'
+    return unquote(vim.trim(new)), unquote(vim.trim(old)), 'R'
   end
 
   local status, filename = line:match('^([MADRCU?])[MADRCU%s]*%s+(.+)$')
   if status and filename then
-    return vim.trim(filename), nil, status
+    return unquote(vim.trim(filename)), nil, status
   end
 
   return nil, nil, nil

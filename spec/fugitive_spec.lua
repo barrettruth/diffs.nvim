@@ -243,6 +243,57 @@ describe('fugitive', function()
       vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
+    it('unquotes git-quoted filenames with spaces', function()
+      local buf = create_status_buffer({
+        'Unstaged (1)',
+        'M  "path with spaces/file.lua"',
+      })
+      local filename = fugitive.get_file_at_line(buf, 2)
+      assert.equals('path with spaces/file.lua', filename)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('unquotes escaped quotes in filenames', function()
+      local buf = create_status_buffer({
+        'Unstaged (1)',
+        'M  "file\\"name.lua"',
+      })
+      local filename = fugitive.get_file_at_line(buf, 2)
+      assert.equals('file"name.lua', filename)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('unquotes octal escapes in filenames', function()
+      local buf = create_status_buffer({
+        'Unstaged (1)',
+        'M  "\\303\\251le.lua"',
+      })
+      local filename = fugitive.get_file_at_line(buf, 2)
+      assert.equals('\195\169le.lua', filename)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('passes through unquoted filenames unchanged', function()
+      local buf = create_status_buffer({
+        'Unstaged (1)',
+        'M  normal.lua',
+      })
+      local filename = fugitive.get_file_at_line(buf, 2)
+      assert.equals('normal.lua', filename)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('unquotes renamed files with quotes', function()
+      local buf = create_status_buffer({
+        'Staged (1)',
+        'R100 "old name.lua" -> "new name.lua"',
+      })
+      local filename, _, _, old_filename = fugitive.get_file_at_line(buf, 2)
+      assert.equals('new name.lua', filename)
+      assert.equals('old name.lua', old_filename)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
     it('handles deeply nested paths', function()
       local buf = create_status_buffer({
         'Unstaged (1)',
