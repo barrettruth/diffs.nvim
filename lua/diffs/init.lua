@@ -41,6 +41,8 @@
 ---@field enabled boolean
 ---@field disable_diagnostics boolean
 ---@field show_virtual_text boolean
+---@field format_virtual_text? fun(side: string, keymap: string|false): string?
+---@field show_actions boolean
 ---@field keymaps diffs.ConflictKeymaps
 
 ---@class diffs.Config
@@ -128,6 +130,7 @@ local default_config = {
     enabled = true,
     disable_diagnostics = true,
     show_virtual_text = true,
+    show_actions = false,
     keymaps = {
       ours = 'doo',
       theirs = 'dot',
@@ -274,6 +277,7 @@ local function compute_highlight_groups()
   vim.api.nvim_set_hl(0, 'DiffsConflictTheirs', { default = true, bg = blended_theirs })
   vim.api.nvim_set_hl(0, 'DiffsConflictBase', { default = true, bg = blended_base })
   vim.api.nvim_set_hl(0, 'DiffsConflictMarker', { default = true, fg = 0x808080, bold = true })
+  vim.api.nvim_set_hl(0, 'DiffsConflictActions', { default = true, fg = 0x808080 })
   vim.api.nvim_set_hl(
     0,
     'DiffsConflictOursNr',
@@ -388,6 +392,8 @@ local function init()
       ['conflict.enabled'] = { opts.conflict.enabled, 'boolean', true },
       ['conflict.disable_diagnostics'] = { opts.conflict.disable_diagnostics, 'boolean', true },
       ['conflict.show_virtual_text'] = { opts.conflict.show_virtual_text, 'boolean', true },
+      ['conflict.format_virtual_text'] = { opts.conflict.format_virtual_text, 'function', true },
+      ['conflict.show_actions'] = { opts.conflict.show_actions, 'boolean', true },
       ['conflict.keymaps'] = { opts.conflict.keymaps, 'table', true },
     })
 

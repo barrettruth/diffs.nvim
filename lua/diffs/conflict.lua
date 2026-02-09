@@ -92,6 +92,21 @@ local function parse_buffer(bufnr)
   return M.parse(lines)
 end
 
+---@param side string
+---@param config diffs.ConflictConfig
+---@return string?
+local function get_virtual_text_label(side, config)
+  local keymap = side == 'ours' and config.keymaps.ours or config.keymaps.theirs
+  if config.format_virtual_text then
+    return config.format_virtual_text(side, keymap)
+  end
+  local label = side == 'ours' and 'current' or 'incoming'
+  if keymap then
+    return ('%s \226\128\148 %s'):format(label, keymap)
+  end
+  return label
+end
+
 ---@param bufnr integer
 ---@param regions diffs.ConflictRegion[]
 ---@param config diffs.ConflictConfig
@@ -107,10 +122,37 @@ local function apply_highlights(bufnr, regions, config)
     })
 
     if config.show_virtual_text then
-      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, region.marker_ours, 0, {
-        virt_text = { { ' (current)', 'DiffsConflictMarker' } },
-        virt_text_pos = 'eol',
-      })
+      local ours_label = get_virtual_text_label('ours', config)
+      if ours_label then
+        pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, region.marker_ours, 0, {
+          virt_text = { { ' (' .. ours_label .. ')', 'DiffsConflictMarker' } },
+          virt_text_pos = 'eol',
+        })
+      end
+    end
+
+    if config.show_actions then
+      local parts = {}
+      local actions = {
+        { 'Current', config.keymaps.ours },
+        { 'Incoming', config.keymaps.theirs },
+        { 'Both', config.keymaps.both },
+        { 'None', config.keymaps.none },
+      }
+      for _, action in ipairs(actions) do
+        if action[2] then
+          if #parts > 0 then
+            table.insert(parts, { ' \226\148\130 ', 'DiffsConflictActions' })
+          end
+          table.insert(parts, { ('%s (%s)'):format(action[1], action[2]), 'DiffsConflictActions' })
+        end
+      end
+      if #parts > 0 then
+        pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, region.marker_ours, 0, {
+          virt_lines = { parts },
+          virt_lines_above = true,
+        })
+      end
     end
 
     for line = region.ours_start, region.ours_end - 1 do
@@ -176,10 +218,13 @@ local function apply_highlights(bufnr, regions, config)
     })
 
     if config.show_virtual_text then
-      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, region.marker_theirs, 0, {
-        virt_text = { { ' (incoming)', 'DiffsConflictMarker' } },
-        virt_text_pos = 'eol',
-      })
+      local theirs_label = get_virtual_text_label('theirs', config)
+      if theirs_label then
+        pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, region.marker_theirs, 0, {
+          virt_text = { { ' (' .. theirs_label .. ')', 'DiffsConflictMarker' } },
+          virt_text_pos = 'eol',
+        })
+      end
     end
   end
 end
