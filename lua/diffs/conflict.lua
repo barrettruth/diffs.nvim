@@ -364,6 +364,7 @@ function M.goto_next(bufnr)
       return
     end
   end
+  vim.notify('[diffs.nvim]: wrapped to first conflict', vim.log.levels.INFO)
   vim.api.nvim_win_set_cursor(0, { regions[1].marker_ours + 1, 0 })
 end
 
@@ -381,6 +382,7 @@ function M.goto_prev(bufnr)
       return
     end
   end
+  vim.notify('[diffs.nvim]: wrapped to last conflict', vim.log.levels.INFO)
   vim.api.nvim_win_set_cursor(0, { regions[#regions].marker_ours + 1, 0 })
 end
 

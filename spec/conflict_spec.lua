@@ -532,6 +532,33 @@ describe('conflict', function()
       helpers.delete_buffer(bufnr)
     end)
 
+    it('goto_next notifies on wrap-around', function()
+      local bufnr = create_file_buffer({
+        '<<<<<<< HEAD',
+        'a',
+        '=======',
+        'b',
+        '>>>>>>> feat',
+      })
+      vim.api.nvim_set_current_buf(bufnr)
+      vim.api.nvim_win_set_cursor(0, { 5, 0 })
+
+      local notified = false
+      local orig_notify = vim.notify
+      vim.notify = function(msg)
+        if msg:match('wrapped to first conflict') then
+          notified = true
+        end
+      end
+
+      conflict.goto_next(bufnr)
+      vim.notify = orig_notify
+
+      assert.is_true(notified)
+
+      helpers.delete_buffer(bufnr)
+    end)
+
     it('goto_prev jumps to previous conflict', function()
       local bufnr = create_file_buffer({
         '<<<<<<< HEAD',
@@ -572,6 +599,33 @@ describe('conflict', function()
 
       conflict.goto_prev(bufnr)
       assert.are.equal(1, vim.api.nvim_win_get_cursor(0)[1])
+
+      helpers.delete_buffer(bufnr)
+    end)
+
+    it('goto_prev notifies on wrap-around', function()
+      local bufnr = create_file_buffer({
+        '<<<<<<< HEAD',
+        'a',
+        '=======',
+        'b',
+        '>>>>>>> feat',
+      })
+      vim.api.nvim_set_current_buf(bufnr)
+      vim.api.nvim_win_set_cursor(0, { 1, 0 })
+
+      local notified = false
+      local orig_notify = vim.notify
+      vim.notify = function(msg)
+        if msg:match('wrapped to last conflict') then
+          notified = true
+        end
+      end
+
+      conflict.goto_prev(bufnr)
+      vim.notify = orig_notify
+
+      assert.is_true(notified)
 
       helpers.delete_buffer(bufnr)
     end)
