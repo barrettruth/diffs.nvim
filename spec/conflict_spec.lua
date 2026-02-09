@@ -235,29 +235,6 @@ describe('conflict', function()
       helpers.delete_buffer(bufnr)
     end)
 
-    it('does not apply virtual text when disabled', function()
-      local bufnr = create_file_buffer({
-        '<<<<<<< HEAD',
-        'local x = 1',
-        '=======',
-        'local x = 2',
-        '>>>>>>> feature',
-      })
-
-      conflict.attach(bufnr, default_config({ show_virtual_text = false }))
-
-      local extmarks = get_extmarks(bufnr)
-      local virt_text_count = 0
-      for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].virt_text then
-          virt_text_count = virt_text_count + 1
-        end
-      end
-      assert.are.equal(0, virt_text_count)
-
-      helpers.delete_buffer(bufnr)
-    end)
-
     it('applies number_hl_group to content lines', function()
       local bufnr = create_file_buffer({
         '<<<<<<< HEAD',

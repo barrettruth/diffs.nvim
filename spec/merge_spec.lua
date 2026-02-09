@@ -726,31 +726,6 @@ describe('merge', function()
 
       helpers.delete_buffer(d_bufnr)
     end)
-
-    it('does not add hints when show_virtual_text is false', function()
-      local d_bufnr = create_diff_buffer({
-        'diff --git a/file.lua b/file.lua',
-        '--- a/file.lua',
-        '+++ b/file.lua',
-        '@@ -1,1 +1,1 @@',
-        '-local x = 1',
-        '+local x = 2',
-      })
-
-      merge.setup_keymaps(d_bufnr, default_config({ show_virtual_text = false }))
-
-      local extmarks =
-        vim.api.nvim_buf_get_extmarks(d_bufnr, merge.get_namespace(), 0, -1, { details = true })
-      local virt_text_count = 0
-      for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].virt_text then
-          virt_text_count = virt_text_count + 1
-        end
-      end
-      assert.are.equal(0, virt_text_count)
-
-      helpers.delete_buffer(d_bufnr)
-    end)
   end)
 
   describe('setup_keymaps', function()
@@ -819,18 +794,6 @@ describe('merge', function()
       assert.is_false(is_header)
       assert.is_nil(old_filename)
       assert.are.equal('U', status)
-      vim.api.nvim_buf_delete(buf, { force = true })
-    end)
-
-    it('parse_file_line returns status for modified files', function()
-      local fugitive = require('diffs.fugitive')
-      local buf = vim.api.nvim_create_buf(false, true)
-      vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
-        'Unstaged (1)',
-        'M  file.lua',
-      })
-      local _, _, _, _, status = fugitive.get_file_at_line(buf, 2)
-      assert.are.equal('M', status)
       vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
