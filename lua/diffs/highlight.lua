@@ -412,6 +412,15 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     local line_hl = is_diff_line and (has_add and 'DiffsAdd' or 'DiffsDelete') or nil
     local number_hl = is_diff_line and (has_add and 'DiffsAddNr' or 'DiffsDeleteNr') or nil
 
+    local is_marker = false
+    if pw > 1 and line_hl and not prefix:find('[^+]') then
+      local content = line:sub(pw + 1)
+      is_marker = content:match('^<<<<<<<')
+        or content:match('^=======')
+        or content:match('^>>>>>>>')
+        or content:match('^|||||||')
+    end
+
     if opts.hide_prefix then
       local virt_hl = (opts.highlights.background and line_hl) or nil
       pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
@@ -441,6 +450,14 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
           priority = p.line_bg,
         })
       end
+    end
+
+    if is_marker and line_len > pw then
+      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, pw, {
+        end_col = line_len,
+        hl_group = 'DiffsConflictMarker',
+        priority = p.char_bg,
+      })
     end
 
     if char_spans_by_line[i] then
