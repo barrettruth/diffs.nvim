@@ -425,6 +425,123 @@ describe('parser', function()
       delete_buffer(bufnr)
     end)
 
+    it('recognizes U prefix for unmerged files', function()
+      local bufnr = create_buffer({
+        'U merge_me.lua',
+        '@@@ -1,3 -1,5 +1,9 @@@',
+        '  local M = {}',
+        '++<<<<<<< HEAD',
+        ' +  return 1',
+        '++=======',
+        '+   return 2',
+        '++>>>>>>> feature',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('merge_me.lua', hunks[1].filename)
+      assert.are.equal('lua', hunks[1].ft)
+      delete_buffer(bufnr)
+    end)
+
+    it('sets prefix_width 2 from @@@ combined diff header', function()
+      local bufnr = create_buffer({
+        'U test.lua',
+        '@@@ -1,3 -1,5 +1,9 @@@',
+        '  local M = {}',
+        '++<<<<<<< HEAD',
+        ' +  return 1',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal(2, hunks[1].prefix_width)
+      delete_buffer(bufnr)
+    end)
+
+    it('sets prefix_width 1 for standard @@ unified diff', function()
+      local bufnr = create_buffer({
+        'M test.lua',
+        '@@ -1,2 +1,3 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal(1, hunks[1].prefix_width)
+      delete_buffer(bufnr)
+    end)
+
+    it('collects all combined diff line types as hunk content', function()
+      local bufnr = create_buffer({
+        'U test.lua',
+        '@@@ -1,3 -1,3 +1,5 @@@',
+        '  local M = {}',
+        '++<<<<<<< HEAD',
+        ' +  return 1',
+        '+ local x = 2',
+        '  end',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal(5, #hunks[1].lines)
+      assert.are.equal('  local M = {}', hunks[1].lines[1])
+      assert.are.equal('++<<<<<<< HEAD', hunks[1].lines[2])
+      assert.are.equal(' +  return 1', hunks[1].lines[3])
+      assert.are.equal('+ local x = 2', hunks[1].lines[4])
+      assert.are.equal('  end', hunks[1].lines[5])
+      delete_buffer(bufnr)
+    end)
+
+    it('extracts new range from combined diff header', function()
+      local bufnr = create_buffer({
+        'U test.lua',
+        '@@@ -1,3 -1,5 +1,9 @@@',
+        '  local M = {}',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal(1, hunks[1].file_new_start)
+      assert.are.equal(9, hunks[1].file_new_count)
+      assert.is_nil(hunks[1].file_old_start)
+      delete_buffer(bufnr)
+    end)
+
+    it('extracts header context from combined diff header', function()
+      local bufnr = create_buffer({
+        'U test.lua',
+        '@@@ -1,3 -1,5 +1,9 @@@ function M.greet()',
+        '  local M = {}',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('function M.greet()', hunks[1].header_context)
+      delete_buffer(bufnr)
+    end)
+
+    it('resets prefix_width when switching from combined to unified diff', function()
+      local bufnr = create_buffer({
+        'U merge.lua',
+        '@@@ -1,1 -1,1 +1,3 @@@',
+        '  local M = {}',
+        '++<<<<<<< HEAD',
+        'M other.lua',
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(2, #hunks)
+      assert.are.equal(2, hunks[1].prefix_width)
+      assert.are.equal(1, hunks[2].prefix_width)
+      delete_buffer(bufnr)
+    end)
+
     it('stores repo_root on hunk when available', function()
       local bufnr = create_buffer({
         'M lua/test.lua',

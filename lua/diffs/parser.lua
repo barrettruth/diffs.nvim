@@ -12,6 +12,7 @@
 ---@field file_old_count integer?
 ---@field file_new_start integer?
 ---@field file_new_count integer?
+---@field prefix_width integer
 ---@field repo_root string?
 
 local M = {}
@@ -133,6 +134,8 @@ function M.parse_buffer(bufnr)
   local hunk_lines = {}
   ---@type integer?
   local hunk_count = nil
+  ---@type integer
+  local hunk_prefix_width = 1
   ---@type integer?
   local header_start = nil
   ---@type string[]
@@ -156,6 +159,7 @@ function M.parse_buffer(bufnr)
         header_context = hunk_header_context,
         header_context_col = hunk_header_context_col,
         lines = hunk_lines,
+        prefix_width = hunk_prefix_width,
         file_old_start = file_old_start,
         file_old_count = file_old_count,
         file_new_start = file_new_start,
@@ -179,7 +183,7 @@ function M.parse_buffer(bufnr)
   end
 
   for i, line in ipairs(lines) do
-    local filename = line:match('^[MADRC%?!]%s+(.+)$') or line:match('^diff %-%-git a/.+ b/(.+)$')
+    local filename = line:match('^[MADRCU%?!]%s+(.+)$') or line:match('^diff %-%-git a/.+ b/(.+)$')
     if filename then
       flush_hunk()
       current_filename = filename
@@ -191,22 +195,33 @@ function M.parse_buffer(bufnr)
         dbg('file: %s -> ft: %s (no ts parser)', filename, current_ft)
       end
       hunk_count = 0
+      hunk_prefix_width = 1
       header_start = i
       header_lines = {}
-    elseif line:match('^@@.-@@') then
+    elseif line:match('^@@+') then
       flush_hunk()
       hunk_start = i
-      local hs, hc, hs2, hc2 = line:match('^@@ %-(%d+),?(%d*) %+(%d+),?(%d*) @@')
-      if hs then
-        file_old_start = tonumber(hs)
-        file_old_count = tonumber(hc) or 1
-        file_new_start = tonumber(hs2)
-        file_new_count = tonumber(hc2) or 1
+      local at_prefix = line:match('^(@@+)')
+      hunk_prefix_width = #at_prefix - 1
+      if #at_prefix == 2 then
+        local hs, hc, hs2, hc2 = line:match('^@@ %-(%d+),?(%d*) %+(%d+),?(%d*) @@')
+        if hs then
+          file_old_start = tonumber(hs)
+          file_old_count = tonumber(hc) or 1
+          file_new_start = tonumber(hs2)
+          file_new_count = tonumber(hc2) or 1
+        end
+      else
+        local hs2, hc2 = line:match('%+(%d+),?(%d*) @@')
+        if hs2 then
+          file_new_start = tonumber(hs2)
+          file_new_count = tonumber(hc2) or 1
+        end
       end
-      local prefix, context = line:match('^(@@.-@@%s*)(.*)')
+      local at_end, context = line:match('^(@@+.-@@+%s*)(.*)')
       if context and context ~= '' then
         hunk_header_context = context
-        hunk_header_context_col = #prefix
+        hunk_header_context_col = #at_end
       end
       if hunk_count then
         hunk_count = hunk_count + 1
