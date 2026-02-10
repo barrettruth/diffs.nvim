@@ -5,7 +5,7 @@
 Enhance `vim-fugitive` and Neovim's built-in diff mode with language-aware
 syntax highlighting.
 
-<video src="https://github.com/user-attachments/assets/749a41f1-9d7d-4dfd-a93d-e7ac4eb60c18" width="100%" controls></video>
+<video src="https://github.com/user-attachments/assets/24574916-ecb2-478e-a0ea-e4cdc971e310" width="100%" controls></video>
 
 ## Features
 
