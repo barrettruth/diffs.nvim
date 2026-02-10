@@ -13,6 +13,7 @@ describe('highlight', function()
       vim.api.nvim_set_hl(0, 'DiffsClear', { fg = normal.fg or 0xc0c0c0 })
       vim.api.nvim_set_hl(0, 'DiffsAdd', { bg = diff_add.bg })
       vim.api.nvim_set_hl(0, 'DiffsDelete', { bg = diff_delete.bg })
+      vim.api.nvim_set_hl(0, 'DiffsConflictMarker', { fg = 0x808080, bold = true })
     end)
 
     local function create_buffer(lines)
@@ -827,6 +828,307 @@ describe('highlight', function()
       end
       assert.is_true(has_lua)
       assert.is_true(has_vim)
+      delete_buffer(bufnr)
+    end)
+
+    it('classifies all combined diff prefix types for background', function()
+      local bufnr = create_buffer({
+        '@@@ -1,5 -1,5 +1,9 @@@',
+        '  local M = {}',
+        '++<<<<<<< HEAD',
+        ' +  return 1',
+        '+ local greeting = "hi"',
+        '++=======',
+        '+   return 2',
+        '++>>>>>>> feature',
+        '  end',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        prefix_width = 2,
+        lines = {
+          '  local M = {}',
+          '++<<<<<<< HEAD',
+          ' +  return 1',
+          '+ local greeting = "hi"',
+          '++=======',
+          '+   return 2',
+          '++>>>>>>> feature',
+          '  end',
+        },
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { background = true } })
+      )
+
+      local extmarks = get_extmarks(bufnr)
+      local line_bgs = {}
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].hl_eol then
+          line_bgs[mark[2]] = mark[4].hl_group
+        end
+      end
+      assert.is_nil(line_bgs[1])
+      assert.are.equal('DiffsAdd', line_bgs[2])
+      assert.are.equal('DiffsAdd', line_bgs[3])
+      assert.are.equal('DiffsAdd', line_bgs[4])
+      assert.are.equal('DiffsAdd', line_bgs[5])
+      assert.are.equal('DiffsAdd', line_bgs[6])
+      assert.are.equal('DiffsAdd', line_bgs[7])
+      assert.is_nil(line_bgs[8])
+      delete_buffer(bufnr)
+    end)
+
+    it('conceals full 2-char prefix for all combined diff line types', function()
+      local bufnr = create_buffer({
+        '@@@ -1,3 -1,3 +1,5 @@@',
+        '  local M = {}',
+        '++<<<<<<< HEAD',
+        ' +  return 1',
+        '+ local x = 2',
+        '  end',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        prefix_width = 2,
+        lines = {
+          '  local M = {}',
+          '++<<<<<<< HEAD',
+          ' +  return 1',
+          '+ local x = 2',
+          '  end',
+        },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts({ hide_prefix = true }))
+
+      local extmarks = get_extmarks(bufnr)
+      local overlays = {}
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].virt_text_pos == 'overlay' then
+          overlays[mark[2]] = mark[4].virt_text[1][1]
+        end
+      end
+      assert.are.equal(5, vim.tbl_count(overlays))
+      for _, text in pairs(overlays) do
+        assert.are.equal('  ', text)
+      end
+      delete_buffer(bufnr)
+    end)
+
+    it('places treesitter captures at col_offset 2 for combined diffs', function()
+      local bufnr = create_buffer({
+        '@@@ -1,2 -1,2 +1,2 @@@',
+        '  local x = 1',
+        ' +local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        prefix_width = 2,
+        lines = { '  local x = 1', ' +local y = 2' },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
+
+      local extmarks = get_extmarks(bufnr)
+      local ts_marks = {}
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].hl_group and mark[4].hl_group:match('^@.*%.lua$') then
+          table.insert(ts_marks, mark)
+        end
+      end
+      assert.is_true(#ts_marks > 0)
+      for _, mark in ipairs(ts_marks) do
+        assert.is_true(mark[3] >= 2)
+      end
+      delete_buffer(bufnr)
+    end)
+
+    it('applies DiffsClear starting at col 2 for combined diffs', function()
+      local bufnr = create_buffer({
+        '@@@ -1,1 -1,1 +1,2 @@@',
+        '  local x = 1',
+        ' +local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        prefix_width = 2,
+        lines = { '  local x = 1', ' +local y = 2' },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
+
+      local extmarks = get_extmarks(bufnr)
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].hl_group == 'DiffsClear' then
+          assert.are.equal(2, mark[3])
+        end
+      end
+      delete_buffer(bufnr)
+    end)
+
+    it('skips intra-line diffing for combined diffs', function()
+      vim.api.nvim_set_hl(0, 'DiffsAddText', { bg = 0x00FF00 })
+      vim.api.nvim_set_hl(0, 'DiffsDeleteText', { bg = 0xFF0000 })
+
+      local bufnr = create_buffer({
+        '@@@ -1,2 -1,2 +1,3 @@@',
+        '  local x = 1',
+        ' +local y = 2',
+        '+ local y = 3',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        prefix_width = 2,
+        lines = { '  local x = 1', ' +local y = 2', '+ local y = 3' },
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({
+          highlights = { intra = { enabled = true, algorithm = 'default', max_lines = 500 } },
+        })
+      )
+
+      local extmarks = get_extmarks(bufnr)
+      for _, mark in ipairs(extmarks) do
+        local d = mark[4]
+        assert.is_not_equal('DiffsAddText', d and d.hl_group)
+        assert.is_not_equal('DiffsDeleteText', d and d.hl_group)
+      end
+      delete_buffer(bufnr)
+    end)
+
+    it('applies DiffsConflictMarker text on markers with DiffsAdd bg', function()
+      local bufnr = create_buffer({
+        '@@@ -1,5 -1,5 +1,9 @@@',
+        '  local M = {}',
+        '++<<<<<<< HEAD',
+        '+ local x = 1',
+        '++||||||| base',
+        '++=======',
+        ' +local y = 2',
+        '++>>>>>>> feature',
+        '  return M',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        prefix_width = 2,
+        lines = {
+          '  local M = {}',
+          '++<<<<<<< HEAD',
+          '+ local x = 1',
+          '++||||||| base',
+          '++=======',
+          ' +local y = 2',
+          '++>>>>>>> feature',
+          '  return M',
+        },
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { background = true, gutter = true } })
+      )
+
+      local extmarks = get_extmarks(bufnr)
+      local line_bgs = {}
+      local gutter_hls = {}
+      local marker_text = {}
+      for _, mark in ipairs(extmarks) do
+        local d = mark[4]
+        if d and d.hl_eol then
+          line_bgs[mark[2]] = d.hl_group
+        end
+        if d and d.number_hl_group then
+          gutter_hls[mark[2]] = d.number_hl_group
+        end
+        if d and d.hl_group == 'DiffsConflictMarker' then
+          marker_text[mark[2]] = true
+        end
+      end
+
+      assert.is_nil(line_bgs[1])
+      assert.are.equal('DiffsAdd', line_bgs[2])
+      assert.are.equal('DiffsAdd', line_bgs[3])
+      assert.are.equal('DiffsAdd', line_bgs[4])
+      assert.are.equal('DiffsAdd', line_bgs[5])
+      assert.are.equal('DiffsAdd', line_bgs[6])
+      assert.are.equal('DiffsAdd', line_bgs[7])
+      assert.is_nil(line_bgs[8])
+
+      assert.is_nil(gutter_hls[1])
+      assert.are.equal('DiffsAddNr', gutter_hls[2])
+      assert.are.equal('DiffsAddNr', gutter_hls[3])
+      assert.are.equal('DiffsAddNr', gutter_hls[4])
+      assert.are.equal('DiffsAddNr', gutter_hls[5])
+      assert.are.equal('DiffsAddNr', gutter_hls[6])
+      assert.are.equal('DiffsAddNr', gutter_hls[7])
+      assert.is_nil(gutter_hls[8])
+
+      assert.is_true(marker_text[2] ~= nil)
+      assert.is_nil(marker_text[3])
+      assert.is_true(marker_text[4] ~= nil)
+      assert.is_true(marker_text[5] ~= nil)
+      assert.is_nil(marker_text[6])
+      assert.is_true(marker_text[7] ~= nil)
+      delete_buffer(bufnr)
+    end)
+
+    it('does not apply DiffsConflictMarker in unified diffs', function()
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,4 @@',
+        ' local M = {}',
+        '+<<<<<<< HEAD',
+        '+local x = 1',
+        '+=======',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { ' local M = {}', '+<<<<<<< HEAD', '+local x = 1', '+=======' },
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { background = true } })
+      )
+
+      local extmarks = get_extmarks(bufnr)
+      for _, mark in ipairs(extmarks) do
+        local d = mark[4]
+        assert.is_not_equal('DiffsConflictMarker', d and d.hl_group)
+      end
       delete_buffer(bufnr)
     end)
 
