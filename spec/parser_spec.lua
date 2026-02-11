@@ -542,6 +542,36 @@ describe('parser', function()
       delete_buffer(bufnr)
     end)
 
+    it('parses diff from gitcommit verbose buffer', function()
+      local bufnr = create_buffer({
+        '',
+        '# Please enter the commit message for your changes.',
+        '#',
+        '# On branch main',
+        '# Changes to be committed:',
+        '#\tmodified:   test.lua',
+        '#',
+        '# ------------------------ >8 ------------------------',
+        '# Do not modify or remove the line above.',
+        'diff --git a/test.lua b/test.lua',
+        'index abc1234..def5678 100644',
+        '--- a/test.lua',
+        '+++ b/test.lua',
+        '@@ -1,3 +1,3 @@',
+        ' local function hello()',
+        '-  print("hello world")',
+        '+  print("hello universe")',
+        '   return true',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('test.lua', hunks[1].filename)
+      assert.are.equal('lua', hunks[1].ft)
+      assert.are.equal(4, #hunks[1].lines)
+      delete_buffer(bufnr)
+    end)
+
     it('stores repo_root on hunk when available', function()
       local bufnr = create_buffer({
         'M lua/test.lua',
