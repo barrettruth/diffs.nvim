@@ -64,6 +64,7 @@ end
 ---@class diffs.HunkOpts
 ---@field hide_prefix boolean
 ---@field highlights diffs.Highlights
+---@field defer_vim_syntax? boolean
 
 ---@param bufnr integer
 ---@param ns integer
@@ -283,6 +284,10 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     use_vim = false
   end
 
+  if use_vim and opts.defer_vim_syntax then
+    use_vim = false
+  end
+
   ---@type table<integer, true>
   local covered_lines = {}
 
@@ -486,6 +491,42 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
   end
 
   dbg('hunk %s:%d applied %d extmarks', hunk.filename, hunk.start_line, extmark_count)
+end
+
+---@param bufnr integer
+---@param ns integer
+---@param hunk diffs.Hunk
+---@param opts diffs.HunkOpts
+function M.highlight_hunk_vim_syntax(bufnr, ns, hunk, opts)
+  local p = opts.highlights.priorities
+  local pw = hunk.prefix_width or 1
+
+  if not hunk.ft or #hunk.lines == 0 then
+    return
+  end
+
+  if #hunk.lines > opts.highlights.vim.max_lines then
+    return
+  end
+
+  local code_lines = {}
+  for _, line in ipairs(hunk.lines) do
+    table.insert(code_lines, line:sub(pw + 1))
+  end
+
+  local covered_lines = {}
+  highlight_vim_syntax(bufnr, ns, hunk, code_lines, covered_lines, 0, p)
+
+  for buf_line in pairs(covered_lines) do
+    local line = hunk.lines[buf_line - hunk.start_line + 1]
+    if line and #line > pw then
+      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, pw, {
+        end_col = #line,
+        hl_group = 'DiffsClear',
+        priority = p.clear,
+      })
+    end
+  end
 end
 
 return M

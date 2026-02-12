@@ -24,7 +24,6 @@ describe('diffs', function()
     it('accepts full config', function()
       vim.g.diffs = {
         debug = true,
-        debounce_ms = 100,
         hide_prefix = false,
         highlights = {
           background = true,
@@ -46,7 +45,7 @@ describe('diffs', function()
 
     it('accepts partial config', function()
       vim.g.diffs = {
-        debounce_ms = 25,
+        hide_prefix = true,
       }
       assert.has_no.errors(function()
         diffs.attach()
@@ -149,6 +148,183 @@ describe('diffs', function()
       local bufnr = vim.api.nvim_create_buf(false, true)
       assert.is_false(diffs.is_fugitive_buffer(bufnr))
       vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+  end)
+
+  describe('find_visible_hunks', function()
+    local find_visible_hunks = diffs._test.find_visible_hunks
+
+    local function make_hunk(start_row, end_row, opts)
+      local lines = {}
+      for i = 1, end_row - start_row + 1 do
+        lines[i] = 'line' .. i
+      end
+      local h = { start_line = start_row + 1, lines = lines }
+      if opts and opts.header_start_line then
+        h.header_start_line = opts.header_start_line
+      end
+      return h
+    end
+
+    it('returns (0, 0) for empty hunk list', function()
+      local first, last = find_visible_hunks({}, 0, 50)
+      assert.are.equal(0, first)
+      assert.are.equal(0, last)
+    end)
+
+    it('finds single hunk fully inside viewport', function()
+      local h = make_hunk(5, 10)
+      local first, last = find_visible_hunks({ h }, 0, 50)
+      assert.are.equal(1, first)
+      assert.are.equal(1, last)
+    end)
+
+    it('returns (0, 0) for single hunk fully above viewport', function()
+      local h = make_hunk(5, 10)
+      local first, last = find_visible_hunks({ h }, 20, 50)
+      assert.are.equal(0, first)
+      assert.are.equal(0, last)
+    end)
+
+    it('returns (0, 0) for single hunk fully below viewport', function()
+      local h = make_hunk(50, 60)
+      local first, last = find_visible_hunks({ h }, 0, 20)
+      assert.are.equal(0, first)
+      assert.are.equal(0, last)
+    end)
+
+    it('finds single hunk partially visible at top edge', function()
+      local h = make_hunk(5, 15)
+      local first, last = find_visible_hunks({ h }, 10, 30)
+      assert.are.equal(1, first)
+      assert.are.equal(1, last)
+    end)
+
+    it('finds single hunk partially visible at bottom edge', function()
+      local h = make_hunk(25, 35)
+      local first, last = find_visible_hunks({ h }, 10, 30)
+      assert.are.equal(1, first)
+      assert.are.equal(1, last)
+    end)
+
+    it('finds subset of visible hunks', function()
+      local h1 = make_hunk(5, 10)
+      local h2 = make_hunk(25, 30)
+      local h3 = make_hunk(55, 60)
+      local first, last = find_visible_hunks({ h1, h2, h3 }, 20, 40)
+      assert.are.equal(2, first)
+      assert.are.equal(2, last)
+    end)
+
+    it('finds all hunks when all are visible', function()
+      local h1 = make_hunk(5, 10)
+      local h2 = make_hunk(15, 20)
+      local h3 = make_hunk(25, 30)
+      local first, last = find_visible_hunks({ h1, h2, h3 }, 0, 50)
+      assert.are.equal(1, first)
+      assert.are.equal(3, last)
+    end)
+
+    it('returns (0, 0) when no hunks are visible', function()
+      local h1 = make_hunk(5, 10)
+      local h2 = make_hunk(15, 20)
+      local first, last = find_visible_hunks({ h1, h2 }, 30, 50)
+      assert.are.equal(0, first)
+      assert.are.equal(0, last)
+    end)
+
+    it('uses header_start_line for top boundary', function()
+      local h = make_hunk(5, 10, { header_start_line = 4 })
+      local first, last = find_visible_hunks({ h }, 0, 50)
+      assert.are.equal(1, first)
+      assert.are.equal(1, last)
+    end)
+
+    it('finds both adjacent hunks at viewport edge', function()
+      local h1 = make_hunk(10, 20)
+      local h2 = make_hunk(20, 30)
+      local first, last = find_visible_hunks({ h1, h2 }, 15, 25)
+      assert.are.equal(1, first)
+      assert.are.equal(2, last)
+    end)
+  end)
+
+  describe('hunk_cache', function()
+    local function create_buffer(lines)
+      local bufnr = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines or {})
+      return bufnr
+    end
+
+    local function delete_buffer(bufnr)
+      if vim.api.nvim_buf_is_valid(bufnr) then
+        vim.api.nvim_buf_delete(bufnr, { force = true })
+      end
+    end
+
+    it('creates entry on attach', function()
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+      diffs.attach(bufnr)
+      local entry = diffs._test.hunk_cache[bufnr]
+      assert.is_not_nil(entry)
+      assert.is_table(entry.hunks)
+      assert.is_number(entry.tick)
+      assert.is_true(entry.tick >= 0)
+      delete_buffer(bufnr)
+    end)
+
+    it('is idempotent on repeated attach', function()
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+      diffs.attach(bufnr)
+      local entry1 = diffs._test.hunk_cache[bufnr]
+      local tick1 = entry1.tick
+      local hunks1 = entry1.hunks
+      diffs._test.ensure_cache(bufnr)
+      local entry2 = diffs._test.hunk_cache[bufnr]
+      assert.are.equal(tick1, entry2.tick)
+      assert.are.equal(hunks1, entry2.hunks)
+      delete_buffer(bufnr)
+    end)
+
+    it('marks stale on invalidate', function()
+      local bufnr = create_buffer({})
+      diffs.attach(bufnr)
+      diffs._test.invalidate_cache(bufnr)
+      local entry = diffs._test.hunk_cache[bufnr]
+      assert.are.equal(-1, entry.tick)
+      assert.is_true(entry.pending_clear)
+      delete_buffer(bufnr)
+    end)
+
+    it('evicts on buffer wipeout', function()
+      local bufnr = create_buffer({})
+      diffs.attach(bufnr)
+      assert.is_not_nil(diffs._test.hunk_cache[bufnr])
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+      assert.is_nil(diffs._test.hunk_cache[bufnr])
+    end)
+
+    it('detects content change via tick', function()
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+      diffs.attach(bufnr)
+      local tick_before = diffs._test.hunk_cache[bufnr].tick
+      vim.api.nvim_buf_set_lines(bufnr, -1, -1, false, { '+local z = 3' })
+      diffs._test.ensure_cache(bufnr)
+      local tick_after = diffs._test.hunk_cache[bufnr].tick
+      assert.is_true(tick_after > tick_before)
+      delete_buffer(bufnr)
     end)
   end)
 
