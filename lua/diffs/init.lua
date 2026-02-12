@@ -594,7 +594,16 @@ local function init()
         end
       end
       if t0 and count > 0 then
-        dbg('on_win %d: %d hunks [%d..%d] in %.2fms (viewport %d-%d)', bufnr, count, first, last, (vim.uv.hrtime() - t0) / 1e6, toprow, botrow)
+        dbg(
+          'on_win %d: %d hunks [%d..%d] in %.2fms (viewport %d-%d)',
+          bufnr,
+          count,
+          first,
+          last,
+          (vim.uv.hrtime() - t0) / 1e6,
+          toprow,
+          botrow
+        )
       end
     end,
   })
