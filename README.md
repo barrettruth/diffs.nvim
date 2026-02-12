@@ -40,30 +40,24 @@ luarocks install diffs.nvim
 ## Known Limitations
 
 - **Incomplete syntax context**: Treesitter parses each diff hunk in isolation.
-  Context lines within the hunk (` ` prefix) provide syntactic context for the
+  Context lines within the hunk provide syntactic context for the
   parser. In rare cases, hunks that start or end mid-expression may produce
   imperfect highlights due to treesitter error recovery.
 
-- **Syntax flashing**: `diffs.nvim` hooks into the `FileType fugitive` event
+- **Syntax "flashing"**: `diffs.nvim` hooks into the `FileType fugitive` event
   triggered by `vim-fugitive`, at which point the buffer is preliminarily
   painted. The decoration provider applies highlights on the next redraw cycle,
   causing a brief visual "flash".
 
-- **Per-language cold start**: Treesitter grammar loading (~10ms) and query
-  compilation (~4ms) are one-time costs per language per Neovim session. The
-  `lua` and `diff` grammars are pre-warmed on init. Other languages pay this
-  cost on first encounter, which may cause a brief stutter when a diff
-  containing a new language first enters the viewport.
+- **Cold Start**: Treesitter grammar loading (~10ms) and query
+  compilation (~4ms) are one-time costs per language per Neovim session. Each
+  language pays this cost on first encounter, which may cause a brief stutter
+  when a diff containing a new language first enters the viewport.
 
 - **Vim syntax fallback is deferred**: The vim syntax fallback (for languages
   without a treesitter parser) cannot run inside the decoration provider's
-  redraw cycle due to Neovim's restriction on buffer mutations during rendering.
-  Syntax highlights for these hunks appear one frame after line backgrounds.
-
-- **Plain `.diff` files**: The plugin currently only attaches on `fugitive`,
-  `git` (fugitive-owned), and `gitcommit` filetypes. Standalone `.diff` files
-  are not highlighted
-  ([#115](https://github.com/barrettruth/diffs.nvim/issues/115)).
+  redraw cycle due to Neovim's restriction on buffer mutations.
+  Vim syntax highlights for these hunks appear slightly delayed.
 
 - **Conflicting diff plugins**: `diffs.nvim` may not interact well with other
   plugins that modify diff highlighting. Known plugins that may conflict:
@@ -90,4 +84,5 @@ luarocks install diffs.nvim
 - [`gitsigns.nvim`](https://github.com/lewis6991/gitsigns.nvim)
 - [`git-conflict.nvim`](https://github.com/akinsho/git-conflict.nvim)
 - [@phanen](https://github.com/phanen) - diff header highlighting, unknown
-  filetype fix, shebang/modeline detection, treesitter injection support
+  filetype fix, shebang/modeline detection, treesitter injection support,
+  decoration provider highlighting architecture
