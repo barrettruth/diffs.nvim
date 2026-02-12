@@ -529,6 +529,24 @@ local function init()
 
   compute_highlight_groups()
 
+  -- NOTE: pre-warm treesitter grammar loading (~10ms) and query compilation
+  -- (~4ms) per language so the first decoration provider on_win callback
+  -- doesn't stall the render. These costs are one-time per language and
+  -- cached internally by neovim after the first call.
+  for _, wlang in ipairs({ 'lua', 'diff' }) do
+    local wcode = wlang == 'diff' and '@@ -1,3 +1,3 @@\n-old\n+new' or 'local x = 1\nreturn x'
+    local wok, wp = pcall(vim.treesitter.get_string_parser, wcode, wlang)
+    if wok and wp then
+      local wtrees = wp:parse(true)
+      local wq = vim.treesitter.query.get(wlang, 'highlights')
+      if wq and wtrees[1] then
+        -- selene: allow(empty_loop)
+        for _ in wq:iter_captures(wtrees[1]:root(), wcode) do
+        end
+      end
+    end
+  end
+
   vim.api.nvim_create_autocmd('ColorScheme', {
     callback = function()
       compute_highlight_groups()
