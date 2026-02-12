@@ -160,6 +160,9 @@ local config = vim.deepcopy(default_config)
 
 local initialized = false
 
+---@type diffs.HunkOpts
+local fast_hl_opts = {}
+
 ---@type table<integer, boolean>
 local attached_buffers = {}
 
@@ -573,6 +576,14 @@ local function init()
   config = vim.tbl_deep_extend('force', default_config, opts)
   log.set_enabled(config.debug)
 
+  fast_hl_opts = {
+    hide_prefix = config.hide_prefix,
+    highlights = vim.tbl_deep_extend('force', config.highlights, {
+      treesitter = { enabled = false },
+    }),
+    defer_vim_syntax = true,
+  }
+
   compute_highlight_groups()
 
   -- NOTE: pre-warm treesitter grammar loading (~10ms) and query compilation
@@ -633,36 +644,46 @@ local function init()
         return
       end
       local t0 = config.debug and vim.uv.hrtime() or nil
-      local hl_opts = {
-        hide_prefix = config.hide_prefix,
-        highlights = config.highlights,
-        defer_vim_syntax = true,
-      }
-      local deferred = {}
+      local deferred_syntax = {}
       local count = 0
       for i = first, last do
         if not entry.highlighted[i] then
           local hunk = entry.hunks[i]
-          highlight.highlight_hunk(bufnr, ns, hunk, hl_opts)
+          highlight.highlight_hunk(bufnr, ns, hunk, fast_hl_opts)
           entry.highlighted[i] = true
           count = count + 1
+          local has_syntax = hunk.lang and config.highlights.treesitter.enabled
           local needs_vim = not hunk.lang and hunk.ft and config.highlights.vim.enabled
-          if needs_vim then
-            table.insert(deferred, hunk)
+          if has_syntax or needs_vim then
+            table.insert(deferred_syntax, hunk)
           end
         end
       end
-      if #deferred > 0 then
+      if #deferred_syntax > 0 then
+        local tick = entry.tick
         vim.schedule(function()
           if not vim.api.nvim_buf_is_valid(bufnr) then
             return
           end
-          local vim_opts = {
+          local cur = hunk_cache[bufnr]
+          if not cur or cur.tick ~= tick then
+            return
+          end
+          local full_opts = {
             hide_prefix = config.hide_prefix,
             highlights = config.highlights,
           }
-          for _, hunk in ipairs(deferred) do
-            highlight.highlight_hunk_vim_syntax(bufnr, ns, hunk, vim_opts)
+          for _, hunk in ipairs(deferred_syntax) do
+            local start_row = hunk.start_line - 1
+            local end_row = start_row + #hunk.lines
+            if hunk.header_start_line then
+              start_row = hunk.header_start_line - 1
+            end
+            vim.api.nvim_buf_clear_namespace(bufnr, ns, start_row, end_row)
+            highlight.highlight_hunk(bufnr, ns, hunk, full_opts)
+            if not hunk.lang and hunk.ft then
+              highlight.highlight_hunk_vim_syntax(bufnr, ns, hunk, full_opts)
+            end
           end
         end)
       end
