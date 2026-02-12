@@ -171,6 +171,8 @@ local diff_windows = {}
 ---@field tick integer
 ---@field highlighted table<integer, true>
 ---@field pending_clear boolean
+---@field line_count integer
+---@field byte_count integer
 
 ---@type table<integer, diffs.HunkCacheEntry>
 local hunk_cache = {}
@@ -196,13 +198,26 @@ local function ensure_cache(bufnr)
   if entry and entry.tick == tick then
     return
   end
+  if entry and not entry.pending_clear then
+    local lc = vim.api.nvim_buf_line_count(bufnr)
+    local bc = vim.api.nvim_buf_get_offset(bufnr, lc)
+    if lc == entry.line_count and bc == entry.byte_count then
+      entry.tick = tick
+      dbg('content unchanged in buffer %d (tick %d), skipping reparse', bufnr, tick)
+      return
+    end
+  end
   local hunks = parser.parse_buffer(bufnr)
+  local lc = vim.api.nvim_buf_line_count(bufnr)
+  local bc = vim.api.nvim_buf_get_offset(bufnr, lc)
   dbg('parsed %d hunks in buffer %d (tick %d)', #hunks, bufnr, tick)
   hunk_cache[bufnr] = {
     hunks = hunks,
     tick = tick,
     highlighted = {},
     pending_clear = true,
+    line_count = lc,
+    byte_count = bc,
   }
 
   local cold_langs = {}

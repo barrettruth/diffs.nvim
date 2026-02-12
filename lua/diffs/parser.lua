@@ -19,6 +19,9 @@ local M = {}
 
 local dbg = require('diffs.log').dbg
 
+---@type table<string, {ft: string?, lang: string?}>
+local ft_lang_cache = {}
+
 ---@param filepath string
 ---@param n integer
 ---@return string[]?
@@ -187,8 +190,16 @@ function M.parse_buffer(bufnr)
     if filename then
       flush_hunk()
       current_filename = filename
-      current_ft = get_ft_from_filename(filename, repo_root)
-      current_lang = current_ft and get_lang_from_ft(current_ft) or nil
+      local cache_key = (repo_root or '') .. '\0' .. filename
+      local cached = ft_lang_cache[cache_key]
+      if cached then
+        current_ft = cached.ft
+        current_lang = cached.lang
+      else
+        current_ft = get_ft_from_filename(filename, repo_root)
+        current_lang = current_ft and get_lang_from_ft(current_ft) or nil
+        ft_lang_cache[cache_key] = { ft = current_ft, lang = current_lang }
+      end
       if current_lang then
         dbg('file: %s -> lang: %s', filename, current_lang)
       elseif current_ft then
