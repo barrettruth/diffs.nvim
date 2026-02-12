@@ -5,4 +5,9 @@ doc/tags
 CLAUDE.md
 .claude/
 
+bench/
 node_modules/
+
+result
+result-*
+.direnv/
