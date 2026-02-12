@@ -62,7 +62,8 @@ luarocks install diffs.nvim
 
 - **Plain `.diff` files**: The plugin currently only attaches on `fugitive`,
   `git` (fugitive-owned), and `gitcommit` filetypes. Standalone `.diff` files
-  are not highlighted ([#115](https://github.com/barrettruth/diffs.nvim/issues/115)).
+  are not highlighted
+  ([#115](https://github.com/barrettruth/diffs.nvim/issues/115)).
 
 - **Conflicting diff plugins**: `diffs.nvim` may not interact well with other
   plugins that modify diff highlighting. Known plugins that may conflict:

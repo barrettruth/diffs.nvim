@@ -25,6 +25,7 @@
                 nlua
               ]
             ))
+            pkgs.prettier
             pkgs.stylua
             pkgs.selene
           ];
