@@ -69,6 +69,7 @@ local M = {}
 local highlight = require('diffs.highlight')
 local log = require('diffs.log')
 local parser = require('diffs.parser')
+local profile = require('diffs.profile')
 
 local ns = vim.api.nvim_create_namespace('diffs')
 
@@ -177,14 +178,26 @@ end
 local dbg = log.dbg
 
 ---@param bufnr integer
-local function highlight_buffer(bufnr)
+---@param source? string
+local function highlight_buffer(bufnr, source)
   if not vim.api.nvim_buf_is_valid(bufnr) then
     return
   end
 
+  profile.record_attach(bufnr, source or 'unknown')
+  local buf_start = profile.start()
+
   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
 
+  local parse_start = profile.start()
   local hunks = parser.parse_buffer(bufnr)
+  local buf_name = vim.api.nvim_buf_get_name(bufnr)
+  profile.record('parse_buffer', parse_start, {
+    bufnr = bufnr,
+    buf_name = buf_name,
+    hunk_count = #hunks,
+  })
+
   dbg('found %d hunks in buffer %d', #hunks, bufnr)
   for _, hunk in ipairs(hunks) do
     highlight.highlight_hunk(bufnr, ns, hunk, {
@@ -192,6 +205,12 @@ local function highlight_buffer(bufnr)
       highlights = config.highlights,
     })
   end
+
+  profile.record('highlight_buffer', buf_start, {
+    bufnr = bufnr,
+    buf_name = buf_name,
+    hunk_count = #hunks,
+  })
 end
 
 ---@param bufnr integer
@@ -206,7 +225,7 @@ local function create_debounced_highlight(bufnr)
     end
     local t = vim.uv.new_timer()
     if not t then
-      highlight_buffer(bufnr)
+      highlight_buffer(bufnr, 'TextChanged')
       return
     end
     timer = t
@@ -219,7 +238,7 @@ local function create_debounced_highlight(bufnr)
           t:close()
         end
         if vim.api.nvim_buf_is_valid(bufnr) then
-          highlight_buffer(bufnr)
+          highlight_buffer(bufnr, 'TextChanged')
         end
       end)
     )
@@ -497,6 +516,7 @@ local function init()
 
   config = vim.tbl_deep_extend('force', default_config, opts)
   log.set_enabled(config.debug)
+  profile.set_enabled(config.debug)
 
   compute_highlight_groups()
 
@@ -504,7 +524,7 @@ local function init()
     callback = function()
       compute_highlight_groups()
       for bufnr, _ in pairs(attached_buffers) do
-        highlight_buffer(bufnr)
+        highlight_buffer(bufnr, 'ColorScheme')
       end
     end,
   })
@@ -533,7 +553,7 @@ function M.attach(bufnr)
 
   local debounced = create_debounced_highlight(bufnr)
 
-  highlight_buffer(bufnr)
+  highlight_buffer(bufnr, 'attach')
 
   vim.api.nvim_create_autocmd({ 'TextChanged', 'TextChangedI' }, {
     buffer = bufnr,
@@ -544,7 +564,7 @@ function M.attach(bufnr)
     buffer = bufnr,
     callback = function()
       dbg('syntax event, re-highlighting buffer %d', bufnr)
-      highlight_buffer(bufnr)
+      highlight_buffer(bufnr, 'Syntax')
     end,
   })
 
@@ -552,7 +572,7 @@ function M.attach(bufnr)
     buffer = bufnr,
     callback = function()
       dbg('BufReadPost event, re-highlighting buffer %d', bufnr)
-      highlight_buffer(bufnr)
+      highlight_buffer(bufnr, 'BufReadPost')
     end,
   })
 
@@ -567,7 +587,7 @@ end
 ---@param bufnr? integer
 function M.refresh(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
-  highlight_buffer(bufnr)
+  highlight_buffer(bufnr, 'refresh')
 end
 
 local DIFF_WINHIGHLIGHT = table.concat({

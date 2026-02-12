@@ -2,6 +2,7 @@ local M = {}
 
 local dbg = require('diffs.log').dbg
 local diff = require('diffs.diff')
+local profile = require('diffs.profile')
 
 ---@param bufnr integer
 ---@param ns integer
@@ -84,6 +85,7 @@ local function highlight_treesitter(
   covered_lines,
   priorities
 )
+  local ts_start = profile.start()
   local code = table.concat(code_lines, '\n')
   if code == '' then
     return 0
@@ -139,6 +141,13 @@ local function highlight_treesitter(
       end
     end
   end)
+
+  profile.record('highlight_treesitter', ts_start, {
+    bufnr = bufnr,
+    lang = lang,
+    line_count = #code_lines,
+    extmark_count = extmark_count,
+  })
 
   return extmark_count
 end
@@ -201,6 +210,7 @@ local function highlight_vim_syntax(
   leading_offset,
   priorities
 )
+  local vim_start = profile.start()
   local ft = hunk.ft
   if not ft then
     return 0
@@ -257,6 +267,13 @@ local function highlight_vim_syntax(
     end
   end
 
+  profile.record('highlight_vim_syntax', vim_start, {
+    bufnr = bufnr,
+    ft = ft,
+    line_count = #code_lines,
+    extmark_count = extmark_count,
+  })
+
   return extmark_count
 end
 
@@ -265,6 +282,7 @@ end
 ---@param hunk diffs.Hunk
 ---@param opts diffs.HunkOpts
 function M.highlight_hunk(bufnr, ns, hunk, opts)
+  local hunk_start = profile.start()
   local p = opts.highlights.priorities
   local pw = hunk.prefix_width or 1
   local use_ts = hunk.lang and opts.highlights.treesitter.enabled
@@ -373,7 +391,14 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
   local intra_cfg = opts.highlights.intra
   if intra_cfg and intra_cfg.enabled and pw == 1 and #hunk.lines <= intra_cfg.max_lines then
     dbg('computing intra for hunk %s:%d (%d lines)', hunk.filename, hunk.start_line, #hunk.lines)
+    local intra_start = profile.start()
     intra = diff.compute_intra_hunks(hunk.lines, intra_cfg.algorithm)
+    profile.record('compute_intra_hunks', intra_start, {
+      bufnr = bufnr,
+      filename = hunk.filename,
+      hunk_start_line = hunk.start_line,
+      hunk_lines = #hunk.lines,
+    })
     if intra then
       dbg('intra result: %d add spans, %d del spans', #intra.add_spans, #intra.del_spans)
     else
@@ -484,6 +509,17 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
       end
     end
   end
+
+  local codepath = use_ts and 'treesitter' or (use_vim and 'vim' or 'none')
+  profile.record('highlight_hunk', hunk_start, {
+    bufnr = bufnr,
+    filename = hunk.filename,
+    lang = hunk.lang,
+    hunk_start_line = hunk.start_line,
+    hunk_lines = #hunk.lines,
+    codepath = codepath,
+    extmark_count = extmark_count,
+  })
 
   dbg('hunk %s:%d applied %d extmarks', hunk.filename, hunk.start_line, extmark_count)
 end
