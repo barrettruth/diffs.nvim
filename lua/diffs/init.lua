@@ -191,6 +191,17 @@ end
 
 local dbg = log.dbg
 
+---@param lang string
+local function warm_grammar(lang)
+  if warmed_langs[lang] then
+    return
+  end
+  pcall(vim.treesitter.get_string_parser, 'x', lang)
+  pcall(vim.treesitter.query.get, lang, 'highlights')
+  warmed_langs[lang] = true
+  dbg('warmed grammar: %s', lang)
+end
+
 ---@param bufnr integer
 local function invalidate_cache(bufnr)
   local entry = hunk_cache[bufnr]
@@ -233,36 +244,11 @@ local function ensure_cache(bufnr)
     byte_count = bc,
   }
 
-  local cold_langs = {}
   local has_nil_ft = false
   for _, hunk in ipairs(hunks) do
-    local lang = hunk.lang
-    if lang and not warmed_langs[lang] and not cold_langs[lang] then
-      cold_langs[lang] = true
-    end
     if not has_nil_ft and not hunk.ft and hunk.filename then
       has_nil_ft = true
     end
-  end
-  if next(cold_langs) then
-    vim.schedule(function()
-      for lang in pairs(cold_langs) do
-        if not warmed_langs[lang] then
-          local wok, wp = pcall(vim.treesitter.get_string_parser, 'x', lang)
-          if wok and wp then
-            local wtrees = wp:parse(true)
-            local wq = vim.treesitter.query.get(lang, 'highlights')
-            if wq and wtrees[1] then
-              -- selene: allow(empty_loop)
-              for _ in wq:iter_captures(wtrees[1]:root(), 'x') do
-              end
-            end
-          end
-          warmed_langs[lang] = true
-          dbg('warmed treesitter grammar: %s', lang)
-        end
-      end
-    end)
   end
   if has_nil_ft and vim.fn.did_filetype() ~= 0 then
     vim.schedule(function()
@@ -599,24 +585,8 @@ local function init()
 
   compute_highlight_groups()
 
-  -- NOTE: pre-warm treesitter grammar loading (~10ms) and query compilation
-  -- (~4ms) per language so the first decoration provider on_win callback
-  -- doesn't stall the render. These costs are one-time per language and
-  -- cached internally by neovim after the first call.
-  for _, wlang in ipairs({ 'lua', 'diff' }) do
-    local wcode = wlang == 'diff' and '@@ -1,3 +1,3 @@\n-old\n+new' or 'local x = 1\nreturn x'
-    local wok, wp = pcall(vim.treesitter.get_string_parser, wcode, wlang)
-    if wok and wp then
-      local wtrees = wp:parse(true)
-      local wq = vim.treesitter.query.get(wlang, 'highlights')
-      if wq and wtrees[1] then
-        -- selene: allow(empty_loop)
-        for _ in wq:iter_captures(wtrees[1]:root(), wcode) do
-        end
-      end
-    end
-    warmed_langs[wlang] = true
-  end
+  warm_grammar('lua')
+  warm_grammar('diff')
 
   vim.api.nvim_create_autocmd('ColorScheme', {
     callback = function()
@@ -682,6 +652,7 @@ local function init()
           if not cur or cur.tick ~= tick then
             return
           end
+          local t1 = config.debug and vim.uv.hrtime() or nil
           local full_opts = {
             hide_prefix = config.hide_prefix,
             highlights = config.highlights,
@@ -697,6 +668,26 @@ local function init()
             if not hunk.lang and hunk.ft then
               highlight.highlight_hunk_vim_syntax(bufnr, ns, hunk, full_opts)
             end
+            if hunk.lang then
+              warmed_langs[hunk.lang] = true
+            end
+          end
+          if t1 then
+            dbg('deferred pass: %d hunks in %.2fms', #deferred_syntax, (vim.uv.hrtime() - t1) / 1e6)
+          end
+          local cold_langs = {}
+          for _, hunk in ipairs(cur.hunks) do
+            local lang = hunk.lang
+            if lang and not warmed_langs[lang] and not cold_langs[lang] then
+              cold_langs[lang] = true
+            end
+          end
+          if next(cold_langs) then
+            vim.schedule(function()
+              for lang in pairs(cold_langs) do
+                warm_grammar(lang)
+              end
+            end)
           end
         end)
       end
@@ -725,6 +716,37 @@ local function init()
   })
 end
 
+---@param bufnr integer
+local function schedule_grammar_warmup(bufnr)
+  local entry = hunk_cache[bufnr]
+  if not entry then
+    return
+  end
+  local filenames = {}
+  local seen = {}
+  for _, hunk in ipairs(entry.hunks) do
+    if hunk.filename and not seen[hunk.filename] then
+      seen[hunk.filename] = true
+      table.insert(filenames, hunk.filename)
+    end
+  end
+  if #filenames == 0 then
+    return
+  end
+  vim.schedule(function()
+    for _, name in ipairs(filenames) do
+      local ft = vim.filetype.match({ filename = name })
+      if ft then
+        local lang = vim.treesitter.language.get_lang(ft) or ft
+        local ok = pcall(vim.treesitter.language.inspect, lang)
+        if ok then
+          warm_grammar(lang)
+        end
+      end
+    end
+  end)
+end
+
 ---@param bufnr? integer
 function M.attach(bufnr)
   init()
@@ -738,6 +760,7 @@ function M.attach(bufnr)
   dbg('attaching to buffer %d', bufnr)
 
   ensure_cache(bufnr)
+  schedule_grammar_warmup(bufnr)
 
   vim.api.nvim_create_autocmd('BufWipeout', {
     buffer = bufnr,
