@@ -56,6 +56,7 @@
 ---@class diffs.Config
 ---@field debug boolean|string
 ---@field hide_prefix boolean
+---@field filetypes string[]
 ---@field highlights diffs.Highlights
 ---@field fugitive diffs.FugitiveConfig
 ---@field conflict diffs.ConflictConfig
@@ -107,6 +108,7 @@ end
 local default_config = {
   debug = false,
   hide_prefix = false,
+  filetypes = { 'fugitive', 'git', 'gitcommit' },
   highlights = {
     background = true,
     gutter = true,
@@ -402,6 +404,7 @@ local function init()
       'boolean or string (file path)',
     },
     hide_prefix = { opts.hide_prefix, 'boolean', true },
+    filetypes = { opts.filetypes, 'table', true },
     highlights = { opts.highlights, 'table', true },
   })
 

@@ -151,6 +151,11 @@ function M.parse_buffer(bufnr)
   local file_new_start = nil
   ---@type integer?
   local file_new_count = nil
+  ---@type integer?
+  local old_remaining = nil
+  ---@type integer?
+  local new_remaining = nil
+  local is_unified_diff = false
 
   local function flush_hunk()
     if hunk_start and #hunk_lines > 0 then
@@ -183,11 +188,15 @@ function M.parse_buffer(bufnr)
     file_old_count = nil
     file_new_start = nil
     file_new_count = nil
+    old_remaining = nil
+    new_remaining = nil
   end
 
   for i, line in ipairs(lines) do
-    local filename = line:match('^[MADRCU%?!]%s+(.+)$') or line:match('^diff %-%-git a/.+ b/(.+)$')
+    local diff_git_file = line:match('^diff %-%-git a/.+ b/(.+)$')
+    local filename = line:match('^[MADRCU%?!]%s+(.+)$') or diff_git_file
     if filename then
+      is_unified_diff = diff_git_file ~= nil
       flush_hunk()
       current_filename = filename
       local cache_key = (repo_root or '') .. '\0' .. filename
@@ -223,6 +232,8 @@ function M.parse_buffer(bufnr)
           file_old_count = tonumber(hc) or 1
           file_new_start = tonumber(hs2)
           file_new_count = tonumber(hc2) or 1
+          old_remaining = file_old_count
+          new_remaining = file_new_count
         end
       else
         local hs2, hc2 = line:match('%+(%d+),?(%d*) @@')
@@ -243,6 +254,16 @@ function M.parse_buffer(bufnr)
       local prefix = line:sub(1, 1)
       if prefix == ' ' or prefix == '+' or prefix == '-' then
         table.insert(hunk_lines, line)
+        if old_remaining and (prefix == ' ' or prefix == '-') then
+          old_remaining = old_remaining - 1
+        end
+        if new_remaining and (prefix == ' ' or prefix == '+') then
+          new_remaining = new_remaining - 1
+        end
+      elseif line == '' and is_unified_diff and old_remaining and old_remaining > 0 and new_remaining and new_remaining > 0 then
+        table.insert(hunk_lines, ' ')
+        old_remaining = old_remaining - 1
+        new_remaining = new_remaining - 1
       elseif
         line == ''
         or line:match('^[MADRC%?!]%s+')
