@@ -54,7 +54,7 @@
 ---@field keymaps diffs.ConflictKeymaps
 
 ---@class diffs.Config
----@field debug boolean
+---@field debug boolean|string
 ---@field hide_prefix boolean
 ---@field highlights diffs.Highlights
 ---@field fugitive diffs.FugitiveConfig
