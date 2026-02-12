@@ -206,6 +206,7 @@ local function ensure_cache(bufnr)
     local bc = vim.api.nvim_buf_get_offset(bufnr, lc)
     if lc == entry.line_count and bc == entry.byte_count then
       entry.tick = tick
+      entry.pending_clear = true
       dbg('content unchanged in buffer %d (tick %d), skipping reparse', bufnr, tick)
       return
     end
@@ -224,10 +225,14 @@ local function ensure_cache(bufnr)
   }
 
   local cold_langs = {}
+  local has_nil_ft = false
   for _, hunk in ipairs(hunks) do
     local lang = hunk.lang
     if lang and not warmed_langs[lang] and not cold_langs[lang] then
       cold_langs[lang] = true
+    end
+    if not has_nil_ft and not hunk.ft and hunk.filename then
+      has_nil_ft = true
     end
   end
   if next(cold_langs) then
@@ -247,6 +252,14 @@ local function ensure_cache(bufnr)
           warmed_langs[lang] = true
           dbg('warmed treesitter grammar: %s', lang)
         end
+      end
+    end)
+  end
+  if has_nil_ft and vim.fn.did_filetype() ~= 0 then
+    vim.schedule(function()
+      if vim.api.nvim_buf_is_valid(bufnr) and hunk_cache[bufnr] then
+        dbg('retrying filetype detection for buffer %d (was blocked by did_filetype)', bufnr)
+        invalidate_cache(bufnr)
       end
     end)
   end

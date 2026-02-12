@@ -198,7 +198,9 @@ function M.parse_buffer(bufnr)
       else
         current_ft = get_ft_from_filename(filename, repo_root)
         current_lang = current_ft and get_lang_from_ft(current_ft) or nil
-        ft_lang_cache[cache_key] = { ft = current_ft, lang = current_lang }
+        if current_ft or vim.fn.did_filetype() == 0 then
+          ft_lang_cache[cache_key] = { ft = current_ft, lang = current_lang }
+        end
       end
       if current_lang then
         dbg('file: %s -> lang: %s', filename, current_lang)
@@ -264,5 +266,9 @@ function M.parse_buffer(bufnr)
 
   return hunks
 end
+
+M._test = {
+  ft_lang_cache = ft_lang_cache,
+}
 
 return M
