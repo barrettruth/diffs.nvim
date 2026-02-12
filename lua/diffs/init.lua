@@ -175,6 +175,9 @@ local diff_windows = {}
 ---@type table<integer, diffs.HunkCacheEntry>
 local hunk_cache = {}
 
+---@type table<string, true>
+local warmed_langs = {}
+
 ---@param bufnr integer
 ---@return boolean
 function M.is_fugitive_buffer(bufnr)
@@ -201,6 +204,34 @@ local function ensure_cache(bufnr)
     highlighted = {},
     pending_clear = true,
   }
+
+  local cold_langs = {}
+  for _, hunk in ipairs(hunks) do
+    local lang = hunk.lang
+    if lang and not warmed_langs[lang] and not cold_langs[lang] then
+      cold_langs[lang] = true
+    end
+  end
+  if next(cold_langs) then
+    vim.schedule(function()
+      for lang in pairs(cold_langs) do
+        if not warmed_langs[lang] then
+          local wok, wp = pcall(vim.treesitter.get_string_parser, 'x', lang)
+          if wok and wp then
+            local wtrees = wp:parse(true)
+            local wq = vim.treesitter.query.get(lang, 'highlights')
+            if wq and wtrees[1] then
+              -- selene: allow(empty_loop)
+              for _ in wq:iter_captures(wtrees[1]:root(), 'x') do
+              end
+            end
+          end
+          warmed_langs[lang] = true
+          dbg('warmed treesitter grammar: %s', lang)
+        end
+      end
+    end)
+  end
 end
 
 ---@param bufnr integer
@@ -545,6 +576,7 @@ local function init()
         end
       end
     end
+    warmed_langs[wlang] = true
   end
 
   vim.api.nvim_create_autocmd('ColorScheme', {
@@ -730,6 +762,7 @@ M._test = {
   hunk_cache = hunk_cache,
   ensure_cache = ensure_cache,
   invalidate_cache = invalidate_cache,
+  warmed_langs = warmed_langs,
 }
 
 return M
