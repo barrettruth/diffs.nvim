@@ -53,6 +53,7 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
     vim.g.diffs = {
       debug = false,
       hide_prefix = false,
+      filetypes = { 'fugitive', 'git', 'gitcommit' },
       highlights = {
         background = true,
         gutter = true,
@@ -114,6 +115,17 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              leading diff character. When `highlights.background`
                              is also enabled, the overlay inherits the line's
                              background color.
+
+        {filetypes}          (table, default: {'fugitive','git','gitcommit'})
+                             List of filetypes that trigger attachment. Add
+                             `'diff'` to enable highlighting in plain `.diff`
+                             and `.patch` files: >lua
+                                 vim.g.diffs = {
+                                   filetypes = {
+                                     'fugitive', 'git', 'gitcommit', 'diff',
+                                   },
+                                 }
+<
 
         {highlights}         (table, default: see below)
                              Controls which highlight features are enabled.
@@ -588,8 +600,8 @@ refresh({bufnr})                                           *diffs.refresh()*
 IMPLEMENTATION                                        *diffs-implementation*
 
 Summary / commit detail views: ~
-1. `FileType fugitive` or `FileType git` (for `fugitive://` buffers)
-   triggers |diffs.attach()|
+1. `FileType` autocmd for configured filetypes (see {filetypes}) triggers
+   |diffs.attach()|. For `git` buffers, only `fugitive://` URIs are attached.
 2. The buffer is parsed to detect file headers (`M path/to/file`,
    `diff --git a/... b/...`) and hunk headers (`@@ -10,3 +10,4 @@`)
 3. For each hunk:
