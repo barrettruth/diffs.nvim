@@ -49,6 +49,21 @@ luarocks install diffs.nvim
   painted. The decoration provider applies highlights on the next redraw cycle,
   causing a brief visual "flash".
 
+- **Per-language cold start**: Treesitter grammar loading (~10ms) and query
+  compilation (~4ms) are one-time costs per language per Neovim session. The
+  `lua` and `diff` grammars are pre-warmed on init. Other languages pay this
+  cost on first encounter, which may cause a brief stutter when a diff
+  containing a new language first enters the viewport.
+
+- **Vim syntax fallback is deferred**: The vim syntax fallback (for languages
+  without a treesitter parser) cannot run inside the decoration provider's
+  redraw cycle due to Neovim's restriction on buffer mutations during rendering.
+  Syntax highlights for these hunks appear one frame after line backgrounds.
+
+- **Plain `.diff` files**: The plugin currently only attaches on `fugitive`,
+  `git` (fugitive-owned), and `gitcommit` filetypes. Standalone `.diff` files
+  are not highlighted ([#115](https://github.com/barrettruth/diffs.nvim/issues/115)).
+
 - **Conflicting diff plugins**: `diffs.nvim` may not interact well with other
   plugins that modify diff highlighting. Known plugins that may conflict:
   - [`diffview.nvim`](https://github.com/sindrets/diffview.nvim) - provides its

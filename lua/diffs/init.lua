@@ -589,14 +589,35 @@ local function init()
       local hl_opts = {
         hide_prefix = config.hide_prefix,
         highlights = config.highlights,
+        defer_vim_syntax = true,
       }
+      local deferred = {}
       local count = 0
       for i = first, last do
         if not entry.highlighted[i] then
-          highlight.highlight_hunk(bufnr, ns, entry.hunks[i], hl_opts)
+          local hunk = entry.hunks[i]
+          highlight.highlight_hunk(bufnr, ns, hunk, hl_opts)
           entry.highlighted[i] = true
           count = count + 1
+          local needs_vim = not hunk.lang and hunk.ft and config.highlights.vim.enabled
+          if needs_vim then
+            table.insert(deferred, hunk)
+          end
         end
+      end
+      if #deferred > 0 then
+        vim.schedule(function()
+          if not vim.api.nvim_buf_is_valid(bufnr) then
+            return
+          end
+          local vim_opts = {
+            hide_prefix = config.hide_prefix,
+            highlights = config.highlights,
+          }
+          for _, hunk in ipairs(deferred) do
+            highlight.highlight_hunk_vim_syntax(bufnr, ns, hunk, vim_opts)
+          end
+        end)
       end
       if t0 and count > 0 then
         dbg(
