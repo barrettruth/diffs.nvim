@@ -180,8 +180,6 @@ local diff_windows = {}
 ---@type table<integer, diffs.HunkCacheEntry>
 local hunk_cache = {}
 
----@type table<string, true>
-local warmed_langs = {}
 
 ---@param bufnr integer
 ---@return boolean
@@ -191,16 +189,6 @@ end
 
 local dbg = log.dbg
 
----@param lang string
-local function warm_grammar(lang)
-  if warmed_langs[lang] then
-    return
-  end
-  pcall(vim.treesitter.get_string_parser, 'x', lang)
-  pcall(vim.treesitter.query.get, lang, 'highlights')
-  warmed_langs[lang] = true
-  dbg('warmed grammar: %s', lang)
-end
 
 ---@param bufnr integer
 local function invalidate_cache(bufnr)
@@ -591,8 +579,6 @@ local function init()
 
   compute_highlight_groups()
 
-  warm_grammar('lua')
-  warm_grammar('diff')
 
   vim.api.nvim_create_autocmd('ColorScheme', {
     callback = function()
@@ -674,9 +660,6 @@ local function init()
             if not hunk.lang and hunk.ft then
               highlight.highlight_hunk_vim_syntax(bufnr, ns, hunk, full_opts)
             end
-            if hunk.lang then
-              warmed_langs[hunk.lang] = true
-            end
           end
           if t1 then
             dbg('deferred pass: %d hunks in %.2fms', #deferred_syntax, (vim.uv.hrtime() - t1) / 1e6)
@@ -708,37 +691,6 @@ local function init()
   })
 end
 
----@param bufnr integer
-local function schedule_grammar_warmup(bufnr)
-  if not vim.api.nvim_buf_is_valid(bufnr) then
-    return
-  end
-  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-  local filenames = {}
-  local seen = {}
-  for _, line in ipairs(lines) do
-    local name = line:match('^[MADRCU%?!]%s+(.+)$') or line:match('^diff %-%-git a/.+ b/(.+)$')
-    if name and not seen[name] then
-      seen[name] = true
-      table.insert(filenames, name)
-    end
-  end
-  if #filenames == 0 then
-    return
-  end
-  vim.schedule(function()
-    for _, name in ipairs(filenames) do
-      local ft = vim.filetype.match({ filename = name })
-      if ft then
-        local lang = vim.treesitter.language.get_lang(ft) or ft
-        local ok = pcall(vim.treesitter.language.inspect, lang)
-        if ok then
-          warm_grammar(lang)
-        end
-      end
-    end
-  end)
-end
 
 ---@param bufnr? integer
 function M.attach(bufnr)
@@ -753,7 +705,6 @@ function M.attach(bufnr)
   dbg('attaching to buffer %d', bufnr)
 
   ensure_cache(bufnr)
-  schedule_grammar_warmup(bufnr)
 
   vim.api.nvim_create_autocmd('BufWipeout', {
     buffer = bufnr,
@@ -827,7 +778,6 @@ M._test = {
   hunk_cache = hunk_cache,
   ensure_cache = ensure_cache,
   invalidate_cache = invalidate_cache,
-  warmed_langs = warmed_langs,
 }
 
 return M
