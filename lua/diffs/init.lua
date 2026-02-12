@@ -529,6 +529,19 @@ local function init()
 
   compute_highlight_groups()
 
+  for _, wlang in ipairs({ 'lua', 'diff' }) do
+    local wcode = wlang == 'diff' and '@@ -1,3 +1,3 @@\n-old\n+new' or 'local x = 1\nreturn x'
+    local wok, wp = pcall(vim.treesitter.get_string_parser, wcode, wlang)
+    if wok and wp then
+      local wtrees = wp:parse(true)
+      local wq = vim.treesitter.query.get(wlang, 'highlights')
+      if wq and wtrees[1] then
+        for _ in wq:iter_captures(wtrees[1]:root(), wcode) do
+        end
+      end
+    end
+  end
+
   vim.api.nvim_create_autocmd('ColorScheme', {
     callback = function()
       compute_highlight_groups()
@@ -543,12 +556,16 @@ local function init()
       if not attached_buffers[bufnr] then
         return false
       end
+      local t0 = config.debug and vim.uv.hrtime() or nil
       ensure_cache(bufnr)
       local entry = hunk_cache[bufnr]
       if entry and entry.pending_clear then
         vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
         entry.highlighted = {}
         entry.pending_clear = false
+      end
+      if t0 then
+        dbg('on_buf %d: %.2fms', bufnr, (vim.uv.hrtime() - t0) / 1e6)
       end
     end,
     on_win = function(_, _, bufnr, toprow, botrow)
@@ -563,15 +580,21 @@ local function init()
       if first == 0 then
         return
       end
+      local t0 = config.debug and vim.uv.hrtime() or nil
       local hl_opts = {
         hide_prefix = config.hide_prefix,
         highlights = config.highlights,
       }
+      local count = 0
       for i = first, last do
         if not entry.highlighted[i] then
           highlight.highlight_hunk(bufnr, ns, entry.hunks[i], hl_opts)
           entry.highlighted[i] = true
+          count = count + 1
         end
+      end
+      if t0 and count > 0 then
+        dbg('on_win %d: %d hunks [%d..%d] in %.2fms (viewport %d-%d)', bufnr, count, first, last, (vim.uv.hrtime() - t0) / 1e6, toprow, botrow)
       end
     end,
   })
