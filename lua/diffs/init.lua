@@ -55,7 +55,6 @@
 
 ---@class diffs.Config
 ---@field debug boolean
----@field debounce_ms integer
 ---@field hide_prefix boolean
 ---@field highlights diffs.Highlights
 ---@field fugitive diffs.FugitiveConfig
@@ -107,7 +106,6 @@ end
 ---@type diffs.Config
 local default_config = {
   debug = false,
-  debounce_ms = 0,
   hide_prefix = false,
   highlights = {
     background = true,
@@ -225,7 +223,7 @@ local function find_visible_hunks(hunks, toprow, botrow)
     return 0, 0
   end
 
-  local lo, hi = 1, n
+  local lo, hi = 1, n + 1
   while lo < hi do
     local mid = math.floor((lo + hi) / 2)
     local h = hunks[mid]
@@ -235,6 +233,10 @@ local function find_visible_hunks(hunks, toprow, botrow)
     else
       hi = mid
     end
+  end
+
+  if lo > n then
+    return 0, 0
   end
 
   local first = lo
@@ -359,7 +361,6 @@ local function init()
 
   vim.validate({
     debug = { opts.debug, 'boolean', true },
-    debounce_ms = { opts.debounce_ms, 'number', true },
     hide_prefix = { opts.hide_prefix, 'boolean', true },
     highlights = { opts.highlights, 'table', true },
   })
@@ -472,9 +473,6 @@ local function init()
     end
   end
 
-  if opts.debounce_ms and opts.debounce_ms < 0 then
-    error('diffs: debounce_ms must be >= 0')
-  end
   if
     opts.highlights
     and opts.highlights.context
@@ -541,15 +539,12 @@ local function init()
   })
 
   vim.api.nvim_set_decoration_provider(ns, {
-    on_buf = function(_, bufnr, tick)
+    on_buf = function(_, bufnr)
       if not attached_buffers[bufnr] then
         return false
       end
+      ensure_cache(bufnr)
       local entry = hunk_cache[bufnr]
-      if not entry or entry.tick ~= tick then
-        ensure_cache(bufnr)
-        entry = hunk_cache[bufnr]
-      end
       if entry and entry.pending_clear then
         vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
         entry.highlighted = {}
@@ -671,5 +666,12 @@ function M.get_conflict_config()
   init()
   return config.conflict
 end
+
+M._test = {
+  find_visible_hunks = find_visible_hunks,
+  hunk_cache = hunk_cache,
+  ensure_cache = ensure_cache,
+  invalidate_cache = invalidate_cache,
+}
 
 return M

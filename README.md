@@ -16,7 +16,7 @@ syntax highlighting.
 - `:Gdiff` unified diff against any revision
 - Background-only diff colors for `&diff` buffers
 - Inline merge conflict detection, highlighting, and resolution
-- Vim syntax fallback, configurable blend/debounce/priorities
+- Vim syntax fallback, configurable blend/priorities
 
 ## Requirements
 
@@ -46,8 +46,8 @@ luarocks install diffs.nvim
 
 - **Syntax flashing**: `diffs.nvim` hooks into the `FileType fugitive` event
   triggered by `vim-fugitive`, at which point the buffer is preliminarily
-  painted. The buffer is then re-painted after `debounce_ms` milliseconds,
-  causing an unavoidable visual "flash" even when `debounce_ms = 0`.
+  painted. The decoration provider applies highlights on the next redraw
+  cycle, causing a brief visual "flash".
 
 - **Conflicting diff plugins**: `diffs.nvim` may not interact well with other
   plugins that modify diff highlighting. Known plugins that may conflict:
