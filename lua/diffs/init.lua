@@ -408,7 +408,13 @@ local function init()
   local opts = vim.g.diffs or {}
 
   vim.validate({
-    debug = { opts.debug, 'boolean', true },
+    debug = {
+      opts.debug,
+      function(v)
+        return v == nil or type(v) == 'boolean' or type(v) == 'string'
+      end,
+      'boolean or string (file path)',
+    },
     hide_prefix = { opts.hide_prefix, 'boolean', true },
     highlights = { opts.highlights, 'table', true },
   })
@@ -675,20 +681,6 @@ local function init()
           if t1 then
             dbg('deferred pass: %d hunks in %.2fms', #deferred_syntax, (vim.uv.hrtime() - t1) / 1e6)
           end
-          local cold_langs = {}
-          for _, hunk in ipairs(cur.hunks) do
-            local lang = hunk.lang
-            if lang and not warmed_langs[lang] and not cold_langs[lang] then
-              cold_langs[lang] = true
-            end
-          end
-          if next(cold_langs) then
-            vim.schedule(function()
-              for lang in pairs(cold_langs) do
-                warm_grammar(lang)
-              end
-            end)
-          end
         end)
       end
       if t0 and count > 0 then
@@ -718,16 +710,17 @@ end
 
 ---@param bufnr integer
 local function schedule_grammar_warmup(bufnr)
-  local entry = hunk_cache[bufnr]
-  if not entry then
+  if not vim.api.nvim_buf_is_valid(bufnr) then
     return
   end
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local filenames = {}
   local seen = {}
-  for _, hunk in ipairs(entry.hunks) do
-    if hunk.filename and not seen[hunk.filename] then
-      seen[hunk.filename] = true
-      table.insert(filenames, hunk.filename)
+  for _, line in ipairs(lines) do
+    local name = line:match('^[MADRCU%?!]%s+(.+)$') or line:match('^diff %-%-git a/.+ b/(.+)$')
+    if name and not seen[name] then
+      seen[name] = true
+      table.insert(filenames, name)
     end
   end
   if #filenames == 0 then
