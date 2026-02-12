@@ -160,8 +160,8 @@ local config = vim.deepcopy(default_config)
 
 local initialized = false
 
----@type diffs.HunkOpts
-local fast_hl_opts = {}
+---@diagnostic disable-next-line: missing-fields
+local fast_hl_opts = {} ---@type diffs.HunkOpts
 
 ---@type table<integer, boolean>
 local attached_buffers = {}
@@ -190,6 +190,15 @@ function M.is_fugitive_buffer(bufnr)
 end
 
 local dbg = log.dbg
+
+---@param bufnr integer
+local function invalidate_cache(bufnr)
+  local entry = hunk_cache[bufnr]
+  if entry then
+    entry.tick = -1
+    entry.pending_clear = true
+  end
+end
 
 ---@param bufnr integer
 local function ensure_cache(bufnr)
@@ -262,15 +271,6 @@ local function ensure_cache(bufnr)
         invalidate_cache(bufnr)
       end
     end)
-  end
-end
-
----@param bufnr integer
-local function invalidate_cache(bufnr)
-  local entry = hunk_cache[bufnr]
-  if entry then
-    entry.tick = -1
-    entry.pending_clear = true
   end
 end
 
