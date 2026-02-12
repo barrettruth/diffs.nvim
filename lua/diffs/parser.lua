@@ -260,7 +260,14 @@ function M.parse_buffer(bufnr)
         if new_remaining and (prefix == ' ' or prefix == '+') then
           new_remaining = new_remaining - 1
         end
-      elseif line == '' and is_unified_diff and old_remaining and old_remaining > 0 and new_remaining and new_remaining > 0 then
+      elseif
+        line == ''
+        and is_unified_diff
+        and old_remaining
+        and old_remaining > 0
+        and new_remaining
+        and new_remaining > 0
+      then
         table.insert(hunk_lines, ' ')
         old_remaining = old_remaining - 1
         new_remaining = new_remaining - 1
