@@ -180,7 +180,6 @@ local diff_windows = {}
 ---@type table<integer, diffs.HunkCacheEntry>
 local hunk_cache = {}
 
-
 ---@param bufnr integer
 ---@return boolean
 function M.is_fugitive_buffer(bufnr)
@@ -188,7 +187,6 @@ function M.is_fugitive_buffer(bufnr)
 end
 
 local dbg = log.dbg
-
 
 ---@param bufnr integer
 local function invalidate_cache(bufnr)
@@ -579,7 +577,6 @@ local function init()
 
   compute_highlight_groups()
 
-
   vim.api.nvim_create_autocmd('ColorScheme', {
     callback = function()
       compute_highlight_groups()
@@ -690,7 +687,6 @@ local function init()
     end,
   })
 end
-
 
 ---@param bufnr? integer
 function M.attach(bufnr)

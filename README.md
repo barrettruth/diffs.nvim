@@ -40,24 +40,24 @@ luarocks install diffs.nvim
 ## Known Limitations
 
 - **Incomplete syntax context**: Treesitter parses each diff hunk in isolation.
-  Context lines within the hunk provide syntactic context for the
-  parser. In rare cases, hunks that start or end mid-expression may produce
-  imperfect highlights due to treesitter error recovery.
+  Context lines within the hunk provide syntactic context for the parser. In
+  rare cases, hunks that start or end mid-expression may produce imperfect
+  highlights due to treesitter error recovery.
 
 - **Syntax "flashing"**: `diffs.nvim` hooks into the `FileType fugitive` event
   triggered by `vim-fugitive`, at which point the buffer is preliminarily
   painted. The decoration provider applies highlights on the next redraw cycle,
   causing a brief visual "flash".
 
-- **Cold Start**: Treesitter grammar loading (~10ms) and query
-  compilation (~4ms) are one-time costs per language per Neovim session. Each
-  language pays this cost on first encounter, which may cause a brief stutter
-  when a diff containing a new language first enters the viewport.
+- **Cold Start**: Treesitter grammar loading (~10ms) and query compilation
+  (~4ms) are one-time costs per language per Neovim session. Each language pays
+  this cost on first encounter, which may cause a brief stutter when a diff
+  containing a new language first enters the viewport.
 
 - **Vim syntax fallback is deferred**: The vim syntax fallback (for languages
   without a treesitter parser) cannot run inside the decoration provider's
-  redraw cycle due to Neovim's restriction on buffer mutations.
-  Vim syntax highlights for these hunks appear slightly delayed.
+  redraw cycle due to Neovim's restriction on buffer mutations. Vim syntax
+  highlights for these hunks appear slightly delayed.
 
 - **Conflicting diff plugins**: `diffs.nvim` may not interact well with other
   plugins that modify diff highlighting. Known plugins that may conflict:
