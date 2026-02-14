@@ -143,12 +143,12 @@ local default_config = {
     },
   },
   fugitive = {
-    enabled = true,
+    enabled = false,
     horizontal = 'du',
     vertical = 'dU',
   },
   neogit = {
-    enabled = true,
+    enabled = false,
   },
   conflict = {
     enabled = true,
@@ -206,11 +206,11 @@ function M.compute_filetypes(opts)
   end
   local fts = { 'git', 'gitcommit' }
   local fug = opts.fugitive
-  if fug ~= false and not (type(fug) == 'table' and fug.enabled == false) then
+  if fug == true or (type(fug) == 'table' and fug.enabled ~= false) then
     table.insert(fts, 'fugitive')
   end
   local neo = opts.neogit
-  if neo ~= false and not (type(neo) == 'table' and neo.enabled == false) then
+  if neo == true or (type(neo) == 'table' and neo.enabled ~= false) then
     table.insert(fts, 'NeogitStatus')
     table.insert(fts, 'NeogitCommitView')
     table.insert(fts, 'NeogitDiffView')
@@ -434,18 +434,22 @@ local function init()
     vim.deprecate('vim.g.diffs.filetypes', 'fugitive, neogit, and extra_filetypes', '0.3.0', 'diffs.nvim')
   end
 
-  if opts.fugitive == true or opts.fugitive == nil then
-    opts.fugitive = nil
+  if opts.fugitive == true then
+    opts.fugitive = { enabled = true }
   elseif opts.fugitive == false then
     opts.fugitive = { enabled = false }
+  elseif opts.fugitive == nil then
+    opts.fugitive = nil
   elseif type(opts.fugitive) == 'table' and opts.fugitive.enabled == nil then
     opts.fugitive.enabled = true
   end
 
-  if opts.neogit == true or opts.neogit == nil then
-    opts.neogit = nil
+  if opts.neogit == true then
+    opts.neogit = { enabled = true }
   elseif opts.neogit == false then
     opts.neogit = { enabled = false }
+  elseif opts.neogit == nil then
+    opts.neogit = nil
   elseif type(opts.neogit) == 'table' and opts.neogit.enabled == nil then
     opts.neogit.enabled = true
   end
