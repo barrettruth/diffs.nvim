@@ -33,8 +33,12 @@
 ---@field priorities diffs.PrioritiesConfig
 
 ---@class diffs.FugitiveConfig
+---@field enabled boolean
 ---@field horizontal string|false
 ---@field vertical string|false
+
+---@class diffs.NeogitConfig
+---@field enabled boolean
 
 ---@class diffs.ConflictKeymaps
 ---@field ours string|false
@@ -56,9 +60,11 @@
 ---@class diffs.Config
 ---@field debug boolean|string
 ---@field hide_prefix boolean
----@field filetypes string[]
+---@field filetypes? string[] @deprecated use fugitive, neogit, extra_filetypes
+---@field extra_filetypes string[]
 ---@field highlights diffs.Highlights
 ---@field fugitive diffs.FugitiveConfig
+---@field neogit diffs.NeogitConfig
 ---@field conflict diffs.ConflictConfig
 
 ---@class diffs
@@ -108,7 +114,7 @@ end
 local default_config = {
   debug = false,
   hide_prefix = false,
-  filetypes = { 'fugitive', 'git', 'gitcommit' },
+  extra_filetypes = {},
   highlights = {
     background = true,
     gutter = true,
@@ -137,8 +143,12 @@ local default_config = {
     },
   },
   fugitive = {
+    enabled = false,
     horizontal = 'du',
     vertical = 'dU',
+  },
+  neogit = {
+    enabled = false,
   },
   conflict = {
     enabled = true,
@@ -186,6 +196,31 @@ local hunk_cache = {}
 ---@return boolean
 function M.is_fugitive_buffer(bufnr)
   return vim.api.nvim_buf_get_name(bufnr):match('^fugitive://') ~= nil
+end
+
+---@param opts table
+---@return string[]
+function M.compute_filetypes(opts)
+  if opts.filetypes then
+    return opts.filetypes
+  end
+  local fts = { 'git', 'gitcommit' }
+  local fug = opts.fugitive
+  if fug == true or (type(fug) == 'table' and fug.enabled ~= false) then
+    table.insert(fts, 'fugitive')
+  end
+  local neo = opts.neogit
+  if neo == true or (type(neo) == 'table' and neo.enabled ~= false) then
+    table.insert(fts, 'NeogitStatus')
+    table.insert(fts, 'NeogitCommitView')
+    table.insert(fts, 'NeogitDiffView')
+  end
+  if type(opts.extra_filetypes) == 'table' then
+    for _, ft in ipairs(opts.extra_filetypes) do
+      table.insert(fts, ft)
+    end
+  end
+  return fts
 end
 
 local dbg = log.dbg
@@ -387,6 +422,34 @@ local function compute_highlight_groups()
   end
 end
 
+local neogit_attached = false
+
+local neogit_hl_groups = {
+  'NeogitDiffAdd',
+  'NeogitDiffAddCursor',
+  'NeogitDiffAddHighlight',
+  'NeogitDiffDelete',
+  'NeogitDiffDeleteCursor',
+  'NeogitDiffDeleteHighlight',
+  'NeogitDiffContext',
+  'NeogitDiffContextCursor',
+  'NeogitDiffContextHighlight',
+  'NeogitDiffHeader',
+  'NeogitDiffHeaderHighlight',
+  'NeogitHunkHeader',
+  'NeogitHunkHeaderCursor',
+  'NeogitHunkHeaderHighlight',
+  'NeogitHunkMergeHeader',
+  'NeogitHunkMergeHeaderCursor',
+  'NeogitHunkMergeHeaderHighlight',
+}
+
+local function override_neogit_highlights()
+  for _, name in ipairs(neogit_hl_groups) do
+    vim.api.nvim_set_hl(0, name, {})
+  end
+end
+
 local function init()
   if initialized then
     return
@@ -394,6 +457,35 @@ local function init()
   initialized = true
 
   local opts = vim.g.diffs or {}
+
+  if opts.filetypes then
+    vim.deprecate(
+      'vim.g.diffs.filetypes',
+      'fugitive, neogit, and extra_filetypes',
+      '0.3.0',
+      'diffs.nvim'
+    )
+  end
+
+  if opts.fugitive == true then
+    opts.fugitive = { enabled = true }
+  elseif opts.fugitive == false then
+    opts.fugitive = { enabled = false }
+  elseif opts.fugitive == nil then
+    opts.fugitive = nil
+  elseif type(opts.fugitive) == 'table' and opts.fugitive.enabled == nil then
+    opts.fugitive.enabled = true
+  end
+
+  if opts.neogit == true then
+    opts.neogit = { enabled = true }
+  elseif opts.neogit == false then
+    opts.neogit = { enabled = false }
+  elseif opts.neogit == nil then
+    opts.neogit = nil
+  elseif type(opts.neogit) == 'table' and opts.neogit.enabled == nil then
+    opts.neogit.enabled = true
+  end
 
   vim.validate({
     debug = {
@@ -404,7 +496,9 @@ local function init()
       'boolean or string (file path)',
     },
     hide_prefix = { opts.hide_prefix, 'boolean', true },
-    filetypes = { opts.filetypes, 'table', true },
+    fugitive = { opts.fugitive, 'table', true },
+    neogit = { opts.neogit, 'table', true },
+    extra_filetypes = { opts.extra_filetypes, 'table', true },
     highlights = { opts.highlights, 'table', true },
   })
 
@@ -472,20 +566,27 @@ local function init()
 
   if opts.fugitive then
     vim.validate({
+      ['fugitive.enabled'] = { opts.fugitive.enabled, 'boolean', true },
       ['fugitive.horizontal'] = {
         opts.fugitive.horizontal,
         function(v)
-          return v == false or type(v) == 'string'
+          return v == nil or v == false or type(v) == 'string'
         end,
         'string or false',
       },
       ['fugitive.vertical'] = {
         opts.fugitive.vertical,
         function(v)
-          return v == false or type(v) == 'string'
+          return v == nil or v == false or type(v) == 'string'
         end,
         'string or false',
       },
+    })
+  end
+
+  if opts.neogit then
+    vim.validate({
+      ['neogit.enabled'] = { opts.neogit.enabled, 'boolean', true },
     })
   end
 
@@ -583,6 +684,9 @@ local function init()
   vim.api.nvim_create_autocmd('ColorScheme', {
     callback = function()
       compute_highlight_groups()
+      if neogit_attached then
+        vim.schedule(override_neogit_highlights)
+      end
       for bufnr, _ in pairs(attached_buffers) do
         invalidate_cache(bufnr)
       end
@@ -700,6 +804,11 @@ function M.attach(bufnr)
     return
   end
   attached_buffers[bufnr] = true
+
+  if not neogit_attached and config.neogit.enabled and vim.bo[bufnr].filetype:match('^Neogit') then
+    neogit_attached = true
+    vim.schedule(override_neogit_highlights)
+  end
 
   dbg('attaching to buffer %d', bufnr)
 

@@ -6,7 +6,7 @@ vim.g.loaded_diffs = 1
 require('diffs.commands').setup()
 
 vim.api.nvim_create_autocmd('FileType', {
-  pattern = (vim.g.diffs or {}).filetypes or { 'fugitive', 'git', 'gitcommit' },
+  pattern = require('diffs').compute_filetypes(vim.g.diffs or {}),
   callback = function(args)
     local diffs = require('diffs')
     if args.match == 'git' and not diffs.is_fugitive_buffer(args.buf) then

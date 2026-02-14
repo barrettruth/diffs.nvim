@@ -110,7 +110,9 @@ local function get_repo_root(bufnr)
     return vim.fn.fnamemodify(git_dir, ':h')
   end
 
-  return nil
+  local cwd = vim.fn.getcwd()
+  local git = require('diffs.git')
+  return git.get_repo_root(cwd .. '/.')
 end
 
 ---@param bufnr integer
@@ -194,7 +196,13 @@ function M.parse_buffer(bufnr)
 
   for i, line in ipairs(lines) do
     local diff_git_file = line:match('^diff %-%-git a/.+ b/(.+)$')
-    local filename = line:match('^[MADRCU%?!]%s+(.+)$') or diff_git_file
+    local neogit_file = line:match('^modified%s+(.+)$')
+      or line:match('^new file%s+(.+)$')
+      or line:match('^deleted%s+(.+)$')
+      or line:match('^renamed%s+(.+)$')
+      or line:match('^copied%s+(.+)$')
+    local bare_file = not hunk_start and line:match('^([^%s]+%.[^%s]+)$')
+    local filename = line:match('^[MADRCU%?!]%s+(.+)$') or diff_git_file or neogit_file or bare_file
     if filename then
       is_unified_diff = diff_git_file ~= nil
       flush_hunk()
