@@ -37,6 +37,24 @@ luarocks install diffs.nvim
 :help diffs.nvim
 ```
 
+## FAQ
+
+**Does diffs.nvim support vim-fugitive?**
+
+Yes. Enable it in your config:
+
+```lua
+vim.g.diffs = { fugitive = true }
+```
+
+**Does diffs.nvim support Neogit?**
+
+Yes. Enable it in your config:
+
+```lua
+vim.g.diffs = { neogit = true }
+```
+
 ## Known Limitations
 
 - **Incomplete syntax context**: Treesitter parses each diff hunk in isolation.
@@ -71,19 +89,6 @@ luarocks install diffs.nvim
   - [`git-conflict.nvim`](https://github.com/akinsho/git-conflict.nvim) -
     `diffs.nvim` now includes built-in conflict resolution; disable one or the
     other to avoid overlap
-
-## FAQ
-
-**Does diffs.nvim work with Neogit?**
-
-Yes, out of the box. Neogit support is enabled by default.
-
-**How do I disable Neogit or fugitive support?**
-
-```lua
-vim.g.diffs = { neogit = false }
-vim.g.diffs = { fugitive = false }
-```
 
 # Acknowledgements
 
