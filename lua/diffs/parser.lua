@@ -201,7 +201,8 @@ function M.parse_buffer(bufnr)
       or line:match('^deleted%s+(.+)$')
       or line:match('^renamed%s+(.+)$')
       or line:match('^copied%s+(.+)$')
-    local filename = line:match('^[MADRCU%?!]%s+(.+)$') or diff_git_file or neogit_file
+    local bare_file = not hunk_start and line:match('^([^%s]+%.[^%s]+)$')
+    local filename = line:match('^[MADRCU%?!]%s+(.+)$') or diff_git_file or neogit_file or bare_file
     if filename then
       is_unified_diff = diff_git_file ~= nil
       flush_hunk()
