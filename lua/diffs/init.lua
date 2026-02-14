@@ -60,7 +60,6 @@
 ---@class diffs.Config
 ---@field debug boolean|string
 ---@field hide_prefix boolean
----@field filetypes? string[]
 ---@field extra_filetypes string[]
 ---@field highlights diffs.Highlights
 ---@field fugitive diffs.FugitiveConfig
@@ -201,9 +200,6 @@ end
 ---@param opts table
 ---@return string[]
 function M.compute_filetypes(opts)
-  if opts.filetypes then
-    return opts.filetypes
-  end
   local fts = { 'git', 'gitcommit' }
   local fug = opts.fugitive
   if fug == true or (type(fug) == 'table' and fug.enabled ~= false) then
@@ -429,10 +425,6 @@ local function init()
   initialized = true
 
   local opts = vim.g.diffs or {}
-
-  if opts.filetypes then
-    vim.deprecate('vim.g.diffs.filetypes', 'fugitive, neogit, and extra_filetypes', '0.3.0', 'diffs.nvim')
-  end
 
   if opts.fugitive == true then
     opts.fugitive = { enabled = true }
