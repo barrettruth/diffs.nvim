@@ -7,8 +7,8 @@ License: MIT
 INTRODUCTION                                                       *diffs.nvim*
 
 diffs.nvim adds syntax highlighting to diff views. It overlays language-aware
-highlights on top of default diff highlighting in vim-fugitive and Neovim's
-built-in diff mode.
+highlights on top of default diff highlighting in vim-fugitive, Neogit, and
+Neovim's built-in diff mode.
 
 Features: ~
 - Syntax highlighting in |:Git| summary diffs and commit detail views
@@ -53,7 +53,8 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
     vim.g.diffs = {
       debug = false,
       hide_prefix = false,
-      filetypes = { 'fugitive', 'git', 'gitcommit' },
+      filetypes = { 'fugitive', 'git', 'gitcommit',
+                    'NeogitStatus', 'NeogitCommitView', 'NeogitDiffView' },
       highlights = {
         background = true,
         gutter = true,
@@ -116,10 +117,14 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              is also enabled, the overlay inherits the line's
                              background color.
 
-        {filetypes}          (table, default: {'fugitive','git','gitcommit'})
-                             List of filetypes that trigger attachment. Add
-                             `'diff'` to enable highlighting in plain `.diff`
-                             and `.patch` files: >lua
+        {filetypes}          (table, default: {'fugitive','git','gitcommit',
+                             'NeogitStatus','NeogitCommitView',
+                             'NeogitDiffView'})
+                             List of filetypes that trigger attachment.
+                             Neogit filetypes are included by default; see
+                             |diffs-neogit|. Add `'diff'` to enable
+                             highlighting in plain `.diff` and `.patch`
+                             files: >lua
                                  vim.g.diffs = {
                                    filetypes = {
                                      'fugitive', 'git', 'gitcommit', 'diff',
@@ -578,6 +583,38 @@ informational notification and are left unchanged.
 The working file buffer is modified in place; save it when ready.
 Phase 1 inline conflict highlights (see |diffs-conflict|) are refreshed
 automatically after each resolution.
+
+==============================================================================
+NEOGIT                                                          *diffs-neogit*
+
+diffs.nvim works with Neogit (https://github.com/NeogitOrg/neogit) out of
+the box. The `NeogitStatus`, `NeogitCommitView`, and `NeogitDiffView`
+filetypes are included in the default {filetypes} list.
+
+When a diff is expanded in a Neogit buffer (e.g., via TAB on a file in the
+status view), diffs.nvim applies treesitter syntax highlighting and
+intra-line diffs to the hunk lines, just as it does for fugitive.
+
+Neogit highlight overrides: ~
+On first attach to a Neogit buffer, diffs.nvim overrides Neogit's diff
+highlight groups (`NeogitDiffAdd*`, `NeogitDiffDelete*`,
+`NeogitDiffContext*`, `NeogitHunkHeader*`, `NeogitDiffHeader*`, etc.) by
+setting them to empty (`{}`). This gives diffs.nvim sole control of diff
+line visuals. The overrides are reapplied on `ColorScheme` since Neogit
+re-defines its groups then.
+
+Setup: ~
+No additional configuration is needed. If you use lazy.nvim: >lua
+    {
+      'barrettruth/diffs.nvim',
+      dependencies = {
+        'tpope/vim-fugitive',   -- optional
+        'NeogitOrg/neogit',     -- optional
+      },
+    }
+<
+Neither dependency is required; diffs.nvim activates on whichever
+filetypes are present.
 
 ==============================================================================
 API                                                                *diffs-api*

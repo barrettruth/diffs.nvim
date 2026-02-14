@@ -2,14 +2,14 @@
 
 **Syntax highlighting for diffs in Neovim**
 
-Enhance `vim-fugitive` and Neovim's built-in diff mode with language-aware
-syntax highlighting.
+Enhance `vim-fugitive`, [Neogit](https://github.com/NeogitOrg/neogit), and
+Neovim's built-in diff mode with language-aware syntax highlighting.
 
 <video src="https://github.com/user-attachments/assets/24574916-ecb2-478e-a0ea-e4cdc971e310" width="100%" controls></video>
 
 ## Features
 
-- Treesitter syntax highlighting in fugitive diffs and commit views
+- Treesitter syntax highlighting in fugitive and Neogit diffs and commit views
 - Character-level intra-line diff highlighting (with optional
   [vscode-diff](https://github.com/esmuellert/codediff.nvim) FFI backend for
   word-level accuracy)
