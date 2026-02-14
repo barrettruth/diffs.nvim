@@ -587,5 +587,86 @@ describe('parser', function()
       assert.are.equal('/tmp/test-repo', hunks[1].repo_root)
       delete_buffer(bufnr)
     end)
+
+    it('detects neogit modified prefix', function()
+      local bufnr = create_buffer({
+        'modified   hello.lua',
+        '@@ -1,2 +1,3 @@',
+        ' local M = {}',
+        '+local x = 1',
+        ' return M',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('hello.lua', hunks[1].filename)
+      assert.are.equal('lua', hunks[1].ft)
+      assert.are.equal(3, #hunks[1].lines)
+      delete_buffer(bufnr)
+    end)
+
+    it('detects neogit new file prefix', function()
+      local bufnr = create_buffer({
+        'new file   hello.lua',
+        '@@ -0,0 +1,2 @@',
+        '+local M = {}',
+        '+return M',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('hello.lua', hunks[1].filename)
+      assert.are.equal('lua', hunks[1].ft)
+      assert.are.equal(2, #hunks[1].lines)
+      delete_buffer(bufnr)
+    end)
+
+    it('detects neogit deleted prefix', function()
+      local bufnr = create_buffer({
+        'deleted   hello.lua',
+        '@@ -1,2 +0,0 @@',
+        '-local M = {}',
+        '-return M',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('hello.lua', hunks[1].filename)
+      assert.are.equal('lua', hunks[1].ft)
+      assert.are.equal(2, #hunks[1].lines)
+      delete_buffer(bufnr)
+    end)
+
+    it('detects bare filename for untracked files', function()
+      local bufnr = create_buffer({
+        'newfile.rs',
+        '@@ -0,0 +1,3 @@',
+        '+fn main() {',
+        '+    println!("hello");',
+        '+}',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('newfile.rs', hunks[1].filename)
+      assert.are.equal(3, #hunks[1].lines)
+      delete_buffer(bufnr)
+    end)
+
+    it('does not match section headers as bare filenames', function()
+      local bufnr = create_buffer({
+        'Untracked files (1)',
+        'newfile.rs',
+        '@@ -0,0 +1,3 @@',
+        '+fn main() {',
+        '+    println!("hello");',
+        '+}',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('newfile.rs', hunks[1].filename)
+      delete_buffer(bufnr)
+    end)
   end)
 end)
