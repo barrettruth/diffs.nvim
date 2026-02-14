@@ -39,21 +39,18 @@ luarocks install diffs.nvim
 
 ## FAQ
 
-**Does diffs.nvim support vim-fugitive?**
+**Does diffs.nvim support vim-fugitive/Neogit?**
 
 Yes. Enable it in your config:
 
 ```lua
-vim.g.diffs = { fugitive = true }
+vim.g.diffs = {
+  fugitive = true,
+  neogit = true,
+}
 ```
 
-**Does diffs.nvim support Neogit?**
-
-Yes. Enable it in your config:
-
-```lua
-vim.g.diffs = { neogit = true }
-```
+See the documentation for more information.
 
 ## Known Limitations
 
