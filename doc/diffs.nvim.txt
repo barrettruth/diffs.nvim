@@ -624,6 +624,10 @@ line visuals. The overrides are reapplied on `ColorScheme` since Neogit
 re-defines its groups then. When `neogit = false`, no highlight overrides
 are applied.
 
+Deprecated: ~
+The `filetypes` config key still works but is deprecated and will be
+removed in 0.3.0. Use `fugitive`, `neogit`, and `extra_filetypes` instead.
+
 ==============================================================================
 API                                                                *diffs-api*
 
