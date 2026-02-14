@@ -72,6 +72,19 @@ luarocks install diffs.nvim
     `diffs.nvim` now includes built-in conflict resolution; disable one or the
     other to avoid overlap
 
+## FAQ
+
+**Does diffs.nvim work with Neogit?**
+
+Yes, out of the box. Neogit support is enabled by default.
+
+**How do I disable Neogit or fugitive support?**
+
+```lua
+vim.g.diffs = { neogit = false }
+vim.g.diffs = { fugitive = false }
+```
+
 # Acknowledgements
 
 - [`vim-fugitive`](https://github.com/tpope/vim-fugitive)
