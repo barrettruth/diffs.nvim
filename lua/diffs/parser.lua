@@ -196,7 +196,12 @@ function M.parse_buffer(bufnr)
 
   for i, line in ipairs(lines) do
     local diff_git_file = line:match('^diff %-%-git a/.+ b/(.+)$')
-    local filename = line:match('^[MADRCU%?!]%s+(.+)$') or diff_git_file
+    local neogit_file = line:match('^modified%s+(.+)$')
+      or line:match('^new file%s+(.+)$')
+      or line:match('^deleted%s+(.+)$')
+      or line:match('^renamed%s+(.+)$')
+      or line:match('^copied%s+(.+)$')
+    local filename = line:match('^[MADRCU%?!]%s+(.+)$') or diff_git_file or neogit_file
     if filename then
       is_unified_diff = diff_git_file ~= nil
       flush_hunk()
