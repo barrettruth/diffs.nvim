@@ -431,7 +431,12 @@ local function init()
   local opts = vim.g.diffs or {}
 
   if opts.filetypes then
-    vim.deprecate('vim.g.diffs.filetypes', 'fugitive, neogit, and extra_filetypes', '0.3.0', 'diffs.nvim')
+    vim.deprecate(
+      'vim.g.diffs.filetypes',
+      'fugitive, neogit, and extra_filetypes',
+      '0.3.0',
+      'diffs.nvim'
+    )
   end
 
   if opts.fugitive == true then
