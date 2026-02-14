@@ -9,7 +9,7 @@ Neovim's built-in diff mode with language-aware syntax highlighting.
 
 ## Features
 
-- Treesitter syntax highlighting in fugitive and Neogit diffs and commit views
+- Treesitter syntax highlighting in vim-fugitive, Neogit, and `diff` filetype
 - Character-level intra-line diff highlighting (with optional
   [vscode-diff](https://github.com/esmuellert/codediff.nvim) FFI backend for
   word-level accuracy)
