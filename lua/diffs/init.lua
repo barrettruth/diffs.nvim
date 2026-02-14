@@ -422,6 +422,34 @@ local function compute_highlight_groups()
   end
 end
 
+local neogit_attached = false
+
+local neogit_hl_groups = {
+  'NeogitDiffAdd',
+  'NeogitDiffAddCursor',
+  'NeogitDiffAddHighlight',
+  'NeogitDiffDelete',
+  'NeogitDiffDeleteCursor',
+  'NeogitDiffDeleteHighlight',
+  'NeogitDiffContext',
+  'NeogitDiffContextCursor',
+  'NeogitDiffContextHighlight',
+  'NeogitDiffHeader',
+  'NeogitDiffHeaderHighlight',
+  'NeogitHunkHeader',
+  'NeogitHunkHeaderCursor',
+  'NeogitHunkHeaderHighlight',
+  'NeogitHunkMergeHeader',
+  'NeogitHunkMergeHeaderCursor',
+  'NeogitHunkMergeHeaderHighlight',
+}
+
+local function override_neogit_highlights()
+  for _, name in ipairs(neogit_hl_groups) do
+    vim.api.nvim_set_hl(0, name, {})
+  end
+end
+
 local function init()
   if initialized then
     return
@@ -765,34 +793,6 @@ local function init()
       end
     end,
   })
-end
-
-local neogit_attached = false
-
-local neogit_hl_groups = {
-  'NeogitDiffAdd',
-  'NeogitDiffAddCursor',
-  'NeogitDiffAddHighlight',
-  'NeogitDiffDelete',
-  'NeogitDiffDeleteCursor',
-  'NeogitDiffDeleteHighlight',
-  'NeogitDiffContext',
-  'NeogitDiffContextCursor',
-  'NeogitDiffContextHighlight',
-  'NeogitDiffHeader',
-  'NeogitDiffHeaderHighlight',
-  'NeogitHunkHeader',
-  'NeogitHunkHeaderCursor',
-  'NeogitHunkHeaderHighlight',
-  'NeogitHunkMergeHeader',
-  'NeogitHunkMergeHeaderCursor',
-  'NeogitHunkMergeHeaderHighlight',
-}
-
-local function override_neogit_highlights()
-  for _, name in ipairs(neogit_hl_groups) do
-    vim.api.nvim_set_hl(0, name, {})
-  end
 end
 
 ---@param bufnr? integer
