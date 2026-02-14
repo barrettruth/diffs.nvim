@@ -108,7 +108,7 @@ end
 local default_config = {
   debug = false,
   hide_prefix = false,
-  filetypes = { 'fugitive', 'git', 'gitcommit' },
+  filetypes = { 'fugitive', 'git', 'gitcommit', 'NeogitStatus', 'NeogitCommitView', 'NeogitDiffView' },
   highlights = {
     background = true,
     gutter = true,

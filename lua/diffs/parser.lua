@@ -110,7 +110,9 @@ local function get_repo_root(bufnr)
     return vim.fn.fnamemodify(git_dir, ':h')
   end
 
-  return nil
+  local cwd = vim.fn.getcwd()
+  local git = require('diffs.git')
+  return git.get_repo_root(cwd .. '/.')
 end
 
 ---@param bufnr integer
