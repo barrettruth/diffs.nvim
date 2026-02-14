@@ -53,8 +53,9 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
     vim.g.diffs = {
       debug = false,
       hide_prefix = false,
-      filetypes = { 'fugitive', 'git', 'gitcommit',
-                    'NeogitStatus', 'NeogitCommitView', 'NeogitDiffView' },
+      fugitive = true,
+      neogit = true,
+      extra_filetypes = {},
       highlights = {
         background = true,
         gutter = true,
@@ -83,10 +84,6 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
           char_bg = 201,
         },
         overrides = {},
-      },
-      fugitive = {
-        horizontal = 'du',
-        vertical = 'dU',
       },
       conflict = {
         enabled = true,
@@ -117,28 +114,42 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              is also enabled, the overlay inherits the line's
                              background color.
 
-        {filetypes}          (table, default: {'fugitive','git','gitcommit',
-                             'NeogitStatus','NeogitCommitView',
-                             'NeogitDiffView'})
-                             List of filetypes that trigger attachment.
-                             Neogit filetypes are included by default; see
-                             |diffs-neogit|. Add `'diff'` to enable
-                             highlighting in plain `.diff` and `.patch`
+        {fugitive}           (boolean|table, default: true)
+                             Enable vim-fugitive integration. Accepts
+                             `true`, `false`, or a table with sub-options
+                             (see |diffs.FugitiveConfig|). When enabled,
+                             the `fugitive` filetype is active and status
+                             buffer keymaps are registered. >lua
+                                 vim.g.diffs = { fugitive = false }
+                                 vim.g.diffs = {
+                                   fugitive = { horizontal = 'dd' },
+                                 }
+<
+
+        {neogit}             (boolean|table, default: true)
+                             Enable Neogit integration. Accepts `true`,
+                             `false`, or `{ enabled = false }`. When
+                             enabled, `NeogitStatus`, `NeogitCommitView`,
+                             and `NeogitDiffView` filetypes are active and
+                             Neogit highlight overrides are applied. See
+                             |diffs-neogit|. >lua
+                                 vim.g.diffs = { neogit = false }
+<
+
+        {extra_filetypes}    (table, default: {})
+                             Additional filetypes to attach to, beyond the
+                             built-in `git`, `gitcommit`, and any enabled
+                             integration filetypes. Use this to enable
+                             highlighting in plain `.diff` / `.patch`
                              files: >lua
                                  vim.g.diffs = {
-                                   filetypes = {
-                                     'fugitive', 'git', 'gitcommit', 'diff',
-                                   },
+                                   extra_filetypes = { 'diff' },
                                  }
 <
 
         {highlights}         (table, default: see below)
                              Controls which highlight features are enabled.
                              See |diffs.Highlights| for fields.
-
-        {fugitive}           (table, default: see below)
-                             Fugitive status buffer keymap options.
-                             See |diffs.FugitiveConfig| for fields.
 
         {conflict}           (table, default: see below)
                              Inline merge conflict resolution options.
@@ -427,12 +438,20 @@ Configuration: ~
 >lua
     vim.g.diffs = {
       fugitive = {
+        enabled = true,     -- false to disable fugitive integration entirely
         horizontal = 'du',  -- keymap for horizontal split, false to disable
         vertical = 'dU',    -- keymap for vertical split, false to disable
       },
     }
 <
     Fields: ~
+        {enabled}            (boolean, default: true)
+                             Enable fugitive integration. When false, the
+                             `fugitive` filetype is excluded and no status
+                             buffer keymaps are registered. Shorthand:
+                             `fugitive = false` is equivalent to
+                             `fugitive = { enabled = false }`.
+
         {horizontal}         (string|false, default: 'du')
                              Keymap for unified diff in horizontal split.
                              Set to `false` to disable.
@@ -588,8 +607,9 @@ automatically after each resolution.
 NEOGIT                                                          *diffs-neogit*
 
 diffs.nvim works with Neogit (https://github.com/NeogitOrg/neogit) out of
-the box. The `NeogitStatus`, `NeogitCommitView`, and `NeogitDiffView`
-filetypes are included in the default {filetypes} list.
+the box. Neogit support is enabled by default and can be disabled: >lua
+    vim.g.diffs = { neogit = false }
+<
 
 When a diff is expanded in a Neogit buffer (e.g., via TAB on a file in the
 status view), diffs.nvim applies treesitter syntax highlighting and
@@ -601,20 +621,12 @@ highlight groups (`NeogitDiffAdd*`, `NeogitDiffDelete*`,
 `NeogitDiffContext*`, `NeogitHunkHeader*`, `NeogitDiffHeader*`, etc.) by
 setting them to empty (`{}`). This gives diffs.nvim sole control of diff
 line visuals. The overrides are reapplied on `ColorScheme` since Neogit
-re-defines its groups then.
+re-defines its groups then. When `neogit = false`, no highlight overrides
+are applied.
 
-Setup: ~
-No additional configuration is needed. If you use lazy.nvim: >lua
-    {
-      'barrettruth/diffs.nvim',
-      dependencies = {
-        'tpope/vim-fugitive',   -- optional
-        'NeogitOrg/neogit',     -- optional
-      },
-    }
-<
-Neither dependency is required; diffs.nvim activates on whichever
-filetypes are present.
+Deprecated: ~
+The `filetypes` config key still works but is deprecated and will be
+removed in 0.3.0. Use `fugitive`, `neogit`, and `extra_filetypes` instead.
 
 ==============================================================================
 API                                                                *diffs-api*
@@ -637,7 +649,7 @@ refresh({bufnr})                                           *diffs.refresh()*
 IMPLEMENTATION                                        *diffs-implementation*
 
 Summary / commit detail views: ~
-1. `FileType` autocmd for configured filetypes (see {filetypes}) triggers
+1. `FileType` autocmd for computed filetypes (see |diffs-config|) triggers
    |diffs.attach()|. For `git` buffers, only `fugitive://` URIs are attached.
 2. The buffer is parsed to detect file headers (`M path/to/file`,
    `diff --git a/... b/...`) and hunk headers (`@@ -10,3 +10,4 @@`)
