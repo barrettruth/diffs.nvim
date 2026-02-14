@@ -53,8 +53,8 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
     vim.g.diffs = {
       debug = false,
       hide_prefix = false,
-      fugitive = true,
-      neogit = true,
+      fugitive = false,
+      neogit = false,
       extra_filetypes = {},
       highlights = {
         background = true,
@@ -114,19 +114,19 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              is also enabled, the overlay inherits the line's
                              background color.
 
-        {fugitive}           (boolean|table, default: true)
+        {fugitive}           (boolean|table, default: false)
                              Enable vim-fugitive integration. Accepts
                              `true`, `false`, or a table with sub-options
                              (see |diffs.FugitiveConfig|). When enabled,
                              the `fugitive` filetype is active and status
                              buffer keymaps are registered. >lua
-                                 vim.g.diffs = { fugitive = false }
+                                 vim.g.diffs = { fugitive = true }
                                  vim.g.diffs = {
                                    fugitive = { horizontal = 'dd' },
                                  }
 <
 
-        {neogit}             (boolean|table, default: true)
+        {neogit}             (boolean|table, default: false)
                              Enable Neogit integration. Accepts `true`,
                              `false`, or `{ enabled = false }`. When
                              enabled, `NeogitStatus`, `NeogitCommitView`,
@@ -445,7 +445,7 @@ Configuration: ~
     }
 <
     Fields: ~
-        {enabled}            (boolean, default: true)
+        {enabled}            (boolean, default: false)
                              Enable fugitive integration. When false, the
                              `fugitive` filetype is excluded and no status
                              buffer keymaps are registered. Shorthand:
@@ -607,8 +607,8 @@ automatically after each resolution.
 NEOGIT                                                          *diffs-neogit*
 
 diffs.nvim works with Neogit (https://github.com/NeogitOrg/neogit) out of
-the box. Neogit support is enabled by default and can be disabled: >lua
-    vim.g.diffs = { neogit = false }
+the box. Enable Neogit support in your config: >lua
+    vim.g.diffs = { neogit = true }
 <
 
 When a diff is expanded in a Neogit buffer (e.g., via TAB on a file in the
