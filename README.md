@@ -40,6 +40,24 @@ luarocks install diffs.nvim
 
 ## FAQ
 
+**How do I install with lazy.nvim?**
+
+```lua
+{
+  'barrettruth/diffs.nvim',
+  init = function()
+    vim.g.diffs = {
+      fugitive = true,
+      -- neogit = true,
+    }
+  end,
+}
+```
+
+Do not use `event`, `lazy`, `ft`, `config`, or `keys` to control
+loading. `diffs.nvim` lazy-loads itself via a `FileType` autocmd
+registered at startup; external lazy-loading will interfere with this.
+
 **Does diffs.nvim support vim-fugitive/Neogit?**
 
 Yes. Enable it in your config:
