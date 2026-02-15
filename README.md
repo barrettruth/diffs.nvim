@@ -53,8 +53,8 @@ luarocks install diffs.nvim
 }
 ```
 
-Do not lazy load `diffs.nvim` with `event`, `lazy`, `ft`, `config`, or `keys` to control
-loading - `diffs.nvim` lazy-loads itself.
+Do not lazy load `diffs.nvim` with `event`, `lazy`, `ft`, `config`, or `keys` to
+control loading - `diffs.nvim` lazy-loads itself.
 
 **Does diffs.nvim support vim-fugitive/Neogit?**
 
