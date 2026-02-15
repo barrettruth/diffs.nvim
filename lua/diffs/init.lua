@@ -467,6 +467,31 @@ local function init()
     )
   end
 
+  if not opts.filetypes and opts.fugitive == nil and opts.neogit == nil then
+    local has_diff_ft = false
+    if type(opts.extra_filetypes) == 'table' then
+      for _, ft in ipairs(opts.extra_filetypes) do
+        if ft == 'diff' then
+          has_diff_ft = true
+          break
+        end
+      end
+    end
+    if not has_diff_ft then
+      vim.notify(
+        '[diffs.nvim] fugitive, neogit, and diff filetypes are now opt-in.\n'
+          .. 'Add the integrations you use to your config:\n\n'
+          .. '  vim.g.diffs = {\n'
+          .. '    fugitive = true,\n'
+          .. '    neogit = true,\n'
+          .. "    extra_filetypes = { 'diff' },\n"
+          .. '  }\n\n'
+          .. 'This warning will be removed in 0.3.0.',
+        vim.log.levels.WARN
+      )
+    end
+  end
+
   if opts.fugitive == true then
     opts.fugitive = { enabled = true }
   elseif opts.fugitive == false then
