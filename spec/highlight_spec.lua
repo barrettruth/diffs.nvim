@@ -287,7 +287,7 @@ describe('highlight', function()
       local extmarks = get_extmarks(bufnr)
       local has_diff_add = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].line_hl_group == 'DiffsAdd' then
+        if mark[4] and mark[4].hl_group == 'DiffsAdd' then
           has_diff_add = true
           break
         end
@@ -320,7 +320,7 @@ describe('highlight', function()
       local extmarks = get_extmarks(bufnr)
       local has_diff_delete = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].line_hl_group == 'DiffsDelete' then
+        if mark[4] and mark[4].hl_group == 'DiffsDelete' then
           has_diff_delete = true
           break
         end
@@ -386,7 +386,7 @@ describe('highlight', function()
       local extmarks = get_extmarks(bufnr)
       local has_diff_add = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].line_hl_group == 'DiffsAdd' then
+        if mark[4] and mark[4].hl_group == 'DiffsAdd' then
           has_diff_add = true
           break
         end
@@ -500,7 +500,7 @@ describe('highlight', function()
       local extmarks = get_extmarks(bufnr)
       local has_diff_add = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].line_hl_group == 'DiffsAdd' then
+        if mark[4] and mark[4].hl_group == 'DiffsAdd' then
           has_diff_add = true
           break
         end
@@ -560,7 +560,7 @@ describe('highlight', function()
       delete_buffer(bufnr)
     end)
 
-    it('uses line_hl_group for line backgrounds', function()
+    it('uses hl_group with hl_eol for line backgrounds', function()
       local bufnr = create_buffer({
         '@@ -1,2 +1,1 @@',
         '-local x = 1',
@@ -585,43 +585,11 @@ describe('highlight', function()
       local found = false
       for _, mark in ipairs(extmarks) do
         local d = mark[4]
-        if d and (d.line_hl_group == 'DiffsAdd' or d.line_hl_group == 'DiffsDelete') then
+        if d and (d.hl_group == 'DiffsAdd' or d.hl_group == 'DiffsDelete') and d.hl_eol then
           found = true
-          assert.is_nil(d.hl_eol)
         end
       end
       assert.is_true(found)
-      delete_buffer(bufnr)
-    end)
-
-    it('line_hl_group background extmarks are single-line', function()
-      local bufnr = create_buffer({
-        '@@ -1,2 +1,1 @@',
-        '-local x = 1',
-        '+local y = 2',
-      })
-
-      local hunk = {
-        filename = 'test.lua',
-        lang = 'lua',
-        start_line = 1,
-        lines = { '-local x = 1', '+local y = 2' },
-      }
-
-      highlight.highlight_hunk(
-        bufnr,
-        ns,
-        hunk,
-        default_opts({ highlights = { background = true } })
-      )
-
-      local extmarks = get_extmarks(bufnr)
-      for _, mark in ipairs(extmarks) do
-        local d = mark[4]
-        if d and (d.line_hl_group == 'DiffsAdd' or d.line_hl_group == 'DiffsDelete') then
-          assert.is_nil(d.end_row)
-        end
-      end
       delete_buffer(bufnr)
     end)
 
@@ -773,7 +741,7 @@ describe('highlight', function()
         if d then
           if d.hl_group == 'DiffsClear' then
             table.insert(priorities.clear, d.priority)
-          elseif d.line_hl_group == 'DiffsAdd' or d.line_hl_group == 'DiffsDelete' then
+          elseif (d.hl_group == 'DiffsAdd' or d.hl_group == 'DiffsDelete') and d.hl_eol then
             table.insert(priorities.line_bg, d.priority)
           elseif d.hl_group == 'DiffsAddText' or d.hl_group == 'DiffsDeleteText' then
             table.insert(priorities.char_bg, d.priority)
@@ -873,8 +841,9 @@ describe('highlight', function()
       local extmarks = get_extmarks(bufnr)
       local line_bgs = {}
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].line_hl_group then
-          line_bgs[mark[2]] = mark[4].line_hl_group
+        local d = mark[4]
+        if d and (d.hl_group == 'DiffsAdd' or d.hl_group == 'DiffsDelete') and d.hl_eol then
+          line_bgs[mark[2]] = d.hl_group
         end
       end
       assert.is_nil(line_bgs[1])
@@ -1065,8 +1034,8 @@ describe('highlight', function()
       local marker_text = {}
       for _, mark in ipairs(extmarks) do
         local d = mark[4]
-        if d and d.line_hl_group then
-          line_bgs[mark[2]] = d.line_hl_group
+        if d and (d.hl_group == 'DiffsAdd' or d.hl_group == 'DiffsDelete') and d.hl_eol then
+          line_bgs[mark[2]] = d.hl_group
         end
         if d and d.number_hl_group then
           gutter_hls[mark[2]] = d.number_hl_group
