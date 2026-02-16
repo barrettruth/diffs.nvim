@@ -637,6 +637,310 @@ describe('parser', function()
       delete_buffer(bufnr)
     end)
 
+    it('detects neogit renamed prefix', function()
+      local bufnr = create_buffer({
+        'renamed   old.lua',
+        '@@ -1,2 +1,3 @@',
+        ' local M = {}',
+        '+local x = 1',
+        ' return M',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('old.lua', hunks[1].filename)
+      assert.are.equal('lua', hunks[1].ft)
+      delete_buffer(bufnr)
+    end)
+
+    it('detects neogit copied prefix', function()
+      local bufnr = create_buffer({
+        'copied   orig.lua',
+        '@@ -1,2 +1,3 @@',
+        ' local M = {}',
+        '+local x = 1',
+        ' return M',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('orig.lua', hunks[1].filename)
+      assert.are.equal('lua', hunks[1].ft)
+      delete_buffer(bufnr)
+    end)
+
+    it('does not treat "new file mode" as a filename', function()
+      local bufnr = create_buffer({
+        'diff --git a/src/new.lua b/src/new.lua',
+        'new file mode 100644',
+        'index 0000000..abc1234',
+        '--- /dev/null',
+        '+++ b/src/new.lua',
+        '@@ -0,0 +1,2 @@',
+        '+local M = {}',
+        '+return M',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('src/new.lua', hunks[1].filename)
+      assert.are.equal('lua', hunks[1].ft)
+      delete_buffer(bufnr)
+    end)
+
+    it('does not treat "new file mode 100755" as a filename', function()
+      local bufnr = create_buffer({
+        'diff --git a/bin/run b/bin/run',
+        'new file mode 100755',
+        'index 0000000..abc1234',
+        '--- /dev/null',
+        '+++ b/bin/run',
+        '@@ -0,0 +1,2 @@',
+        '+#!/bin/bash',
+        '+echo hello',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('bin/run', hunks[1].filename)
+      delete_buffer(bufnr)
+    end)
+
+    it('does not treat "deleted file mode" as a filename', function()
+      local bufnr = create_buffer({
+        'diff --git a/src/old.lua b/src/old.lua',
+        'deleted file mode 100644',
+        'index abc1234..0000000',
+        '--- a/src/old.lua',
+        '+++ /dev/null',
+        '@@ -1,2 +0,0 @@',
+        '-local M = {}',
+        '-return M',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('src/old.lua', hunks[1].filename)
+      assert.are.equal('lua', hunks[1].ft)
+      delete_buffer(bufnr)
+    end)
+
+    it('does not treat "deleted file mode 100755" as a filename', function()
+      local bufnr = create_buffer({
+        'diff --git a/bin/old b/bin/old',
+        'deleted file mode 100755',
+        'index abc1234..0000000',
+        '--- a/bin/old',
+        '+++ /dev/null',
+        '@@ -1,1 +0,0 @@',
+        '-#!/bin/bash',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('bin/old', hunks[1].filename)
+      delete_buffer(bufnr)
+    end)
+
+    it('does not treat "old mode" or "new mode" as filenames', function()
+      local bufnr = create_buffer({
+        'diff --git a/script.sh b/script.sh',
+        'old mode 100644',
+        'new mode 100755',
+        '@@ -1,1 +1,2 @@',
+        ' echo hello',
+        '+echo world',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('script.sh', hunks[1].filename)
+      delete_buffer(bufnr)
+    end)
+
+    it('does not treat "rename from/to" as filenames', function()
+      local bufnr = create_buffer({
+        'diff --git a/old.lua b/new.lua',
+        'similarity index 95%',
+        'rename from old.lua',
+        'rename to new.lua',
+        '@@ -1,2 +1,2 @@',
+        ' local M = {}',
+        '-local x = 1',
+        '+local x = 2',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('new.lua', hunks[1].filename)
+      delete_buffer(bufnr)
+    end)
+
+    it('does not treat "copy from/to" as filenames', function()
+      local bufnr = create_buffer({
+        'diff --git a/orig.lua b/copy.lua',
+        'similarity index 100%',
+        'copy from orig.lua',
+        'copy to copy.lua',
+        '@@ -1,1 +1,1 @@',
+        ' local M = {}',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('copy.lua', hunks[1].filename)
+      delete_buffer(bufnr)
+    end)
+
+    it('does not treat "similarity index" or "dissimilarity index" as filenames', function()
+      local bufnr = create_buffer({
+        'diff --git a/foo.lua b/bar.lua',
+        'similarity index 85%',
+        'rename from foo.lua',
+        'rename to bar.lua',
+        '@@ -1,2 +1,2 @@',
+        ' local M = {}',
+        '-return 1',
+        '+return 2',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('bar.lua', hunks[1].filename)
+      delete_buffer(bufnr)
+    end)
+
+    it('does not treat "index" line as a filename', function()
+      local bufnr = create_buffer({
+        'diff --git a/test.lua b/test.lua',
+        'index abc1234..def5678 100644',
+        '--- a/test.lua',
+        '+++ b/test.lua',
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('test.lua', hunks[1].filename)
+      delete_buffer(bufnr)
+    end)
+
+    it('neogit new file with diff containing new file mode metadata', function()
+      local bufnr = create_buffer({
+        'new file   src/foo.lua',
+        'diff --git a/src/foo.lua b/src/foo.lua',
+        'new file mode 100644',
+        'index 0000000..abc1234',
+        '--- /dev/null',
+        '+++ b/src/foo.lua',
+        '@@ -0,0 +1,3 @@',
+        '+local M = {}',
+        '+M.x = 1',
+        '+return M',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('src/foo.lua', hunks[1].filename)
+      assert.are.equal('lua', hunks[1].ft)
+      assert.are.equal(3, #hunks[1].lines)
+      delete_buffer(bufnr)
+    end)
+
+    it('neogit deleted with diff containing deleted file mode metadata', function()
+      local bufnr = create_buffer({
+        'deleted   src/old.lua',
+        'diff --git a/src/old.lua b/src/old.lua',
+        'deleted file mode 100644',
+        'index abc1234..0000000',
+        '--- a/src/old.lua',
+        '+++ /dev/null',
+        '@@ -1,2 +0,0 @@',
+        '-local M = {}',
+        '-return M',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('src/old.lua', hunks[1].filename)
+      assert.are.equal('lua', hunks[1].ft)
+      assert.are.equal(2, #hunks[1].lines)
+      delete_buffer(bufnr)
+    end)
+
+    it('multiple new files with mode metadata do not corrupt filenames', function()
+      local bufnr = create_buffer({
+        'diff --git a/a.lua b/a.lua',
+        'new file mode 100644',
+        'index 0000000..abc1234',
+        '--- /dev/null',
+        '+++ b/a.lua',
+        '@@ -0,0 +1,1 @@',
+        '+local a = 1',
+        'diff --git a/b.lua b/b.lua',
+        'new file mode 100644',
+        'index 0000000..def5678',
+        '--- /dev/null',
+        '+++ b/b.lua',
+        '@@ -0,0 +1,1 @@',
+        '+local b = 2',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(2, #hunks)
+      assert.are.equal('a.lua', hunks[1].filename)
+      assert.are.equal('b.lua', hunks[2].filename)
+      delete_buffer(bufnr)
+    end)
+
+    it('fugitive status with new and deleted files containing mode metadata', function()
+      local bufnr = create_buffer({
+        'Head: main',
+        '',
+        'Staged (2)',
+        'A src/new.lua',
+        'diff --git a/src/new.lua b/src/new.lua',
+        'new file mode 100644',
+        'index 0000000..abc1234',
+        '--- /dev/null',
+        '+++ b/src/new.lua',
+        '@@ -0,0 +1,2 @@',
+        '+local M = {}',
+        '+return M',
+        'D src/old.lua',
+        'diff --git a/src/old.lua b/src/old.lua',
+        'deleted file mode 100644',
+        'index abc1234..0000000',
+        '--- a/src/old.lua',
+        '+++ /dev/null',
+        '@@ -1,1 +0,0 @@',
+        '-local x = 1',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(2, #hunks)
+      assert.are.equal('src/new.lua', hunks[1].filename)
+      assert.are.equal('lua', hunks[1].ft)
+      assert.are.equal('src/old.lua', hunks[2].filename)
+      assert.are.equal('lua', hunks[2].ft)
+      delete_buffer(bufnr)
+    end)
+
+    it('neogit new file with deep nested path', function()
+      local bufnr = create_buffer({
+        'new file   src/deep/nested/path/module.lua',
+        '@@ -0,0 +1,1 @@',
+        '+return {}',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('src/deep/nested/path/module.lua', hunks[1].filename)
+      delete_buffer(bufnr)
+    end)
+
     it('detects bare filename for untracked files', function()
       local bufnr = create_buffer({
         'newfile.rs',
