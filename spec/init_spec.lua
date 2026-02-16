@@ -328,6 +328,95 @@ describe('diffs', function()
     end)
   end)
 
+  describe('compute_filetypes', function()
+    local compute = diffs.compute_filetypes
+
+    it('returns core filetypes with empty config', function()
+      local fts = compute({})
+      assert.are.same({ 'git', 'gitcommit' }, fts)
+    end)
+
+    it('includes fugitive when fugitive = true', function()
+      local fts = compute({ fugitive = true })
+      assert.is_true(vim.tbl_contains(fts, 'fugitive'))
+    end)
+
+    it('includes fugitive when fugitive is a table', function()
+      local fts = compute({ fugitive = { horizontal = 'dd' } })
+      assert.is_true(vim.tbl_contains(fts, 'fugitive'))
+    end)
+
+    it('excludes fugitive when fugitive = false', function()
+      local fts = compute({ fugitive = false })
+      assert.is_false(vim.tbl_contains(fts, 'fugitive'))
+    end)
+
+    it('excludes fugitive when fugitive is nil', function()
+      local fts = compute({})
+      assert.is_false(vim.tbl_contains(fts, 'fugitive'))
+    end)
+
+    it('includes neogit filetypes when neogit = true', function()
+      local fts = compute({ neogit = true })
+      assert.is_true(vim.tbl_contains(fts, 'NeogitStatus'))
+      assert.is_true(vim.tbl_contains(fts, 'NeogitCommitView'))
+      assert.is_true(vim.tbl_contains(fts, 'NeogitDiffView'))
+    end)
+
+    it('includes neogit filetypes when neogit is a table', function()
+      local fts = compute({ neogit = {} })
+      assert.is_true(vim.tbl_contains(fts, 'NeogitStatus'))
+    end)
+
+    it('excludes neogit when neogit = false', function()
+      local fts = compute({ neogit = false })
+      assert.is_false(vim.tbl_contains(fts, 'NeogitStatus'))
+    end)
+
+    it('excludes neogit when neogit is nil', function()
+      local fts = compute({})
+      assert.is_false(vim.tbl_contains(fts, 'NeogitStatus'))
+    end)
+
+    it('includes extra_filetypes', function()
+      local fts = compute({ extra_filetypes = { 'diff' } })
+      assert.is_true(vim.tbl_contains(fts, 'diff'))
+    end)
+
+    it('combines fugitive, neogit, and extra_filetypes', function()
+      local fts = compute({ fugitive = true, neogit = true, extra_filetypes = { 'diff' } })
+      assert.is_true(vim.tbl_contains(fts, 'git'))
+      assert.is_true(vim.tbl_contains(fts, 'fugitive'))
+      assert.is_true(vim.tbl_contains(fts, 'NeogitStatus'))
+      assert.is_true(vim.tbl_contains(fts, 'diff'))
+    end)
+
+    it('returns custom filetypes when filetypes key is set', function()
+      local fts = compute({ filetypes = { 'custom' } })
+      assert.are.same({ 'custom' }, fts)
+    end)
+
+    it('backward compat: includes fugitive when enabled = true in table', function()
+      local fts = compute({ fugitive = { enabled = true } })
+      assert.is_true(vim.tbl_contains(fts, 'fugitive'))
+    end)
+
+    it('backward compat: excludes fugitive when enabled = false in table', function()
+      local fts = compute({ fugitive = { enabled = false } })
+      assert.is_false(vim.tbl_contains(fts, 'fugitive'))
+    end)
+
+    it('backward compat: includes neogit when enabled = true in table', function()
+      local fts = compute({ neogit = { enabled = true } })
+      assert.is_true(vim.tbl_contains(fts, 'NeogitStatus'))
+    end)
+
+    it('backward compat: excludes neogit when enabled = false in table', function()
+      local fts = compute({ neogit = { enabled = false } })
+      assert.is_false(vim.tbl_contains(fts, 'NeogitStatus'))
+    end)
+  end)
+
   describe('diff mode', function()
     local function create_diff_window()
       vim.cmd('new')

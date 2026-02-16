@@ -33,12 +33,10 @@
 ---@field priorities diffs.PrioritiesConfig
 
 ---@class diffs.FugitiveConfig
----@field enabled boolean
 ---@field horizontal string|false
 ---@field vertical string|false
 
 ---@class diffs.NeogitConfig
----@field enabled boolean
 
 ---@class diffs.ConflictKeymaps
 ---@field ours string|false
@@ -63,8 +61,8 @@
 ---@field filetypes? string[] @deprecated use fugitive, neogit, extra_filetypes
 ---@field extra_filetypes string[]
 ---@field highlights diffs.Highlights
----@field fugitive diffs.FugitiveConfig
----@field neogit diffs.NeogitConfig
+---@field fugitive diffs.FugitiveConfig|false
+---@field neogit diffs.NeogitConfig|false
 ---@field conflict diffs.ConflictConfig
 
 ---@class diffs
@@ -142,14 +140,8 @@ local default_config = {
       char_bg = 201,
     },
   },
-  fugitive = {
-    enabled = false,
-    horizontal = 'du',
-    vertical = 'dU',
-  },
-  neogit = {
-    enabled = false,
-  },
+  fugitive = false,
+  neogit = false,
   conflict = {
     enabled = true,
     disable_diagnostics = true,
@@ -492,24 +484,28 @@ local function init()
     end
   end
 
+  local fugitive_defaults = { horizontal = 'du', vertical = 'dU' }
   if opts.fugitive == true then
-    opts.fugitive = { enabled = true }
-  elseif opts.fugitive == false then
-    opts.fugitive = { enabled = false }
-  elseif opts.fugitive == nil then
-    opts.fugitive = nil
-  elseif type(opts.fugitive) == 'table' and opts.fugitive.enabled == nil then
-    opts.fugitive.enabled = true
+    opts.fugitive = vim.deepcopy(fugitive_defaults)
+  elseif type(opts.fugitive) == 'table' then
+    if opts.fugitive.enabled == false then
+      opts.fugitive = false
+    else
+      ---@diagnostic disable-next-line: inject-field
+      opts.fugitive.enabled = nil
+      opts.fugitive = vim.tbl_extend('keep', opts.fugitive, fugitive_defaults)
+    end
   end
 
   if opts.neogit == true then
-    opts.neogit = { enabled = true }
-  elseif opts.neogit == false then
-    opts.neogit = { enabled = false }
-  elseif opts.neogit == nil then
-    opts.neogit = nil
-  elseif type(opts.neogit) == 'table' and opts.neogit.enabled == nil then
-    opts.neogit.enabled = true
+    opts.neogit = {}
+  elseif type(opts.neogit) == 'table' then
+    if opts.neogit.enabled == false then
+      opts.neogit = false
+    else
+      ---@diagnostic disable-next-line: inject-field
+      opts.neogit.enabled = nil
+    end
   end
 
   vim.validate({
@@ -521,8 +517,20 @@ local function init()
       'boolean or string (file path)',
     },
     hide_prefix = { opts.hide_prefix, 'boolean', true },
-    fugitive = { opts.fugitive, 'table', true },
-    neogit = { opts.neogit, 'table', true },
+    fugitive = {
+      opts.fugitive,
+      function(v)
+        return v == nil or v == false or type(v) == 'table'
+      end,
+      'table or false',
+    },
+    neogit = {
+      opts.neogit,
+      function(v)
+        return v == nil or v == false or type(v) == 'table'
+      end,
+      'table or false',
+    },
     extra_filetypes = { opts.extra_filetypes, 'table', true },
     highlights = { opts.highlights, 'table', true },
   })
@@ -589,29 +597,24 @@ local function init()
     end
   end
 
-  if opts.fugitive then
+  if type(opts.fugitive) == 'table' then
+    ---@type diffs.FugitiveConfig
+    local fug = opts.fugitive
     vim.validate({
-      ['fugitive.enabled'] = { opts.fugitive.enabled, 'boolean', true },
       ['fugitive.horizontal'] = {
-        opts.fugitive.horizontal,
+        fug.horizontal,
         function(v)
           return v == nil or v == false or type(v) == 'string'
         end,
         'string or false',
       },
       ['fugitive.vertical'] = {
-        opts.fugitive.vertical,
+        fug.vertical,
         function(v)
           return v == nil or v == false or type(v) == 'string'
         end,
         'string or false',
       },
-    })
-  end
-
-  if opts.neogit then
-    vim.validate({
-      ['neogit.enabled'] = { opts.neogit.enabled, 'boolean', true },
     })
   end
 
@@ -830,7 +833,7 @@ function M.attach(bufnr)
   end
   attached_buffers[bufnr] = true
 
-  if not neogit_attached and config.neogit.enabled and vim.bo[bufnr].filetype:match('^Neogit') then
+  if not neogit_attached and config.neogit and vim.bo[bufnr].filetype:match('^Neogit') then
     neogit_attached = true
     vim.schedule(override_neogit_highlights)
   end
@@ -894,7 +897,7 @@ function M.detach_diff()
   end
 end
 
----@return diffs.FugitiveConfig
+---@return diffs.FugitiveConfig|false
 function M.get_fugitive_config()
   init()
   return config.fugitive
