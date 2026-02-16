@@ -115,11 +115,13 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              background color.
 
         {fugitive}           (boolean|table, default: false)
-                             Enable vim-fugitive integration. Accepts
-                             `true`, `false`, or a table with sub-options
-                             (see |diffs.FugitiveConfig|). When enabled,
-                             the `fugitive` filetype is active and status
-                             buffer keymaps are registered. >lua
+                             Enable vim-fugitive integration. Pass `true`
+                             for defaults, `false` to disable, or a table
+                             with sub-options (see |diffs.FugitiveConfig|).
+                             Passing a table implicitly enables the
+                             integration — no `enabled` field needed.
+                             When active, the `fugitive` filetype is
+                             registered and status buffer keymaps are set. >lua
                                  vim.g.diffs = { fugitive = true }
                                  vim.g.diffs = {
                                    fugitive = { horizontal = 'dd' },
@@ -127,13 +129,13 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
 <
 
         {neogit}             (boolean|table, default: false)
-                             Enable Neogit integration. Accepts `true`,
-                             `false`, or `{ enabled = false }`. When
-                             enabled, `NeogitStatus`, `NeogitCommitView`,
-                             and `NeogitDiffView` filetypes are active and
-                             Neogit highlight overrides are applied. See
-                             |diffs-neogit|. >lua
-                                 vim.g.diffs = { neogit = false }
+                             Enable Neogit integration. Pass `true` or
+                             `{}` to enable, `false` to disable. When
+                             active, `NeogitStatus`, `NeogitCommitView`,
+                             and `NeogitDiffView` filetypes are registered
+                             and Neogit highlight overrides are applied.
+                             See |diffs-neogit|. >lua
+                                 vim.g.diffs = { neogit = true }
 <
 
         {extra_filetypes}    (table, default: {})
@@ -438,20 +440,15 @@ Configuration: ~
 >lua
     vim.g.diffs = {
       fugitive = {
-        enabled = true,     -- false to disable fugitive integration entirely
         horizontal = 'du',  -- keymap for horizontal split, false to disable
         vertical = 'dU',    -- keymap for vertical split, false to disable
       },
     }
 <
-    Fields: ~
-        {enabled}            (boolean, default: false)
-                             Enable fugitive integration. When false, the
-                             `fugitive` filetype is excluded and no status
-                             buffer keymaps are registered. Shorthand:
-                             `fugitive = false` is equivalent to
-                             `fugitive = { enabled = false }`.
+    Passing a table enables fugitive integration. Use `fugitive = false`
+    to disable. There is no `enabled` field; table presence is sufficient.
 
+    Fields: ~
         {horizontal}         (string|false, default: 'du')
                              Keymap for unified diff in horizontal split.
                              Set to `false` to disable.
