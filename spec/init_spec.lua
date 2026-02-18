@@ -390,7 +390,6 @@ describe('diffs', function()
       assert.is_true(vim.tbl_contains(fts, 'NeogitStatus'))
       assert.is_true(vim.tbl_contains(fts, 'diff'))
     end)
-
   end)
 
   describe('diff mode', function()
