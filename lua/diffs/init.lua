@@ -58,7 +58,6 @@
 ---@class diffs.Config
 ---@field debug boolean|string
 ---@field hide_prefix boolean
----@field filetypes? string[] @deprecated use fugitive, neogit, extra_filetypes
 ---@field extra_filetypes string[]
 ---@field highlights diffs.Highlights
 ---@field fugitive diffs.FugitiveConfig|false
@@ -193,16 +192,13 @@ end
 ---@param opts table
 ---@return string[]
 function M.compute_filetypes(opts)
-  if opts.filetypes then
-    return opts.filetypes
-  end
   local fts = { 'git', 'gitcommit' }
   local fug = opts.fugitive
-  if fug == true or (type(fug) == 'table' and fug.enabled ~= false) then
+  if fug == true or type(fug) == 'table' then
     table.insert(fts, 'fugitive')
   end
   local neo = opts.neogit
-  if neo == true or (type(neo) == 'table' and neo.enabled ~= false) then
+  if neo == true or type(neo) == 'table' then
     table.insert(fts, 'NeogitStatus')
     table.insert(fts, 'NeogitCommitView')
     table.insert(fts, 'NeogitDiffView')
@@ -450,62 +446,15 @@ local function init()
 
   local opts = vim.g.diffs or {}
 
-  if opts.filetypes then
-    vim.deprecate(
-      'vim.g.diffs.filetypes',
-      'fugitive, neogit, and extra_filetypes',
-      '0.3.0',
-      'diffs.nvim'
-    )
-  end
-
-  if not opts.filetypes and opts.fugitive == nil and opts.neogit == nil then
-    local has_diff_ft = false
-    if type(opts.extra_filetypes) == 'table' then
-      for _, ft in ipairs(opts.extra_filetypes) do
-        if ft == 'diff' then
-          has_diff_ft = true
-          break
-        end
-      end
-    end
-    if not has_diff_ft then
-      vim.notify(
-        '[diffs.nvim] fugitive, neogit, and diff filetypes are now opt-in.\n'
-          .. 'Add the integrations you use to your config:\n\n'
-          .. '  vim.g.diffs = {\n'
-          .. '    fugitive = true,\n'
-          .. '    neogit = true,\n'
-          .. "    extra_filetypes = { 'diff' },\n"
-          .. '  }\n\n'
-          .. 'This warning will be removed in 0.3.0.',
-        vim.log.levels.WARN
-      )
-    end
-  end
-
   local fugitive_defaults = { horizontal = 'du', vertical = 'dU' }
   if opts.fugitive == true then
     opts.fugitive = vim.deepcopy(fugitive_defaults)
   elseif type(opts.fugitive) == 'table' then
-    if opts.fugitive.enabled == false then
-      opts.fugitive = false
-    else
-      ---@diagnostic disable-next-line: inject-field
-      opts.fugitive.enabled = nil
-      opts.fugitive = vim.tbl_extend('keep', opts.fugitive, fugitive_defaults)
-    end
+    opts.fugitive = vim.tbl_extend('keep', opts.fugitive, fugitive_defaults)
   end
 
   if opts.neogit == true then
     opts.neogit = {}
-  elseif type(opts.neogit) == 'table' then
-    if opts.neogit.enabled == false then
-      opts.neogit = false
-    else
-      ---@diagnostic disable-next-line: inject-field
-      opts.neogit.enabled = nil
-    end
   end
 
   vim.validate({
