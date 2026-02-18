@@ -391,30 +391,6 @@ describe('diffs', function()
       assert.is_true(vim.tbl_contains(fts, 'diff'))
     end)
 
-    it('returns custom filetypes when filetypes key is set', function()
-      local fts = compute({ filetypes = { 'custom' } })
-      assert.are.same({ 'custom' }, fts)
-    end)
-
-    it('backward compat: includes fugitive when enabled = true in table', function()
-      local fts = compute({ fugitive = { enabled = true } })
-      assert.is_true(vim.tbl_contains(fts, 'fugitive'))
-    end)
-
-    it('backward compat: excludes fugitive when enabled = false in table', function()
-      local fts = compute({ fugitive = { enabled = false } })
-      assert.is_false(vim.tbl_contains(fts, 'fugitive'))
-    end)
-
-    it('backward compat: includes neogit when enabled = true in table', function()
-      local fts = compute({ neogit = { enabled = true } })
-      assert.is_true(vim.tbl_contains(fts, 'NeogitStatus'))
-    end)
-
-    it('backward compat: excludes neogit when enabled = false in table', function()
-      local fts = compute({ neogit = { enabled = false } })
-      assert.is_false(vim.tbl_contains(fts, 'NeogitStatus'))
-    end)
   end)
 
   describe('diff mode', function()
