@@ -22,3 +22,5 @@ globals:
     any: true
   stub:
     any: true
+  bit:
+    any: true
