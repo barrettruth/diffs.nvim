@@ -95,8 +95,8 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
           theirs = 'dot',
           both = 'dob',
           none = 'don',
-          next = ']x',
-          prev = '[x',
+          next = ']c',
+          prev = '[c',
         },
       },
     }
@@ -368,8 +368,8 @@ Example configuration: >lua
     vim.keymap.set('n', 'ct', '<Plug>(diffs-conflict-theirs)')
     vim.keymap.set('n', 'cb', '<Plug>(diffs-conflict-both)')
     vim.keymap.set('n', 'cn', '<Plug>(diffs-conflict-none)')
-    vim.keymap.set('n', ']x', '<Plug>(diffs-conflict-next)')
-    vim.keymap.set('n', '[x', '<Plug>(diffs-conflict-prev)')
+    vim.keymap.set('n', ']c', '<Plug>(diffs-conflict-next)')
+    vim.keymap.set('n', '[c', '<Plug>(diffs-conflict-prev)')
 <
 
                                                  *<Plug>(diffs-merge-ours)*
@@ -483,8 +483,8 @@ Configuration: ~
           theirs = 'dot',
           both = 'dob',
           none = 'don',
-          next = ']x',
-          prev = '[x',
+          next = ']c',
+          prev = '[c',
         },
       },
     }
@@ -555,10 +555,10 @@ Configuration: ~
         {none}               (string|false, default: 'don')
                              Reject both changes (delete entire block).
 
-        {next}               (string|false, default: ']x')
+        {next}               (string|false, default: ']c')
                              Jump to next conflict marker. Wraps around.
 
-        {prev}               (string|false, default: '[x')
+        {prev}               (string|false, default: '[c')
                              Jump to previous conflict marker. Wraps
                              around.
 
@@ -582,7 +582,7 @@ When pressing `du`/`dU` on an unmerged (`U`) file in the fugitive status
 buffer, diffs.nvim opens a unified diff of ours (`git show :2:path`) vs
 theirs (`git show :3:path`) with full treesitter and intra-line highlighting.
 
-The same conflict resolution keymaps (`doo`/`dot`/`dob`/`don`/`]x`/`[x`)
+The same conflict resolution keymaps (`doo`/`dot`/`dob`/`don`/`]c`/`[c`)
 are available on the diff buffer. They resolve conflicts in the working
 file by matching diff hunks to conflict markers:
 
@@ -590,7 +590,7 @@ file by matching diff hunks to conflict markers:
 - `dot` replaces the conflict region with theirs content
 - `dob` replaces with both (ours then theirs)
 - `don` removes the conflict region entirely
-- `]x`/`[x` navigate between unresolved conflict hunks
+- `]c`/`[c` navigate between unresolved conflict hunks
 
 Resolved hunks are marked with `(resolved)` virtual text. Hunks that
 correspond to auto-merged content (no conflict markers) show an

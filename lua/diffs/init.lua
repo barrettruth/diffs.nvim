@@ -152,8 +152,8 @@ local default_config = {
       theirs = 'dot',
       both = 'dob',
       none = 'don',
-      next = ']x',
-      prev = '[x',
+      next = ']c',
+      prev = '[c',
     },
   },
 }
