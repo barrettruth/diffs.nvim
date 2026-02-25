@@ -247,7 +247,7 @@ end
 
 ---@param old_entry diffs.HunkCacheEntry
 ---@param new_hunks diffs.Hunk[]
----@return table<integer, true>
+---@return table<integer, true>?
 local function carry_forward_highlighted(old_entry, new_hunks)
   local old_hunks = old_entry.hunks
   local old_hl = old_entry.highlighted
