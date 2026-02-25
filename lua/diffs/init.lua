@@ -222,6 +222,75 @@ local function invalidate_cache(bufnr)
   end
 end
 
+---@param a diffs.Hunk
+---@param b diffs.Hunk
+---@return boolean
+local function hunks_eq(a, b)
+  local n = #a.lines
+  if n ~= #b.lines or a.filename ~= b.filename then
+    return false
+  end
+  if a.lines[1] ~= b.lines[1] then
+    return false
+  end
+  if n > 1 and a.lines[n] ~= b.lines[n] then
+    return false
+  end
+  if n > 2 then
+    local mid = math.floor(n / 2) + 1
+    if a.lines[mid] ~= b.lines[mid] then
+      return false
+    end
+  end
+  return true
+end
+
+---@param old_entry diffs.HunkCacheEntry
+---@param new_hunks diffs.Hunk[]
+---@return table<integer, true>
+local function carry_forward_highlighted(old_entry, new_hunks)
+  local old_hunks = old_entry.hunks
+  local old_hl = old_entry.highlighted
+  local old_n = #old_hunks
+  local new_n = #new_hunks
+  local highlighted = {}
+
+  local prefix_len = 0
+  local limit = math.min(old_n, new_n)
+  for i = 1, limit do
+    if not hunks_eq(old_hunks[i], new_hunks[i]) then
+      break
+    end
+    if old_hl[i] then
+      highlighted[i] = true
+    end
+    prefix_len = i
+  end
+
+  local suffix_len = 0
+  local max_suffix = limit - prefix_len
+  for j = 0, max_suffix - 1 do
+    local old_idx = old_n - j
+    local new_idx = new_n - j
+    if not hunks_eq(old_hunks[old_idx], new_hunks[new_idx]) then
+      break
+    end
+    if old_hl[old_idx] then
+      highlighted[new_idx] = true
+    end
+    suffix_len = j + 1
+  end
+
+  dbg(
+    'carry_forward: %d prefix + %d suffix of %d old -> %d new hunks',
+    prefix_len,
+    suffix_len,
+    old_n,
+    new_n
+  )
+  return highlighted
+end
+
 ---@param bufnr integer
 local function ensure_cache(bufnr)
   if not vim.api.nvim_buf_is_valid(bufnr) then
@@ -246,11 +315,12 @@ local function ensure_cache(bufnr)
   local lc = vim.api.nvim_buf_line_count(bufnr)
   local bc = vim.api.nvim_buf_get_offset(bufnr, lc)
   dbg('parsed %d hunks in buffer %d (tick %d)', #hunks, bufnr, tick)
+  local carried = entry and not entry.pending_clear and carry_forward_highlighted(entry, hunks)
   hunk_cache[bufnr] = {
     hunks = hunks,
     tick = tick,
-    highlighted = {},
-    pending_clear = true,
+    highlighted = carried or {},
+    pending_clear = not carried,
     line_count = lc,
     byte_count = bc,
   }
@@ -862,6 +932,7 @@ M._test = {
   hunk_cache = hunk_cache,
   ensure_cache = ensure_cache,
   invalidate_cache = invalidate_cache,
+  hunks_eq = hunks_eq,
 }
 
 return M

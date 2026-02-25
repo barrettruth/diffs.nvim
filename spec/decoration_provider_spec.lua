@@ -139,6 +139,134 @@ describe('decoration_provider', function()
     end)
   end)
 
+  describe('hunk stability', function()
+    it('carries forward highlighted for stable hunks on section expansion', function()
+      local bufnr = create_buffer({
+        'M test.lua',
+        '@@ -1,2 +1,2 @@',
+        ' local x = 1',
+        '-local y = 2',
+        '+local y = 3',
+        '@@ -10,2 +10,3 @@',
+        ' function M.foo()',
+        '+  return true',
+        ' end',
+      })
+      diffs.attach(bufnr)
+      local entry = diffs._test.hunk_cache[bufnr]
+      assert.are.equal(2, #entry.hunks)
+
+      entry.pending_clear = false
+      entry.highlighted = { [1] = true, [2] = true }
+
+      vim.api.nvim_buf_set_lines(bufnr, 5, 5, false, {
+        '@@ -5,1 +5,2 @@',
+        ' local z = 4',
+        '+local w = 5',
+      })
+      diffs._test.ensure_cache(bufnr)
+
+      local updated = diffs._test.hunk_cache[bufnr]
+      assert.are.equal(3, #updated.hunks)
+      assert.is_true(updated.highlighted[1] == true)
+      assert.is_nil(updated.highlighted[2])
+      assert.is_true(updated.highlighted[3] == true)
+      assert.is_false(updated.pending_clear)
+      delete_buffer(bufnr)
+    end)
+
+    it('carries forward highlighted for stable hunks on section collapse', function()
+      local bufnr = create_buffer({
+        'M test.lua',
+        '@@ -1,2 +1,2 @@',
+        ' local x = 1',
+        '-local y = 2',
+        '+local y = 3',
+        '@@ -5,1 +5,2 @@',
+        ' local z = 4',
+        '+local w = 5',
+        '@@ -10,2 +10,3 @@',
+        ' function M.foo()',
+        '+  return true',
+        ' end',
+      })
+      diffs.attach(bufnr)
+      local entry = diffs._test.hunk_cache[bufnr]
+      assert.are.equal(3, #entry.hunks)
+
+      entry.pending_clear = false
+      entry.highlighted = { [1] = true, [2] = true, [3] = true }
+
+      vim.api.nvim_buf_set_lines(bufnr, 5, 8, false, {})
+      diffs._test.ensure_cache(bufnr)
+
+      local updated = diffs._test.hunk_cache[bufnr]
+      assert.are.equal(2, #updated.hunks)
+      assert.is_true(updated.highlighted[1] == true)
+      assert.is_true(updated.highlighted[2] == true)
+      assert.is_false(updated.pending_clear)
+      delete_buffer(bufnr)
+    end)
+
+    it('bypasses carry-forward when pending_clear was true', function()
+      local bufnr = create_buffer({
+        'M test.lua',
+        '@@ -1,2 +1,2 @@',
+        ' local x = 1',
+        '-local y = 2',
+        '+local y = 3',
+        '@@ -10,2 +10,3 @@',
+        ' function M.foo()',
+        '+  return true',
+        ' end',
+      })
+      diffs.attach(bufnr)
+      local entry = diffs._test.hunk_cache[bufnr]
+      entry.highlighted = { [1] = true, [2] = true }
+      entry.pending_clear = true
+
+      vim.api.nvim_buf_set_lines(bufnr, 5, 5, false, {
+        '@@ -5,1 +5,2 @@',
+        ' local z = 4',
+        '+local w = 5',
+      })
+      diffs._test.ensure_cache(bufnr)
+
+      local updated = diffs._test.hunk_cache[bufnr]
+      assert.are.same({}, updated.highlighted)
+      assert.is_true(updated.pending_clear)
+      delete_buffer(bufnr)
+    end)
+
+    it('does not carry forward when all hunks changed', function()
+      local bufnr = create_buffer({
+        'M test.lua',
+        '@@ -1,2 +1,2 @@',
+        ' local x = 1',
+        '-local y = 2',
+        '+local y = 3',
+      })
+      diffs.attach(bufnr)
+      local entry = diffs._test.hunk_cache[bufnr]
+
+      entry.pending_clear = false
+      entry.highlighted = { [1] = true }
+
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {
+        'M other.lua',
+        '@@ -1,1 +1,2 @@',
+        ' local a = 1',
+        '+local b = 2',
+      })
+      diffs._test.ensure_cache(bufnr)
+
+      local updated = diffs._test.hunk_cache[bufnr]
+      assert.is_nil(updated.highlighted[1])
+      assert.is_false(updated.pending_clear)
+      delete_buffer(bufnr)
+    end)
+  end)
+
   describe('multiple hunks in cache', function()
     it('stores all parsed hunks for a multi-hunk buffer', function()
       local bufnr = create_buffer({
