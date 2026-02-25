@@ -288,6 +288,9 @@ local function carry_forward_highlighted(old_entry, new_hunks)
     old_n,
     new_n
   )
+  if next(highlighted) == nil then
+    return nil
+  end
   return highlighted
 end
 
@@ -729,6 +732,7 @@ local function init()
       ensure_cache(bufnr)
       local entry = hunk_cache[bufnr]
       if entry and entry.pending_clear then
+        vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
         entry.highlighted = {}
         entry.pending_clear = false
       end
@@ -927,12 +931,22 @@ function M.get_conflict_config()
   return config.conflict
 end
 
+local function process_pending_clear(bufnr)
+  local entry = hunk_cache[bufnr]
+  if entry and entry.pending_clear then
+    vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
+    entry.highlighted = {}
+    entry.pending_clear = false
+  end
+end
+
 M._test = {
   find_visible_hunks = find_visible_hunks,
   hunk_cache = hunk_cache,
   ensure_cache = ensure_cache,
   invalidate_cache = invalidate_cache,
   hunks_eq = hunks_eq,
+  process_pending_clear = process_pending_clear,
 }
 
 return M

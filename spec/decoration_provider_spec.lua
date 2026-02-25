@@ -122,6 +122,31 @@ describe('decoration_provider', function()
       assert.is_true(entry.pending_clear)
       delete_buffer(bufnr)
     end)
+
+    it('clears namespace extmarks when on_buf processes pending_clear', function()
+      local bufnr = create_buffer({
+        'M test.lua',
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+      diffs.attach(bufnr)
+      local ns_id = vim.api.nvim_create_namespace('diffs')
+      vim.api.nvim_buf_set_extmark(bufnr, ns_id, 0, 0, { line_hl_group = 'DiffAdd' })
+      assert.are.equal(1, #vim.api.nvim_buf_get_extmarks(bufnr, ns_id, 0, -1, {}))
+
+      diffs._test.invalidate_cache(bufnr)
+      diffs._test.ensure_cache(bufnr)
+      local entry = diffs._test.hunk_cache[bufnr]
+      assert.is_true(entry.pending_clear)
+
+      diffs._test.process_pending_clear(bufnr)
+
+      entry = diffs._test.hunk_cache[bufnr]
+      assert.is_false(entry.pending_clear)
+      assert.are.same({}, vim.api.nvim_buf_get_extmarks(bufnr, ns_id, 0, -1, {}))
+      delete_buffer(bufnr)
+    end)
   end)
 
   describe('BufWipeout cleanup', function()
@@ -262,7 +287,7 @@ describe('decoration_provider', function()
 
       local updated = diffs._test.hunk_cache[bufnr]
       assert.is_nil(updated.highlighted[1])
-      assert.is_false(updated.pending_clear)
+      assert.is_true(updated.pending_clear)
       delete_buffer(bufnr)
     end)
   end)
