@@ -410,34 +410,6 @@ local function compute_highlight_groups()
   end
 end
 
-local neogit_attached = false
-
-local neogit_hl_groups = {
-  'NeogitDiffAdd',
-  'NeogitDiffAddCursor',
-  'NeogitDiffAddHighlight',
-  'NeogitDiffDelete',
-  'NeogitDiffDeleteCursor',
-  'NeogitDiffDeleteHighlight',
-  'NeogitDiffContext',
-  'NeogitDiffContextCursor',
-  'NeogitDiffContextHighlight',
-  'NeogitDiffHeader',
-  'NeogitDiffHeaderHighlight',
-  'NeogitHunkHeader',
-  'NeogitHunkHeaderCursor',
-  'NeogitHunkHeaderHighlight',
-  'NeogitHunkMergeHeader',
-  'NeogitHunkMergeHeaderCursor',
-  'NeogitHunkMergeHeaderHighlight',
-}
-
-local function override_neogit_highlights()
-  for _, name in ipairs(neogit_hl_groups) do
-    vim.api.nvim_set_hl(0, name, {})
-  end
-end
-
 local function init()
   if initialized then
     return
@@ -661,9 +633,6 @@ local function init()
   vim.api.nvim_create_autocmd('ColorScheme', {
     callback = function()
       compute_highlight_groups()
-      if neogit_attached then
-        vim.schedule(override_neogit_highlights)
-      end
       for bufnr, _ in pairs(attached_buffers) do
         invalidate_cache(bufnr)
       end
@@ -679,7 +648,6 @@ local function init()
       ensure_cache(bufnr)
       local entry = hunk_cache[bufnr]
       if entry and entry.pending_clear then
-        vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
         entry.highlighted = {}
         entry.pending_clear = false
       end
@@ -705,6 +673,12 @@ local function init()
       for i = first, last do
         if not entry.highlighted[i] then
           local hunk = entry.hunks[i]
+          local clear_start = hunk.start_line - 1
+          local clear_end = clear_start + #hunk.lines
+          if hunk.header_start_line then
+            clear_start = hunk.header_start_line - 1
+          end
+          vim.api.nvim_buf_clear_namespace(bufnr, ns, clear_start, clear_end)
           highlight.highlight_hunk(bufnr, ns, hunk, fast_hl_opts)
           entry.highlighted[i] = true
           count = count + 1
@@ -782,9 +756,19 @@ function M.attach(bufnr)
   end
   attached_buffers[bufnr] = true
 
-  if not neogit_attached and config.neogit and vim.bo[bufnr].filetype:match('^Neogit') then
-    neogit_attached = true
-    vim.schedule(override_neogit_highlights)
+  local neogit_augroup = nil
+  if config.neogit and vim.bo[bufnr].filetype:match('^Neogit') then
+    vim.b[bufnr].neogit_disable_hunk_highlight = true
+    neogit_augroup = vim.api.nvim_create_augroup('diffs_neogit_' .. bufnr, { clear = true })
+    vim.api.nvim_create_autocmd('User', {
+      pattern = 'NeogitDiffLoaded',
+      group = neogit_augroup,
+      callback = function()
+        if vim.api.nvim_buf_is_valid(bufnr) and attached_buffers[bufnr] then
+          M.refresh(bufnr)
+        end
+      end,
+    })
   end
 
   dbg('attaching to buffer %d', bufnr)
@@ -796,6 +780,9 @@ function M.attach(bufnr)
     callback = function()
       attached_buffers[bufnr] = nil
       hunk_cache[bufnr] = nil
+      if neogit_augroup then
+        pcall(vim.api.nvim_del_augroup_by_id, neogit_augroup)
+      end
     end,
   })
 end

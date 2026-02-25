@@ -110,6 +110,11 @@ local function get_repo_root(bufnr)
     return vim.fn.fnamemodify(git_dir, ':h')
   end
 
+  local ok3, neogit_git_dir = pcall(vim.api.nvim_buf_get_var, bufnr, 'neogit_git_dir')
+  if ok3 and neogit_git_dir then
+    return vim.fn.fnamemodify(neogit_git_dir, ':h')
+  end
+
   local cwd = vim.fn.getcwd()
   local git = require('diffs.git')
   return git.get_repo_root(cwd .. '/.')
