@@ -339,6 +339,7 @@ local function ensure_cache(bufnr)
       if vim.api.nvim_buf_is_valid(bufnr) and hunk_cache[bufnr] then
         dbg('retrying filetype detection for buffer %d (was blocked by did_filetype)', bufnr)
         invalidate_cache(bufnr)
+        vim.cmd('redraw')
       end
     end)
   end
