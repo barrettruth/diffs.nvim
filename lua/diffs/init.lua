@@ -782,12 +782,14 @@ local function init()
       end
       if #deferred_syntax > 0 then
         local tick = entry.tick
+        dbg('deferred syntax scheduled: %d hunks tick=%d', #deferred_syntax, tick)
         vim.schedule(function()
           if not vim.api.nvim_buf_is_valid(bufnr) then
             return
           end
           local cur = hunk_cache[bufnr]
           if not cur or cur.tick ~= tick then
+            dbg('deferred syntax stale: cur.tick=%s captured=%d', cur and tostring(cur.tick) or 'nil', tick)
             return
           end
           local t1 = config.debug and vim.uv.hrtime() or nil
