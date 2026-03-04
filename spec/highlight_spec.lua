@@ -287,7 +287,7 @@ describe('highlight', function()
       local extmarks = get_extmarks(bufnr)
       local has_diff_add = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].hl_group == 'DiffsAdd' then
+        if mark[4] and mark[4].line_hl_group == 'DiffsAdd' then
           has_diff_add = true
           break
         end
@@ -320,7 +320,7 @@ describe('highlight', function()
       local extmarks = get_extmarks(bufnr)
       local has_diff_delete = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].hl_group == 'DiffsDelete' then
+        if mark[4] and mark[4].line_hl_group == 'DiffsDelete' then
           has_diff_delete = true
           break
         end
@@ -362,6 +362,114 @@ describe('highlight', function()
       delete_buffer(bufnr)
     end)
 
+    it('line bg uses line_hl_group not hl_group with end_row', function()
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { ' local x = 1', '+local y = 2' },
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { background = true } })
+      )
+
+      local extmarks = get_extmarks(bufnr)
+      for _, mark in ipairs(extmarks) do
+        local d = mark[4]
+        assert.is_not_equal('DiffsAdd', d and d.hl_group)
+        assert.is_not_equal('DiffsDelete', d and d.hl_group)
+      end
+      delete_buffer(bufnr)
+    end)
+
+    it('line bg extmark survives adjacent clear_namespace starting at next row', function()
+      local bufnr = create_buffer({
+        'diff --git a/foo.py b/foo.py',
+        '@@ -1,2 +1,2 @@',
+        '-old',
+        '+new',
+      })
+
+      local hunk = {
+        filename = 'foo.py',
+        header_start_line = 1,
+        start_line = 2,
+        lines = { '-old', '+new' },
+        prefix_width = 1,
+        quote_width = 0,
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { background = true, treesitter = { enabled = false } } })
+      )
+
+      local last_body_row = hunk.start_line + #hunk.lines - 1
+      vim.api.nvim_buf_clear_namespace(bufnr, ns, last_body_row + 1, last_body_row + 10)
+
+      local marks =
+        vim.api.nvim_buf_get_extmarks(bufnr, ns, { last_body_row, 0 }, { last_body_row, -1 }, { details = true })
+      local has_line_bg = false
+      for _, mark in ipairs(marks) do
+        if mark[4] and mark[4].line_hl_group == 'DiffsAdd' then
+          has_line_bg = true
+        end
+      end
+      assert.is_true(has_line_bg)
+      delete_buffer(bufnr)
+    end)
+
+    it('clear range covers last body line of hunk with header', function()
+      local bufnr = create_buffer({
+        'diff --git a/foo.py b/foo.py',
+        'index abc..def 100644',
+        '--- a/foo.py',
+        '+++ b/foo.py',
+        '@@ -1,3 +1,3 @@',
+        ' ctx',
+        '-old',
+        '+new',
+      })
+
+      local hunk = {
+        filename = 'foo.py',
+        header_start_line = 1,
+        start_line = 5,
+        lines = { ' ctx', '-old', '+new' },
+        prefix_width = 1,
+        quote_width = 0,
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { background = true, treesitter = { enabled = false } } })
+      )
+
+      local last_body_row = hunk.start_line + #hunk.lines - 1
+      local clear_start = hunk.header_start_line - 1
+      local clear_end = hunk.start_line + #hunk.lines
+      vim.api.nvim_buf_clear_namespace(bufnr, ns, clear_start, clear_end)
+
+      local marks =
+        vim.api.nvim_buf_get_extmarks(bufnr, ns, { last_body_row, 0 }, { last_body_row, -1 }, { details = false })
+      assert.are.equal(0, #marks)
+      delete_buffer(bufnr)
+    end)
+
     it('still applies background when treesitter disabled', function()
       local bufnr = create_buffer({
         '@@ -1,1 +1,2 @@',
@@ -386,7 +494,7 @@ describe('highlight', function()
       local extmarks = get_extmarks(bufnr)
       local has_diff_add = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].hl_group == 'DiffsAdd' then
+        if mark[4] and mark[4].line_hl_group == 'DiffsAdd' then
           has_diff_add = true
           break
         end
@@ -500,7 +608,7 @@ describe('highlight', function()
       local extmarks = get_extmarks(bufnr)
       local has_diff_add = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].hl_group == 'DiffsAdd' then
+        if mark[4] and mark[4].line_hl_group == 'DiffsAdd' then
           has_diff_add = true
           break
         end
@@ -585,7 +693,7 @@ describe('highlight', function()
       local found = false
       for _, mark in ipairs(extmarks) do
         local d = mark[4]
-        if d and (d.hl_group == 'DiffsAdd' or d.hl_group == 'DiffsDelete') and d.hl_eol then
+        if d and (d.line_hl_group == 'DiffsAdd' or d.line_hl_group == 'DiffsDelete') then
           found = true
         end
       end
@@ -741,7 +849,7 @@ describe('highlight', function()
         if d then
           if d.hl_group == 'DiffsClear' then
             table.insert(priorities.clear, d.priority)
-          elseif (d.hl_group == 'DiffsAdd' or d.hl_group == 'DiffsDelete') and d.hl_eol then
+          elseif (d.line_hl_group == 'DiffsAdd' or d.line_hl_group == 'DiffsDelete') then
             table.insert(priorities.line_bg, d.priority)
           elseif d.hl_group == 'DiffsAddText' or d.hl_group == 'DiffsDeleteText' then
             table.insert(priorities.char_bg, d.priority)
@@ -842,8 +950,8 @@ describe('highlight', function()
       local line_bgs = {}
       for _, mark in ipairs(extmarks) do
         local d = mark[4]
-        if d and (d.hl_group == 'DiffsAdd' or d.hl_group == 'DiffsDelete') and d.hl_eol then
-          line_bgs[mark[2]] = d.hl_group
+        if d and (d.line_hl_group == 'DiffsAdd' or d.line_hl_group == 'DiffsDelete') then
+          line_bgs[mark[2]] = d.line_hl_group
         end
       end
       assert.is_nil(line_bgs[1])
@@ -1034,8 +1142,8 @@ describe('highlight', function()
       local marker_text = {}
       for _, mark in ipairs(extmarks) do
         local d = mark[4]
-        if d and (d.hl_group == 'DiffsAdd' or d.hl_group == 'DiffsDelete') and d.hl_eol then
-          line_bgs[mark[2]] = d.hl_group
+        if d and (d.line_hl_group == 'DiffsAdd' or d.line_hl_group == 'DiffsDelete') then
+          line_bgs[mark[2]] = d.line_hl_group
         end
         if d and d.number_hl_group then
           gutter_hls[mark[2]] = d.number_hl_group

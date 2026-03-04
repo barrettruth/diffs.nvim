@@ -391,6 +391,27 @@ describe('parser', function()
       vim.fn.delete(repo_root, 'rf')
     end)
 
+    it('detects filetype for .sh files when did_filetype() is non-zero', function()
+      rawset(vim.fn, 'did_filetype', function() return 1 end)
+
+      parser._test.ft_lang_cache = {}
+      local bufnr = create_buffer({
+        'diff --git a/test.sh b/test.sh',
+        '@@ -1,3 +1,4 @@',
+        ' #!/usr/bin/env bash',
+        ' set -euo pipefail',
+        '-echo "running tests..."',
+        '+echo "running tests with coverage..."',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('test.sh', hunks[1].filename)
+      assert.are.equal('sh', hunks[1].ft)
+      delete_buffer(bufnr)
+      rawset(vim.fn, 'did_filetype', nil)
+    end)
+
     it('extracts file line numbers from @@ header', function()
       local bufnr = create_buffer({
         'M lua/test.lua',

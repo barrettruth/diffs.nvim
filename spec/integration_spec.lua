@@ -127,6 +127,108 @@ describe('integration', function()
     end)
   end)
 
+  describe('ft_retry_pending', function()
+    before_each(function()
+      rawset(vim.fn, 'did_filetype', function() return 1 end)
+      require('diffs.parser')._test.ft_lang_cache = {}
+    end)
+
+    after_each(function()
+      rawset(vim.fn, 'did_filetype', nil)
+    end)
+
+    it('sets ft_retry_pending when nil-ft hunks detected under did_filetype', function()
+      local bufnr = create_buffer({
+        'diff --git a/app.conf b/app.conf',
+        '@@ -1,2 +1,2 @@',
+        ' server {',
+        '-    listen 80;',
+        '+    listen 8080;',
+      })
+      diffs.attach(bufnr)
+      local entry = diffs._test.hunk_cache[bufnr]
+      assert.is_not_nil(entry)
+      assert.is_nil(entry.hunks[1].ft)
+      assert.is_true(diffs._test.ft_retry_pending[bufnr] == true)
+      delete_buffer(bufnr)
+    end)
+
+    it('clears ft_retry_pending after scheduled callback fires', function()
+      local bufnr = create_buffer({
+        'diff --git a/app.conf b/app.conf',
+        '@@ -1,2 +1,2 @@',
+        ' server {',
+        '-    listen 80;',
+        '+    listen 8080;',
+      })
+      diffs.attach(bufnr)
+      assert.is_true(diffs._test.ft_retry_pending[bufnr] == true)
+
+      local done = false
+      vim.schedule(function()
+        done = true
+      end)
+      vim.wait(1000, function()
+        return done
+      end)
+
+      assert.is_nil(diffs._test.ft_retry_pending[bufnr])
+      delete_buffer(bufnr)
+    end)
+
+    it('invalidates cache after scheduled callback fires', function()
+      local bufnr = create_buffer({
+        'diff --git a/app.conf b/app.conf',
+        '@@ -1,2 +1,2 @@',
+        ' server {',
+        '-    listen 80;',
+        '+    listen 8080;',
+      })
+      diffs.attach(bufnr)
+      local tick_after_attach = diffs._test.hunk_cache[bufnr].tick
+      assert.is_true(tick_after_attach >= 0)
+
+      local done = false
+      vim.schedule(function()
+        done = true
+      end)
+      vim.wait(1000, function()
+        return done
+      end)
+
+      local entry = diffs._test.hunk_cache[bufnr]
+      assert.are.equal(-1, entry.tick)
+      assert.is_true(entry.pending_clear)
+      delete_buffer(bufnr)
+    end)
+
+    it('does not set ft_retry_pending when did_filetype() is zero', function()
+      rawset(vim.fn, 'did_filetype', nil)
+      local bufnr = create_buffer({
+        'diff --git a/test.sh b/test.sh',
+        '@@ -1,2 +1,3 @@',
+        ' #!/usr/bin/env bash',
+        '-old line',
+        '+new line',
+      })
+      diffs.attach(bufnr)
+      assert.is_falsy(diffs._test.ft_retry_pending[bufnr])
+      delete_buffer(bufnr)
+    end)
+
+    it('does not set ft_retry_pending for files with resolvable ft', function()
+      local bufnr = create_buffer({
+        'M test.lua',
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
+      })
+      diffs.attach(bufnr)
+      assert.is_falsy(diffs._test.ft_retry_pending[bufnr])
+      delete_buffer(bufnr)
+    end)
+  end)
+
   describe('extmarks from highlight pipeline', function()
     it('DiffsAdd background applied to + lines', function()
       local bufnr = create_buffer({
@@ -145,7 +247,7 @@ describe('integration', function()
       local extmarks = get_extmarks(bufnr, ns)
       local has_diff_add = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].hl_group == 'DiffsAdd' then
+        if mark[4] and mark[4].line_hl_group == 'DiffsAdd' then
           has_diff_add = true
           break
         end
@@ -171,7 +273,7 @@ describe('integration', function()
       local extmarks = get_extmarks(bufnr, ns)
       local has_diff_delete = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].hl_group == 'DiffsDelete' then
+        if mark[4] and mark[4].line_hl_group == 'DiffsDelete' then
           has_diff_delete = true
           break
         end
@@ -198,10 +300,10 @@ describe('integration', function()
       local has_add = false
       local has_delete = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].hl_group == 'DiffsAdd' then
+        if mark[4] and mark[4].line_hl_group == 'DiffsAdd' then
           has_add = true
         end
-        if mark[4] and mark[4].hl_group == 'DiffsDelete' then
+        if mark[4] and mark[4].line_hl_group == 'DiffsDelete' then
           has_delete = true
         end
       end
@@ -230,8 +332,8 @@ describe('integration', function()
       local line_bgs = {}
       for _, mark in ipairs(extmarks) do
         local d = mark[4]
-        if d and (d.hl_group == 'DiffsAdd' or d.hl_group == 'DiffsDelete') and d.hl_eol then
-          line_bgs[mark[2]] = d.hl_group
+        if d and (d.line_hl_group == 'DiffsAdd' or d.line_hl_group == 'DiffsDelete') then
+          line_bgs[mark[2]] = d.line_hl_group
         end
       end
       assert.is_nil(line_bgs[1])
@@ -313,10 +415,10 @@ describe('integration', function()
       local del_lines = {}
       for _, mark in ipairs(extmarks) do
         local d = mark[4]
-        if d and d.hl_group == 'DiffsAdd' and d.hl_eol then
+        if d and d.line_hl_group == 'DiffsAdd' then
           add_lines[mark[2]] = true
         end
-        if d and d.hl_group == 'DiffsDelete' and d.hl_eol then
+        if d and d.line_hl_group == 'DiffsDelete' then
           del_lines[mark[2]] = true
         end
       end

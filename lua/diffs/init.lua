@@ -765,7 +765,7 @@ local function init()
         if not entry.highlighted[i] then
           local hunk = entry.hunks[i]
           local clear_start = hunk.start_line - 1
-          local clear_end = clear_start + #hunk.lines
+          local clear_end = hunk.start_line + #hunk.lines
           if hunk.header_start_line then
             clear_start = hunk.header_start_line - 1
           end
@@ -799,7 +799,7 @@ local function init()
           }
           for _, hunk in ipairs(deferred_syntax) do
             local start_row = hunk.start_line - 1
-            local end_row = start_row + #hunk.lines
+            local end_row = hunk.start_line + #hunk.lines
             if hunk.header_start_line then
               start_row = hunk.header_start_line - 1
             end
@@ -953,6 +953,7 @@ M._test = {
   invalidate_cache = invalidate_cache,
   hunks_eq = hunks_eq,
   process_pending_clear = process_pending_clear,
+  ft_retry_pending = ft_retry_pending,
 }
 
 return M

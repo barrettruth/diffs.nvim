@@ -17,6 +17,7 @@ with language-aware syntax highlighting.
 - `:Gdiff` unified diff against any revision
 - Background-only diff colors for `&diff` buffers
 - Inline merge conflict detection, highlighting, and resolution
+- Email-quoted diff highlighting (`> diff ...` prefixes, arbitrary nesting depth)
 - Vim syntax fallback, configurable blend/priorities
 
 ## Requirements
