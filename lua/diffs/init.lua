@@ -170,6 +170,9 @@ local fast_hl_opts = {} ---@type diffs.HunkOpts
 local attached_buffers = {}
 
 ---@type table<integer, boolean>
+local ft_retry_pending = {}
+
+---@type table<integer, boolean>
 local diff_windows = {}
 
 ---@class diffs.HunkCacheEntry
@@ -334,13 +337,15 @@ local function ensure_cache(bufnr)
       has_nil_ft = true
     end
   end
-  if has_nil_ft and vim.fn.did_filetype() ~= 0 then
+  if has_nil_ft and vim.fn.did_filetype() ~= 0 and not ft_retry_pending[bufnr] then
+    ft_retry_pending[bufnr] = true
     vim.schedule(function()
       if vim.api.nvim_buf_is_valid(bufnr) and hunk_cache[bufnr] then
         dbg('retrying filetype detection for buffer %d (was blocked by did_filetype)', bufnr)
         invalidate_cache(bufnr)
-        vim.cmd('redraw')
+        vim.cmd.redraw()
       end
+      ft_retry_pending[bufnr] = nil
     end)
   end
 end
@@ -864,6 +869,7 @@ function M.attach(bufnr)
     callback = function()
       attached_buffers[bufnr] = nil
       hunk_cache[bufnr] = nil
+      ft_retry_pending[bufnr] = nil
       if neogit_augroup then
         pcall(vim.api.nvim_del_augroup_by_id, neogit_augroup)
       end
