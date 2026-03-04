@@ -392,7 +392,9 @@ describe('parser', function()
     end)
 
     it('detects filetype for .sh files when did_filetype() is non-zero', function()
-      rawset(vim.fn, 'did_filetype', function() return 1 end)
+      rawset(vim.fn, 'did_filetype', function()
+        return 1
+      end)
 
       parser._test.ft_lang_cache = {}
       local bufnr = create_buffer({

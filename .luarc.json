@@ -2,7 +2,12 @@
   "runtime.version": "LuaJIT",
   "runtime.path": ["lua/?.lua", "lua/?/init.lua"],
   "diagnostics.globals": ["vim", "jit"],
-  "workspace.library": ["$VIMRUNTIME/lua", "${3rd}/luv/library", "${3rd}/busted/library", "${3rd}/luassert/library"],
+  "workspace.library": [
+    "$VIMRUNTIME/lua",
+    "${3rd}/luv/library",
+    "${3rd}/busted/library",
+    "${3rd}/luassert/library"
+  ],
   "workspace.checkThirdParty": false,
   "workspace.ignoreDir": [".direnv"],
   "completion.callSnippet": "Replace"

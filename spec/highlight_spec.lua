@@ -419,8 +419,13 @@ describe('highlight', function()
       local last_body_row = hunk.start_line + #hunk.lines - 1
       vim.api.nvim_buf_clear_namespace(bufnr, ns, last_body_row + 1, last_body_row + 10)
 
-      local marks =
-        vim.api.nvim_buf_get_extmarks(bufnr, ns, { last_body_row, 0 }, { last_body_row, -1 }, { details = true })
+      local marks = vim.api.nvim_buf_get_extmarks(
+        bufnr,
+        ns,
+        { last_body_row, 0 },
+        { last_body_row, -1 },
+        { details = true }
+      )
       local has_line_bg = false
       for _, mark in ipairs(marks) do
         if mark[4] and mark[4].line_hl_group == 'DiffsAdd' then
@@ -464,8 +469,13 @@ describe('highlight', function()
       local clear_end = hunk.start_line + #hunk.lines
       vim.api.nvim_buf_clear_namespace(bufnr, ns, clear_start, clear_end)
 
-      local marks =
-        vim.api.nvim_buf_get_extmarks(bufnr, ns, { last_body_row, 0 }, { last_body_row, -1 }, { details = false })
+      local marks = vim.api.nvim_buf_get_extmarks(
+        bufnr,
+        ns,
+        { last_body_row, 0 },
+        { last_body_row, -1 },
+        { details = false }
+      )
       assert.are.equal(0, #marks)
       delete_buffer(bufnr)
     end)
@@ -849,7 +859,7 @@ describe('highlight', function()
         if d then
           if d.hl_group == 'DiffsClear' then
             table.insert(priorities.clear, d.priority)
-          elseif (d.line_hl_group == 'DiffsAdd' or d.line_hl_group == 'DiffsDelete') then
+          elseif d.line_hl_group == 'DiffsAdd' or d.line_hl_group == 'DiffsDelete' then
             table.insert(priorities.line_bg, d.priority)
           elseif d.hl_group == 'DiffsAddText' or d.hl_group == 'DiffsDeleteText' then
             table.insert(priorities.char_bg, d.priority)

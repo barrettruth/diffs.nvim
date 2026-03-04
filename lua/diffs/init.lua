@@ -789,7 +789,11 @@ local function init()
           end
           local cur = hunk_cache[bufnr]
           if not cur or cur.tick ~= tick then
-            dbg('deferred syntax stale: cur.tick=%s captured=%d', cur and tostring(cur.tick) or 'nil', tick)
+            dbg(
+              'deferred syntax stale: cur.tick=%s captured=%d',
+              cur and tostring(cur.tick) or 'nil',
+              tick
+            )
             return
           end
           local t1 = config.debug and vim.uv.hrtime() or nil

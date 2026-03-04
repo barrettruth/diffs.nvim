@@ -1,6 +1,6 @@
 require('spec.helpers')
-local parser = require('diffs.parser')
 local highlight = require('diffs.highlight')
+local parser = require('diffs.parser')
 
 local function create_buffer(lines)
   local bufnr = vim.api.nvim_create_buf(false, true)
@@ -34,7 +34,6 @@ local function highlight_opts()
 end
 
 describe('parser email-quoted diffs', function()
-
   it('parses a fully email-quoted unified diff', function()
     local bufnr = create_buffer({
       '> diff --git a/foo.py b/foo.py',

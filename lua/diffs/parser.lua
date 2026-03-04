@@ -64,7 +64,9 @@ local function get_ft_from_filename(filename, repo_root)
   if not ft and vim.fn.did_filetype() ~= 0 then
     dbg('retrying filetype match for %s (clearing did_filetype)', filename)
     local saved = rawget(vim.fn, 'did_filetype')
-    rawset(vim.fn, 'did_filetype', function() return 0 end)
+    rawset(vim.fn, 'did_filetype', function()
+      return 0
+    end)
     ft = vim.filetype.match({ filename = filename })
     rawset(vim.fn, 'did_filetype', saved)
   end

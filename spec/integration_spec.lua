@@ -129,7 +129,9 @@ describe('integration', function()
 
   describe('ft_retry_pending', function()
     before_each(function()
-      rawset(vim.fn, 'did_filetype', function() return 1 end)
+      rawset(vim.fn, 'did_filetype', function()
+        return 1
+      end)
       require('diffs.parser')._test.ft_lang_cache = {}
     end)
 
