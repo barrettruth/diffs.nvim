@@ -480,7 +480,7 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
 
     if qw > 0 then
       pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
-        end_col = qw,
+        end_col = pw + qw,
         hl_group = 'DiffsClear',
         priority = p.clear,
       })
