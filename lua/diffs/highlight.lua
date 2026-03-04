@@ -222,7 +222,7 @@ local function highlight_vim_syntax(
 
   pcall(vim.api.nvim_buf_call, scratch, function()
     vim.cmd('setlocal syntax=' .. ft)
-    vim.cmd('redraw')
+    vim.cmd.redraw()
 
     ---@param line integer
     ---@param col integer
