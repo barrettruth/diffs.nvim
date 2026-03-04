@@ -13,7 +13,8 @@
       ...
     }:
     let
-      forEachSystem = f: nixpkgs.lib.genAttrs (import systems) (system: f nixpkgs.legacyPackages.${system});
+      forEachSystem =
+        f: nixpkgs.lib.genAttrs (import systems) (system: f nixpkgs.legacyPackages.${system});
     in
     {
       formatter = forEachSystem (pkgs: pkgs.nixfmt-tree);
@@ -23,7 +24,12 @@
           let
             ts-plugin = pkgs.vimPlugins.nvim-treesitter.withPlugins (p: [ p.diff ]);
             diff-grammar = pkgs.vimPlugins.nvim-treesitter-parsers.diff;
-            luaEnv = pkgs.luajit.withPackages (ps: with ps; [ busted nlua ]);
+            luaEnv = pkgs.luajit.withPackages (
+              ps: with ps; [
+                busted
+                nlua
+              ]
+            );
             busted-with-grammar = pkgs.writeShellScriptBin "busted" ''
               nvim_bin=$(which nvim)
               tmpdir=$(mktemp -d)
@@ -34,14 +40,14 @@
             '';
           in
           pkgs.mkShell {
-          packages = [
-            busted-with-grammar
-            pkgs.prettier
-            pkgs.stylua
-            pkgs.selene
-            pkgs.lua-language-server
-          ];
-        };
+            packages = [
+              busted-with-grammar
+              pkgs.prettier
+              pkgs.stylua
+              pkgs.selene
+              pkgs.lua-language-server
+            ];
+          };
       });
     };
 }
