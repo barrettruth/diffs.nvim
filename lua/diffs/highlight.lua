@@ -123,7 +123,8 @@ local function highlight_treesitter(
           local buf_sc = sc + col_offset
           local buf_ec = ec + col_offset
 
-          local priority = tree_lang == 'diff' and (tonumber(metadata.priority) or 100)
+          local priority = tree_lang == 'diff'
+              and (col_offset > 0 and priorities.syntax or (tonumber(metadata.priority) or 100))
             or priorities.syntax
 
           pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_sr, buf_sc, {
@@ -240,7 +241,7 @@ local function highlight_vim_syntax(
   pcall(vim.api.nvim_buf_delete, scratch, { force = true })
 
   local hunk_line_count = #hunk.lines
-  local col_off = (hunk.prefix_width or 1) - 1
+  local col_off = (hunk.prefix_width or 1) + (hunk.quote_width or 0) - 1
   local extmark_count = 0
   for _, span in ipairs(spans) do
     local adj = span.line - leading_offset
@@ -268,6 +269,7 @@ end
 function M.highlight_hunk(bufnr, ns, hunk, opts)
   local p = opts.highlights.priorities
   local pw = hunk.prefix_width or 1
+  local qw = hunk.quote_width or 0
   local use_ts = hunk.lang and opts.highlights.treesitter.enabled
   local use_vim = not use_ts and hunk.ft and opts.highlights.vim.enabled
 
@@ -292,9 +294,10 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
   local covered_lines = {}
 
   local extmark_count = 0
+  ---@type string[]
+  local new_code = {}
+
   if use_ts then
-    ---@type string[]
-    local new_code = {}
     ---@type table<integer, integer>
     local new_map = {}
     ---@type string[]
@@ -323,17 +326,11 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     end
 
     extmark_count =
-      highlight_treesitter(bufnr, ns, new_code, hunk.lang, new_map, pw, covered_lines, p)
+      highlight_treesitter(bufnr, ns, new_code, hunk.lang, new_map, pw + qw, covered_lines, p)
     extmark_count = extmark_count
-      + highlight_treesitter(bufnr, ns, old_code, hunk.lang, old_map, pw, covered_lines, p)
+      + highlight_treesitter(bufnr, ns, old_code, hunk.lang, old_map, pw + qw, covered_lines, p)
 
     if hunk.header_context and hunk.header_context_col then
-      local header_line = hunk.start_line - 1
-      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, header_line, hunk.header_context_col, {
-        end_col = hunk.header_context_col + #hunk.header_context,
-        hl_group = 'DiffsClear',
-        priority = p.clear,
-      })
       local header_extmarks = highlight_text(
         bufnr,
         ns,
@@ -370,7 +367,19 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
       header_map[i] = hunk.header_start_line - 1 + i
     end
     extmark_count = extmark_count
-      + highlight_treesitter(bufnr, ns, hunk.header_lines, 'diff', header_map, 0, nil, p)
+      + highlight_treesitter(bufnr, ns, hunk.header_lines, 'diff', header_map, qw, nil, p)
+  end
+
+  local at_raw_line
+  if qw > 0 and opts.highlights.treesitter.enabled then
+    local at_buf_line = hunk.start_line - 1
+    at_raw_line = vim.api.nvim_buf_get_lines(bufnr, at_buf_line, at_buf_line + 1, false)[1]
+    if at_raw_line then
+      local at_logical = at_raw_line:sub(qw + 1)
+      local at_map = { [0] = at_buf_line }
+      extmark_count = extmark_count
+        + highlight_treesitter(bufnr, ns, { at_logical }, 'diff', at_map, qw, nil, p)
+    end
   end
 
   ---@type diffs.IntraChanges?
@@ -407,6 +416,41 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     end
   end
 
+  if
+    qw > 0
+    and hunk.header_start_line
+    and hunk.header_lines
+    and #hunk.header_lines > 0
+    and opts.highlights.treesitter.enabled
+  then
+    for i = 0, #hunk.header_lines - 1 do
+      local buf_line = hunk.header_start_line - 1 + i
+      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
+        end_col = #hunk.header_lines[i + 1] + qw,
+        hl_group = 'DiffsClear',
+        priority = p.clear,
+      })
+    end
+  end
+
+  if qw > 0 and at_raw_line then
+    local at_buf_line = hunk.start_line - 1
+    pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, at_buf_line, 0, {
+      end_col = #at_raw_line,
+      hl_group = 'DiffsClear',
+      priority = p.clear,
+    })
+  end
+
+  if use_ts and hunk.header_context and hunk.header_context_col then
+    local header_line = hunk.start_line - 1
+    pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, header_line, hunk.header_context_col, {
+      end_col = hunk.header_context_col + #hunk.header_context,
+      hl_group = 'DiffsClear',
+      priority = p.clear,
+    })
+  end
+
   for i, line in ipairs(hunk.lines) do
     local buf_line = hunk.start_line + i - 1
     local line_len = #line
@@ -429,14 +473,22 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     if opts.hide_prefix then
       local virt_hl = (opts.highlights.background and line_hl) or nil
       pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
-        virt_text = { { string.rep(' ', pw), virt_hl } },
+        virt_text = { { string.rep(' ', pw + qw), virt_hl } },
         virt_text_pos = 'overlay',
       })
     end
 
+    if qw > 0 then
+      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
+        end_col = qw,
+        hl_group = 'DiffsClear',
+        priority = p.clear,
+      })
+    end
+
     if line_len > pw and covered_lines[buf_line] then
-      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, pw, {
-        end_col = line_len,
+      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, pw + qw, {
+        end_col = line_len + qw,
         hl_group = 'DiffsClear',
         priority = p.clear,
       })
@@ -458,8 +510,8 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     end
 
     if is_marker and line_len > pw then
-      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, pw, {
-        end_col = line_len,
+      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, pw + qw, {
+        end_col = line_len + qw,
         hl_group = 'DiffsConflictMarker',
         priority = p.char_bg,
       })
@@ -477,8 +529,8 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
           char_hl,
           line:sub(span.col_start + 1, span.col_end)
         )
-        local ok, err = pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, span.col_start, {
-          end_col = span.col_end,
+        local ok, err = pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, span.col_start + qw, {
+          end_col = span.col_end + qw,
           hl_group = char_hl,
           priority = p.char_bg,
         })
@@ -491,42 +543,6 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
   end
 
   dbg('hunk %s:%d applied %d extmarks', hunk.filename, hunk.start_line, extmark_count)
-end
-
----@param bufnr integer
----@param ns integer
----@param hunk diffs.Hunk
----@param opts diffs.HunkOpts
-function M.highlight_hunk_vim_syntax(bufnr, ns, hunk, opts)
-  local p = opts.highlights.priorities
-  local pw = hunk.prefix_width or 1
-
-  if not hunk.ft or #hunk.lines == 0 then
-    return
-  end
-
-  if #hunk.lines > opts.highlights.vim.max_lines then
-    return
-  end
-
-  local code_lines = {}
-  for _, line in ipairs(hunk.lines) do
-    table.insert(code_lines, line:sub(pw + 1))
-  end
-
-  local covered_lines = {}
-  highlight_vim_syntax(bufnr, ns, hunk, code_lines, covered_lines, 0, p)
-
-  for buf_line in pairs(covered_lines) do
-    local line = hunk.lines[buf_line - hunk.start_line + 1]
-    if line and #line > pw then
-      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, pw, {
-        end_col = #line,
-        hl_group = 'DiffsClear',
-        priority = p.clear,
-      })
-    end
-  end
 end
 
 return M

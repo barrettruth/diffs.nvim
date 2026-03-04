@@ -411,7 +411,7 @@ local function compute_highlight_groups()
   local blended_add_text = blend_color(add_fg, bg, alpha)
   local blended_del_text = blend_color(del_fg, bg, alpha)
 
-  vim.api.nvim_set_hl(0, 'DiffsClear', { default = true, fg = normal.fg or 0xc0c0c0 })
+  vim.api.nvim_set_hl(0, 'DiffsClear', { default = true, fg = normal.fg or 0xc0c0c0, bg = bg })
   vim.api.nvim_set_hl(0, 'DiffsAdd', { default = true, bg = blended_add })
   vim.api.nvim_set_hl(0, 'DiffsDelete', { default = true, bg = blended_del })
   vim.api.nvim_set_hl(0, 'DiffsAddNr', { default = true, fg = blended_add_text, bg = blended_add })
@@ -797,9 +797,6 @@ local function init()
             end
             vim.api.nvim_buf_clear_namespace(bufnr, ns, start_row, end_row)
             highlight.highlight_hunk(bufnr, ns, hunk, full_opts)
-            if not hunk.lang and hunk.ft then
-              highlight.highlight_hunk_vim_syntax(bufnr, ns, hunk, full_opts)
-            end
           end
           if t1 then
             dbg('deferred pass: %d hunks in %.2fms', #deferred_syntax, (vim.uv.hrtime() - t1) / 1e6)
