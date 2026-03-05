@@ -1249,6 +1249,123 @@ describe('highlight', function()
       end
       delete_buffer(bufnr)
     end)
+
+    it('two-pass rendering produces no duplicate extmarks', function()
+      vim.api.nvim_set_hl(0, 'DiffsAddText', { bg = 0x00FF00 })
+      vim.api.nvim_set_hl(0, 'DiffsDeleteText', { bg = 0xFF0000 })
+      vim.api.nvim_set_hl(0, 'DiffsAddNr', { fg = 0x80c080, bg = 0x2e4a3a })
+      vim.api.nvim_set_hl(0, 'DiffsDeleteNr', { fg = 0xc08080, bg = 0x4a2e3a })
+
+      local bufnr = create_buffer({
+        '@@ -1,2 +1,2 @@',
+        '-local x = 1',
+        '+local x = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { '-local x = 1', '+local x = 2' },
+      }
+
+      local fast = default_opts({
+        highlights = {
+          treesitter = { enabled = false },
+          background = true,
+          gutter = true,
+          intra = { enabled = true, algorithm = 'default', max_lines = 500 },
+        },
+      })
+
+      local syntax = default_opts({
+        highlights = {
+          treesitter = { enabled = true },
+          background = true,
+          gutter = true,
+          intra = { enabled = true, algorithm = 'default', max_lines = 500 },
+        },
+      })
+      syntax.syntax_only = true
+
+      highlight.highlight_hunk(bufnr, ns, hunk, fast)
+      highlight.highlight_hunk(bufnr, ns, hunk, syntax)
+
+      local extmarks = get_extmarks(bufnr)
+      for row = 1, 2 do
+        local line_hl_count = 0
+        local number_hl_count = 0
+        local intra_count = 0
+        for _, mark in ipairs(extmarks) do
+          if mark[2] == row then
+            local d = mark[4]
+            if d.line_hl_group then
+              line_hl_count = line_hl_count + 1
+            end
+            if d.number_hl_group then
+              number_hl_count = number_hl_count + 1
+            end
+            if d.hl_group == 'DiffsAddText' or d.hl_group == 'DiffsDeleteText' then
+              intra_count = intra_count + 1
+            end
+          end
+        end
+        assert.are.equal(1, line_hl_count, 'row ' .. row .. ' has duplicate line_hl_group')
+        assert.are.equal(1, number_hl_count, 'row ' .. row .. ' has duplicate number_hl_group')
+        assert.is_true(intra_count <= 1, 'row ' .. row .. ' has duplicate intra extmarks')
+      end
+      delete_buffer(bufnr)
+    end)
+
+    it('syntax_only pass adds treesitter without duplicating backgrounds', function()
+      local bufnr = create_buffer({
+        '@@ -1,2 +1,3 @@',
+        ' local x = 1',
+        '+local y = 2',
+        ' return x',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { ' local x = 1', '+local y = 2', ' return x' },
+      }
+
+      local fast = default_opts({
+        highlights = {
+          treesitter = { enabled = false },
+          background = true,
+        },
+      })
+
+      local syntax = default_opts({
+        highlights = {
+          treesitter = { enabled = true },
+          background = true,
+        },
+      })
+      syntax.syntax_only = true
+
+      highlight.highlight_hunk(bufnr, ns, hunk, fast)
+      highlight.highlight_hunk(bufnr, ns, hunk, syntax)
+
+      local extmarks = get_extmarks(bufnr)
+      local has_ts = false
+      local line_hl_count = 0
+      for _, mark in ipairs(extmarks) do
+        local d = mark[4]
+        if d and d.hl_group and d.hl_group:match('^@.*%.lua$') then
+          has_ts = true
+        end
+        if d and d.line_hl_group then
+          line_hl_count = line_hl_count + 1
+        end
+      end
+      assert.is_true(has_ts)
+      assert.are.equal(1, line_hl_count)
+      delete_buffer(bufnr)
+    end)
   end)
 
   describe('diff header highlighting', function()

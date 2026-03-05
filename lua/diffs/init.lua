@@ -786,18 +786,13 @@ local function init()
             return
           end
           local t1 = config.debug and vim.uv.hrtime() or nil
-          local full_opts = {
+          local syntax_opts = {
             hide_prefix = config.hide_prefix,
             highlights = config.highlights,
+            syntax_only = true,
           }
           for _, hunk in ipairs(deferred_syntax) do
-            local start_row = hunk.start_line - 1
-            local end_row = hunk.start_line + #hunk.lines
-            if hunk.header_start_line then
-              start_row = hunk.header_start_line - 1
-            end
-            vim.api.nvim_buf_clear_namespace(bufnr, ns, start_row, end_row)
-            highlight.highlight_hunk(bufnr, ns, hunk, full_opts)
+            highlight.highlight_hunk(bufnr, ns, hunk, syntax_opts)
           end
           if t1 then
             dbg('deferred pass: %d hunks in %.2fms', #deferred_syntax, (vim.uv.hrtime() - t1) / 1e6)
