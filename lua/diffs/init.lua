@@ -315,7 +315,7 @@ end
 ---@param hunks diffs.Hunk[]
 ---@param max_lines integer
 local function compute_hunk_context(hunks, max_lines)
-  ---@type table<string, string[]>
+  ---@type table<string, string[]|false>
   local file_cache = {}
 
   for _, hunk in ipairs(hunks) do
