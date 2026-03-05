@@ -220,7 +220,6 @@ function M.parse_buffer(bufnr)
     local bare_file = not hunk_start and line:match('^([^%s]+%.[^%s]+)$')
     local filename = line:match('^[MADRCU%?!]%s+(.+)$') or diff_git_file or neogit_file or bare_file
     if filename then
-      is_unified_diff = diff_git_file ~= nil
       flush_hunk()
       current_filename = filename
       local cache_key = (repo_root or '') .. '\0' .. filename
