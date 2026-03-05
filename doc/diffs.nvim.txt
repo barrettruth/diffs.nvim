@@ -23,6 +23,26 @@ Features: ~
 - Inline merge conflict marker detection, highlighting, and resolution
 
 ==============================================================================
+CONTENTS                                                      *diffs-contents*
+
+  1. Introduction ............................................... |diffs.nvim|
+  2. Requirements ....................................... |diffs-requirements|
+  3. Setup ..................................................... |diffs-setup|
+  4. Configuration ............................................ |diffs-config|
+  5. Commands ............................................... |diffs-commands|
+  6. Mappings ............................................... |diffs-mappings|
+  7. Fugitive Status Keymaps ................................ |diffs-fugitive|
+  8. Conflict Resolution .................................... |diffs-conflict|
+  9. Merge Diff Resolution ..................................... |diffs-merge|
+ 10. Neogit ................................................... |diffs-neogit|
+ 11. API ......................................................... |diffs-api|
+ 12. Implementation ................................... |diffs-implementation|
+ 13. Known Limitations ................................... |diffs-limitations|
+ 14. Highlight Groups ..................................... |diffs-highlights|
+ 15. Health Check ............................................. |diffs-health|
+ 16. Acknowledgements ............................... |diffs-acknowledgements|
+
+==============================================================================
 REQUIREMENTS                                              *diffs-requirements*
 
 - Neovim 0.9.0+
