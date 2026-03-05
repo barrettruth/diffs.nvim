@@ -67,6 +67,10 @@ end
 ---@field defer_vim_syntax? boolean
 ---@field syntax_only? boolean
 
+---@class diffs.TSContext
+---@field before string[]?
+---@field after string[]?
+
 ---@param bufnr integer
 ---@param ns integer
 ---@param code_lines string[]
@@ -76,6 +80,7 @@ end
 ---@param covered_lines? table<integer, true>
 ---@param priorities diffs.PrioritiesConfig
 ---@param force_high_priority? boolean
+---@param context? diffs.TSContext
 ---@return integer
 local function highlight_treesitter(
   bufnr,
@@ -86,9 +91,34 @@ local function highlight_treesitter(
   col_offset,
   covered_lines,
   priorities,
-  force_high_priority
+  force_high_priority,
+  context
 )
-  local code = table.concat(code_lines, '\n')
+  local prefix_count = 0
+  local parse_lines = code_lines
+  if context then
+    local before = context.before
+    local after = context.after
+    if (before and #before > 0) or (after and #after > 0) then
+      parse_lines = {}
+      if before then
+        prefix_count = #before
+        for _, l in ipairs(before) do
+          parse_lines[#parse_lines + 1] = l
+        end
+      end
+      for _, l in ipairs(code_lines) do
+        parse_lines[#parse_lines + 1] = l
+      end
+      if after then
+        for _, l in ipairs(after) do
+          parse_lines[#parse_lines + 1] = l
+        end
+      end
+    end
+  end
+
+  local code = table.concat(parse_lines, '\n')
   if code == '' then
     return 0
   end
@@ -118,6 +148,8 @@ local function highlight_treesitter(
       if capture ~= 'spell' and capture ~= 'nospell' then
         local capture_name = '@' .. capture .. '.' .. tree_lang
         local sr, sc, er, ec = node:range()
+        sr = sr - prefix_count
+        er = er - prefix_count
 
         local buf_sr = line_map[sr]
         if buf_sr then
@@ -329,10 +361,36 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
       end
     end
 
-    extmark_count =
-      highlight_treesitter(bufnr, ns, new_code, hunk.lang, new_map, pw + qw, covered_lines, p)
+    local ts_context = nil
+    if opts.highlights.context.enabled and (hunk.context_before or hunk.context_after) then
+      ts_context = { before = hunk.context_before, after = hunk.context_after }
+    end
+
+    extmark_count = highlight_treesitter(
+      bufnr,
+      ns,
+      new_code,
+      hunk.lang,
+      new_map,
+      pw + qw,
+      covered_lines,
+      p,
+      nil,
+      ts_context
+    )
     extmark_count = extmark_count
-      + highlight_treesitter(bufnr, ns, old_code, hunk.lang, old_map, pw + qw, covered_lines, p)
+      + highlight_treesitter(
+        bufnr,
+        ns,
+        old_code,
+        hunk.lang,
+        old_map,
+        pw + qw,
+        covered_lines,
+        p,
+        nil,
+        ts_context
+      )
 
     if hunk.header_context and hunk.header_context_col then
       local header_extmarks = highlight_text(
