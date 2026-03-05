@@ -172,7 +172,6 @@ function M.parse_buffer(bufnr)
   local old_remaining = nil
   ---@type integer?
   local new_remaining = nil
-  local is_unified_diff = false
 
   local function flush_hunk()
     if hunk_start and #hunk_lines > 0 then
