@@ -15,11 +15,11 @@ with language-aware syntax highlighting.
   [vscode-diff](https://github.com/esmuellert/codediff.nvim) FFI backend for
   word-level accuracy)
 - `:Gdiff` unified diff against any revision
-- Background-only diff colors for `&diff` buffers
 - Inline merge conflict detection, highlighting, and resolution
-- Email-quoted diff highlighting (`> diff ...` prefixes, arbitrary nesting
-  depth)
-- Vim syntax fallback, configurable blend/priorities
+- Email quoting/patch syntax support (`> diff ...`)
+- Vim syntax fallback
+- Configurable highlighiting blend & priorities
+- Context-inclusive, high-accuracy highlights
 
 ## Requirements
 
