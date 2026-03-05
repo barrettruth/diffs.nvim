@@ -297,6 +297,69 @@ local function carry_forward_highlighted(old_entry, new_hunks)
   return highlighted
 end
 
+---@param path string
+---@return string[]?
+local function read_file_lines(path)
+  local f = io.open(path, 'r')
+  if not f then
+    return nil
+  end
+  local lines = {}
+  for line in f:lines() do
+    lines[#lines + 1] = line
+  end
+  f:close()
+  return lines
+end
+
+---@param hunks diffs.Hunk[]
+---@param max_lines integer
+local function compute_hunk_context(hunks, max_lines)
+  ---@type table<string, string[]|false>
+  local file_cache = {}
+
+  for _, hunk in ipairs(hunks) do
+    if not hunk.repo_root or not hunk.filename or not hunk.file_new_start then
+      goto continue
+    end
+
+    local path = vim.fs.joinpath(hunk.repo_root, hunk.filename)
+    local file_lines = file_cache[path]
+    if file_lines == nil then
+      file_lines = read_file_lines(path) or false
+      file_cache[path] = file_lines
+    end
+    if not file_lines then
+      goto continue
+    end
+
+    local new_start = hunk.file_new_start
+    local new_count = hunk.file_new_count or 0
+    local total = #file_lines
+
+    local before_start = math.max(1, new_start - max_lines)
+    if before_start < new_start then
+      local before = {}
+      for i = before_start, new_start - 1 do
+        before[#before + 1] = file_lines[i]
+      end
+      hunk.context_before = before
+    end
+
+    local after_start = new_start + new_count
+    local after_end = math.min(total, after_start + max_lines - 1)
+    if after_start <= total then
+      local after = {}
+      for i = after_start, after_end do
+        after[#after + 1] = file_lines[i]
+      end
+      hunk.context_after = after
+    end
+
+    ::continue::
+  end
+end
+
 ---@param bufnr integer
 local function ensure_cache(bufnr)
   if not vim.api.nvim_buf_is_valid(bufnr) then
@@ -321,6 +384,9 @@ local function ensure_cache(bufnr)
   local lc = vim.api.nvim_buf_line_count(bufnr)
   local bc = vim.api.nvim_buf_get_offset(bufnr, lc)
   dbg('parsed %d hunks in buffer %d (tick %d)', #hunks, bufnr, tick)
+  if config.highlights.context.enabled then
+    compute_hunk_context(hunks, config.highlights.context.lines)
+  end
   local carried = entry and not entry.pending_clear and carry_forward_highlighted(entry, hunks)
   hunk_cache[bufnr] = {
     hunks = hunks,
@@ -941,6 +1007,7 @@ M._test = {
   hunks_eq = hunks_eq,
   process_pending_clear = process_pending_clear,
   ft_retry_pending = ft_retry_pending,
+  compute_hunk_context = compute_hunk_context,
 }
 
 return M
