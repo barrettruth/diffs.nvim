@@ -556,12 +556,11 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
           char_hl,
           line:sub(span.col_start + 1, span.col_end)
         )
-        local ok, err =
-          pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, span.col_start, {
-            end_col = span.col_end,
-            hl_group = char_hl,
-            priority = p.char_bg,
-          })
+        local ok, err = pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, span.col_start, {
+          end_col = span.col_end,
+          hl_group = char_hl,
+          priority = p.char_bg,
+        })
         if not ok then
           dbg('char extmark FAILED: %s', err)
         end
