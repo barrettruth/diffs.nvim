@@ -225,16 +225,20 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                                                       *diffs.ContextConfig*
     Context config fields: ~
         {enabled}            (boolean, default: true)
-                             Read lines from disk before and after each hunk
-                             to provide surrounding syntax context. Improves
-                             accuracy at hunk boundaries where incomplete
-                             constructs (e.g., a function definition with no
-                             body) would otherwise confuse the parser.
+                             Read surrounding code from the working tree
+                             file and feed it into the treesitter string
+                             parser. Uses the hunk's `@@ +start,count @@`
+                             line numbers to read lines before and after
+                             the hunk from disk. Improves syntax accuracy
+                             when the hunk is inside an incomplete construct
+                             (e.g., a table literal or function body whose
+                             opening is not visible in the hunk's own
+                             context lines).
 
         {lines}              (integer, default: 25)
-                             Number of context lines to read in each
-                             direction. Lines are read with early exit —
-                             cost scales with this value, not file size.
+                             Max context lines to read in each direction.
+                             Files are read once per parse and cached across
+                             hunks in the same file.
 
                                                    *diffs.PrioritiesConfig*
     Priorities config fields: ~
@@ -693,10 +697,14 @@ KNOWN LIMITATIONS                                       *diffs-limitations*
 
 Incomplete Syntax Context ~
                                                       *diffs-syntax-context*
-Treesitter parses each diff hunk in isolation. Context lines within the hunk
-(lines with a ` ` prefix) provide syntactic context for the parser. In rare
-cases, hunks that start or end mid-expression may produce imperfect highlights
-due to treesitter error recovery.
+Treesitter parses each diff hunk in isolation. When `highlights.context` is
+enabled (the default), surrounding code is read from the working tree file
+and fed into the parser to improve accuracy at hunk boundaries. This helps
+when a hunk is inside a table, function body, or loop whose opening is
+beyond the hunk's own context lines. Requires `repo_root` and
+`file_new_start` to be available on the hunk (true for standard unified
+diffs). In rare cases, hunks that start or end mid-expression may still
+produce imperfect highlights due to treesitter error recovery.
 
 Syntax Highlighting Flash ~
                                                              *diffs-flash*

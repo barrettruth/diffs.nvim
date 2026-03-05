@@ -15,6 +15,8 @@
 ---@field prefix_width integer
 ---@field quote_width integer
 ---@field repo_root string?
+---@field context_before string[]?
+---@field context_after string[]?
 
 local M = {}
 
