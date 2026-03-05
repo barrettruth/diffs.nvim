@@ -124,7 +124,7 @@ local default_config = {
       max_lines = 500,
     },
     vim = {
-      enabled = false,
+      enabled = true,
       max_lines = 200,
     },
     intra = {

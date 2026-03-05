@@ -89,7 +89,7 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
           max_lines = 500,
         },
         vim = {
-          enabled = false,
+          enabled = true,
           max_lines = 200,
         },
         intra = {
@@ -204,7 +204,7 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              See |diffs.TreesitterConfig| for fields.
 
         {vim}                (table, default: see below)
-                             Vim syntax highlighting options (experimental).
+                             Vim syntax fallback highlighting options.
                              See |diffs.VimConfig| for fields.
 
         {intra}              (table, default: see below)
@@ -269,13 +269,15 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
 
                                                           *diffs.VimConfig*
     Vim config fields: ~
-        {enabled}            (boolean, default: false)
+        {enabled}            (boolean, default: true)
                              Use vim syntax highlighting as fallback when no
                              treesitter parser is available for a language.
                              Creates a scratch buffer, sets the filetype, and
                              queries |synID()| per character to extract
-                             highlight groups. Slower than treesitter but
-                             covers languages without a TS parser installed.
+                             highlight groups. Deferred via |vim.schedule()|
+                             so it never blocks the first paint. Slower than
+                             treesitter but covers languages without a TS
+                             parser installed (e.g., COBOL, Fortran).
 
         {max_lines}          (integer, default: 200)
                              Skip vim syntax highlighting for hunks larger than
