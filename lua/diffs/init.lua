@@ -489,14 +489,6 @@ local function compute_highlight_groups()
   end
 end
 
-local neogit_context_hl_overridden = false
-
--- TODO: remove once NeogitOrg/neogit#1904 merges and is released (tracked in #135)
-local function override_neogit_context_highlights()
-  vim.api.nvim_set_hl(0, 'NeogitDiffContextHighlight', {})
-  neogit_context_hl_overridden = true
-end
-
 local function init()
   if initialized then
     return
@@ -720,9 +712,6 @@ local function init()
   vim.api.nvim_create_autocmd('ColorScheme', {
     callback = function()
       compute_highlight_groups()
-      if neogit_context_hl_overridden then
-        override_neogit_context_highlights()
-      end
       for bufnr, _ in pairs(attached_buffers) do
         invalidate_cache(bufnr)
       end
@@ -853,7 +842,6 @@ function M.attach(bufnr)
   local neogit_augroup = nil
   if config.neogit and vim.bo[bufnr].filetype:match('^Neogit') then
     vim.b[bufnr].neogit_disable_hunk_highlight = true
-    override_neogit_context_highlights()
     neogit_augroup = vim.api.nvim_create_augroup('diffs_neogit_' .. bufnr, { clear = true })
     vim.api.nvim_create_autocmd('User', {
       pattern = 'NeogitDiffLoaded',
