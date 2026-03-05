@@ -163,10 +163,10 @@ describe('parser', function()
       end
     end)
 
-    it('stops hunk at blank line', function()
+    it('stops hunk at blank line when remaining counts exhausted', function()
       local bufnr = create_buffer({
         'M test.lua',
-        '@@ -1,2 +1,3 @@',
+        '@@ -1,1 +1,2 @@',
         ' local x = 1',
         '+local y = 2',
         '',
@@ -529,7 +529,8 @@ describe('parser', function()
       assert.are.equal(1, #hunks)
       assert.are.equal(1, hunks[1].file_new_start)
       assert.are.equal(9, hunks[1].file_new_count)
-      assert.is_nil(hunks[1].file_old_start)
+      assert.are.equal(1, hunks[1].file_old_start)
+      assert.are.equal(3, hunks[1].file_old_count)
       delete_buffer(bufnr)
     end)
 

@@ -234,6 +234,8 @@ function M.parse_buffer(bufnr)
     end
 
     local diff_git_file = logical:match('^diff %-%-git a/.+ b/(.+)$')
+      or logical:match('^diff %-%-combined (.+)$')
+      or logical:match('^diff %-%-cc (.+)$')
     local neogit_file = logical:match('^modified%s+(.+)$')
       or (not logical:match('^new file mode') and logical:match('^new file%s+(.+)$'))
       or (not logical:match('^deleted file mode') and logical:match('^deleted%s+(.+)$'))
@@ -286,10 +288,17 @@ function M.parse_buffer(bufnr)
           new_remaining = file_new_count
         end
       else
+        local hs, hc = logical:match('%-(%d+),?(%d*)')
+        if hs then
+          file_old_start = tonumber(hs)
+          file_old_count = tonumber(hc) or 1
+          old_remaining = file_old_count
+        end
         local hs2, hc2 = logical:match('%+(%d+),?(%d*) @@')
         if hs2 then
           file_new_start = tonumber(hs2)
           file_new_count = tonumber(hc2) or 1
+          new_remaining = file_new_count
         end
       end
       local at_end, context = logical:match('^(@@+.-@@+%s*)(.*)')
@@ -312,13 +321,12 @@ function M.parse_buffer(bufnr)
         end
       elseif
         logical == ''
-        and is_unified_diff
         and old_remaining
         and old_remaining > 0
         and new_remaining
         and new_remaining > 0
       then
-        table.insert(hunk_lines, ' ')
+        table.insert(hunk_lines, string.rep(' ', hunk_prefix_width))
         old_remaining = old_remaining - 1
         new_remaining = new_remaining - 1
       elseif
