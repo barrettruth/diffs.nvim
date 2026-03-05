@@ -1064,11 +1064,16 @@ describe('highlight', function()
       highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
 
       local extmarks = get_extmarks(bufnr)
+      local content_clear_count = 0
       for _, mark in ipairs(extmarks) do
         if mark[4] and mark[4].hl_group == 'DiffsClear' then
-          assert.are.equal(2, mark[3])
+          assert.is_true(mark[3] == 0 or mark[3] == 2, 'DiffsClear at unexpected col ' .. mark[3])
+          if mark[3] == 2 then
+            content_clear_count = content_clear_count + 1
+          end
         end
       end
+      assert.are.equal(2, content_clear_count)
       delete_buffer(bufnr)
     end)
 
@@ -1361,6 +1366,449 @@ describe('highlight', function()
         end
       end
       assert.are.equal(0, header_extmarks)
+      delete_buffer(bufnr)
+    end)
+
+    it('does not apply DiffsClear to header lines for non-quoted diffs', function()
+      local bufnr = create_buffer({
+        'diff --git a/parser.lua b/parser.lua',
+        'index 3e8afa0..018159c 100644',
+        '--- a/parser.lua',
+        '+++ b/parser.lua',
+        '@@ -1,2 +1,3 @@',
+        ' local M = {}',
+        '+local x = 1',
+      })
+
+      local hunk = {
+        filename = 'parser.lua',
+        lang = 'lua',
+        start_line = 5,
+        lines = { ' local M = {}', '+local x = 1' },
+        header_start_line = 1,
+        header_lines = {
+          'diff --git a/parser.lua b/parser.lua',
+          'index 3e8afa0..018159c 100644',
+          '--- a/parser.lua',
+          '+++ b/parser.lua',
+        },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
+
+      local extmarks = get_extmarks(bufnr)
+      for _, mark in ipairs(extmarks) do
+        local d = mark[4]
+        if d and d.hl_group == 'DiffsClear' and mark[3] == 0 and mark[2] < 4 then
+          error('unexpected DiffsClear on header row ' .. mark[2] .. ' for non-quoted diff')
+        end
+      end
+      delete_buffer(bufnr)
+    end)
+
+    it('preserves diff grammar treesitter on headers for non-quoted diffs', function()
+      local bufnr = create_buffer({
+        'diff --git a/parser.lua b/parser.lua',
+        '--- a/parser.lua',
+        '+++ b/parser.lua',
+        '@@ -1,2 +1,3 @@',
+        ' local M = {}',
+        '+local x = 1',
+      })
+
+      local hunk = {
+        filename = 'parser.lua',
+        lang = 'lua',
+        start_line = 4,
+        lines = { ' local M = {}', '+local x = 1' },
+        header_start_line = 1,
+        header_lines = {
+          'diff --git a/parser.lua b/parser.lua',
+          '--- a/parser.lua',
+          '+++ b/parser.lua',
+        },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
+
+      local extmarks = get_extmarks(bufnr)
+      local header_ts_count = 0
+      for _, mark in ipairs(extmarks) do
+        local d = mark[4]
+        if mark[2] < 3 and d and d.hl_group and d.hl_group:match('^@.*%.diff$') then
+          header_ts_count = header_ts_count + 1
+        end
+      end
+      assert.is_true(header_ts_count > 0, 'expected diff grammar treesitter on header lines')
+      delete_buffer(bufnr)
+    end)
+
+    it('applies syntax extmarks to combined diff body lines', function()
+      local bufnr = create_buffer({
+        '@@@ -1,2 -1,2 +1,3 @@@',
+        '  local M = {}',
+        '+ local x = 1',
+        ' -local y = 2',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        prefix_width = 2,
+        start_line = 1,
+        lines = { '  local M = {}', '+ local x = 1', ' -local y = 2' },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
+
+      local extmarks = get_extmarks(bufnr)
+      local syntax_on_body = 0
+      for _, mark in ipairs(extmarks) do
+        local d = mark[4]
+        if mark[2] >= 1 and d and d.hl_group and d.hl_group:match('^@.*%.lua$') then
+          syntax_on_body = syntax_on_body + 1
+        end
+      end
+      assert.is_true(syntax_on_body > 0, 'expected lua treesitter syntax on combined diff body')
+      delete_buffer(bufnr)
+    end)
+
+    it('applies DiffsClear and per-char diff fg to combined diff body prefixes', function()
+      local bufnr = create_buffer({
+        '@@@',
+        '  unchanged',
+        '+ added',
+        ' -removed',
+        '++both',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        prefix_width = 2,
+        start_line = 1,
+        lines = { '  unchanged', '+ added', ' -removed', '++both' },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
+
+      local extmarks = get_extmarks(bufnr)
+      local prefix_clears = {}
+      local plus_marks = {}
+      local minus_marks = {}
+      for _, mark in ipairs(extmarks) do
+        local d = mark[4]
+        if mark[2] >= 1 and d then
+          if d.hl_group == 'DiffsClear' and mark[3] == 0 and d.end_col == 2 then
+            prefix_clears[mark[2]] = true
+          end
+          if d.hl_group == '@diff.plus' and d.priority == 199 then
+            if not plus_marks[mark[2]] then
+              plus_marks[mark[2]] = {}
+            end
+            table.insert(plus_marks[mark[2]], mark[3])
+          end
+          if d.hl_group == '@diff.minus' and d.priority == 199 then
+            if not minus_marks[mark[2]] then
+              minus_marks[mark[2]] = {}
+            end
+            table.insert(minus_marks[mark[2]], mark[3])
+          end
+        end
+      end
+
+      assert.is_true(prefix_clears[1] ~= nil, 'DiffsClear on context prefix')
+      assert.is_true(prefix_clears[2] ~= nil, 'DiffsClear on add prefix')
+      assert.is_true(prefix_clears[3] ~= nil, 'DiffsClear on del prefix')
+      assert.is_true(prefix_clears[4] ~= nil, 'DiffsClear on both-add prefix')
+
+      assert.is_true(plus_marks[2] ~= nil, '@diff.plus on + in "+ added"')
+      assert.are.equal(0, plus_marks[2][1])
+
+      assert.is_true(minus_marks[3] ~= nil, '@diff.minus on - in " -removed"')
+      assert.are.equal(1, minus_marks[3][1])
+
+      assert.is_true(plus_marks[4] ~= nil, '@diff.plus on ++ in "++both"')
+      assert.are.equal(2, #plus_marks[4])
+
+      assert.is_nil(plus_marks[1], 'no @diff.plus on context "  unchanged"')
+      assert.is_nil(minus_marks[1], 'no @diff.minus on context "  unchanged"')
+      delete_buffer(bufnr)
+    end)
+
+    it('applies DiffsClear to headers for combined diffs', function()
+      local bufnr = create_buffer({
+        'diff --combined lua/merge/target.lua',
+        'index abc1234,def5678..ghi9012',
+        '--- a/lua/merge/target.lua',
+        '+++ b/lua/merge/target.lua',
+        '@@@ -1,2 -1,2 +1,3 @@@',
+        '  local M = {}',
+        '+ local x = 1',
+      })
+
+      local hunk = {
+        filename = 'lua/merge/target.lua',
+        lang = 'lua',
+        prefix_width = 2,
+        start_line = 5,
+        lines = { '  local M = {}', '+ local x = 1' },
+        header_start_line = 1,
+        header_lines = {
+          'diff --combined lua/merge/target.lua',
+          'index abc1234,def5678..ghi9012',
+          '--- a/lua/merge/target.lua',
+          '+++ b/lua/merge/target.lua',
+        },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
+
+      local extmarks = get_extmarks(bufnr)
+      local clear_lines = {}
+      for _, mark in ipairs(extmarks) do
+        local d = mark[4]
+        if d and d.hl_group == 'DiffsClear' and mark[3] == 0 and mark[2] < 4 then
+          clear_lines[mark[2]] = true
+        end
+      end
+      assert.is_true(clear_lines[0] ~= nil, 'DiffsClear on diff --combined line')
+      assert.is_true(clear_lines[1] ~= nil, 'DiffsClear on index line')
+      assert.is_true(clear_lines[2] ~= nil, 'DiffsClear on --- line')
+      assert.is_true(clear_lines[3] ~= nil, 'DiffsClear on +++ line')
+      delete_buffer(bufnr)
+    end)
+
+    it('applies @attribute.diff at syntax priority to @@@ line for combined diffs', function()
+      local bufnr = create_buffer({
+        '@@@ -1,2 -1,2 +1,3 @@@',
+        '  local M = {}',
+        '+ local x = 1',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        prefix_width = 2,
+        start_line = 1,
+        lines = { '  local M = {}', '+ local x = 1' },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
+
+      local extmarks = get_extmarks(bufnr)
+      local has_attr = false
+      for _, mark in ipairs(extmarks) do
+        local d = mark[4]
+        if mark[2] == 0 and d and d.hl_group == '@attribute.diff' and (d.priority or 0) >= 199 then
+          has_attr = true
+        end
+      end
+      assert.is_true(has_attr, '@attribute.diff at p>=199 on @@@ line')
+      delete_buffer(bufnr)
+    end)
+
+    it('applies DiffsClear to @@@ line for combined diffs', function()
+      local bufnr = create_buffer({
+        '@@@ -1,2 -1,2 +1,3 @@@',
+        '  local M = {}',
+        '+ local x = 1',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        prefix_width = 2,
+        start_line = 1,
+        lines = { '  local M = {}', '+ local x = 1' },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
+
+      local extmarks = get_extmarks(bufnr)
+      local has_at_clear = false
+      for _, mark in ipairs(extmarks) do
+        local d = mark[4]
+        if mark[2] == 0 and d and d.hl_group == 'DiffsClear' and mark[3] == 0 then
+          has_at_clear = true
+        end
+      end
+      assert.is_true(has_at_clear, 'DiffsClear on @@@ line')
+      delete_buffer(bufnr)
+    end)
+
+    it('applies header diff grammar at syntax priority for combined diffs', function()
+      local bufnr = create_buffer({
+        'diff --combined lua/merge/target.lua',
+        'index abc1234,def5678..ghi9012',
+        '--- a/lua/merge/target.lua',
+        '+++ b/lua/merge/target.lua',
+        '@@@ -1,2 -1,2 +1,3 @@@',
+        '  local M = {}',
+        '+ local x = 1',
+      })
+
+      local hunk = {
+        filename = 'lua/merge/target.lua',
+        lang = 'lua',
+        prefix_width = 2,
+        start_line = 5,
+        lines = { '  local M = {}', '+ local x = 1' },
+        header_start_line = 1,
+        header_lines = {
+          'diff --combined lua/merge/target.lua',
+          'index abc1234,def5678..ghi9012',
+          '--- a/lua/merge/target.lua',
+          '+++ b/lua/merge/target.lua',
+        },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
+
+      local extmarks = get_extmarks(bufnr)
+      local high_prio_diff = {}
+      for _, mark in ipairs(extmarks) do
+        local d = mark[4]
+        if mark[2] < 4 and d and d.hl_group and d.hl_group:match('^@.*%.diff$') and (d.priority or 0) >= 199 then
+          high_prio_diff[mark[2]] = true
+        end
+      end
+      assert.is_true(high_prio_diff[2] ~= nil, 'diff grammar at p>=199 on --- line')
+      assert.is_true(high_prio_diff[3] ~= nil, 'diff grammar at p>=199 on +++ line')
+      delete_buffer(bufnr)
+    end)
+
+    it('@diff.minus wins over @punctuation.special on combined diff headers', function()
+      local bufnr = create_buffer({
+        'diff --combined lua/merge/target.lua',
+        'index abc1234,def5678..ghi9012',
+        '--- a/lua/merge/target.lua',
+        '+++ b/lua/merge/target.lua',
+        '@@@ -1,2 -1,2 +1,3 @@@',
+        '  local M = {}',
+        '+ local x = 1',
+      })
+
+      local hunk = {
+        filename = 'lua/merge/target.lua',
+        lang = 'lua',
+        prefix_width = 2,
+        start_line = 5,
+        lines = { '  local M = {}', '+ local x = 1' },
+        header_start_line = 1,
+        header_lines = {
+          'diff --combined lua/merge/target.lua',
+          'index abc1234,def5678..ghi9012',
+          '--- a/lua/merge/target.lua',
+          '+++ b/lua/merge/target.lua',
+        },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
+
+      local extmarks = get_extmarks(bufnr)
+      local minus_prio, punct_prio_minus = 0, 0
+      local plus_prio, punct_prio_plus = 0, 0
+      for _, mark in ipairs(extmarks) do
+        local d = mark[4]
+        if d and d.hl_group then
+          if mark[2] == 2 then
+            if d.hl_group == '@diff.minus.diff' then
+              minus_prio = math.max(minus_prio, d.priority or 0)
+            elseif d.hl_group == '@punctuation.special.diff' then
+              punct_prio_minus = math.max(punct_prio_minus, d.priority or 0)
+            end
+          elseif mark[2] == 3 then
+            if d.hl_group == '@diff.plus.diff' then
+              plus_prio = math.max(plus_prio, d.priority or 0)
+            elseif d.hl_group == '@punctuation.special.diff' then
+              punct_prio_plus = math.max(punct_prio_plus, d.priority or 0)
+            end
+          end
+        end
+      end
+      assert.is_true(minus_prio > punct_prio_minus, '@diff.minus.diff should beat @punctuation.special.diff on --- line')
+      assert.is_true(plus_prio > punct_prio_plus, '@diff.plus.diff should beat @punctuation.special.diff on +++ line')
+      delete_buffer(bufnr)
+    end)
+
+    it('applies @keyword.diff on index word for combined diffs', function()
+      local bufnr = create_buffer({
+        'diff --combined lua/merge/target.lua',
+        'index abc1234,def5678..ghi9012',
+        '--- a/lua/merge/target.lua',
+        '+++ b/lua/merge/target.lua',
+        '@@@ -1,2 -1,2 +1,3 @@@',
+        '  local M = {}',
+        '+ local x = 1',
+      })
+
+      local hunk = {
+        filename = 'lua/merge/target.lua',
+        lang = 'lua',
+        prefix_width = 2,
+        start_line = 5,
+        lines = { '  local M = {}', '+ local x = 1' },
+        header_start_line = 1,
+        header_lines = {
+          'diff --combined lua/merge/target.lua',
+          'index abc1234,def5678..ghi9012',
+          '--- a/lua/merge/target.lua',
+          '+++ b/lua/merge/target.lua',
+        },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
+
+      local extmarks = get_extmarks(bufnr)
+      local has_keyword = false
+      for _, mark in ipairs(extmarks) do
+        local d = mark[4]
+        if mark[2] == 1 and d and d.hl_group == '@keyword.diff' and mark[3] == 0 and (d.end_col or 0) == 5 then
+          has_keyword = true
+        end
+      end
+      assert.is_true(has_keyword, '@keyword.diff at row 1, cols 0-5')
+      delete_buffer(bufnr)
+    end)
+
+    it('applies @constant.diff on result hash for combined diffs', function()
+      local bufnr = create_buffer({
+        'diff --combined lua/merge/target.lua',
+        'index abc1234,def5678..ghi9012',
+        '--- a/lua/merge/target.lua',
+        '+++ b/lua/merge/target.lua',
+        '@@@ -1,2 -1,2 +1,3 @@@',
+        '  local M = {}',
+        '+ local x = 1',
+      })
+
+      local hunk = {
+        filename = 'lua/merge/target.lua',
+        lang = 'lua',
+        prefix_width = 2,
+        start_line = 5,
+        lines = { '  local M = {}', '+ local x = 1' },
+        header_start_line = 1,
+        header_lines = {
+          'diff --combined lua/merge/target.lua',
+          'index abc1234,def5678..ghi9012',
+          '--- a/lua/merge/target.lua',
+          '+++ b/lua/merge/target.lua',
+        },
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
+
+      local extmarks = get_extmarks(bufnr)
+      local has_constant = false
+      for _, mark in ipairs(extmarks) do
+        local d = mark[4]
+        if mark[2] == 1 and d and d.hl_group == '@constant.diff' and (d.priority or 0) >= 199 then
+          has_constant = true
+        end
+      end
+      assert.is_true(has_constant, '@constant.diff on result hash')
       delete_buffer(bufnr)
     end)
   end)
