@@ -60,6 +60,15 @@ local function get_ft_from_filename(filename, repo_root)
   end
 
   local ft = vim.filetype.match({ filename = filename })
+  if not ft and vim.fn.did_filetype() ~= 0 then
+    dbg('retrying filetype match for %s (clearing did_filetype)', filename)
+    local saved = rawget(vim.fn, 'did_filetype')
+    rawset(vim.fn, 'did_filetype', function()
+      return 0
+    end)
+    ft = vim.filetype.match({ filename = filename })
+    rawset(vim.fn, 'did_filetype', saved)
+  end
   if ft then
     dbg('filetype from filename: %s', ft)
     return ft
@@ -125,6 +134,7 @@ end
 function M.parse_buffer(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local repo_root = get_repo_root(bufnr)
+
   ---@type diffs.Hunk[]
   local hunks = {}
 
@@ -162,7 +172,6 @@ function M.parse_buffer(bufnr)
   local old_remaining = nil
   ---@type integer?
   local new_remaining = nil
-  local is_unified_diff = false
 
   local function flush_hunk()
     if hunk_start and #hunk_lines > 0 then
@@ -201,6 +210,8 @@ function M.parse_buffer(bufnr)
 
   for i, line in ipairs(lines) do
     local diff_git_file = line:match('^diff %-%-git a/.+ b/(.+)$')
+      or line:match('^diff %-%-combined (.+)$')
+      or line:match('^diff %-%-cc (.+)$')
     local neogit_file = line:match('^modified%s+(.+)$')
       or (not line:match('^new file mode') and line:match('^new file%s+(.+)$'))
       or (not line:match('^deleted file mode') and line:match('^deleted%s+(.+)$'))
@@ -209,7 +220,6 @@ function M.parse_buffer(bufnr)
     local bare_file = not hunk_start and line:match('^([^%s]+%.[^%s]+)$')
     local filename = line:match('^[MADRCU%?!]%s+(.+)$') or diff_git_file or neogit_file or bare_file
     if filename then
-      is_unified_diff = diff_git_file ~= nil
       flush_hunk()
       current_filename = filename
       local cache_key = (repo_root or '') .. '\0' .. filename
@@ -249,10 +259,17 @@ function M.parse_buffer(bufnr)
           new_remaining = file_new_count
         end
       else
+        local hs, hc = line:match('%-(%d+),?(%d*)')
+        if hs then
+          file_old_start = tonumber(hs)
+          file_old_count = tonumber(hc) or 1
+          old_remaining = file_old_count
+        end
         local hs2, hc2 = line:match('%+(%d+),?(%d*) @@')
         if hs2 then
           file_new_start = tonumber(hs2)
           file_new_count = tonumber(hc2) or 1
+          new_remaining = file_new_count
         end
       end
       local at_end, context = line:match('^(@@+.-@@+%s*)(.*)')
@@ -275,13 +292,12 @@ function M.parse_buffer(bufnr)
         end
       elseif
         line == ''
-        and is_unified_diff
         and old_remaining
         and old_remaining > 0
         and new_remaining
         and new_remaining > 0
       then
-        table.insert(hunk_lines, ' ')
+        table.insert(hunk_lines, string.rep(' ', hunk_prefix_width))
         old_remaining = old_remaining - 1
         new_remaining = new_remaining - 1
       elseif

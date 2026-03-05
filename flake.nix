@@ -13,24 +13,41 @@
       ...
     }:
     let
-      forEachSystem = f: nixpkgs.lib.genAttrs (import systems) (system: f nixpkgs.legacyPackages.${system});
+      forEachSystem =
+        f: nixpkgs.lib.genAttrs (import systems) (system: f nixpkgs.legacyPackages.${system});
     in
     {
+      formatter = forEachSystem (pkgs: pkgs.nixfmt-tree);
+
       devShells = forEachSystem (pkgs: {
-        default = pkgs.mkShell {
-          packages = [
-            (pkgs.luajit.withPackages (
+        default =
+          let
+            ts-plugin = pkgs.vimPlugins.nvim-treesitter.withPlugins (p: [ p.diff ]);
+            diff-grammar = pkgs.vimPlugins.nvim-treesitter-parsers.diff;
+            luaEnv = pkgs.luajit.withPackages (
               ps: with ps; [
                 busted
                 nlua
               ]
-            ))
-            pkgs.prettier
-            pkgs.stylua
-            pkgs.selene
-            pkgs.lua-language-server
-          ];
-        };
+            );
+            busted-with-grammar = pkgs.writeShellScriptBin "busted" ''
+              nvim_bin=$(which nvim)
+              tmpdir=$(mktemp -d)
+              trap 'rm -rf "$tmpdir"' EXIT
+              printf '#!/bin/sh\nexec "%s" --cmd "set rtp+=${ts-plugin}/runtime" --cmd "set rtp+=${diff-grammar}" "$@"\n' "$nvim_bin" > "$tmpdir/nvim"
+              chmod +x "$tmpdir/nvim"
+              PATH="$tmpdir:$PATH" exec ${luaEnv}/bin/busted "$@"
+            '';
+          in
+          pkgs.mkShell {
+            packages = [
+              busted-with-grammar
+              pkgs.prettier
+              pkgs.stylua
+              pkgs.selene
+              pkgs.lua-language-server
+            ];
+          };
       });
     };
 }

@@ -163,10 +163,10 @@ describe('parser', function()
       end
     end)
 
-    it('stops hunk at blank line', function()
+    it('stops hunk at blank line when remaining counts exhausted', function()
       local bufnr = create_buffer({
         'M test.lua',
-        '@@ -1,2 +1,3 @@',
+        '@@ -1,1 +1,2 @@',
         ' local x = 1',
         '+local y = 2',
         '',
@@ -391,6 +391,29 @@ describe('parser', function()
       vim.fn.delete(repo_root, 'rf')
     end)
 
+    it('detects filetype for .sh files when did_filetype() is non-zero', function()
+      rawset(vim.fn, 'did_filetype', function()
+        return 1
+      end)
+
+      parser._test.ft_lang_cache = {}
+      local bufnr = create_buffer({
+        'diff --git a/test.sh b/test.sh',
+        '@@ -1,3 +1,4 @@',
+        ' #!/usr/bin/env bash',
+        ' set -euo pipefail',
+        '-echo "running tests..."',
+        '+echo "running tests with coverage..."',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('test.sh', hunks[1].filename)
+      assert.are.equal('sh', hunks[1].ft)
+      delete_buffer(bufnr)
+      rawset(vim.fn, 'did_filetype', nil)
+    end)
+
     it('extracts file line numbers from @@ header', function()
       local bufnr = create_buffer({
         'M lua/test.lua',
@@ -506,7 +529,8 @@ describe('parser', function()
       assert.are.equal(1, #hunks)
       assert.are.equal(1, hunks[1].file_new_start)
       assert.are.equal(9, hunks[1].file_new_count)
-      assert.is_nil(hunks[1].file_old_start)
+      assert.are.equal(1, hunks[1].file_old_start)
+      assert.are.equal(3, hunks[1].file_old_count)
       delete_buffer(bufnr)
     end)
 

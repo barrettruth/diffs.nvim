@@ -170,6 +170,9 @@ local fast_hl_opts = {} ---@type diffs.HunkOpts
 local attached_buffers = {}
 
 ---@type table<integer, boolean>
+local ft_retry_pending = {}
+
+---@type table<integer, boolean>
 local diff_windows = {}
 
 ---@class diffs.HunkCacheEntry
@@ -334,12 +337,15 @@ local function ensure_cache(bufnr)
       has_nil_ft = true
     end
   end
-  if has_nil_ft and vim.fn.did_filetype() ~= 0 then
+  if has_nil_ft and vim.fn.did_filetype() ~= 0 and not ft_retry_pending[bufnr] then
+    ft_retry_pending[bufnr] = true
     vim.schedule(function()
       if vim.api.nvim_buf_is_valid(bufnr) and hunk_cache[bufnr] then
         dbg('retrying filetype detection for buffer %d (was blocked by did_filetype)', bufnr)
         invalidate_cache(bufnr)
+        vim.cmd('redraw!')
       end
+      ft_retry_pending[bufnr] = nil
     end)
   end
 end
@@ -411,7 +417,7 @@ local function compute_highlight_groups()
   local blended_add_text = blend_color(add_fg, bg, alpha)
   local blended_del_text = blend_color(del_fg, bg, alpha)
 
-  vim.api.nvim_set_hl(0, 'DiffsClear', { default = true, fg = normal.fg or 0xc0c0c0 })
+  vim.api.nvim_set_hl(0, 'DiffsClear', { default = true, fg = normal.fg or 0xc0c0c0, bg = bg })
   vim.api.nvim_set_hl(0, 'DiffsAdd', { default = true, bg = blended_add })
   vim.api.nvim_set_hl(0, 'DiffsDelete', { default = true, bg = blended_del })
   vim.api.nvim_set_hl(0, 'DiffsAddNr', { default = true, fg = blended_add_text, bg = blended_add })
@@ -759,7 +765,7 @@ local function init()
         if not entry.highlighted[i] then
           local hunk = entry.hunks[i]
           local clear_start = hunk.start_line - 1
-          local clear_end = clear_start + #hunk.lines
+          local clear_end = hunk.start_line + #hunk.lines
           if hunk.header_start_line then
             clear_start = hunk.header_start_line - 1
           end
@@ -776,12 +782,18 @@ local function init()
       end
       if #deferred_syntax > 0 then
         local tick = entry.tick
+        dbg('deferred syntax scheduled: %d hunks tick=%d', #deferred_syntax, tick)
         vim.schedule(function()
           if not vim.api.nvim_buf_is_valid(bufnr) then
             return
           end
           local cur = hunk_cache[bufnr]
           if not cur or cur.tick ~= tick then
+            dbg(
+              'deferred syntax stale: cur.tick=%s captured=%d',
+              cur and tostring(cur.tick) or 'nil',
+              tick
+            )
             return
           end
           local t1 = config.debug and vim.uv.hrtime() or nil
@@ -791,15 +803,12 @@ local function init()
           }
           for _, hunk in ipairs(deferred_syntax) do
             local start_row = hunk.start_line - 1
-            local end_row = start_row + #hunk.lines
+            local end_row = hunk.start_line + #hunk.lines
             if hunk.header_start_line then
               start_row = hunk.header_start_line - 1
             end
             vim.api.nvim_buf_clear_namespace(bufnr, ns, start_row, end_row)
             highlight.highlight_hunk(bufnr, ns, hunk, full_opts)
-            if not hunk.lang and hunk.ft then
-              highlight.highlight_hunk_vim_syntax(bufnr, ns, hunk, full_opts)
-            end
           end
           if t1 then
             dbg('deferred pass: %d hunks in %.2fms', #deferred_syntax, (vim.uv.hrtime() - t1) / 1e6)
@@ -866,6 +875,7 @@ function M.attach(bufnr)
     callback = function()
       attached_buffers[bufnr] = nil
       hunk_cache[bufnr] = nil
+      ft_retry_pending[bufnr] = nil
       if neogit_augroup then
         pcall(vim.api.nvim_del_augroup_by_id, neogit_augroup)
       end
@@ -947,6 +957,7 @@ M._test = {
   invalidate_cache = invalidate_cache,
   hunks_eq = hunks_eq,
   process_pending_clear = process_pending_clear,
+  ft_retry_pending = ft_retry_pending,
 }
 
 return M
