@@ -13,7 +13,6 @@
 ---@field file_new_start integer?
 ---@field file_new_count integer?
 ---@field prefix_width integer
----@field quote_width integer
 ---@field repo_root string?
 
 local M = {}
@@ -136,17 +135,6 @@ function M.parse_buffer(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local repo_root = get_repo_root(bufnr)
 
-  local quote_prefix = nil
-  local quote_width = 0
-  for _, l in ipairs(lines) do
-    local qp = l:match('^(>+ )diff ') or l:match('^(>+ )@@')
-    if qp then
-      quote_prefix = qp
-      quote_width = #qp
-      break
-    end
-  end
-
   ---@type diffs.Hunk[]
   local hunks = {}
 
@@ -185,7 +173,6 @@ function M.parse_buffer(bufnr)
   ---@type integer?
   local new_remaining = nil
   local is_unified_diff = false
-  local current_quote_width = 0
 
   local function flush_hunk()
     if hunk_start and #hunk_lines > 0 then
@@ -198,7 +185,6 @@ function M.parse_buffer(bufnr)
         header_context_col = hunk_header_context_col,
         lines = hunk_lines,
         prefix_width = hunk_prefix_width,
-        quote_width = current_quote_width,
         file_old_start = file_old_start,
         file_old_count = file_old_count,
         file_new_start = file_new_start,
@@ -224,25 +210,16 @@ function M.parse_buffer(bufnr)
   end
 
   for i, line in ipairs(lines) do
-    local logical = line
-    if quote_prefix then
-      if line:sub(1, quote_width) == quote_prefix then
-        logical = line:sub(quote_width + 1)
-      elseif line:match('^>+$') then
-        logical = ''
-      end
-    end
-
-    local diff_git_file = logical:match('^diff %-%-git a/.+ b/(.+)$')
-      or logical:match('^diff %-%-combined (.+)$')
-      or logical:match('^diff %-%-cc (.+)$')
-    local neogit_file = logical:match('^modified%s+(.+)$')
-      or (not logical:match('^new file mode') and logical:match('^new file%s+(.+)$'))
-      or (not logical:match('^deleted file mode') and logical:match('^deleted%s+(.+)$'))
-      or logical:match('^renamed%s+(.+)$')
-      or logical:match('^copied%s+(.+)$')
-    local bare_file = not hunk_start and logical:match('^([^%s]+%.[^%s]+)$')
-    local filename = logical:match('^[MADRCU%?!]%s+(.+)$')
+    local diff_git_file = line:match('^diff %-%-git a/.+ b/(.+)$')
+      or line:match('^diff %-%-combined (.+)$')
+      or line:match('^diff %-%-cc (.+)$')
+    local neogit_file = line:match('^modified%s+(.+)$')
+      or (not line:match('^new file mode') and line:match('^new file%s+(.+)$'))
+      or (not line:match('^deleted file mode') and line:match('^deleted%s+(.+)$'))
+      or line:match('^renamed%s+(.+)$')
+      or line:match('^copied%s+(.+)$')
+    local bare_file = not hunk_start and line:match('^([^%s]+%.[^%s]+)$')
+    local filename = line:match('^[MADRCU%?!]%s+(.+)$')
       or diff_git_file
       or neogit_file
       or bare_file
@@ -250,7 +227,6 @@ function M.parse_buffer(bufnr)
       is_unified_diff = diff_git_file ~= nil
       flush_hunk()
       current_filename = filename
-      current_quote_width = (logical ~= line) and quote_width or 0
       local cache_key = (repo_root or '') .. '\0' .. filename
       local cached = ft_lang_cache[cache_key]
       if cached then
@@ -272,13 +248,13 @@ function M.parse_buffer(bufnr)
       hunk_prefix_width = 1
       header_start = i
       header_lines = {}
-    elseif logical:match('^@@+') then
+    elseif line:match('^@@+') then
       flush_hunk()
       hunk_start = i
-      local at_prefix = logical:match('^(@@+)')
+      local at_prefix = line:match('^(@@+)')
       hunk_prefix_width = #at_prefix - 1
       if #at_prefix == 2 then
-        local hs, hc, hs2, hc2 = logical:match('^@@ %-(%d+),?(%d*) %+(%d+),?(%d*) @@')
+        local hs, hc, hs2, hc2 = line:match('^@@ %-(%d+),?(%d*) %+(%d+),?(%d*) @@')
         if hs then
           file_old_start = tonumber(hs)
           file_old_count = tonumber(hc) or 1
@@ -288,31 +264,31 @@ function M.parse_buffer(bufnr)
           new_remaining = file_new_count
         end
       else
-        local hs, hc = logical:match('%-(%d+),?(%d*)')
+        local hs, hc = line:match('%-(%d+),?(%d*)')
         if hs then
           file_old_start = tonumber(hs)
           file_old_count = tonumber(hc) or 1
           old_remaining = file_old_count
         end
-        local hs2, hc2 = logical:match('%+(%d+),?(%d*) @@')
+        local hs2, hc2 = line:match('%+(%d+),?(%d*) @@')
         if hs2 then
           file_new_start = tonumber(hs2)
           file_new_count = tonumber(hc2) or 1
           new_remaining = file_new_count
         end
       end
-      local at_end, context = logical:match('^(@@+.-@@+%s*)(.*)')
+      local at_end, context = line:match('^(@@+.-@@+%s*)(.*)')
       if context and context ~= '' then
         hunk_header_context = context
-        hunk_header_context_col = #at_end + current_quote_width
+        hunk_header_context_col = #at_end
       end
       if hunk_count then
         hunk_count = hunk_count + 1
       end
     elseif hunk_start then
-      local prefix = logical:sub(1, 1)
+      local prefix = line:sub(1, 1)
       if prefix == ' ' or prefix == '+' or prefix == '-' then
-        table.insert(hunk_lines, logical)
+        table.insert(hunk_lines, line)
         if old_remaining and (prefix == ' ' or prefix == '-') then
           old_remaining = old_remaining - 1
         end
@@ -320,7 +296,7 @@ function M.parse_buffer(bufnr)
           new_remaining = new_remaining - 1
         end
       elseif
-        logical == ''
+        line == ''
         and old_remaining
         and old_remaining > 0
         and new_remaining
@@ -330,11 +306,11 @@ function M.parse_buffer(bufnr)
         old_remaining = old_remaining - 1
         new_remaining = new_remaining - 1
       elseif
-        logical == ''
-        or logical:match('^[MADRC%?!]%s+')
-        or logical:match('^diff ')
-        or logical:match('^index ')
-        or logical:match('^Binary ')
+        line == ''
+        or line:match('^[MADRC%?!]%s+')
+        or line:match('^diff ')
+        or line:match('^index ')
+        or line:match('^Binary ')
       then
         flush_hunk()
         current_filename = nil
@@ -344,7 +320,7 @@ function M.parse_buffer(bufnr)
       end
     end
     if header_start and not hunk_start then
-      table.insert(header_lines, logical)
+      table.insert(header_lines, line)
     end
   end
 

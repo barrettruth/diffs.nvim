@@ -406,7 +406,7 @@ describe('highlight', function()
         start_line = 2,
         lines = { '-old', '+new' },
         prefix_width = 1,
-        quote_width = 0,
+
       }
 
       highlight.highlight_hunk(
@@ -454,7 +454,7 @@ describe('highlight', function()
         start_line = 5,
         lines = { ' ctx', '-old', '+new' },
         prefix_width = 1,
-        quote_width = 0,
+
       }
 
       highlight.highlight_hunk(
