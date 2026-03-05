@@ -65,6 +65,7 @@ end
 ---@field hide_prefix boolean
 ---@field highlights diffs.Highlights
 ---@field defer_vim_syntax? boolean
+---@field syntax_only? boolean
 
 ---@param bufnr integer
 ---@param ns integer
@@ -381,7 +382,13 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
   ---@type diffs.IntraChanges?
   local intra = nil
   local intra_cfg = opts.highlights.intra
-  if intra_cfg and intra_cfg.enabled and pw == 1 and #hunk.lines <= intra_cfg.max_lines then
+  if
+    not opts.syntax_only
+    and intra_cfg
+    and intra_cfg.enabled
+    and pw == 1
+    and #hunk.lines <= intra_cfg.max_lines
+  then
     dbg('computing intra for hunk %s:%d (%d lines)', hunk.filename, hunk.start_line, #hunk.lines)
     intra = diff.compute_intra_hunks(hunk.lines, intra_cfg.algorithm)
     if intra then
@@ -494,28 +501,70 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
         or content:match('^|||||||')
     end
 
-    if opts.hide_prefix then
-      local virt_hl = (opts.highlights.background and line_hl) or nil
-      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
-        virt_text = { { string.rep(' ', pw), virt_hl } },
-        virt_text_pos = 'overlay',
-      })
-    end
+    if not opts.syntax_only then
+      if opts.hide_prefix then
+        local virt_hl = (opts.highlights.background and line_hl) or nil
+        pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
+          virt_text = { { string.rep(' ', pw), virt_hl } },
+          virt_text_pos = 'overlay',
+        })
+      end
 
-    if pw > 1 then
-      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
-        end_col = pw,
-        hl_group = 'DiffsClear',
-        priority = p.clear,
-      })
-      for ci = 0, pw - 1 do
-        local ch = line:sub(ci + 1, ci + 1)
-        if ch == '+' or ch == '-' then
-          pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, ci, {
-            end_col = ci + 1,
-            hl_group = ch == '+' and '@diff.plus' or '@diff.minus',
-            priority = p.syntax,
+      if pw > 1 then
+        pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
+          end_col = pw,
+          hl_group = 'DiffsClear',
+          priority = p.clear,
+        })
+        for ci = 0, pw - 1 do
+          local ch = line:sub(ci + 1, ci + 1)
+          if ch == '+' or ch == '-' then
+            pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, ci, {
+              end_col = ci + 1,
+              hl_group = ch == '+' and '@diff.plus' or '@diff.minus',
+              priority = p.syntax,
+            })
+          end
+        end
+      end
+
+      if opts.highlights.background and is_diff_line then
+        pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
+          line_hl_group = line_hl,
+          number_hl_group = opts.highlights.gutter and number_hl or nil,
+          priority = p.line_bg,
+        })
+      end
+
+      if is_marker and line_len > pw then
+        pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, pw, {
+          end_col = line_len,
+          hl_group = 'DiffsConflictMarker',
+          priority = p.char_bg,
+        })
+      end
+
+      if char_spans_by_line[i] then
+        local char_hl = has_add and 'DiffsAddText' or 'DiffsDeleteText'
+        for _, span in ipairs(char_spans_by_line[i]) do
+          dbg(
+            'char extmark: line=%d buf_line=%d col=%d..%d hl=%s text="%s"',
+            i,
+            buf_line,
+            span.col_start,
+            span.col_end,
+            char_hl,
+            line:sub(span.col_start + 1, span.col_end)
+          )
+          local ok, err = pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, span.col_start, {
+            end_col = span.col_end,
+            hl_group = char_hl,
+            priority = p.char_bg,
           })
+          if not ok then
+            dbg('char extmark FAILED: %s', err)
+          end
+          extmark_count = extmark_count + 1
         end
       end
     end
@@ -526,46 +575,6 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
         hl_group = 'DiffsClear',
         priority = p.clear,
       })
-    end
-
-    if opts.highlights.background and is_diff_line then
-      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
-        line_hl_group = line_hl,
-        number_hl_group = opts.highlights.gutter and number_hl or nil,
-        priority = p.line_bg,
-      })
-    end
-
-    if is_marker and line_len > pw then
-      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, pw, {
-        end_col = line_len,
-        hl_group = 'DiffsConflictMarker',
-        priority = p.char_bg,
-      })
-    end
-
-    if char_spans_by_line[i] then
-      local char_hl = has_add and 'DiffsAddText' or 'DiffsDeleteText'
-      for _, span in ipairs(char_spans_by_line[i]) do
-        dbg(
-          'char extmark: line=%d buf_line=%d col=%d..%d hl=%s text="%s"',
-          i,
-          buf_line,
-          span.col_start,
-          span.col_end,
-          char_hl,
-          line:sub(span.col_start + 1, span.col_end)
-        )
-        local ok, err = pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, span.col_start, {
-          end_col = span.col_end,
-          hl_group = char_hl,
-          priority = p.char_bg,
-        })
-        if not ok then
-          dbg('char extmark FAILED: %s', err)
-        end
-        extmark_count = extmark_count + 1
-      end
     end
   end
 
