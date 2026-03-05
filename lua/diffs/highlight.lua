@@ -371,7 +371,17 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
       header_map[i] = hunk.header_start_line - 1 + i
     end
     extmark_count = extmark_count
-      + highlight_treesitter(bufnr, ns, hunk.header_lines, 'diff', header_map, qw, nil, p, qw > 0 or pw > 1)
+      + highlight_treesitter(
+        bufnr,
+        ns,
+        hunk.header_lines,
+        'diff',
+        header_map,
+        qw,
+        nil,
+        p,
+        qw > 0 or pw > 1
+      )
   end
 
   local at_raw_line
@@ -574,11 +584,12 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
             char_hl,
             line:sub(span.col_start + 1, span.col_end)
           )
-          local ok, err = pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, span.col_start + qw, {
-            end_col = span.col_end + qw,
-            hl_group = char_hl,
-            priority = p.char_bg,
-          })
+          local ok, err =
+            pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, span.col_start + qw, {
+              end_col = span.col_end + qw,
+              hl_group = char_hl,
+              priority = p.char_bg,
+            })
           if not ok then
             dbg('char extmark FAILED: %s', err)
           end

@@ -241,7 +241,10 @@ function M.parse_buffer(bufnr)
       or logical:match('^renamed%s+(.+)$')
       or logical:match('^copied%s+(.+)$')
     local bare_file = not hunk_start and logical:match('^([^%s]+%.[^%s]+)$')
-    local filename = logical:match('^[MADRCU%?!]%s+(.+)$') or diff_git_file or neogit_file or bare_file
+    local filename = logical:match('^[MADRCU%?!]%s+(.+)$')
+      or diff_git_file
+      or neogit_file
+      or bare_file
     if filename then
       flush_hunk()
       current_filename = filename

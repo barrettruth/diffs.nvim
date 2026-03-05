@@ -1,6 +1,6 @@
 require('spec.helpers')
-local parser = require('diffs.parser')
 local highlight = require('diffs.highlight')
+local parser = require('diffs.parser')
 
 describe('email-quoted diffs', function()
   local function create_buffer(lines)
@@ -348,7 +348,10 @@ describe('email-quoted diffs', function()
       for _, mark in ipairs(extmarks) do
         local d = mark[4]
         if d and (d.hl_group == '@diff.plus' or d.hl_group == '@diff.minus') then
-          table.insert(diff_marks, { row = mark[2], col = mark[3], end_col = d.end_col, hl = d.hl_group })
+          table.insert(
+            diff_marks,
+            { row = mark[2], col = mark[3], end_col = d.end_col, hl = d.hl_group }
+          )
         end
       end
       assert.is_true(#diff_marks >= 2)
@@ -416,7 +419,9 @@ describe('email-quoted diffs', function()
         bufnr,
         ns,
         hunk,
-        default_opts({ highlights = { intra = { enabled = true, algorithm = 'default', max_lines = 500 } } })
+        default_opts({
+          highlights = { intra = { enabled = true, algorithm = 'default', max_lines = 500 } },
+        })
       )
 
       local extmarks = get_extmarks(bufnr)
