@@ -370,7 +370,17 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
       header_map[i] = hunk.header_start_line - 1 + i
     end
     extmark_count = extmark_count
-      + highlight_treesitter(bufnr, ns, hunk.header_lines, 'diff', header_map, qw, nil, p, qw > 0 or pw > 1)
+      + highlight_treesitter(
+        bufnr,
+        ns,
+        hunk.header_lines,
+        'diff',
+        header_map,
+        qw,
+        nil,
+        p,
+        qw > 0 or pw > 1
+      )
   end
 
   local at_raw_line

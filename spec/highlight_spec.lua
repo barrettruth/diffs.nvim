@@ -1669,7 +1669,13 @@ describe('highlight', function()
       local high_prio_diff = {}
       for _, mark in ipairs(extmarks) do
         local d = mark[4]
-        if mark[2] < 4 and d and d.hl_group and d.hl_group:match('^@.*%.diff$') and (d.priority or 0) >= 199 then
+        if
+          mark[2] < 4
+          and d
+          and d.hl_group
+          and d.hl_group:match('^@.*%.diff$')
+          and (d.priority or 0) >= 199
+        then
           high_prio_diff[mark[2]] = true
         end
       end
@@ -1727,8 +1733,14 @@ describe('highlight', function()
           end
         end
       end
-      assert.is_true(minus_prio > punct_prio_minus, '@diff.minus.diff should beat @punctuation.special.diff on --- line')
-      assert.is_true(plus_prio > punct_prio_plus, '@diff.plus.diff should beat @punctuation.special.diff on +++ line')
+      assert.is_true(
+        minus_prio > punct_prio_minus,
+        '@diff.minus.diff should beat @punctuation.special.diff on --- line'
+      )
+      assert.is_true(
+        plus_prio > punct_prio_plus,
+        '@diff.plus.diff should beat @punctuation.special.diff on +++ line'
+      )
       delete_buffer(bufnr)
     end)
 
@@ -1764,7 +1776,13 @@ describe('highlight', function()
       local has_keyword = false
       for _, mark in ipairs(extmarks) do
         local d = mark[4]
-        if mark[2] == 1 and d and d.hl_group == '@keyword.diff' and mark[3] == 0 and (d.end_col or 0) == 5 then
+        if
+          mark[2] == 1
+          and d
+          and d.hl_group == '@keyword.diff'
+          and mark[3] == 0
+          and (d.end_col or 0) == 5
+        then
           has_keyword = true
         end
       end
