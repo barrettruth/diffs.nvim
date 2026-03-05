@@ -9,6 +9,7 @@
     "${3rd}/luassert/library"
   ],
   "workspace.checkThirdParty": false,
+  "diagnostics.libraryFiles": "Disable",
   "workspace.ignoreDir": [".direnv"],
   "completion.callSnippet": "Replace"
 }
