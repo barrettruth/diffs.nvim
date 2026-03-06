@@ -604,22 +604,43 @@ end
 local integration_keys = { 'fugitive', 'neogit', 'gitsigns', 'committia', 'telescope' }
 
 local function migrate_integrations(opts)
-  local has_new = opts.integrations ~= nil
-  opts.integrations = opts.integrations or {}
+  if opts.integrations then
+    local stale = {}
+    for _, key in ipairs(integration_keys) do
+      if opts[key] ~= nil then
+        stale[#stale + 1] = key
+        opts[key] = nil
+      end
+    end
+    if #stale > 0 then
+      local old = 'vim.g.diffs.{' .. table.concat(stale, ', ') .. '}'
+      local new = 'vim.g.diffs.integrations.{' .. table.concat(stale, ', ') .. '}'
+      vim.notify(
+        '[diffs.nvim] ignoring ' .. old .. '; move to ' .. new .. ' or remove',
+        vim.log.levels.WARN
+      )
+    end
+    return
+  end
+  local has_legacy = false
   for _, key in ipairs(integration_keys) do
     if opts[key] ~= nil then
-      vim.deprecate(
-        'vim.g.diffs.' .. key,
-        'vim.g.diffs.integrations.' .. key,
-        '0.3.2',
-        'diffs.nvim'
-      )
-      if not has_new then
-        opts.integrations[key] = opts[key]
-      end
+      has_legacy = true
+      break
+    end
+  end
+  if not has_legacy then
+    return
+  end
+  vim.deprecate('vim.g.diffs.<integration>', 'vim.g.diffs.integrations.*', '0.3.2', 'diffs.nvim')
+  local legacy = {}
+  for _, key in ipairs(integration_keys) do
+    if opts[key] ~= nil then
+      legacy[key] = opts[key]
       opts[key] = nil
     end
   end
+  opts.integrations = legacy
 end
 
 local function init()
