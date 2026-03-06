@@ -74,11 +74,11 @@
 ---@field extra_filetypes string[]
 ---@field highlights diffs.Highlights
 ---@field integrations diffs.IntegrationsConfig
----@field fugitive diffs.FugitiveConfig|false deprecated: use integrations.fugitive
----@field neogit diffs.NeogitConfig|false deprecated: use integrations.neogit
----@field gitsigns diffs.GitsignsConfig|false deprecated: use integrations.gitsigns
----@field committia diffs.CommittiaConfig|false deprecated: use integrations.committia
----@field telescope diffs.TelescopeConfig|false deprecated: use integrations.telescope
+---@field fugitive? diffs.FugitiveConfig|false deprecated: use integrations.fugitive
+---@field neogit? diffs.NeogitConfig|false deprecated: use integrations.neogit
+---@field gitsigns? diffs.GitsignsConfig|false deprecated: use integrations.gitsigns
+---@field committia? diffs.CommittiaConfig|false deprecated: use integrations.committia
+---@field telescope? diffs.TelescopeConfig|false deprecated: use integrations.telescope
 ---@field conflict diffs.ConflictConfig
 
 ---@class diffs
