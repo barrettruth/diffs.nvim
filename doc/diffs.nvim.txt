@@ -65,9 +65,8 @@ Install with lazy.nvim: >lua
 The plugin works automatically with no configuration required. For
 customization, see |diffs-config|.
 
-Note: highlight groups are derived from `Normal` when the first diff buffer
-opens. Your colorscheme must be loaded by then. With lazy.nvim, ensure it
-has `priority = 1000` and `lazy = false`.
+Your colorscheme must be loaded before any diff buffer opens. With lazy.nvim,
+set `priority = 1000` and `lazy = false` on your colorscheme plugin.
 
 ==============================================================================
 CONFIGURATION                                                   *diffs-config*
