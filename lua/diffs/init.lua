@@ -162,6 +162,7 @@ local default_config = {
 local config = vim.deepcopy(default_config)
 
 local initialized = false
+local hl_retry_pending = false
 
 ---@diagnostic disable-next-line: missing-fields
 local fast_hl_opts = {} ---@type diffs.HunkOpts
@@ -476,6 +477,17 @@ local function compute_highlight_groups()
   local del_bg = diff_delete.bg or (dark and 0x3a1a1a or 0xffd0d0)
   local add_fg = diff_added.fg or diff_add.fg or (dark and 0x80d080 or 0x206020)
   local del_fg = diff_removed.fg or diff_delete.fg or (dark and 0xd08080 or 0x802020)
+
+  if not normal.bg and not hl_retry_pending then
+    hl_retry_pending = true
+    vim.schedule(function()
+      hl_retry_pending = false
+      compute_highlight_groups()
+      for bufnr, _ in pairs(attached_buffers) do
+        invalidate_cache(bufnr)
+      end
+    end)
+  end
 
   local blended_add = blend_color(add_bg, bg, 0.4)
   local blended_del = blend_color(del_bg, bg, 0.4)
