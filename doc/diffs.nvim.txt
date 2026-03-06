@@ -6,22 +6,27 @@ License: MIT
 ==============================================================================
 INTRODUCTION                                                       *diffs.nvim*
 
-diffs.nvim adds syntax highlighting to diff views. It overlays language-aware
-highlights on top of default diff highlighting in vim-fugitive, Neogit, and
-Neovim's built-in diff mode.
+diffs.nvim adds language-aware syntax highlighting to unified diff content
+in Neovim buffers. It replaces flat `diffAdded`/`diffRemoved` coloring with
+treesitter syntax, blended line backgrounds, and character-level intra-line
+diffs.
+
+With no configuration, diffs.nvim provides:
+- `gitcommit` diff highlighting (e.g., `git commit --verbose`)
+- Inline merge conflict detection, highlighting, and resolution
+- Background-only diff colors for `&diff` buffers (vimdiff, diffthis)
+
+All other integrations are opt-in. See |diffs-integrations|.
 
 Features: ~
-- Syntax highlighting in |:Git| summary diffs and commit detail views
-- Diff header highlighting (`diff --git`, `index`, `---`, `+++`)
-- Syntax highlighting in |:Gdiffsplit| / |:Gvdiffsplit| side-by-side diffs
-- |:Gdiff| command for unified diff against any git revision
-- gitsigns.nvim blame popup highlighting (see |diffs-gitsigns|)
-- Background-only diff colors for any `&diff` buffer (vimdiff, diffthis, etc.)
+- Treesitter syntax highlighting in diff hunks
+- Character-level intra-line diff highlighting
 - Vim syntax fallback for languages without a treesitter parser
 - Blended diff background colors that preserve syntax visibility
 - Optional diff prefix (`+`/`-`/` `) concealment
 - Gutter (line number) highlighting
-- Inline merge conflict marker detection, highlighting, and resolution
+- |:Gdiff| unified diff against any revision
+- Email quoting/patch syntax support (`> diff ...`)
 
 ==============================================================================
 CONTENTS                                                      *diffs-contents*
@@ -49,27 +54,23 @@ CONTENTS                                                      *diffs-contents*
 REQUIREMENTS                                              *diffs-requirements*
 
 - Neovim 0.9.0+
-- vim-fugitive (https://github.com/tpope/vim-fugitive) (optional, for unified
-  diff syntax highlighting in |:Git| and commit views)
 - Treesitter parsers for languages you want highlighted
-
-Note: The diff mode feature (background-only colors for |:diffthis|, vimdiff,
-etc.) works without vim-fugitive.
 
 ==============================================================================
 SETUP                                                            *diffs-setup*
 
 Install with lazy.nvim: >lua
-    {
-      'barrettruth/diffs.nvim',
-      dependencies = { 'tpope/vim-fugitive' },
-    }
+    { 'barrettruth/diffs.nvim' }
 <
-The plugin works automatically with no configuration required. For
-customization, see |diffs-config|.
 
-NOTE: Load your colorscheme before `diffs.nvim`. For example, with lazy.nvim,
-set `priority = 1000` and `lazy = false` on your colorscheme plugin.
+Do not lazy load with `event`, `lazy`, `ft`, `config`, or `keys` —
+diffs.nvim lazy-loads itself.
+
+NOTE: Load your colorscheme before diffs.nvim. With lazy.nvim, set
+`priority = 1000` and `lazy = false` on your colorscheme plugin.
+
+See |diffs-config| for customization, |diffs-integrations| for plugin
+support.
 
 ==============================================================================
 CONFIGURATION                                                   *diffs-config*
@@ -82,6 +83,7 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
       fugitive = false,
       neogit = false,
       gitsigns = false,
+      committia = false,
       extra_filetypes = {},
       highlights = {
         background = true,
@@ -173,6 +175,16 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              backgrounds, and intra-line character diffs.
                              See |diffs-gitsigns|. >lua
                                  vim.g.diffs = { gitsigns = true }
+<
+
+        {committia}          (boolean|table, default: false)
+                             Enable committia.vim integration. Pass `true`
+                             or `{}` to enable, `false` to disable. When
+                             active, committia's diff pane (`ft=git`,
+                             buffer name `__committia_diff__`) receives
+                             treesitter syntax, line backgrounds, and
+                             intra-line diffs. >lua
+                                 vim.g.diffs = { committia = true }
 <
 
         {extra_filetypes}    (table, default: {})
