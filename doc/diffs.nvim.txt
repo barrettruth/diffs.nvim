@@ -32,17 +32,18 @@ CONTENTS                                                      *diffs-contents*
   4. Configuration ............................................ |diffs-config|
   5. Commands ............................................... |diffs-commands|
   6. Mappings ............................................... |diffs-mappings|
-  7. Fugitive Status Keymaps ................................ |diffs-fugitive|
+  7. Integrations ..................................... |diffs-integrations|
+       Fugitive .......................................... |diffs-fugitive|
+       Neogit .............................................. |diffs-neogit|
+       Gitsigns .......................................... |diffs-gitsigns|
   8. Conflict Resolution .................................... |diffs-conflict|
   9. Merge Diff Resolution ..................................... |diffs-merge|
- 10. Neogit ................................................... |diffs-neogit|
- 11. Gitsigns ................................................ |diffs-gitsigns|
- 12. API ......................................................... |diffs-api|
- 13. Implementation ................................... |diffs-implementation|
- 14. Known Limitations ................................... |diffs-limitations|
- 15. Highlight Groups ..................................... |diffs-highlights|
- 16. Health Check ............................................. |diffs-health|
- 17. Acknowledgements ............................... |diffs-acknowledgements|
+ 10. API ......................................................... |diffs-api|
+ 11. Implementation ................................... |diffs-implementation|
+ 12. Known Limitations ................................... |diffs-limitations|
+ 13. Highlight Groups ..................................... |diffs-highlights|
+ 14. Health Check ............................................. |diffs-health|
+ 15. Acknowledgements ............................... |diffs-acknowledgements|
 
 ==============================================================================
 REQUIREMENTS                                              *diffs-requirements*
@@ -447,10 +448,44 @@ Diff buffer mappings: ~
                     or the fugitive status keymaps.
 
 ==============================================================================
-FUGITIVE STATUS KEYMAPS                                   *diffs-fugitive*
+INTEGRATIONS                                           *diffs-integrations*
 
-When inside a vim-fugitive |:Git| status buffer, diffs.nvim provides keymaps
-to open unified diffs for files or entire sections.
+diffs.nvim integrates with several plugins. There are two attachment
+patterns:
+
+Automatic: ~
+Enable via config toggles. The plugin registers `FileType` autocmds for
+each integration's filetypes and attaches automatically.
+>lua
+    vim.g.diffs = {
+      fugitive = true,
+      neogit = true,
+      gitsigns = true,
+    }
+<
+
+Opt-in: ~
+For filetypes not covered by a built-in integration, use `extra_filetypes`
+to attach to any buffer whose content looks like a diff.
+>lua
+    vim.g.diffs = { extra_filetypes = { 'diff' } }
+<
+
+------------------------------------------------------------------------------
+FUGITIVE                                                      *diffs-fugitive*
+
+Enable vim-fugitive (https://github.com/tpope/vim-fugitive) support: >lua
+    vim.g.diffs = { fugitive = true }
+<
+
+|:Git| status and commit views receive treesitter syntax, line backgrounds,
+and intra-line diffs. |:Gdiff| opens a unified diff against any revision
+(see |diffs-commands|).
+
+Fugitive status keymaps: ~
+
+When inside a |:Git| status buffer, diffs.nvim provides keymaps to open
+unified diffs for files or entire sections.
 
 Keymaps: ~
                                                           *diffs-du* *diffs-dU*
@@ -498,6 +533,31 @@ Configuration: ~
         {vertical}           (string|false, default: 'dU')
                              Keymap for unified diff in vertical split.
                              Set to `false` to disable.
+
+------------------------------------------------------------------------------
+NEOGIT                                                          *diffs-neogit*
+
+Enable Neogit (https://github.com/NeogitOrg/neogit) support: >lua
+    vim.g.diffs = { neogit = true }
+<
+
+Expanding a diff in a Neogit buffer (e.g., TAB on a file in the status
+view) applies treesitter syntax highlighting and intra-line diffs to the
+hunk lines.
+
+------------------------------------------------------------------------------
+GITSIGNS                                                      *diffs-gitsigns*
+
+Enable gitsigns.nvim (https://github.com/lewis6991/gitsigns.nvim) blame
+popup highlighting: >lua
+    vim.g.diffs = { gitsigns = true }
+<
+
+`:Gitsigns blame_line full=true` popups receive treesitter syntax, line
+backgrounds, and intra-line diffs.
+
+Highlights are applied in a separate `diffs-gitsigns` namespace and do not
+interfere with the main decoration provider used for diff buffers.
 
 ==============================================================================
 CONFLICT RESOLUTION                                          *diffs-conflict*
@@ -641,52 +701,6 @@ informational notification and are left unchanged.
 The working file buffer is modified in place; save it when ready.
 Phase 1 inline conflict highlights (see |diffs-conflict|) are refreshed
 automatically after each resolution.
-
-==============================================================================
-NEOGIT                                                          *diffs-neogit*
-
-diffs.nvim works with Neogit (https://github.com/NeogitOrg/neogit) out of
-the box. Enable Neogit support in your config: >lua
-    vim.g.diffs = { neogit = true }
-<
-
-When a diff is expanded in a Neogit buffer (e.g., via TAB on a file in the
-status view), diffs.nvim applies treesitter syntax highlighting and
-intra-line diffs to the hunk lines, just as it does for fugitive.
-
-Neogit highlight overrides: ~
-On first attach to a Neogit buffer, diffs.nvim overrides Neogit's diff
-highlight groups (`NeogitDiffAdd*`, `NeogitDiffDelete*`,
-`NeogitDiffContext*`, `NeogitHunkHeader*`, `NeogitDiffHeader*`, etc.) by
-setting them to empty (`{}`). This gives diffs.nvim sole control of diff
-line visuals. The overrides are reapplied on `ColorScheme` since Neogit
-re-defines its groups then. When `neogit = false`, no highlight overrides
-are applied.
-
-==============================================================================
-GITSIGNS                                                      *diffs-gitsigns*
-
-diffs.nvim can enhance gitsigns.nvim blame popups with syntax highlighting.
-Enable gitsigns support in your config: >lua
-    vim.g.diffs = { gitsigns = true }
-<
-
-When `:Gitsigns blame_line full=true` opens a popup, diffs.nvim intercepts
-the popup and replaces gitsigns' flat `GitSignsAddPreview`/
-`GitSignsDeletePreview` highlights with:
-
-- Treesitter syntax highlighting on the code content
-- `DiffsAdd`/`DiffsDelete` line backgrounds
-- Character-level intra-line diffs (`DiffsAddText`/`DiffsDeleteText`)
-- `@diff.plus`/`@diff.minus` coloring on `+`/`-` prefix characters
-
-The integration patches `gitsigns.popup.create` and `gitsigns.popup.update`
-so highlights persist across gitsigns' two-phase render (initial popup, then
-update with GitHub/PR data). If gitsigns loads after diffs.nvim, a
-`User GitAttach` autocmd retries the setup automatically.
-
-Highlights are applied in a separate `diffs-gitsigns` namespace and do not
-interfere with the main decoration provider used for diff buffers.
 
 ==============================================================================
 API                                                                *diffs-api*
