@@ -604,6 +604,7 @@ end
 local integration_keys = { 'fugitive', 'neogit', 'gitsigns', 'committia', 'telescope' }
 
 local function migrate_integrations(opts)
+  local has_new = opts.integrations ~= nil
   opts.integrations = opts.integrations or {}
   for _, key in ipairs(integration_keys) do
     if opts[key] ~= nil then
@@ -613,7 +614,7 @@ local function migrate_integrations(opts)
         '0.3.2',
         'diffs.nvim'
       )
-      if opts.integrations[key] == nil then
+      if not has_new then
         opts.integrations[key] = opts[key]
       end
       opts[key] = nil
