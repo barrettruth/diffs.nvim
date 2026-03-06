@@ -61,16 +61,24 @@
 ---@field priority integer
 ---@field keymaps diffs.ConflictKeymaps
 
----@class diffs.Config
----@field debug boolean|string
----@field hide_prefix boolean
----@field extra_filetypes string[]
----@field highlights diffs.Highlights
+---@class diffs.IntegrationsConfig
 ---@field fugitive diffs.FugitiveConfig|false
 ---@field neogit diffs.NeogitConfig|false
 ---@field gitsigns diffs.GitsignsConfig|false
 ---@field committia diffs.CommittiaConfig|false
 ---@field telescope diffs.TelescopeConfig|false
+
+---@class diffs.Config
+---@field debug boolean|string
+---@field hide_prefix boolean
+---@field extra_filetypes string[]
+---@field highlights diffs.Highlights
+---@field integrations diffs.IntegrationsConfig
+---@field fugitive? diffs.FugitiveConfig|false deprecated: use integrations.fugitive
+---@field neogit? diffs.NeogitConfig|false deprecated: use integrations.neogit
+---@field gitsigns? diffs.GitsignsConfig|false deprecated: use integrations.gitsigns
+---@field committia? diffs.CommittiaConfig|false deprecated: use integrations.committia
+---@field telescope? diffs.TelescopeConfig|false deprecated: use integrations.telescope
 ---@field conflict diffs.ConflictConfig
 
 ---@class diffs
@@ -148,11 +156,13 @@ local default_config = {
       char_bg = 201,
     },
   },
-  fugitive = false,
-  neogit = false,
-  gitsigns = false,
-  committia = false,
-  telescope = false,
+  integrations = {
+    fugitive = false,
+    neogit = false,
+    gitsigns = false,
+    committia = false,
+    telescope = false,
+  },
   conflict = {
     enabled = true,
     disable_diagnostics = true,
@@ -209,11 +219,18 @@ end
 ---@return string[]
 function M.compute_filetypes(opts)
   local fts = { 'git', 'gitcommit' }
-  local fug = opts.fugitive
+  local intg = opts.integrations or {}
+  local fug = intg.fugitive
+  if fug == nil then
+    fug = opts.fugitive
+  end
   if fug == true or type(fug) == 'table' then
     table.insert(fts, 'fugitive')
   end
-  local neo = opts.neogit
+  local neo = intg.neogit
+  if neo == nil then
+    neo = opts.neogit
+  end
   if neo == true or type(neo) == 'table' then
     table.insert(fts, 'NeogitStatus')
     table.insert(fts, 'NeogitCommitView')
@@ -584,6 +601,48 @@ local function compute_highlight_groups()
   end
 end
 
+local integration_keys = { 'fugitive', 'neogit', 'gitsigns', 'committia', 'telescope' }
+
+local function migrate_integrations(opts)
+  if opts.integrations then
+    local stale = {}
+    for _, key in ipairs(integration_keys) do
+      if opts[key] ~= nil then
+        stale[#stale + 1] = key
+        opts[key] = nil
+      end
+    end
+    if #stale > 0 then
+      local old = 'vim.g.diffs.{' .. table.concat(stale, ', ') .. '}'
+      local new = 'vim.g.diffs.integrations.{' .. table.concat(stale, ', ') .. '}'
+      vim.notify(
+        '[diffs.nvim] ignoring ' .. old .. '; move to ' .. new .. ' or remove',
+        vim.log.levels.WARN
+      )
+    end
+    return
+  end
+  local has_legacy = false
+  for _, key in ipairs(integration_keys) do
+    if opts[key] ~= nil then
+      has_legacy = true
+      break
+    end
+  end
+  if not has_legacy then
+    return
+  end
+  vim.deprecate('vim.g.diffs.<integration>', 'vim.g.diffs.integrations.*', '0.3.2', 'diffs.nvim')
+  local legacy = {}
+  for _, key in ipairs(integration_keys) do
+    if opts[key] ~= nil then
+      legacy[key] = opts[key]
+      opts[key] = nil
+    end
+  end
+  opts.integrations = legacy
+end
+
 local function init()
   if initialized then
     return
@@ -592,48 +651,45 @@ local function init()
 
   local opts = vim.g.diffs or {}
 
+  migrate_integrations(opts)
+
+  local intg = opts.integrations or {}
   local fugitive_defaults = { horizontal = 'du', vertical = 'dU' }
-  if opts.fugitive == true then
-    opts.fugitive = vim.deepcopy(fugitive_defaults)
-  elseif type(opts.fugitive) == 'table' then
-    opts.fugitive = vim.tbl_extend('keep', opts.fugitive, fugitive_defaults)
+  if intg.fugitive == true then
+    intg.fugitive = vim.deepcopy(fugitive_defaults)
+  elseif type(intg.fugitive) == 'table' then
+    intg.fugitive = vim.tbl_extend('keep', intg.fugitive, fugitive_defaults)
   end
 
-  if opts.neogit == true then
-    opts.neogit = {}
+  if intg.neogit == true then
+    intg.neogit = {}
   end
 
-  if opts.gitsigns == true then
-    opts.gitsigns = {}
+  if intg.gitsigns == true then
+    intg.gitsigns = {}
   end
 
-  if opts.committia == true then
-    opts.committia = {}
+  if intg.committia == true then
+    intg.committia = {}
   end
 
-  if opts.telescope == true then
-    opts.telescope = {}
+  if intg.telescope == true then
+    intg.telescope = {}
   end
+
+  opts.integrations = intg
 
   vim.validate('debug', opts.debug, function(v)
     return v == nil or type(v) == 'boolean' or type(v) == 'string'
   end, 'boolean or string (file path)')
   vim.validate('hide_prefix', opts.hide_prefix, 'boolean', true)
-  vim.validate('fugitive', opts.fugitive, function(v)
+  vim.validate('integrations', opts.integrations, 'table', true)
+  local integration_validator = function(v)
     return v == nil or v == false or type(v) == 'table'
-  end, 'table or false')
-  vim.validate('neogit', opts.neogit, function(v)
-    return v == nil or v == false or type(v) == 'table'
-  end, 'table or false')
-  vim.validate('gitsigns', opts.gitsigns, function(v)
-    return v == nil or v == false or type(v) == 'table'
-  end, 'table or false')
-  vim.validate('committia', opts.committia, function(v)
-    return v == nil or v == false or type(v) == 'table'
-  end, 'table or false')
-  vim.validate('telescope', opts.telescope, function(v)
-    return v == nil or v == false or type(v) == 'table'
-  end, 'table or false')
+  end
+  for _, key in ipairs(integration_keys) do
+    vim.validate('integrations.' .. key, intg[key], integration_validator, 'table or false')
+  end
   vim.validate('extra_filetypes', opts.extra_filetypes, 'table', true)
   vim.validate('highlights', opts.highlights, 'table', true)
 
@@ -704,13 +760,13 @@ local function init()
     end
   end
 
-  if type(opts.fugitive) == 'table' then
+  if type(intg.fugitive) == 'table' then
     ---@type diffs.FugitiveConfig
-    local fug = opts.fugitive
-    vim.validate('fugitive.horizontal', fug.horizontal, function(v)
+    local fug = intg.fugitive
+    vim.validate('integrations.fugitive.horizontal', fug.horizontal, function(v)
       return v == nil or v == false or type(v) == 'string'
     end, 'string or false')
-    vim.validate('fugitive.vertical', fug.vertical, function(v)
+    vim.validate('integrations.fugitive.vertical', fug.vertical, function(v)
       return v == nil or v == false or type(v) == 'string'
     end, 'string or false')
   end
@@ -934,7 +990,7 @@ function M.attach(bufnr)
   attached_buffers[bufnr] = true
 
   local neogit_augroup = nil
-  if config.neogit and vim.bo[bufnr].filetype:match('^Neogit') then
+  if config.integrations.neogit and vim.bo[bufnr].filetype:match('^Neogit') then
     vim.b[bufnr].neogit_disable_hunk_highlight = true
     neogit_augroup = vim.api.nvim_create_augroup('diffs_neogit_' .. bufnr, { clear = true })
     vim.api.nvim_create_autocmd('User', {
@@ -1014,19 +1070,19 @@ end
 ---@return diffs.FugitiveConfig|false
 function M.get_fugitive_config()
   init()
-  return config.fugitive
+  return config.integrations.fugitive
 end
 
 ---@return diffs.CommittiaConfig|false
 function M.get_committia_config()
   init()
-  return config.committia
+  return config.integrations.committia
 end
 
 ---@return diffs.TelescopeConfig|false
 function M.get_telescope_config()
   init()
-  return config.telescope
+  return config.integrations.telescope
 end
 
 ---@return diffs.ConflictConfig
