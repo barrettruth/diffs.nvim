@@ -65,7 +65,7 @@ Install with lazy.nvim: >lua
 The plugin works automatically with no configuration required. For
 customization, see |diffs-config|.
 
-Load your colorscheme before `diffs.nvim`. For example, with lazy.nvim,
+NOTE: Load your colorscheme before `diffs.nvim`. For example, with lazy.nvim,
 set `priority = 1000` and `lazy = false` on your colorscheme plugin.
 
 ==============================================================================
