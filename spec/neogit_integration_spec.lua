@@ -1,6 +1,6 @@
 require('spec.helpers')
 
-vim.g.diffs = { neogit = true }
+vim.g.diffs = { integrations = { neogit = true } }
 
 local diffs = require('diffs')
 local parser = require('diffs.parser')
