@@ -15,6 +15,7 @@ Features: ~
 - Diff header highlighting (`diff --git`, `index`, `---`, `+++`)
 - Syntax highlighting in |:Gdiffsplit| / |:Gvdiffsplit| side-by-side diffs
 - |:Gdiff| command for unified diff against any git revision
+- gitsigns.nvim blame popup highlighting (see |diffs-gitsigns|)
 - Background-only diff colors for any `&diff` buffer (vimdiff, diffthis, etc.)
 - Vim syntax fallback for languages without a treesitter parser
 - Blended diff background colors that preserve syntax visibility
@@ -35,12 +36,13 @@ CONTENTS                                                      *diffs-contents*
   8. Conflict Resolution .................................... |diffs-conflict|
   9. Merge Diff Resolution ..................................... |diffs-merge|
  10. Neogit ................................................... |diffs-neogit|
- 11. API ......................................................... |diffs-api|
- 12. Implementation ................................... |diffs-implementation|
- 13. Known Limitations ................................... |diffs-limitations|
- 14. Highlight Groups ..................................... |diffs-highlights|
- 15. Health Check ............................................. |diffs-health|
- 16. Acknowledgements ............................... |diffs-acknowledgements|
+ 11. Gitsigns ................................................ |diffs-gitsigns|
+ 12. API ......................................................... |diffs-api|
+ 13. Implementation ................................... |diffs-implementation|
+ 14. Known Limitations ................................... |diffs-limitations|
+ 15. Highlight Groups ..................................... |diffs-highlights|
+ 16. Health Check ............................................. |diffs-health|
+ 17. Acknowledgements ............................... |diffs-acknowledgements|
 
 ==============================================================================
 REQUIREMENTS                                              *diffs-requirements*
@@ -78,6 +80,7 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
       hide_prefix = false,
       fugitive = false,
       neogit = false,
+      gitsigns = false,
       extra_filetypes = {},
       highlights = {
         background = true,
@@ -159,6 +162,16 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              and Neogit highlight overrides are applied.
                              See |diffs-neogit|. >lua
                                  vim.g.diffs = { neogit = true }
+<
+
+        {gitsigns}           (boolean|table, default: false)
+                             Enable gitsigns.nvim blame popup highlighting.
+                             Pass `true` or `{}` to enable, `false` to
+                             disable. When active, `:Gitsigns blame_line`
+                             popups receive treesitter syntax, line
+                             backgrounds, and intra-line character diffs.
+                             See |diffs-gitsigns|. >lua
+                                 vim.g.diffs = { gitsigns = true }
 <
 
         {extra_filetypes}    (table, default: {})
@@ -651,6 +664,31 @@ re-defines its groups then. When `neogit = false`, no highlight overrides
 are applied.
 
 ==============================================================================
+GITSIGNS                                                      *diffs-gitsigns*
+
+diffs.nvim can enhance gitsigns.nvim blame popups with syntax highlighting.
+Enable gitsigns support in your config: >lua
+    vim.g.diffs = { gitsigns = true }
+<
+
+When `:Gitsigns blame_line full=true` opens a popup, diffs.nvim intercepts
+the popup and replaces gitsigns' flat `GitSignsAddPreview`/
+`GitSignsDeletePreview` highlights with:
+
+- Treesitter syntax highlighting on the code content
+- `DiffsAdd`/`DiffsDelete` line backgrounds
+- Character-level intra-line diffs (`DiffsAddText`/`DiffsDeleteText`)
+- `@diff.plus`/`@diff.minus` coloring on `+`/`-` prefix characters
+
+The integration patches `gitsigns.popup.create` and `gitsigns.popup.update`
+so highlights persist across gitsigns' two-phase render (initial popup, then
+update with GitHub/PR data). If gitsigns loads after diffs.nvim, a
+`User GitAttach` autocmd retries the setup automatically.
+
+Highlights are applied in a separate `diffs-gitsigns` namespace and do not
+interfere with the main decoration provider used for diff buffers.
+
+==============================================================================
 API                                                                *diffs-api*
 
 attach({bufnr})                                             *diffs.attach()*
@@ -878,7 +916,8 @@ ACKNOWLEDGEMENTS                                     *diffs-acknowledgements*
 - codediff.nvim (https://github.com/esmuellert/codediff.nvim)
 - diffview.nvim (https://github.com/sindrets/diffview.nvim)
 - @phanen (https://github.com/phanen) - diff header highlighting,
-  treesitter injection support
+  treesitter injection support, blame_hl.nvim (gitsigns blame popup
+  highlighting inspiration)
 
 ==============================================================================
  vim:tw=78:ts=8:ft=help:norl:
