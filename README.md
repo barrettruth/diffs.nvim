@@ -16,6 +16,7 @@ with language-aware syntax highlighting.
   word-level accuracy)
 - `:Gdiff` unified diff against any revision
 - Inline merge conflict detection, highlighting, and resolution
+- gitsigns.nvim blame popup highlighting
 - Email quoting/patch syntax support (`> diff ...`)
 - Vim syntax fallback
 - Configurable highlighiting blend & priorities
@@ -58,14 +59,15 @@ luarocks install diffs.nvim
 Do not lazy load `diffs.nvim` with `event`, `lazy`, `ft`, `config`, or `keys` to
 control loading - `diffs.nvim` lazy-loads itself.
 
-**Q: Does diffs.nvim support vim-fugitive/Neogit?**
+**Q: Does diffs.nvim support vim-fugitive/Neogit/gitsigns?**
 
-Yes. Enable it in your config:
+Yes. Enable integrations in your config:
 
 ```lua
 vim.g.diffs = {
   fugitive = true,
   neogit = true,
+  gitsigns = true,
 }
 ```
 
@@ -119,4 +121,5 @@ See the documentation for more information.
 - [`git-conflict.nvim`](https://github.com/akinsho/git-conflict.nvim)
 - [@phanen](https://github.com/phanen) - diff header highlighting, unknown
   filetype fix, shebang/modeline detection, treesitter injection support,
-  decoration provider highlighting architecture
+  decoration provider highlighting architecture, gitsigns blame popup
+  highlighting

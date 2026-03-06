@@ -5,6 +5,19 @@ vim.g.loaded_diffs = 1
 
 require('diffs.commands').setup()
 
+local gs_cfg = (vim.g.diffs or {}).gitsigns
+if gs_cfg == true or type(gs_cfg) == 'table' then
+  if not require('diffs.gitsigns').setup() then
+    vim.api.nvim_create_autocmd('User', {
+      pattern = 'GitAttach',
+      once = true,
+      callback = function()
+        require('diffs.gitsigns').setup()
+      end,
+    })
+  end
+end
+
 vim.api.nvim_create_autocmd('FileType', {
   pattern = require('diffs').compute_filetypes(vim.g.diffs or {}),
   callback = function(args)

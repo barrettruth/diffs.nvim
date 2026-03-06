@@ -38,6 +38,8 @@
 
 ---@class diffs.NeogitConfig
 
+---@class diffs.GitsignsConfig
+
 ---@class diffs.ConflictKeymaps
 ---@field ours string|false
 ---@field theirs string|false
@@ -62,6 +64,7 @@
 ---@field highlights diffs.Highlights
 ---@field fugitive diffs.FugitiveConfig|false
 ---@field neogit diffs.NeogitConfig|false
+---@field gitsigns diffs.GitsignsConfig|false
 ---@field conflict diffs.ConflictConfig
 
 ---@class diffs
@@ -141,6 +144,7 @@ local default_config = {
   },
   fugitive = false,
   neogit = false,
+  gitsigns = false,
   conflict = {
     enabled = true,
     disable_diagnostics = true,
@@ -591,6 +595,10 @@ local function init()
     opts.neogit = {}
   end
 
+  if opts.gitsigns == true then
+    opts.gitsigns = {}
+  end
+
   vim.validate('debug', opts.debug, function(v)
     return v == nil or type(v) == 'boolean' or type(v) == 'string'
   end, 'boolean or string (file path)')
@@ -599,6 +607,9 @@ local function init()
     return v == nil or v == false or type(v) == 'table'
   end, 'table or false')
   vim.validate('neogit', opts.neogit, function(v)
+    return v == nil or v == false or type(v) == 'table'
+  end, 'table or false')
+  vim.validate('gitsigns', opts.gitsigns, function(v)
     return v == nil or v == false or type(v) == 'table'
   end, 'table or false')
   vim.validate('extra_filetypes', opts.extra_filetypes, 'table', true)
@@ -988,6 +999,12 @@ end
 function M.get_conflict_config()
   init()
   return config.conflict
+end
+
+---@return diffs.HunkOpts
+function M.get_highlight_opts()
+  init()
+  return { hide_prefix = config.hide_prefix, highlights = config.highlights }
 end
 
 local function process_pending_clear(bufnr)
