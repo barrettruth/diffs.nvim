@@ -121,5 +121,5 @@ See the documentation for more information.
 - [`git-conflict.nvim`](https://github.com/akinsho/git-conflict.nvim)
 - [@phanen](https://github.com/phanen) - diff header highlighting, unknown
   filetype fix, shebang/modeline detection, treesitter injection support,
-  decoration provider highlighting architecture, blame_hl.nvim (gitsigns
-  blame popup highlighting inspiration)
+  decoration provider highlighting architecture, gitsigns blame popup
+  highlighting
