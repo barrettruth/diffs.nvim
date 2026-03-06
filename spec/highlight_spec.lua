@@ -1654,7 +1654,7 @@ describe('highlight', function()
     it('applies DiffsClear to headers for combined diffs', function()
       local bufnr = create_buffer({
         'diff --combined lua/merge/target.lua',
-        'index abc1234,def5678..ghi9012',
+        'index abc1234,def5678..a6b9012',
         '--- a/lua/merge/target.lua',
         '+++ b/lua/merge/target.lua',
         '@@@ -1,2 -1,2 +1,3 @@@',
@@ -1671,7 +1671,7 @@ describe('highlight', function()
         header_start_line = 1,
         header_lines = {
           'diff --combined lua/merge/target.lua',
-          'index abc1234,def5678..ghi9012',
+          'index abc1234,def5678..a6b9012',
           '--- a/lua/merge/target.lua',
           '+++ b/lua/merge/target.lua',
         },
@@ -1755,7 +1755,7 @@ describe('highlight', function()
     it('applies header diff grammar at syntax priority for combined diffs', function()
       local bufnr = create_buffer({
         'diff --combined lua/merge/target.lua',
-        'index abc1234,def5678..ghi9012',
+        'index abc1234,def5678..a6b9012',
         '--- a/lua/merge/target.lua',
         '+++ b/lua/merge/target.lua',
         '@@@ -1,2 -1,2 +1,3 @@@',
@@ -1772,7 +1772,7 @@ describe('highlight', function()
         header_start_line = 1,
         header_lines = {
           'diff --combined lua/merge/target.lua',
-          'index abc1234,def5678..ghi9012',
+          'index abc1234,def5678..a6b9012',
           '--- a/lua/merge/target.lua',
           '+++ b/lua/merge/target.lua',
         },
@@ -1802,7 +1802,7 @@ describe('highlight', function()
     it('@diff.minus wins over @punctuation.special on combined diff headers', function()
       local bufnr = create_buffer({
         'diff --combined lua/merge/target.lua',
-        'index abc1234,def5678..ghi9012',
+        'index abc1234,def5678..a6b9012',
         '--- a/lua/merge/target.lua',
         '+++ b/lua/merge/target.lua',
         '@@@ -1,2 -1,2 +1,3 @@@',
@@ -1819,7 +1819,7 @@ describe('highlight', function()
         header_start_line = 1,
         header_lines = {
           'diff --combined lua/merge/target.lua',
-          'index abc1234,def5678..ghi9012',
+          'index abc1234,def5678..a6b9012',
           '--- a/lua/merge/target.lua',
           '+++ b/lua/merge/target.lua',
         },
@@ -1862,7 +1862,7 @@ describe('highlight', function()
     it('applies @keyword.diff on index word for combined diffs', function()
       local bufnr = create_buffer({
         'diff --combined lua/merge/target.lua',
-        'index abc1234,def5678..ghi9012',
+        'index abc1234,def5678..a6b9012',
         '--- a/lua/merge/target.lua',
         '+++ b/lua/merge/target.lua',
         '@@@ -1,2 -1,2 +1,3 @@@',
@@ -1879,7 +1879,7 @@ describe('highlight', function()
         header_start_line = 1,
         header_lines = {
           'diff --combined lua/merge/target.lua',
-          'index abc1234,def5678..ghi9012',
+          'index abc1234,def5678..a6b9012',
           '--- a/lua/merge/target.lua',
           '+++ b/lua/merge/target.lua',
         },
@@ -1908,7 +1908,7 @@ describe('highlight', function()
     it('applies @constant.diff on result hash for combined diffs', function()
       local bufnr = create_buffer({
         'diff --combined lua/merge/target.lua',
-        'index abc1234,def5678..ghi9012',
+        'index abc1234,def5678..a6b9012',
         '--- a/lua/merge/target.lua',
         '+++ b/lua/merge/target.lua',
         '@@@ -1,2 -1,2 +1,3 @@@',
@@ -1925,7 +1925,7 @@ describe('highlight', function()
         header_start_line = 1,
         header_lines = {
           'diff --combined lua/merge/target.lua',
-          'index abc1234,def5678..ghi9012',
+          'index abc1234,def5678..a6b9012',
           '--- a/lua/merge/target.lua',
           '+++ b/lua/merge/target.lua',
         },
@@ -1934,14 +1934,21 @@ describe('highlight', function()
       highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
 
       local extmarks = get_extmarks(bufnr)
-      local has_constant = false
+      local has_result_hash = false
       for _, mark in ipairs(extmarks) do
         local d = mark[4]
-        if mark[2] == 1 and d and d.hl_group == '@constant.diff' and (d.priority or 0) >= 199 then
-          has_constant = true
+        if
+          mark[2] == 1
+          and mark[3] == 23
+          and d
+          and d.hl_group == '@constant.diff'
+          and d.end_col == 30
+          and (d.priority or 0) >= 199
+        then
+          has_result_hash = true
         end
       end
-      assert.is_true(has_constant, '@constant.diff on result hash')
+      assert.is_true(has_result_hash, '@constant.diff on result hash at cols 23-30')
       delete_buffer(bufnr)
     end)
   end)
