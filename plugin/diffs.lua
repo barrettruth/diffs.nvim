@@ -5,7 +5,17 @@ vim.g.loaded_diffs = 1
 
 require('diffs.commands').setup()
 
-local gs_cfg = (vim.g.diffs or {}).gitsigns
+local function get_raw_integration(key)
+  local user = vim.g.diffs or {}
+  local intg = user.integrations or {}
+  local v = intg[key]
+  if v ~= nil then
+    return v
+  end
+  return user[key]
+end
+
+local gs_cfg = get_raw_integration('gitsigns')
 if gs_cfg == true or type(gs_cfg) == 'table' then
   if not require('diffs.gitsigns').setup() then
     vim.api.nvim_create_autocmd('User', {
@@ -18,7 +28,7 @@ if gs_cfg == true or type(gs_cfg) == 'table' then
   end
 end
 
-local tel_cfg = (vim.g.diffs or {}).telescope
+local tel_cfg = get_raw_integration('telescope')
 if tel_cfg == true or type(tel_cfg) == 'table' then
   vim.api.nvim_create_autocmd('User', {
     pattern = 'TelescopePreviewerLoaded',
