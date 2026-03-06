@@ -40,6 +40,8 @@
 
 ---@class diffs.GitsignsConfig
 
+---@class diffs.CommittiaConfig
+
 ---@class diffs.ConflictKeymaps
 ---@field ours string|false
 ---@field theirs string|false
@@ -65,6 +67,7 @@
 ---@field fugitive diffs.FugitiveConfig|false
 ---@field neogit diffs.NeogitConfig|false
 ---@field gitsigns diffs.GitsignsConfig|false
+---@field committia diffs.CommittiaConfig|false
 ---@field conflict diffs.ConflictConfig
 
 ---@class diffs
@@ -145,6 +148,7 @@ local default_config = {
   fugitive = false,
   neogit = false,
   gitsigns = false,
+  committia = false,
   conflict = {
     enabled = true,
     disable_diagnostics = true,
@@ -599,6 +603,10 @@ local function init()
     opts.gitsigns = {}
   end
 
+  if opts.committia == true then
+    opts.committia = {}
+  end
+
   vim.validate('debug', opts.debug, function(v)
     return v == nil or type(v) == 'boolean' or type(v) == 'string'
   end, 'boolean or string (file path)')
@@ -610,6 +618,9 @@ local function init()
     return v == nil or v == false or type(v) == 'table'
   end, 'table or false')
   vim.validate('gitsigns', opts.gitsigns, function(v)
+    return v == nil or v == false or type(v) == 'table'
+  end, 'table or false')
+  vim.validate('committia', opts.committia, function(v)
     return v == nil or v == false or type(v) == 'table'
   end, 'table or false')
   vim.validate('extra_filetypes', opts.extra_filetypes, 'table', true)
@@ -993,6 +1004,12 @@ end
 function M.get_fugitive_config()
   init()
   return config.fugitive
+end
+
+---@return diffs.CommittiaConfig|false
+function M.get_committia_config()
+  init()
+  return config.committia
 end
 
 ---@return diffs.ConflictConfig
