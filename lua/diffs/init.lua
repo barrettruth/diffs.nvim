@@ -162,6 +162,7 @@ local default_config = {
 local config = vim.deepcopy(default_config)
 
 local initialized = false
+local hl_retry_pending = false
 
 ---@diagnostic disable-next-line: missing-fields
 local fast_hl_opts = {} ---@type diffs.HunkOpts
@@ -470,11 +471,23 @@ local function compute_highlight_groups()
   local diff_added = resolve_hl('diffAdded')
   local diff_removed = resolve_hl('diffRemoved')
 
-  local bg = normal.bg or 0x1e1e2e
-  local add_bg = diff_add.bg or 0x2e4a3a
-  local del_bg = diff_delete.bg or 0x4a2e3a
-  local add_fg = diff_added.fg or diff_add.fg or 0x80c080
-  local del_fg = diff_removed.fg or diff_delete.fg or 0xc08080
+  local dark = vim.o.background ~= 'light'
+  local bg = normal.bg or (dark and 0x1a1a1a or 0xf0f0f0)
+  local add_bg = diff_add.bg or (dark and 0x1a3a1a or 0xd0ffd0)
+  local del_bg = diff_delete.bg or (dark and 0x3a1a1a or 0xffd0d0)
+  local add_fg = diff_added.fg or diff_add.fg or (dark and 0x80d080 or 0x206020)
+  local del_fg = diff_removed.fg or diff_delete.fg or (dark and 0xd08080 or 0x802020)
+
+  if not normal.bg and not hl_retry_pending then
+    hl_retry_pending = true
+    vim.schedule(function()
+      hl_retry_pending = false
+      compute_highlight_groups()
+      for bufnr, _ in pairs(attached_buffers) do
+        invalidate_cache(bufnr)
+      end
+    end)
+  end
 
   local blended_add = blend_color(add_bg, bg, 0.4)
   local blended_del = blend_color(del_bg, bg, 0.4)
@@ -483,7 +496,11 @@ local function compute_highlight_groups()
   local blended_add_text = blend_color(add_fg, bg, alpha)
   local blended_del_text = blend_color(del_fg, bg, alpha)
 
-  vim.api.nvim_set_hl(0, 'DiffsClear', { default = true, fg = normal.fg or 0xc0c0c0, bg = bg })
+  vim.api.nvim_set_hl(
+    0,
+    'DiffsClear',
+    { default = true, fg = normal.fg or (dark and 0xcccccc or 0x333333), bg = bg }
+  )
   vim.api.nvim_set_hl(0, 'DiffsAdd', { default = true, bg = blended_add })
   vim.api.nvim_set_hl(0, 'DiffsDelete', { default = true, bg = blended_del })
   vim.api.nvim_set_hl(0, 'DiffsAddNr', { default = true, fg = blended_add_text, bg = blended_add })

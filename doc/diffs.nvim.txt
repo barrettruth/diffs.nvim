@@ -65,6 +65,9 @@ Install with lazy.nvim: >lua
 The plugin works automatically with no configuration required. For
 customization, see |diffs-config|.
 
+NOTE: Load your colorscheme before `diffs.nvim`. For example, with lazy.nvim,
+set `priority = 1000` and `lazy = false` on your colorscheme plugin.
+
 ==============================================================================
 CONFIGURATION                                                   *diffs-config*
 
@@ -757,6 +760,7 @@ All derived groups are computed by alpha-blending a source color into the
 character-level groups blend at 60% for more contrast. Line-number groups
 combine both: background from the line-level blend, foreground from the
 character-level blend.
+
 
 Fugitive unified diff highlights: ~
                                                                   *DiffsAdd*
