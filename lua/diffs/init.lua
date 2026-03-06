@@ -42,6 +42,8 @@
 
 ---@class diffs.CommittiaConfig
 
+---@class diffs.TelescopeConfig
+
 ---@class diffs.ConflictKeymaps
 ---@field ours string|false
 ---@field theirs string|false
@@ -68,6 +70,7 @@
 ---@field neogit diffs.NeogitConfig|false
 ---@field gitsigns diffs.GitsignsConfig|false
 ---@field committia diffs.CommittiaConfig|false
+---@field telescope diffs.TelescopeConfig|false
 ---@field conflict diffs.ConflictConfig
 
 ---@class diffs
@@ -149,6 +152,7 @@ local default_config = {
   neogit = false,
   gitsigns = false,
   committia = false,
+  telescope = false,
   conflict = {
     enabled = true,
     disable_diagnostics = true,
@@ -607,6 +611,10 @@ local function init()
     opts.committia = {}
   end
 
+  if opts.telescope == true then
+    opts.telescope = {}
+  end
+
   vim.validate('debug', opts.debug, function(v)
     return v == nil or type(v) == 'boolean' or type(v) == 'string'
   end, 'boolean or string (file path)')
@@ -621,6 +629,9 @@ local function init()
     return v == nil or v == false or type(v) == 'table'
   end, 'table or false')
   vim.validate('committia', opts.committia, function(v)
+    return v == nil or v == false or type(v) == 'table'
+  end, 'table or false')
+  vim.validate('telescope', opts.telescope, function(v)
     return v == nil or v == false or type(v) == 'table'
   end, 'table or false')
   vim.validate('extra_filetypes', opts.extra_filetypes, 'table', true)
@@ -1010,6 +1021,12 @@ end
 function M.get_committia_config()
   init()
   return config.committia
+end
+
+---@return diffs.TelescopeConfig|false
+function M.get_telescope_config()
+  init()
+  return config.telescope
 end
 
 ---@return diffs.ConflictConfig
