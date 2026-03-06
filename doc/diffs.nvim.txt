@@ -65,6 +65,10 @@ Install with lazy.nvim: >lua
 The plugin works automatically with no configuration required. For
 customization, see |diffs-config|.
 
+Note: highlight groups are derived from `Normal` when the first diff buffer
+opens. Your colorscheme must be loaded by then. With lazy.nvim, ensure it
+has `priority = 1000` and `lazy = false`.
+
 ==============================================================================
 CONFIGURATION                                                   *diffs-config*
 
@@ -758,12 +762,6 @@ character-level groups blend at 60% for more contrast. Line-number groups
 combine both: background from the line-level blend, foreground from the
 character-level blend.
 
-Note: highlight groups are computed when the first diff buffer is attached,
-so your colorscheme must be loaded before any diff buffer opens. If `Normal`
-has no background at that point (colorscheme loaded too late, or transparent
-terminal), diffs.nvim schedules one deferred retry via |vim.schedule()| to
-recompute once the event loop settles. To avoid relying on this, ensure your
-colorscheme plugin has `priority = 1000` and `lazy = false`.
 
 Fugitive unified diff highlights: ~
                                                                   *DiffsAdd*
