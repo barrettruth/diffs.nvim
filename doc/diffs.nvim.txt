@@ -41,6 +41,7 @@ CONTENTS                                                      *diffs-contents*
        Fugitive .......................................... |diffs-fugitive|
        Neogit .............................................. |diffs-neogit|
        Gitsigns .......................................... |diffs-gitsigns|
+       Telescope ........................................ |diffs-telescope|
   8. Conflict Resolution .................................... |diffs-conflict|
   9. Merge Diff Resolution ..................................... |diffs-merge|
  10. API ......................................................... |diffs-api|
@@ -84,6 +85,7 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
       neogit = false,
       gitsigns = false,
       committia = false,
+      telescope = false,
       extra_filetypes = {},
       highlights = {
         background = true,
@@ -185,6 +187,16 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              treesitter syntax, line backgrounds, and
                              intra-line diffs. >lua
                                  vim.g.diffs = { committia = true }
+<
+
+        {telescope}          (boolean|table, default: false)
+                             Enable telescope.nvim preview highlighting.
+                             Pass `true` or `{}` to enable, `false` to
+                             disable. When active, telescope preview
+                             buffers showing diffs receive treesitter
+                             syntax, line backgrounds, and intra-line
+                             diffs. See |diffs-telescope|. >lua
+                                 vim.g.diffs = { telescope = true }
 <
 
         {extra_filetypes}    (table, default: {})
@@ -576,6 +588,28 @@ backgrounds, and intra-line diffs.
 
 Highlights are applied in a separate `diffs-gitsigns` namespace and do not
 interfere with the main decoration provider used for diff buffers.
+
+------------------------------------------------------------------------------
+TELESCOPE                                                  *diffs-telescope*
+
+Enable telescope.nvim (https://github.com/nvim-telescope/telescope.nvim)
+preview highlighting: >lua
+    vim.g.diffs = { telescope = true }
+<
+
+Telescope does not set `filetype=diff` on preview buffers — it calls
+`vim.treesitter.start(bufnr, "diff")` directly, so diffs.nvim's `FileType`
+autocmd never fires. This integration listens for the
+`User TelescopePreviewerLoaded` event and attaches to the preview buffer.
+
+Pickers that show diff content (e.g. `git_bcommits`, `git_status`) will
+receive treesitter syntax, line backgrounds, and intra-line diffs in the
+preview pane.
+
+Known issue: Telescope's previewer may render the first line of the preview
+buffer with a black background regardless of colorscheme. This is a
+Telescope artifact unrelated to diffs.nvim. Tracked upstream:
+https://github.com/nvim-telescope/telescope.nvim/issues/3626
 
 ==============================================================================
 CONFLICT RESOLUTION                                          *diffs-conflict*
