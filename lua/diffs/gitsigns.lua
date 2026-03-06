@@ -9,17 +9,6 @@ local gs_popup_ns = api.nvim_create_namespace('gitsigns_popup')
 
 local patched = false
 
----@param ft string
----@return string?
-local function get_lang(ft)
-  local lang = vim.treesitter.language.get_lang(ft)
-  if not lang then
-    return nil
-  end
-  local ok = pcall(vim.treesitter.language.inspect, lang)
-  return ok and lang or nil
-end
-
 ---@param bufnr integer
 ---@param src_filename string
 ---@param src_ft string?
@@ -105,7 +94,7 @@ local function on_preview(preview_winid, preview_bufnr)
     if not name or name == '' then
       name = ft and ('a.' .. ft) or 'unknown'
     end
-    local lang = ft and get_lang(ft) or nil
+    local lang = ft and require('diffs.parser').get_lang_from_ft(ft) or nil
 
     local hunks = M.parse_blame_hunks(preview_bufnr, name, ft, lang)
     if #hunks == 0 then
