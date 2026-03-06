@@ -353,6 +353,8 @@ function M.parse_buffer(bufnr)
   return hunks
 end
 
+M.get_lang_from_ft = get_lang_from_ft
+
 M._test = {
   ft_lang_cache = ft_lang_cache,
 }
