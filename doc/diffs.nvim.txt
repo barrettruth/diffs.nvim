@@ -184,6 +184,12 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                                    extra_filetypes = { 'diff' },
                                  }
 <
+                             Adding `'diff'` also enables highlighting in
+                             picker preview buffers that set `filetype=diff`:
+                             telescope.nvim (git_commits, git_bcommits,
+                             git_status), snacks.nvim (syntax style only),
+                             and fzf-lua (builtin previewer only). Terminal-
+                             based previewers are not supported.
 
         {highlights}         (table, default: see below)
                              Controls which highlight features are enabled.
