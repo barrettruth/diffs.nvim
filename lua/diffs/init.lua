@@ -591,139 +591,122 @@ local function init()
     opts.neogit = {}
   end
 
-  vim.validate({
-    debug = {
-      opts.debug,
-      function(v)
-        return v == nil or type(v) == 'boolean' or type(v) == 'string'
-      end,
-      'boolean or string (file path)',
-    },
-    hide_prefix = { opts.hide_prefix, 'boolean', true },
-    fugitive = {
-      opts.fugitive,
-      function(v)
-        return v == nil or v == false or type(v) == 'table'
-      end,
-      'table or false',
-    },
-    neogit = {
-      opts.neogit,
-      function(v)
-        return v == nil or v == false or type(v) == 'table'
-      end,
-      'table or false',
-    },
-    extra_filetypes = { opts.extra_filetypes, 'table', true },
-    highlights = { opts.highlights, 'table', true },
-  })
+  vim.validate('debug', opts.debug, function(v)
+    return v == nil or type(v) == 'boolean' or type(v) == 'string'
+  end, 'boolean or string (file path)')
+  vim.validate('hide_prefix', opts.hide_prefix, 'boolean', true)
+  vim.validate('fugitive', opts.fugitive, function(v)
+    return v == nil or v == false or type(v) == 'table'
+  end, 'table or false')
+  vim.validate('neogit', opts.neogit, function(v)
+    return v == nil or v == false or type(v) == 'table'
+  end, 'table or false')
+  vim.validate('extra_filetypes', opts.extra_filetypes, 'table', true)
+  vim.validate('highlights', opts.highlights, 'table', true)
 
   if opts.highlights then
-    vim.validate({
-      ['highlights.background'] = { opts.highlights.background, 'boolean', true },
-      ['highlights.gutter'] = { opts.highlights.gutter, 'boolean', true },
-      ['highlights.blend_alpha'] = { opts.highlights.blend_alpha, 'number', true },
-      ['highlights.overrides'] = { opts.highlights.overrides, 'table', true },
-      ['highlights.context'] = { opts.highlights.context, 'table', true },
-      ['highlights.treesitter'] = { opts.highlights.treesitter, 'table', true },
-      ['highlights.vim'] = { opts.highlights.vim, 'table', true },
-      ['highlights.intra'] = { opts.highlights.intra, 'table', true },
-      ['highlights.priorities'] = { opts.highlights.priorities, 'table', true },
-    })
+    vim.validate('highlights.background', opts.highlights.background, 'boolean', true)
+    vim.validate('highlights.gutter', opts.highlights.gutter, 'boolean', true)
+    vim.validate('highlights.blend_alpha', opts.highlights.blend_alpha, 'number', true)
+    vim.validate('highlights.overrides', opts.highlights.overrides, 'table', true)
+    vim.validate('highlights.context', opts.highlights.context, 'table', true)
+    vim.validate('highlights.treesitter', opts.highlights.treesitter, 'table', true)
+    vim.validate('highlights.vim', opts.highlights.vim, 'table', true)
+    vim.validate('highlights.intra', opts.highlights.intra, 'table', true)
+    vim.validate('highlights.priorities', opts.highlights.priorities, 'table', true)
 
     if opts.highlights.context then
-      vim.validate({
-        ['highlights.context.enabled'] = { opts.highlights.context.enabled, 'boolean', true },
-        ['highlights.context.lines'] = { opts.highlights.context.lines, 'number', true },
-      })
+      vim.validate('highlights.context.enabled', opts.highlights.context.enabled, 'boolean', true)
+      vim.validate('highlights.context.lines', opts.highlights.context.lines, 'number', true)
     end
 
     if opts.highlights.treesitter then
-      vim.validate({
-        ['highlights.treesitter.enabled'] = { opts.highlights.treesitter.enabled, 'boolean', true },
-        ['highlights.treesitter.max_lines'] = {
-          opts.highlights.treesitter.max_lines,
-          'number',
-          true,
-        },
-      })
+      vim.validate(
+        'highlights.treesitter.enabled',
+        opts.highlights.treesitter.enabled,
+        'boolean',
+        true
+      )
+      vim.validate(
+        'highlights.treesitter.max_lines',
+        opts.highlights.treesitter.max_lines,
+        'number',
+        true
+      )
     end
 
     if opts.highlights.vim then
-      vim.validate({
-        ['highlights.vim.enabled'] = { opts.highlights.vim.enabled, 'boolean', true },
-        ['highlights.vim.max_lines'] = { opts.highlights.vim.max_lines, 'number', true },
-      })
+      vim.validate('highlights.vim.enabled', opts.highlights.vim.enabled, 'boolean', true)
+      vim.validate('highlights.vim.max_lines', opts.highlights.vim.max_lines, 'number', true)
     end
 
     if opts.highlights.intra then
-      vim.validate({
-        ['highlights.intra.enabled'] = { opts.highlights.intra.enabled, 'boolean', true },
-        ['highlights.intra.algorithm'] = {
-          opts.highlights.intra.algorithm,
-          function(v)
-            return v == nil or v == 'default' or v == 'vscode'
-          end,
-          "'default' or 'vscode'",
-        },
-        ['highlights.intra.max_lines'] = { opts.highlights.intra.max_lines, 'number', true },
-      })
+      vim.validate('highlights.intra.enabled', opts.highlights.intra.enabled, 'boolean', true)
+      vim.validate('highlights.intra.algorithm', opts.highlights.intra.algorithm, function(v)
+        return v == nil or v == 'default' or v == 'vscode'
+      end, "'default' or 'vscode'")
+      vim.validate('highlights.intra.max_lines', opts.highlights.intra.max_lines, 'number', true)
     end
 
     if opts.highlights.priorities then
-      vim.validate({
-        ['highlights.priorities.clear'] = { opts.highlights.priorities.clear, 'number', true },
-        ['highlights.priorities.syntax'] = { opts.highlights.priorities.syntax, 'number', true },
-        ['highlights.priorities.line_bg'] = { opts.highlights.priorities.line_bg, 'number', true },
-        ['highlights.priorities.char_bg'] = { opts.highlights.priorities.char_bg, 'number', true },
-      })
+      vim.validate('highlights.priorities.clear', opts.highlights.priorities.clear, 'number', true)
+      vim.validate(
+        'highlights.priorities.syntax',
+        opts.highlights.priorities.syntax,
+        'number',
+        true
+      )
+      vim.validate(
+        'highlights.priorities.line_bg',
+        opts.highlights.priorities.line_bg,
+        'number',
+        true
+      )
+      vim.validate(
+        'highlights.priorities.char_bg',
+        opts.highlights.priorities.char_bg,
+        'number',
+        true
+      )
     end
   end
 
   if type(opts.fugitive) == 'table' then
     ---@type diffs.FugitiveConfig
     local fug = opts.fugitive
-    vim.validate({
-      ['fugitive.horizontal'] = {
-        fug.horizontal,
-        function(v)
-          return v == nil or v == false or type(v) == 'string'
-        end,
-        'string or false',
-      },
-      ['fugitive.vertical'] = {
-        fug.vertical,
-        function(v)
-          return v == nil or v == false or type(v) == 'string'
-        end,
-        'string or false',
-      },
-    })
+    vim.validate('fugitive.horizontal', fug.horizontal, function(v)
+      return v == nil or v == false or type(v) == 'string'
+    end, 'string or false')
+    vim.validate('fugitive.vertical', fug.vertical, function(v)
+      return v == nil or v == false or type(v) == 'string'
+    end, 'string or false')
   end
 
   if opts.conflict then
-    vim.validate({
-      ['conflict.enabled'] = { opts.conflict.enabled, 'boolean', true },
-      ['conflict.disable_diagnostics'] = { opts.conflict.disable_diagnostics, 'boolean', true },
-      ['conflict.show_virtual_text'] = { opts.conflict.show_virtual_text, 'boolean', true },
-      ['conflict.format_virtual_text'] = { opts.conflict.format_virtual_text, 'function', true },
-      ['conflict.show_actions'] = { opts.conflict.show_actions, 'boolean', true },
-      ['conflict.priority'] = { opts.conflict.priority, 'number', true },
-      ['conflict.keymaps'] = { opts.conflict.keymaps, 'table', true },
-    })
+    vim.validate('conflict.enabled', opts.conflict.enabled, 'boolean', true)
+    vim.validate('conflict.disable_diagnostics', opts.conflict.disable_diagnostics, 'boolean', true)
+    vim.validate('conflict.show_virtual_text', opts.conflict.show_virtual_text, 'boolean', true)
+    vim.validate(
+      'conflict.format_virtual_text',
+      opts.conflict.format_virtual_text,
+      'function',
+      true
+    )
+    vim.validate('conflict.show_actions', opts.conflict.show_actions, 'boolean', true)
+    vim.validate('conflict.priority', opts.conflict.priority, 'number', true)
+    vim.validate('conflict.keymaps', opts.conflict.keymaps, 'table', true)
 
     if opts.conflict.keymaps then
       local keymap_validator = function(v)
         return v == false or type(v) == 'string'
       end
       for _, key in ipairs({ 'ours', 'theirs', 'both', 'none', 'next', 'prev' }) do
-        vim.validate({
-          ['conflict.keymaps.' .. key] = {
-            opts.conflict.keymaps[key],
-            keymap_validator,
-            'string or false',
-          },
-        })
+        vim.validate(
+          'conflict.keymaps.' .. key,
+          opts.conflict.keymaps[key],
+          keymap_validator,
+          'string or false'
+        )
       end
     end
   end
