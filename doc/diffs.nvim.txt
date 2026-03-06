@@ -81,11 +81,13 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
     vim.g.diffs = {
       debug = false,
       hide_prefix = false,
-      fugitive = false,
-      neogit = false,
-      gitsigns = false,
-      committia = false,
-      telescope = false,
+      integrations = {
+        fugitive = false,
+        neogit = false,
+        gitsigns = false,
+        committia = false,
+        telescope = false,
+      },
       extra_filetypes = {},
       highlights = {
         background = true,
@@ -145,59 +147,62 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              is also enabled, the overlay inherits the line's
                              background color.
 
-        {fugitive}           (boolean|table, default: false)
+        {integrations}       (table, default: all false)
+                             Integration toggles. Each key accepts `true`,
+                             `false`, or a table with sub-options. Passing
+                             `true` or a table enables the integration;
+                             `false` disables it. See |diffs-integrations|.
+                                                   *diffs.IntegrationsConfig*
+                             Fields: ~
+
+            {fugitive}       (boolean|table, default: false)
                              Enable vim-fugitive integration. Pass `true`
-                             for defaults, `false` to disable, or a table
-                             with sub-options (see |diffs.FugitiveConfig|).
-                             Passing a table implicitly enables the
-                             integration — no `enabled` field needed.
-                             When active, the `fugitive` filetype is
-                             registered and status buffer keymaps are set. >lua
-                                 vim.g.diffs = { fugitive = true }
+                             for defaults, or a table with sub-options
+                             (see |diffs.FugitiveConfig|). When active,
+                             the `fugitive` filetype is registered and
+                             status buffer keymaps are set. >lua
                                  vim.g.diffs = {
-                                   fugitive = { horizontal = 'dd' },
+                                   integrations = { fugitive = true },
+                                 }
+                                 vim.g.diffs = {
+                                   integrations = {
+                                     fugitive = { horizontal = 'dd' },
+                                   },
                                  }
 <
 
-        {neogit}             (boolean|table, default: false)
-                             Enable Neogit integration. Pass `true` or
-                             `{}` to enable, `false` to disable. When
-                             active, `NeogitStatus`, `NeogitCommitView`,
-                             and `NeogitDiffView` filetypes are registered
-                             and Neogit highlight overrides are applied.
+            {neogit}         (boolean|table, default: false)
+                             Enable Neogit integration. When active,
+                             `NeogitStatus`, `NeogitCommitView`, and
+                             `NeogitDiffView` filetypes are registered.
                              See |diffs-neogit|. >lua
-                                 vim.g.diffs = { neogit = true }
+                                 integrations = { neogit = true }
 <
 
-        {gitsigns}           (boolean|table, default: false)
+            {gitsigns}       (boolean|table, default: false)
                              Enable gitsigns.nvim blame popup highlighting.
-                             Pass `true` or `{}` to enable, `false` to
-                             disable. When active, `:Gitsigns blame_line`
-                             popups receive treesitter syntax, line
-                             backgrounds, and intra-line character diffs.
                              See |diffs-gitsigns|. >lua
-                                 vim.g.diffs = { gitsigns = true }
+                                 integrations = { gitsigns = true }
 <
 
-        {committia}          (boolean|table, default: false)
-                             Enable committia.vim integration. Pass `true`
-                             or `{}` to enable, `false` to disable. When
-                             active, committia's diff pane (`ft=git`,
-                             buffer name `__committia_diff__`) receives
-                             treesitter syntax, line backgrounds, and
-                             intra-line diffs. >lua
-                                 vim.g.diffs = { committia = true }
+            {committia}      (boolean|table, default: false)
+                             Enable committia.vim integration. When active,
+                             committia's diff pane receives treesitter
+                             syntax and intra-line diffs. >lua
+                                 integrations = { committia = true }
 <
 
-        {telescope}          (boolean|table, default: false)
+            {telescope}      (boolean|table, default: false)
                              Enable telescope.nvim preview highlighting.
-                             Pass `true` or `{}` to enable, `false` to
-                             disable. When active, telescope preview
-                             buffers showing diffs receive treesitter
-                             syntax, line backgrounds, and intra-line
-                             diffs. See |diffs-telescope|. >lua
-                                 vim.g.diffs = { telescope = true }
+                             See |diffs-telescope|. >lua
+                                 integrations = { telescope = true }
 <
+
+                             Legacy top-level keys (`vim.g.diffs.fugitive`,
+                             etc.) still work but emit a deprecation
+                             warning. If both `integrations` and top-level
+                             keys are present, `integrations` wins and
+                             the stale keys are ignored with a warning.
 
         {extra_filetypes}    (table, default: {})
                              Additional filetypes to attach to, beyond the
@@ -488,9 +493,11 @@ Enable via config toggles. The plugin registers `FileType` autocmds for
 each integration's filetypes and attaches automatically.
 >lua
     vim.g.diffs = {
-      fugitive = true,
-      neogit = true,
-      gitsigns = true,
+      integrations = {
+        fugitive = true,
+        neogit = true,
+        gitsigns = true,
+      },
     }
 <
 
@@ -505,7 +512,7 @@ to attach to any buffer whose content looks like a diff.
 FUGITIVE                                                      *diffs-fugitive*
 
 Enable vim-fugitive (https://github.com/tpope/vim-fugitive) support: >lua
-    vim.g.diffs = { fugitive = true }
+    vim.g.diffs = { integrations = { fugitive = true } }
 <
 
 |:Git| status and commit views receive treesitter syntax, line backgrounds,
@@ -546,9 +553,11 @@ Configuration: ~
                                                       *diffs.FugitiveConfig*
 >lua
     vim.g.diffs = {
-      fugitive = {
-        horizontal = 'du',  -- keymap for horizontal split, false to disable
-        vertical = 'dU',    -- keymap for vertical split, false to disable
+      integrations = {
+        fugitive = {
+          horizontal = 'du',  -- keymap for horizontal split, false to disable
+          vertical = 'dU',    -- keymap for vertical split, false to disable
+        },
       },
     }
 <
@@ -568,7 +577,7 @@ Configuration: ~
 NEOGIT                                                          *diffs-neogit*
 
 Enable Neogit (https://github.com/NeogitOrg/neogit) support: >lua
-    vim.g.diffs = { neogit = true }
+    vim.g.diffs = { integrations = { neogit = true } }
 <
 
 Expanding a diff in a Neogit buffer (e.g., TAB on a file in the status
@@ -580,7 +589,7 @@ GITSIGNS                                                      *diffs-gitsigns*
 
 Enable gitsigns.nvim (https://github.com/lewis6991/gitsigns.nvim) blame
 popup highlighting: >lua
-    vim.g.diffs = { gitsigns = true }
+    vim.g.diffs = { integrations = { gitsigns = true } }
 <
 
 `:Gitsigns blame_line full=true` popups receive treesitter syntax, line
@@ -594,7 +603,7 @@ TELESCOPE                                                  *diffs-telescope*
 
 Enable telescope.nvim (https://github.com/nvim-telescope/telescope.nvim)
 preview highlighting: >lua
-    vim.g.diffs = { telescope = true }
+    vim.g.diffs = { integrations = { telescope = true } }
 <
 
 Telescope does not set `filetype=diff` on preview buffers — it calls
