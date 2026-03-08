@@ -1,10 +1,9 @@
 # diffs.nvim
 
-**Syntax highlighting for diffs in Neovim**
+**Treesitter-powered Diff Syntax highlighting for Neovim**
 
-Enhance [vim-fugitive](https://github.com/tpope/vim-fugitive),
-[Neogit](https://github.com/NeogitOrg/neogit), and Neovim's built-in diff mode
-with language-aware syntax highlighting.
+Enhance Neovim's built-in diff mode (and much more!) with language-aware
+syntax highlighting driven by treesitter.
 
 <video src="https://github.com/user-attachments/assets/24574916-ecb2-478e-a0ea-e4cdc971e310" width="100%" controls></video>
 
