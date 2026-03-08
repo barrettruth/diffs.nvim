@@ -521,16 +521,16 @@ local function compute_highlight_groups(is_default)
   local dflt = is_default or false
   local normal_fg = normal.fg or (dark and 0xcccccc or 0x333333)
 
+  local alpha = config.highlights.blend_alpha or 0.6
   local blended_add, blended_del, blended_add_text, blended_del_text
   if transparent then
     blended_add = add_bg
     blended_del = del_bg
-    blended_add_text = add_fg
-    blended_del_text = del_fg
+    blended_add_text = blend_color(add_fg, bg, alpha)
+    blended_del_text = blend_color(del_fg, bg, alpha)
   else
     blended_add = blend_color(add_bg, bg, 0.4)
     blended_del = blend_color(del_bg, bg, 0.4)
-    local alpha = config.highlights.blend_alpha or 0.6
     blended_add_text = blend_color(add_fg, bg, alpha)
     blended_del_text = blend_color(del_fg, bg, alpha)
   end
@@ -583,11 +583,10 @@ local function compute_highlight_groups(is_default)
     blended_ours = add_bg
     blended_theirs = change_bg
     blended_base = text_bg
-    blended_ours_nr = add_fg
-    blended_theirs_nr = change_fg
-    blended_base_nr = change_fg
+    blended_ours_nr = blend_color(add_fg, bg, alpha)
+    blended_theirs_nr = blend_color(change_fg, bg, alpha)
+    blended_base_nr = blend_color(change_fg, bg, 0.4)
   else
-    local alpha = config.highlights.blend_alpha or 0.6
     blended_ours = blend_color(add_bg, bg, 0.4)
     blended_theirs = blend_color(change_bg, bg, 0.4)
     blended_base = blend_color(text_bg, bg, 0.3)
