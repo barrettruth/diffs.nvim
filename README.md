@@ -2,8 +2,8 @@
 
 **Treesitter-powered Diff Syntax highlighting for Neovim**
 
-Enhance Neovim's built-in diff mode (and much more!) with language-aware
-syntax highlighting driven by treesitter.
+Enhance Neovim's built-in diff mode (and much more!) with language-aware syntax
+highlighting driven by treesitter.
 
 <video src="https://github.com/user-attachments/assets/24574916-ecb2-478e-a0ea-e4cdc971e310" width="100%" controls></video>
 
