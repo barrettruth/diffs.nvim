@@ -241,11 +241,13 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              Only visible if line numbers are enabled.
 
         {blend_alpha}        (number, default: 0.6)
-                             Alpha value for character-level blend intensity.
-                             Controls how strongly changed characters stand
-                             out from the line-level background. Must be
-                             between 0 and 1 (inclusive). Higher values
-                             produce more vivid character-level highlights.
+                             Alpha value for diff line background intensity.
+                             Controls how strongly diff lines (adds/deletes)
+                             stand out from the editor background. Intra-line
+                             highlights use alpha + 0.3 (capped at 1.0) for
+                             extra contrast. Must be between 0 and 1
+                             (inclusive). Higher values produce more vivid
+                             backgrounds.
 
         {context}            (table, default: see below)
                              Syntax parsing context options.

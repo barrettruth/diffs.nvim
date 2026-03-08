@@ -522,28 +522,17 @@ local function compute_highlight_groups(is_default)
   local normal_fg = normal.fg or (dark and 0xcccccc or 0x333333)
 
   local alpha = config.highlights.blend_alpha or 0.6
-  local blended_add, blended_del, blended_add_text, blended_del_text
-  if transparent then
-    blended_add = add_bg
-    blended_del = del_bg
-    blended_add_text = blend_color(add_fg, bg, alpha)
-    blended_del_text = blend_color(del_fg, bg, alpha)
-  else
-    blended_add = blend_color(add_bg, bg, 0.4)
-    blended_del = blend_color(del_bg, bg, 0.4)
-    blended_add_text = blend_color(add_fg, bg, alpha)
-    blended_del_text = blend_color(del_fg, bg, alpha)
-  end
+  local text_alpha = math.min(alpha + 0.3, 1.0)
+  local blended_add = blend_color(add_bg, bg, alpha)
+  local blended_del = blend_color(del_bg, bg, alpha)
+  local blended_add_text = blend_color(add_bg, bg, text_alpha)
+  local blended_del_text = blend_color(del_bg, bg, text_alpha)
 
-  vim.api.nvim_set_hl(0, 'DiffsClear', { default = dflt, fg = normal_fg, bg = normal.bg })
+  vim.api.nvim_set_hl(0, 'DiffsClear', { default = dflt, fg = normal_fg, bg = bg })
   vim.api.nvim_set_hl(0, 'DiffsAdd', { default = dflt, bg = blended_add })
   vim.api.nvim_set_hl(0, 'DiffsDelete', { default = dflt, bg = blended_del })
-  vim.api.nvim_set_hl(0, 'DiffsAddNr', { default = dflt, fg = blended_add_text, bg = blended_add })
-  vim.api.nvim_set_hl(
-    0,
-    'DiffsDeleteNr',
-    { default = dflt, fg = blended_del_text, bg = blended_del }
-  )
+  vim.api.nvim_set_hl(0, 'DiffsAddNr', { default = dflt, fg = add_fg, bg = blended_add })
+  vim.api.nvim_set_hl(0, 'DiffsDeleteNr', { default = dflt, fg = del_fg, bg = blended_del })
   vim.api.nvim_set_hl(0, 'DiffsAddText', { default = dflt, bg = blended_add_text })
   vim.api.nvim_set_hl(0, 'DiffsDeleteText', { default = dflt, bg = blended_del_text })
 
@@ -577,23 +566,13 @@ local function compute_highlight_groups(is_default)
   local text_bg = diff_text.bg or 0x4a4a5a
   local change_fg = diff_change.fg or diff_text.fg or 0x80a0c0
 
-  local blended_ours, blended_theirs, blended_base
-  local blended_ours_nr, blended_theirs_nr, blended_base_nr
-  if transparent then
-    blended_ours = add_bg
-    blended_theirs = change_bg
-    blended_base = text_bg
-    blended_ours_nr = blend_color(add_fg, bg, alpha)
-    blended_theirs_nr = blend_color(change_fg, bg, alpha)
-    blended_base_nr = blend_color(change_fg, bg, 0.4)
-  else
-    blended_ours = blend_color(add_bg, bg, 0.4)
-    blended_theirs = blend_color(change_bg, bg, 0.4)
-    blended_base = blend_color(text_bg, bg, 0.3)
-    blended_ours_nr = blend_color(add_fg, bg, alpha)
-    blended_theirs_nr = blend_color(change_fg, bg, alpha)
-    blended_base_nr = blend_color(change_fg, bg, 0.4)
-  end
+  local base_alpha = math.max(alpha - 0.1, 0.0)
+  local blended_ours = blend_color(add_bg, bg, alpha)
+  local blended_theirs = blend_color(change_bg, bg, alpha)
+  local blended_base = blend_color(text_bg, bg, base_alpha)
+  local blended_ours_nr = add_fg
+  local blended_theirs_nr = change_fg
+  local blended_base_nr = change_fg
 
   vim.api.nvim_set_hl(0, 'DiffsConflictOurs', { default = dflt, bg = blended_ours })
   vim.api.nvim_set_hl(0, 'DiffsConflictTheirs', { default = dflt, bg = blended_theirs })
@@ -1144,6 +1123,9 @@ M._test = {
   end,
   set_hl_retry_pending = function(v)
     hl_retry_pending = v
+  end,
+  get_config = function()
+    return config
   end,
 }
 
