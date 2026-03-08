@@ -501,13 +501,14 @@ local function compute_highlight_groups(is_default)
   local diff_removed = resolve_hl('diffRemoved')
 
   local dark = vim.o.background ~= 'light'
+  local transparent = not normal.bg
   local bg = normal.bg or (dark and 0x1a1a1a or 0xf0f0f0)
   local add_bg = diff_add.bg or (dark and 0x1a3a1a or 0xd0ffd0)
   local del_bg = diff_delete.bg or (dark and 0x3a1a1a or 0xffd0d0)
   local add_fg = diff_added.fg or diff_add.fg or (dark and 0x80d080 or 0x206020)
   local del_fg = diff_removed.fg or diff_delete.fg or (dark and 0xd08080 or 0x802020)
 
-  if not normal.bg and not hl_retry_pending then
+  if transparent and not hl_retry_pending then
     hl_retry_pending = true
     vim.schedule(function()
       compute_highlight_groups(false)
@@ -517,19 +518,27 @@ local function compute_highlight_groups(is_default)
     end)
   end
 
-  local blended_add = blend_color(add_bg, bg, 0.4)
-  local blended_del = blend_color(del_bg, bg, 0.4)
-
-  local alpha = config.highlights.blend_alpha or 0.6
-  local blended_add_text = blend_color(add_fg, bg, alpha)
-  local blended_del_text = blend_color(del_fg, bg, alpha)
-
   local dflt = is_default or false
+  local normal_fg = normal.fg or (dark and 0xcccccc or 0x333333)
+
+  local blended_add, blended_del, blended_add_text, blended_del_text
+  if transparent then
+    blended_add = add_bg
+    blended_del = del_bg
+    blended_add_text = add_fg
+    blended_del_text = del_fg
+  else
+    blended_add = blend_color(add_bg, bg, 0.4)
+    blended_del = blend_color(del_bg, bg, 0.4)
+    local alpha = config.highlights.blend_alpha or 0.6
+    blended_add_text = blend_color(add_fg, bg, alpha)
+    blended_del_text = blend_color(del_fg, bg, alpha)
+  end
 
   vim.api.nvim_set_hl(
     0,
     'DiffsClear',
-    { default = dflt, fg = normal.fg or (dark and 0xcccccc or 0x333333), bg = bg }
+    { default = dflt, fg = normal_fg, bg = normal.bg }
   )
   vim.api.nvim_set_hl(0, 'DiffsAdd', { default = dflt, bg = blended_add })
   vim.api.nvim_set_hl(0, 'DiffsDelete', { default = dflt, bg = blended_del })
@@ -542,7 +551,12 @@ local function compute_highlight_groups(is_default)
   vim.api.nvim_set_hl(0, 'DiffsAddText', { default = dflt, bg = blended_add_text })
   vim.api.nvim_set_hl(0, 'DiffsDeleteText', { default = dflt, bg = blended_del_text })
 
-  dbg('highlight groups: Normal.bg=#%06x DiffAdd.bg=#%06x diffAdded.fg=#%06x', bg, add_bg, add_fg)
+  dbg(
+    'highlight groups: Normal.bg=%s DiffAdd.bg=#%06x diffAdded.fg=#%06x',
+    normal.bg and string.format('#%06x', normal.bg) or 'NONE',
+    add_bg,
+    add_fg
+  )
   dbg(
     'DiffsAdd.bg=#%06x DiffsAddText.bg=#%06x DiffsAddNr.fg=#%06x',
     blended_add,
@@ -567,12 +581,24 @@ local function compute_highlight_groups(is_default)
   local text_bg = diff_text.bg or 0x4a4a5a
   local change_fg = diff_change.fg or diff_text.fg or 0x80a0c0
 
-  local blended_ours = blend_color(add_bg, bg, 0.4)
-  local blended_theirs = blend_color(change_bg, bg, 0.4)
-  local blended_base = blend_color(text_bg, bg, 0.3)
-  local blended_ours_nr = blend_color(add_fg, bg, alpha)
-  local blended_theirs_nr = blend_color(change_fg, bg, alpha)
-  local blended_base_nr = blend_color(change_fg, bg, 0.4)
+  local blended_ours, blended_theirs, blended_base
+  local blended_ours_nr, blended_theirs_nr, blended_base_nr
+  if transparent then
+    blended_ours = add_bg
+    blended_theirs = change_bg
+    blended_base = text_bg
+    blended_ours_nr = add_fg
+    blended_theirs_nr = change_fg
+    blended_base_nr = change_fg
+  else
+    local alpha = config.highlights.blend_alpha or 0.6
+    blended_ours = blend_color(add_bg, bg, 0.4)
+    blended_theirs = blend_color(change_bg, bg, 0.4)
+    blended_base = blend_color(text_bg, bg, 0.3)
+    blended_ours_nr = blend_color(add_fg, bg, alpha)
+    blended_theirs_nr = blend_color(change_fg, bg, alpha)
+    blended_base_nr = blend_color(change_fg, bg, 0.4)
+  end
 
   vim.api.nvim_set_hl(0, 'DiffsConflictOurs', { default = dflt, bg = blended_ours })
   vim.api.nvim_set_hl(0, 'DiffsConflictTheirs', { default = dflt, bg = blended_theirs })
@@ -867,6 +893,7 @@ local function init()
 
   vim.api.nvim_create_autocmd('ColorScheme', {
     callback = function()
+      hl_retry_pending = false
       compute_highlight_groups(false)
       for bufnr, _ in pairs(attached_buffers) do
         invalidate_cache(bufnr)
