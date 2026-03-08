@@ -1115,8 +1115,12 @@ M._test = {
   ft_retry_pending = ft_retry_pending,
   compute_hunk_context = compute_hunk_context,
   compute_highlight_groups = compute_highlight_groups,
-  get_hl_retry_pending = function() return hl_retry_pending end,
-  set_hl_retry_pending = function(v) hl_retry_pending = v end,
+  get_hl_retry_pending = function()
+    return hl_retry_pending
+  end,
+  set_hl_retry_pending = function(v)
+    hl_retry_pending = v
+  end,
 }
 
 return M
