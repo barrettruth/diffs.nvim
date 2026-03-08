@@ -123,3 +123,4 @@ See the documentation for more information.
   filetype fix, shebang/modeline detection, treesitter injection support,
   decoration provider highlighting architecture, gitsigns blame popup
   highlighting
+- [@tris203](https://github.com/tris203) - support for transparent backgrounds
