@@ -554,7 +554,7 @@ describe('diffs', function()
       diffs._test.set_hl_retry_pending(false)
     end)
 
-    it('uses dark fallback bg for DiffsClear when Normal.bg is nil (transparent)', function()
+    it('omits DiffsClear.bg when Normal.bg is nil (transparent)', function()
       vim.api.nvim_get_hl = function(ns, opts)
         if opts.name == 'Normal' then
           return { fg = 0xc0c0c0 }
@@ -562,9 +562,20 @@ describe('diffs', function()
         return saved_get_hl(ns, opts)
       end
       diffs._test.compute_highlight_groups()
-      assert.are.equal(0x1a1a1a, set_calls.DiffsClear.bg)
+      assert.is_nil(set_calls.DiffsClear.bg)
       assert.is_table(set_calls.DiffsAdd)
       assert.is_table(set_calls.DiffsDelete)
+    end)
+
+    it('sets DiffsClear.bg to Normal.bg on opaque themes', function()
+      vim.api.nvim_get_hl = function(ns, opts)
+        if opts.name == 'Normal' then
+          return { fg = 0xebdbb2, bg = 0x282828 }
+        end
+        return saved_get_hl(ns, opts)
+      end
+      diffs._test.compute_highlight_groups()
+      assert.are.equal(0x282828, set_calls.DiffsClear.bg)
     end)
 
     it('blend_alpha controls DiffsAdd.bg intensity', function()
