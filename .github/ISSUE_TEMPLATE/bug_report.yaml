@@ -68,10 +68,26 @@ body:
         load(vim.fn.system('curl -s https://raw.githubusercontent.com/folke/lazy.nvim/main/bootstrap.lua'))()
         require('lazy.nvim').setup({
           spec = {
-            'tpope/vim-fugitive',
+            { 'barrettruth/midnight.nvim', lazy = false, config = function() vim.cmd.colorscheme('midnight') end },
+            { 'tpope/vim-fugitive' },
+            { 'NeogitOrg/neogit', dependencies = { 'nvim-lua/plenary.nvim' } },
+            { 'lewis6991/gitsigns.nvim', config = true },
+            { 'rhysd/committia.vim' },
+            { 'nvim-telescope/telescope.nvim', dependencies = { 'nvim-lua/plenary.nvim' } },
             {
               'barrettruth/diffs.nvim',
-              opts = {},
+              init = function()
+                vim.g.diffs = {
+                  debug = '/tmp/diffs.log',
+                  integrations = {
+                    fugitive = true,
+                    neogit = true,
+                    gitsigns = true,
+                    committia = true,
+                    telescope = true,
+                  },
+                }
+              end,
             },
           },
         })

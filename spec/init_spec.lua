@@ -527,4 +527,77 @@ describe('diffs', function()
       end)
     end)
   end)
+
+  describe('compute_highlight_groups', function()
+    local saved_get_hl, saved_set_hl, saved_schedule
+    local set_calls, schedule_cbs
+
+    before_each(function()
+      saved_get_hl = vim.api.nvim_get_hl
+      saved_set_hl = vim.api.nvim_set_hl
+      saved_schedule = vim.schedule
+      set_calls = {}
+      schedule_cbs = {}
+      vim.api.nvim_set_hl = function(_, group, opts)
+        set_calls[group] = opts
+      end
+      vim.schedule = function(cb)
+        table.insert(schedule_cbs, cb)
+      end
+      diffs._test.set_hl_retry_pending(false)
+    end)
+
+    after_each(function()
+      vim.api.nvim_get_hl = saved_get_hl
+      vim.api.nvim_set_hl = saved_set_hl
+      vim.schedule = saved_schedule
+      diffs._test.set_hl_retry_pending(false)
+    end)
+
+    it('sets DiffsClear.bg to a number when Normal.bg is nil', function()
+      vim.api.nvim_get_hl = function(ns, opts)
+        if opts.name == 'Normal' then
+          return { fg = 0xc0c0c0 }
+        end
+        return saved_get_hl(ns, opts)
+      end
+      diffs._test.compute_highlight_groups()
+      assert.is_number(set_calls.DiffsClear.bg)
+      assert.is_table(set_calls.DiffsAdd)
+      assert.is_table(set_calls.DiffsDelete)
+    end)
+
+    it('retries once then stops when Normal.bg stays nil', function()
+      vim.api.nvim_get_hl = function(ns, opts)
+        if opts.name == 'Normal' then
+          return { fg = 0xc0c0c0 }
+        end
+        return saved_get_hl(ns, opts)
+      end
+      diffs._test.compute_highlight_groups()
+      assert.are.equal(1, #schedule_cbs)
+      schedule_cbs[1]()
+      assert.are.equal(1, #schedule_cbs)
+      assert.is_true(diffs._test.get_hl_retry_pending())
+    end)
+
+    it('picks up bg on retry when colorscheme loads late', function()
+      local call_count = 0
+      vim.api.nvim_get_hl = function(ns, opts)
+        if opts.name == 'Normal' then
+          call_count = call_count + 1
+          if call_count <= 1 then
+            return { fg = 0xc0c0c0 }
+          end
+          return { fg = 0xc0c0c0, bg = 0x1e1e2e }
+        end
+        return saved_get_hl(ns, opts)
+      end
+      diffs._test.compute_highlight_groups()
+      assert.are.equal(1, #schedule_cbs)
+      schedule_cbs[1]()
+      assert.is_number(set_calls.DiffsClear.bg)
+      assert.are.equal(1, #schedule_cbs)
+    end)
+  end)
 end)

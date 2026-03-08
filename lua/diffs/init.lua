@@ -510,7 +510,6 @@ local function compute_highlight_groups()
   if not normal.bg and not hl_retry_pending then
     hl_retry_pending = true
     vim.schedule(function()
-      hl_retry_pending = false
       compute_highlight_groups()
       for bufnr, _ in pairs(attached_buffers) do
         invalidate_cache(bufnr)
@@ -1115,6 +1114,13 @@ M._test = {
   process_pending_clear = process_pending_clear,
   ft_retry_pending = ft_retry_pending,
   compute_hunk_context = compute_hunk_context,
+  compute_highlight_groups = compute_highlight_groups,
+  get_hl_retry_pending = function()
+    return hl_retry_pending
+  end,
+  set_hl_retry_pending = function(v)
+    hl_retry_pending = v
+  end,
 }
 
 return M
