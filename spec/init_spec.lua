@@ -554,7 +554,7 @@ describe('diffs', function()
       diffs._test.set_hl_retry_pending(false)
     end)
 
-    it('omits DiffsClear.bg when Normal.bg is nil (transparent)', function()
+    it('uses dark fallback bg for DiffsClear when Normal.bg is nil (transparent)', function()
       vim.api.nvim_get_hl = function(ns, opts)
         if opts.name == 'Normal' then
           return { fg = 0xc0c0c0 }
@@ -562,9 +562,36 @@ describe('diffs', function()
         return saved_get_hl(ns, opts)
       end
       diffs._test.compute_highlight_groups()
-      assert.is_nil(set_calls.DiffsClear.bg)
+      assert.are.equal(0x1a1a1a, set_calls.DiffsClear.bg)
       assert.is_table(set_calls.DiffsAdd)
       assert.is_table(set_calls.DiffsDelete)
+    end)
+
+    it('blend_alpha controls DiffsAdd.bg intensity', function()
+      local saved_config_alpha = diffs._test.get_config().highlights.blend_alpha
+      diffs._test.get_config().highlights.blend_alpha = 0.3
+      vim.api.nvim_get_hl = function(ns, opts)
+        if opts.name == 'Normal' then
+          return { fg = 0xc0c0c0, bg = 0x1e1e2e }
+        end
+        if opts.name == 'DiffAdd' then
+          return { bg = 0x1a3a1a }
+        end
+        if opts.name == 'DiffDelete' then
+          return { bg = 0x3a1a1a }
+        end
+        return saved_get_hl(ns, opts)
+      end
+      diffs._test.compute_highlight_groups()
+      local bg_03 = set_calls.DiffsAdd.bg
+
+      diffs._test.get_config().highlights.blend_alpha = 0.9
+      diffs._test.compute_highlight_groups()
+      local bg_09 = set_calls.DiffsAdd.bg
+
+      assert.is_not.equal(bg_03, bg_09)
+
+      diffs._test.get_config().highlights.blend_alpha = saved_config_alpha
     end)
 
     it('retries once then stops when Normal.bg stays nil', function()

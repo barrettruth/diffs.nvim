@@ -612,6 +612,12 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
             })
           end
         end
+      elseif opts.highlights.background and is_diff_line then
+        pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
+          end_col = 1,
+          hl_group = number_hl,
+          priority = p.syntax,
+        })
       end
 
       if opts.highlights.background and is_diff_line then

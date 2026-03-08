@@ -511,6 +511,83 @@ describe('highlight', function()
       delete_buffer(bufnr)
     end)
 
+    it('applies DiffsAddNr prefix extmark on + line for pw=1', function()
+      local bufnr = create_buffer({
+        '@@ -1,2 +1,2 @@',
+        '-old',
+        '+new',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { '-old', '+new' },
+        prefix_width = 1,
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { background = true, treesitter = { enabled = false } } })
+      )
+
+      local extmarks = get_extmarks(bufnr)
+      local add_prefix = false
+      local del_prefix = false
+      for _, mark in ipairs(extmarks) do
+        local d = mark[4]
+        if d and d.end_col == 1 and mark[3] == 0 then
+          if d.hl_group == 'DiffsAddNr' and mark[2] == 2 then
+            add_prefix = true
+          end
+          if d.hl_group == 'DiffsDeleteNr' and mark[2] == 1 then
+            del_prefix = true
+          end
+        end
+      end
+      assert.is_true(add_prefix, 'DiffsAddNr on + prefix')
+      assert.is_true(del_prefix, 'DiffsDeleteNr on - prefix')
+      delete_buffer(bufnr)
+    end)
+
+    it('does not apply prefix extmark on context line', function()
+      local bufnr = create_buffer({
+        '@@ -1,2 +1,2 @@',
+        ' ctx',
+        '+new',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { ' ctx', '+new' },
+        prefix_width = 1,
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { background = true, treesitter = { enabled = false } } })
+      )
+
+      local extmarks = get_extmarks(bufnr)
+      local ctx_prefix = false
+      for _, mark in ipairs(extmarks) do
+        local d = mark[4]
+        if d and mark[2] == 1 and mark[3] == 0 and d.end_col == 1 then
+          if d.hl_group == 'DiffsAddNr' or d.hl_group == 'DiffsDeleteNr' then
+            ctx_prefix = true
+          end
+        end
+      end
+      assert.is_false(ctx_prefix, 'no prefix extmark on context line')
+      delete_buffer(bufnr)
+    end)
+
     it('applies vim syntax extmarks when vim.enabled and no TS parser', function()
       local orig_synID = vim.fn.synID
       local orig_synIDtrans = vim.fn.synIDtrans
