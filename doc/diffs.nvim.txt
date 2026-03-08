@@ -993,6 +993,7 @@ ACKNOWLEDGEMENTS                                     *diffs-acknowledgements*
 - @phanen (https://github.com/phanen) - diff header highlighting,
   treesitter injection support, blame_hl.nvim (gitsigns blame popup
   highlighting inspiration)
+- @tris203 (https://github.com/tris203) - support for transparent backgrounds
 
 ==============================================================================
  vim:tw=78:ts=8:ft=help:norl:
