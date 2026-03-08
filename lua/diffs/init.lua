@@ -535,11 +535,7 @@ local function compute_highlight_groups(is_default)
     blended_del_text = blend_color(del_fg, bg, alpha)
   end
 
-  vim.api.nvim_set_hl(
-    0,
-    'DiffsClear',
-    { default = dflt, fg = normal_fg, bg = normal.bg }
-  )
+  vim.api.nvim_set_hl(0, 'DiffsClear', { default = dflt, fg = normal_fg, bg = normal.bg })
   vim.api.nvim_set_hl(0, 'DiffsAdd', { default = dflt, bg = blended_add })
   vim.api.nvim_set_hl(0, 'DiffsDelete', { default = dflt, bg = blended_del })
   vim.api.nvim_set_hl(0, 'DiffsAddNr', { default = dflt, fg = blended_add_text, bg = blended_add })
