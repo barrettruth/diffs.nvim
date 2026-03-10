@@ -479,7 +479,11 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
   elseif intra_cfg and not intra_cfg.enabled then
     dbg('intra disabled by config')
   elseif intra_cfg and (hunk._hl_line_count or #hunk.lines) > intra_cfg.max_lines then
-    dbg('intra skipped: %d highlighted lines > %d max', hunk._hl_line_count or #hunk.lines, intra_cfg.max_lines)
+    dbg(
+      'intra skipped: %d highlighted lines > %d max',
+      hunk._hl_line_count or #hunk.lines,
+      intra_cfg.max_lines
+    )
   end
 
   ---@type table<integer, diffs.CharSpan[]>
