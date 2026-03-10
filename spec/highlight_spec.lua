@@ -135,8 +135,8 @@ describe('highlight', function()
       local lines = { '@@ -1,100 +1,101 @@' }
       local hunk_lines = {}
       for i = 1, 600 do
-        table.insert(lines, ' line ' .. i)
-        table.insert(hunk_lines, ' line ' .. i)
+        table.insert(lines, '+line ' .. i)
+        table.insert(hunk_lines, '+line ' .. i)
       end
 
       local bufnr = create_buffer(lines)
