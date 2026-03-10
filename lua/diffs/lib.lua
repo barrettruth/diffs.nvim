@@ -183,13 +183,13 @@ function M.ensure(callback)
   local arch = get_arch()
   local ext = get_ext()
   local filename = ('libvscode_diff_%s_%s_%s.%s'):format(os_name, arch, EXPECTED_VERSION, ext)
-  local url = ('https://github.com/esmuellert/vscode-diff.nvim/releases/download/v%s/%s'):format(
+  local url = ('https://github.com/esmuellert/codediff.nvim/releases/download/v%s/%s'):format(
     EXPECTED_VERSION,
     filename
   )
 
   local dest = lib_path()
-  vim.notify('[diffs] downloading libvscode_diff...', vim.log.levels.INFO)
+  vim.notify('[diffs.nvim]: downloading libvscode_diff...', vim.log.levels.INFO)
 
   local cmd = { 'curl', '-fSL', '-o', dest, url }
 
@@ -198,7 +198,7 @@ function M.ensure(callback)
     vim.schedule(function()
       local handle = nil
       if result.code ~= 0 then
-        vim.notify('[diffs] failed to download libvscode_diff', vim.log.levels.WARN)
+        vim.notify('[diffs.nvim]: failed to download libvscode_diff', vim.log.levels.WARN)
         dbg('curl failed: %s', result.stderr or '')
       else
         local f = io.open(version_path(), 'w')
@@ -206,7 +206,7 @@ function M.ensure(callback)
           f:write(EXPECTED_VERSION)
           f:close()
         end
-        vim.notify('[diffs] libvscode_diff downloaded', vim.log.levels.INFO)
+        vim.notify('[diffs.nvim]: libvscode_diff downloaded', vim.log.levels.INFO)
         handle = M.load()
       end
 

@@ -63,7 +63,7 @@ function M.dump()
   if f then
     f:write(vim.json.encode(result))
     f:close()
-    vim.notify('[diffs.nvim] debug dump: ' .. path, vim.log.levels.INFO)
+    vim.notify('[diffs.nvim]: debug dump: ' .. path, vim.log.levels.INFO)
   end
 end
 
