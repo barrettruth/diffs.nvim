@@ -183,7 +183,7 @@ function M.ensure(callback)
   local arch = get_arch()
   local ext = get_ext()
   local filename = ('libvscode_diff_%s_%s_%s.%s'):format(os_name, arch, EXPECTED_VERSION, ext)
-  local url = ('https://github.com/esmuellert/vscode-diff.nvim/releases/download/v%s/%s'):format(
+  local url = ('https://github.com/esmuellert/codediff.nvim/releases/download/v%s/%s'):format(
     EXPECTED_VERSION,
     filename
   )
