@@ -93,6 +93,7 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
         background = true,
         gutter = true,
         blend_alpha = 0.6,
+        warn_max_lines = true,
         context = {
           enabled = true,
           lines = 25,
@@ -249,6 +250,11 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              (inclusive). Higher values produce more vivid
                              backgrounds.
 
+        {warn_max_lines}     (boolean, default: true)
+                             Show a |vim.notify()| warning when syntax
+                             highlighting is skipped because a hunk exceeds
+                             {max_lines}. See |diffs-max-lines|.
+
         {context}            (table, default: see below)
                              Syntax parsing context options.
                              See |diffs.ContextConfig| for fields.
@@ -322,8 +328,10 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              Apply treesitter syntax highlighting to code.
 
         {max_lines}          (integer, default: 500)
-                             Skip treesitter highlighting for hunks larger than
-                             this many lines. Prevents lag on massive diffs.
+                             Skip treesitter highlighting for hunks with more
+                             highlighted lines (`+`/`-`) than this threshold.
+                             Context lines are not counted. Prevents lag on
+                             massive diffs.
 
                                                           *diffs.VimConfig*
     Vim config fields: ~
@@ -338,9 +346,11 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              parser installed (e.g., COBOL, Fortran).
 
         {max_lines}          (integer, default: 200)
-                             Skip vim syntax highlighting for hunks larger than
-                             this many lines. Lower than the treesitter default
-                             due to the per-character cost of |synID()|.
+                             Skip vim syntax highlighting for hunks with more
+                             highlighted lines (`+`/`-`) than this threshold.
+                             Context lines are not counted. Lower than the
+                             treesitter default due to the per-character cost
+                             of |synID()|.
 
                                                         *diffs.IntraConfig*
     Intra config fields: ~
@@ -359,8 +369,9 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              (falls back to default if not available).
 
         {max_lines}          (integer, default: 500)
-                             Skip character-level highlighting for hunks larger
-                             than this many lines.
+                             Skip character-level highlighting for hunks with
+                             more highlighted lines (`+`/`-`) than this
+                             threshold. Context lines are not counted.
 
     Note: Header context (e.g., `@@ -10,3 +10,4 @@ func()`) is always
     highlighted with treesitter when a parser is available.
@@ -369,6 +380,33 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
     |vim.treesitter.language.get_lang()|. To customize filetype detection
     or register treesitter parsers for custom filetypes, use
     |vim.filetype.add()| and |vim.treesitter.language.register()|.
+
+==============================================================================
+MAX LINES                                                    *diffs-max-lines*
+
+When a hunk contains more highlighted lines (`+`/`-`) than the configured
+threshold, diffs.nvim skips syntax highlighting for that hunk to avoid lag.
+Context lines (lines with a space prefix) are not counted toward the limit.
+
+A warning is shown when this happens: >
+    [diffs.nvim]: Syntax highlighting skipped for 1 hunk(s) — too large.
+<
+To increase the threshold: >lua
+    vim.g.diffs = {
+      highlights = {
+        treesitter = { max_lines = 1000 },  -- default: 500
+        vim = { max_lines = 500 },           -- default: 200
+      },
+    }
+<
+To suppress the warning without changing the threshold: >lua
+    vim.g.diffs = {
+      highlights = { warn_max_lines = false },
+    }
+<
+The `intra.max_lines` threshold (default: 500) is separate and controls
+character-level diff highlighting within changed lines. It does not affect
+the syntax highlighting warning.
 
 ==============================================================================
 COMMANDS                                                      *diffs-commands*

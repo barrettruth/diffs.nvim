@@ -310,16 +310,27 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
   local use_vim = not use_ts and hunk.ft and opts.highlights.vim.enabled
 
   local max_lines = use_ts and opts.highlights.treesitter.max_lines or opts.highlights.vim.max_lines
-  if (use_ts or use_vim) and #hunk.lines > max_lines then
-    dbg(
-      'skipping hunk %s:%d (%d lines > %d max)',
-      hunk.filename,
-      hunk.start_line,
-      #hunk.lines,
-      max_lines
-    )
-    use_ts = false
-    use_vim = false
+  if use_ts or use_vim then
+    local hl_count = 0
+    for _, line in ipairs(hunk.lines) do
+      local c = line:sub(1, 1)
+      if c == '+' or c == '-' then
+        hl_count = hl_count + 1
+      end
+    end
+    hunk._hl_line_count = hl_count
+    if hl_count > max_lines then
+      dbg(
+        'skipping hunk %s:%d (%d highlighted lines > %d max)',
+        hunk.filename,
+        hunk.start_line,
+        hl_count,
+        max_lines
+      )
+      hunk._skipped_max_lines = true
+      use_ts = false
+      use_vim = false
+    end
   end
 
   if use_vim and opts.defer_vim_syntax then
@@ -456,7 +467,7 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     and intra_cfg
     and intra_cfg.enabled
     and pw == 1
-    and #hunk.lines <= intra_cfg.max_lines
+    and (hunk._hl_line_count or #hunk.lines) <= intra_cfg.max_lines
   then
     dbg('computing intra for hunk %s:%d (%d lines)', hunk.filename, hunk.start_line, #hunk.lines)
     intra = diff.compute_intra_hunks(hunk.lines, intra_cfg.algorithm)
@@ -467,8 +478,12 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     end
   elseif intra_cfg and not intra_cfg.enabled then
     dbg('intra disabled by config')
-  elseif intra_cfg and #hunk.lines > intra_cfg.max_lines then
-    dbg('intra skipped: %d lines > %d max', #hunk.lines, intra_cfg.max_lines)
+  elseif intra_cfg and (hunk._hl_line_count or #hunk.lines) > intra_cfg.max_lines then
+    dbg(
+      'intra skipped: %d highlighted lines > %d max',
+      hunk._hl_line_count or #hunk.lines,
+      intra_cfg.max_lines
+    )
   end
 
   ---@type table<integer, diffs.CharSpan[]>

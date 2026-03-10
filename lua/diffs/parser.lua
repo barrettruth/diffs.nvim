@@ -17,6 +17,8 @@
 ---@field repo_root string?
 ---@field context_before string[]?
 ---@field context_after string[]?
+---@field _hl_line_count integer?
+---@field _skipped_max_lines boolean?
 
 local M = {}
 

@@ -26,6 +26,7 @@
 ---@field gutter boolean
 ---@field blend_alpha? number
 ---@field overrides? table<string, table>
+---@field warn_max_lines boolean
 ---@field context diffs.ContextConfig
 ---@field treesitter diffs.TreesitterConfig
 ---@field vim diffs.VimConfig
@@ -132,6 +133,7 @@ local default_config = {
   highlights = {
     background = true,
     gutter = true,
+    warn_max_lines = true,
     context = {
       enabled = true,
       lines = 25,
@@ -203,6 +205,7 @@ local diff_windows = {}
 ---@field tick integer
 ---@field highlighted table<integer, true>
 ---@field pending_clear boolean
+---@field warned_max_lines boolean
 ---@field line_count integer
 ---@field byte_count integer
 
@@ -423,6 +426,7 @@ local function ensure_cache(bufnr)
     tick = tick,
     highlighted = carried or {},
     pending_clear = not carried,
+    warned_max_lines = false,
     line_count = lc,
     byte_count = bc,
   }
@@ -703,6 +707,7 @@ local function init()
     vim.validate('highlights.gutter', opts.highlights.gutter, 'boolean', true)
     vim.validate('highlights.blend_alpha', opts.highlights.blend_alpha, 'number', true)
     vim.validate('highlights.overrides', opts.highlights.overrides, 'table', true)
+    vim.validate('highlights.warn_max_lines', opts.highlights.warn_max_lines, 'boolean', true)
     vim.validate('highlights.context', opts.highlights.context, 'table', true)
     vim.validate('highlights.treesitter', opts.highlights.treesitter, 'table', true)
     vim.validate('highlights.vim', opts.highlights.vim, 'table', true)
@@ -910,6 +915,7 @@ local function init()
       end
       local t0 = config.debug and vim.uv.hrtime() or nil
       local deferred_syntax = {}
+      local skipped_count = 0
       local count = 0
       for i = first, last do
         if not entry.highlighted[i] then
@@ -923,12 +929,28 @@ local function init()
           highlight.highlight_hunk(bufnr, ns, hunk, fast_hl_opts)
           entry.highlighted[i] = true
           count = count + 1
+          if hunk._skipped_max_lines then
+            skipped_count = skipped_count + 1
+          end
           local has_syntax = hunk.lang and config.highlights.treesitter.enabled
           local needs_vim = not hunk.lang and hunk.ft and config.highlights.vim.enabled
           if has_syntax or needs_vim then
             table.insert(deferred_syntax, hunk)
           end
         end
+      end
+      if skipped_count > 0 and not entry.warned_max_lines and config.highlights.warn_max_lines then
+        entry.warned_max_lines = true
+        local n = skipped_count
+        vim.schedule(function()
+          vim.notify(
+            (
+              '[diffs.nvim]: Syntax highlighting skipped for %d hunk(s) — too large.'
+              .. ' See :h diffs-max-lines to resolve or suppress this warning.'
+            ):format(n),
+            vim.log.levels.WARN
+          )
+        end)
       end
       if #deferred_syntax > 0 then
         local tick = entry.tick
