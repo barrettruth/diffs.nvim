@@ -129,6 +129,18 @@ local function get_repo_root(bufnr)
     return vim.fn.fnamemodify(neogit_git_dir, ':h')
   end
 
+  if vim.bo[bufnr].filetype:match('^Neojj') then
+    local jj_ok, jj_mod = pcall(require, 'neojj.lib.jj')
+    if jj_ok then
+      local rok, repo = pcall(function()
+        return jj_mod.repo
+      end)
+      if rok and repo and repo.worktree_root then
+        return repo.worktree_root
+      end
+    end
+  end
+
   local cwd = vim.fn.getcwd()
   local git = require('diffs.git')
   return git.get_repo_root(cwd .. '/.')
@@ -244,6 +256,10 @@ function M.parse_buffer(bufnr)
       or (not logical:match('^deleted file mode') and logical:match('^deleted%s+(.+)$'))
       or logical:match('^renamed%s+(.+)$')
       or logical:match('^copied%s+(.+)$')
+      or logical:match('^added%s+(.+)$')
+      or logical:match('^updated%s+(.+)$')
+      or logical:match('^changed%s+(.+)$')
+      or logical:match('^unmerged%s+(.+)$')
     local bare_file = not hunk_start and logical:match('^([^%s]+%.[^%s]+)$')
     local filename = logical:match('^[MADRCU%?!]%s+(.+)$')
       or diff_git_file
