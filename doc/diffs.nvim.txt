@@ -40,6 +40,7 @@ CONTENTS                                                      *diffs-contents*
   7. Integrations ..................................... |diffs-integrations|
        Fugitive .......................................... |diffs-fugitive|
        Neogit .............................................. |diffs-neogit|
+       Neojj ............................................... |diffs-neojj|
        Gitsigns .......................................... |diffs-gitsigns|
        Telescope ........................................ |diffs-telescope|
   8. Conflict Resolution .................................... |diffs-conflict|
@@ -84,6 +85,7 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
       integrations = {
         fugitive = false,
         neogit = false,
+        neojj = false,
         gitsigns = false,
         committia = false,
         telescope = false,
@@ -178,6 +180,14 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              `NeogitDiffView` filetypes are registered.
                              See |diffs-neogit|. >lua
                                  integrations = { neogit = true }
+<
+
+            {neojj}          (boolean|table, default: false)
+                             Enable neojj integration. When active,
+                             `NeojjStatus`, `NeojjCommitView`, and
+                             `NeojjDiffView` filetypes are registered.
+                             See |diffs-neojj|. >lua
+                                 integrations = { neojj = true }
 <
 
             {gitsigns}       (boolean|table, default: false)
@@ -536,6 +546,7 @@ each integration's filetypes and attaches automatically.
       integrations = {
         fugitive = true,
         neogit = true,
+        neojj = true,
         gitsigns = true,
       },
     }
@@ -621,6 +632,17 @@ Enable Neogit (https://github.com/NeogitOrg/neogit) support: >lua
 <
 
 Expanding a diff in a Neogit buffer (e.g., TAB on a file in the status
+view) applies treesitter syntax highlighting and intra-line diffs to the
+hunk lines.
+
+------------------------------------------------------------------------------
+NEOJJ                                                            *diffs-neojj*
+
+Enable neojj (https://github.com/NicholasZolton/neojj) support: >lua
+    vim.g.diffs = { integrations = { neojj = true } }
+<
+
+Expanding a diff in a neojj buffer (e.g., TAB on a file in the status
 view) applies treesitter syntax highlighting and intra-line diffs to the
 hunk lines.
 

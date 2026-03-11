@@ -9,7 +9,10 @@ highlighting driven by treesitter.
 
 ## Features
 
-- Treesitter syntax highlighting in vim-fugitive, Neogit, and `diff` filetype
+- Treesitter syntax highlighting in
+  [vim-fugitive](https://github.com/tpope/vim-fugitive),
+  [Neogit](https://github.com/NeogitOrg/neogit), builtin `diff` filetype, and
+  more!
 - Character-level intra-line diff highlighting (with optional
   [vscode-diff](https://github.com/esmuellert/codediff.nvim) FFI backend for
   word-level accuracy)
@@ -58,15 +61,18 @@ luarocks install diffs.nvim
 Do not lazy load `diffs.nvim` with `event`, `lazy`, `ft`, `config`, or `keys` to
 control loading - `diffs.nvim` lazy-loads itself.
 
-**Q: Does diffs.nvim support vim-fugitive/Neogit/gitsigns?**
+**Q: Does diffs.nvim support vim-fugitive/Neogit/neojj/gitsigns?**
 
 Yes. Enable integrations in your config:
 
 ```lua
 vim.g.diffs = {
-  fugitive = true,
-  neogit = true,
-  gitsigns = true,
+  integrations = {
+    fugitive = true,
+    neogit = true,
+    neojj = true,
+    gitsigns = true,
+  }
 }
 ```
 
