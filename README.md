@@ -61,7 +61,8 @@ luarocks install diffs.nvim
 Do not lazy load `diffs.nvim` with `event`, `lazy`, `ft`, `config`, or `keys` to
 control loading - `diffs.nvim` lazy-loads itself.
 
-**Q: Does diffs.nvim support vim-fugitive/Neogit/neojj/gitsigns?**
+**Q: Does diffs.nvim support
+[vim-fugitive](https://github.com/tpope/vim-fugitive)/[Neogit](https://github.com/NeogitOrg/neogit)/[neojj](https://github.com/NicholasZolton/neojj)/[gitsigns](https://github.com/lewis6991/gitsigns.nvim)?**
 
 Yes. Enable integrations in your config:
 
