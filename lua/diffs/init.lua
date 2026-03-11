@@ -39,6 +39,8 @@
 
 ---@class diffs.NeogitConfig
 
+---@class diffs.NeojjConfig
+
 ---@class diffs.GitsignsConfig
 
 ---@class diffs.CommittiaConfig
@@ -65,6 +67,7 @@
 ---@class diffs.IntegrationsConfig
 ---@field fugitive diffs.FugitiveConfig|false
 ---@field neogit diffs.NeogitConfig|false
+---@field neojj diffs.NeojjConfig|false
 ---@field gitsigns diffs.GitsignsConfig|false
 ---@field committia diffs.CommittiaConfig|false
 ---@field telescope diffs.TelescopeConfig|false
@@ -77,6 +80,7 @@
 ---@field integrations diffs.IntegrationsConfig
 ---@field fugitive? diffs.FugitiveConfig|false deprecated: use integrations.fugitive
 ---@field neogit? diffs.NeogitConfig|false deprecated: use integrations.neogit
+---@field neojj? diffs.NeojjConfig|false deprecated: use integrations.neojj
 ---@field gitsigns? diffs.GitsignsConfig|false deprecated: use integrations.gitsigns
 ---@field committia? diffs.CommittiaConfig|false deprecated: use integrations.committia
 ---@field telescope? diffs.TelescopeConfig|false deprecated: use integrations.telescope
@@ -161,6 +165,7 @@ local default_config = {
   integrations = {
     fugitive = false,
     neogit = false,
+    neojj = false,
     gitsigns = false,
     committia = false,
     telescope = false,
@@ -238,6 +243,15 @@ function M.compute_filetypes(opts)
     table.insert(fts, 'NeogitStatus')
     table.insert(fts, 'NeogitCommitView')
     table.insert(fts, 'NeogitDiffView')
+  end
+  local njj = intg.neojj
+  if njj == nil then
+    njj = opts.neojj
+  end
+  if njj == true or type(njj) == 'table' then
+    table.insert(fts, 'NeojjStatus')
+    table.insert(fts, 'NeojjCommitView')
+    table.insert(fts, 'NeojjDiffView')
   end
   if type(opts.extra_filetypes) == 'table' then
     for _, ft in ipairs(opts.extra_filetypes) do
@@ -610,7 +624,7 @@ local function compute_highlight_groups(is_default)
   end
 end
 
-local integration_keys = { 'fugitive', 'neogit', 'gitsigns', 'committia', 'telescope' }
+local integration_keys = { 'fugitive', 'neogit', 'neojj', 'gitsigns', 'committia', 'telescope' }
 
 local function migrate_integrations(opts)
   if opts.integrations then
@@ -672,6 +686,10 @@ local function init()
 
   if intg.neogit == true then
     intg.neogit = {}
+  end
+
+  if intg.neojj == true then
+    intg.neojj = {}
   end
 
   if intg.gitsigns == true then
@@ -1032,6 +1050,21 @@ function M.attach(bufnr)
     })
   end
 
+  local neojj_augroup = nil
+  if config.integrations.neojj and vim.bo[bufnr].filetype:match('^Neojj') then
+    vim.b[bufnr].neojj_disable_hunk_highlight = true
+    neojj_augroup = vim.api.nvim_create_augroup('diffs_neojj_' .. bufnr, { clear = true })
+    vim.api.nvim_create_autocmd('User', {
+      pattern = 'NeojjDiffLoaded',
+      group = neojj_augroup,
+      callback = function()
+        if vim.api.nvim_buf_is_valid(bufnr) and attached_buffers[bufnr] then
+          M.refresh(bufnr)
+        end
+      end,
+    })
+  end
+
   dbg('attaching to buffer %d', bufnr)
 
   ensure_cache(bufnr)
@@ -1044,6 +1077,9 @@ function M.attach(bufnr)
       ft_retry_pending[bufnr] = nil
       if neogit_augroup then
         pcall(vim.api.nvim_del_augroup_by_id, neogit_augroup)
+      end
+      if neojj_augroup then
+        pcall(vim.api.nvim_del_augroup_by_id, neojj_augroup)
       end
     end,
   })
@@ -1099,6 +1135,12 @@ end
 function M.get_fugitive_config()
   init()
   return config.integrations.fugitive
+end
+
+---@return diffs.NeojjConfig|false
+function M.get_neojj_config()
+  init()
+  return config.integrations.neojj
 end
 
 ---@return diffs.CommittiaConfig|false
