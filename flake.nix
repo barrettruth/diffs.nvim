@@ -36,7 +36,7 @@
               trap 'rm -rf "$tmpdir"' EXIT
               printf '#!/bin/sh\nexec "%s" --cmd "set rtp+=${ts-plugin}/runtime" --cmd "set rtp+=${diff-grammar}" "$@"\n' "$nvim_bin" > "$tmpdir/nvim"
               chmod +x "$tmpdir/nvim"
-              PATH="$tmpdir:$PATH" exec ${luaEnv}/bin/busted "$@"
+              NVIM_APPNAME=nvim-tmp PATH="$tmpdir:$PATH" exec ${luaEnv}/bin/busted "$@"
             '';
           in
           pkgs.mkShell {
