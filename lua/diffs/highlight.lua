@@ -636,11 +636,19 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
       end
 
       if opts.highlights.background and is_diff_line then
+        -- NOTE: must use separate extmark here https://github.com/neovim/neovim/issues/31151
         pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
-          line_hl_group = line_hl,
-          number_hl_group = opts.highlights.gutter and number_hl or nil,
+          end_row = buf_line + 1,
+          hl_group = line_hl,
+          hl_eol = true,
           priority = p.line_bg,
         })
+        if opts.highlights.gutter then
+          pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
+            number_hl_group = number_hl,
+            priority = p.line_bg,
+          })
+        end
       end
 
       if is_marker and line_len > pw then
