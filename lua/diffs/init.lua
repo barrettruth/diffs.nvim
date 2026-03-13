@@ -347,6 +347,9 @@ end
 ---@param path string
 ---@return string[]?
 local function read_file_lines(path)
+  if vim.fn.isdirectory(path) == 1 then
+    return nil
+  end
   local f = io.open(path, 'r')
   if not f then
     return nil
