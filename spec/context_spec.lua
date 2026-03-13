@@ -165,6 +165,39 @@ describe('context', function()
       assert.is_nil(hunks[1].context_after)
     end)
 
+    it('skips when path is a directory', function()
+      vim.fn.mkdir(vim.fs.joinpath(tmpdir, 'subdir'), 'p')
+
+      local hunks = {
+        make_hunk('subdir', {
+          file_new_start = 1,
+          file_new_count = 1,
+          lines = { '+x' },
+        }),
+      }
+      compute_hunk_context(hunks, 25)
+
+      assert.is_nil(hunks[1].context_before)
+      assert.is_nil(hunks[1].context_after)
+    end)
+
+    it('skips when path is a symlink to a directory', function()
+      vim.fn.mkdir(vim.fs.joinpath(tmpdir, 'real_dir'), 'p')
+      vim.uv.fs_symlink(vim.fs.joinpath(tmpdir, 'real_dir'), vim.fs.joinpath(tmpdir, 'link_dir'))
+
+      local hunks = {
+        make_hunk('link_dir', {
+          file_new_start = 1,
+          file_new_count = 1,
+          lines = { '+x' },
+        }),
+      }
+      compute_hunk_context(hunks, 25)
+
+      assert.is_nil(hunks[1].context_before)
+      assert.is_nil(hunks[1].context_after)
+    end)
+
     it('skips when file does not exist on disk', function()
       local hunks = {
         make_hunk('nonexistent.lua', {
