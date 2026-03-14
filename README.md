@@ -128,5 +128,5 @@ See the documentation for more information.
 - [@phanen](https://github.com/phanen) - diff header highlighting, unknown
   filetype fix, shebang/modeline detection, treesitter injection support,
   decoration provider highlighting architecture, gitsigns blame popup
-  highlighting
+  highlighting, intra-line bg visibility fix
 - [@tris203](https://github.com/tris203) - support for transparent backgrounds
