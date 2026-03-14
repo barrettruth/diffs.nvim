@@ -956,15 +956,14 @@ Fugitive unified diff highlights: ~
 
                                                               *DiffsAddText*
     DiffsAddText        Character-level background for changed characters
-                        within `+` lines. Derived by blending `diffAdded`
-                        foreground with `Normal` background at 60% alpha.
-                        Only sets `bg`, so treesitter foreground colors show
-                        through.
+                        within `+` lines. Uses the raw `DiffAdd` background
+                        color. Only sets `bg`, so treesitter foreground
+                        colors show through.
 
                                                            *DiffsDeleteText*
     DiffsDeleteText     Character-level background for changed characters
-                        within `-` lines. Derived by blending `diffRemoved`
-                        foreground with `Normal` background at 60% alpha.
+                        within `-` lines. Uses the raw `DiffDelete`
+                        background color.
 
 Conflict highlights: ~
                                                         *DiffsConflictOurs*

@@ -287,7 +287,7 @@ describe('highlight', function()
       local extmarks = get_extmarks(bufnr)
       local has_diff_add = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].line_hl_group == 'DiffsAdd' then
+        if mark[4] and mark[4].hl_group == 'DiffsAdd' then
           has_diff_add = true
           break
         end
@@ -320,7 +320,7 @@ describe('highlight', function()
       local extmarks = get_extmarks(bufnr)
       local has_diff_delete = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].line_hl_group == 'DiffsDelete' then
+        if mark[4] and mark[4].hl_group == 'DiffsDelete' then
           has_diff_delete = true
           break
         end
@@ -362,7 +362,7 @@ describe('highlight', function()
       delete_buffer(bufnr)
     end)
 
-    it('line bg uses line_hl_group not hl_group with end_row', function()
+    it('line bg uses hl_group with hl_eol not line_hl_group', function()
       local bufnr = create_buffer({
         '@@ -1,1 +1,2 @@',
         ' local x = 1',
@@ -384,11 +384,16 @@ describe('highlight', function()
       )
 
       local extmarks = get_extmarks(bufnr)
+      local found = false
       for _, mark in ipairs(extmarks) do
         local d = mark[4]
-        assert.is_not_equal('DiffsAdd', d and d.hl_group)
-        assert.is_not_equal('DiffsDelete', d and d.hl_group)
+        if d and d.hl_group == 'DiffsAdd' then
+          assert.is_true(d.hl_eol)
+          assert.is_nil(d.line_hl_group)
+          found = true
+        end
       end
+      assert.is_true(found)
       delete_buffer(bufnr)
     end)
 
@@ -427,7 +432,7 @@ describe('highlight', function()
       )
       local has_line_bg = false
       for _, mark in ipairs(marks) do
-        if mark[4] and mark[4].line_hl_group == 'DiffsAdd' then
+        if mark[4] and mark[4].hl_group == 'DiffsAdd' then
           has_line_bg = true
         end
       end
@@ -502,7 +507,7 @@ describe('highlight', function()
       local extmarks = get_extmarks(bufnr)
       local has_diff_add = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].line_hl_group == 'DiffsAdd' then
+        if mark[4] and mark[4].hl_group == 'DiffsAdd' then
           has_diff_add = true
           break
         end
@@ -693,7 +698,7 @@ describe('highlight', function()
       local extmarks = get_extmarks(bufnr)
       local has_diff_add = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].line_hl_group == 'DiffsAdd' then
+        if mark[4] and mark[4].hl_group == 'DiffsAdd' then
           has_diff_add = true
           break
         end
@@ -778,7 +783,7 @@ describe('highlight', function()
       local found = false
       for _, mark in ipairs(extmarks) do
         local d = mark[4]
-        if d and (d.line_hl_group == 'DiffsAdd' or d.line_hl_group == 'DiffsDelete') then
+        if d and (d.hl_group == 'DiffsAdd' or d.hl_group == 'DiffsDelete') then
           found = true
         end
       end
@@ -934,7 +939,7 @@ describe('highlight', function()
         if d then
           if d.hl_group == 'DiffsClear' then
             table.insert(priorities.clear, d.priority)
-          elseif d.line_hl_group == 'DiffsAdd' or d.line_hl_group == 'DiffsDelete' then
+          elseif d.hl_group == 'DiffsAdd' or d.hl_group == 'DiffsDelete' then
             table.insert(priorities.line_bg, d.priority)
           elseif d.hl_group == 'DiffsAddText' or d.hl_group == 'DiffsDeleteText' then
             table.insert(priorities.char_bg, d.priority)
@@ -1035,8 +1040,8 @@ describe('highlight', function()
       local line_bgs = {}
       for _, mark in ipairs(extmarks) do
         local d = mark[4]
-        if d and (d.line_hl_group == 'DiffsAdd' or d.line_hl_group == 'DiffsDelete') then
-          line_bgs[mark[2]] = d.line_hl_group
+        if d and (d.hl_group == 'DiffsAdd' or d.hl_group == 'DiffsDelete') then
+          line_bgs[mark[2]] = d.hl_group
         end
       end
       assert.is_nil(line_bgs[1])
@@ -1232,8 +1237,8 @@ describe('highlight', function()
       local marker_text = {}
       for _, mark in ipairs(extmarks) do
         local d = mark[4]
-        if d and (d.line_hl_group == 'DiffsAdd' or d.line_hl_group == 'DiffsDelete') then
-          line_bgs[mark[2]] = d.line_hl_group
+        if d and (d.hl_group == 'DiffsAdd' or d.hl_group == 'DiffsDelete') then
+          line_bgs[mark[2]] = d.hl_group
         end
         if d and d.number_hl_group then
           gutter_hls[mark[2]] = d.number_hl_group
@@ -1376,7 +1381,7 @@ describe('highlight', function()
         for _, mark in ipairs(extmarks) do
           if mark[2] == row then
             local d = mark[4]
-            if d.line_hl_group then
+            if d.hl_group and d.hl_eol then
               line_hl_count = line_hl_count + 1
             end
             if d.number_hl_group then
@@ -1387,7 +1392,7 @@ describe('highlight', function()
             end
           end
         end
-        assert.are.equal(1, line_hl_count, 'row ' .. row .. ' has duplicate line_hl_group')
+        assert.are.equal(1, line_hl_count, 'row ' .. row .. ' has duplicate line bg')
         assert.are.equal(1, number_hl_count, 'row ' .. row .. ' has duplicate number_hl_group')
         assert.is_true(intra_count <= 1, 'row ' .. row .. ' has duplicate intra extmarks')
       end
@@ -1429,18 +1434,18 @@ describe('highlight', function()
 
       local extmarks = get_extmarks(bufnr)
       local has_ts = false
-      local line_hl_count = 0
+      local line_bg_count = 0
       for _, mark in ipairs(extmarks) do
         local d = mark[4]
         if d and d.hl_group and d.hl_group:match('^@.*%.lua$') then
           has_ts = true
         end
-        if d and d.line_hl_group then
-          line_hl_count = line_hl_count + 1
+        if d and d.hl_group and d.hl_eol then
+          line_bg_count = line_bg_count + 1
         end
       end
       assert.is_true(has_ts)
-      assert.are.equal(1, line_hl_count)
+      assert.are.equal(1, line_bg_count)
       delete_buffer(bufnr)
     end)
   end)

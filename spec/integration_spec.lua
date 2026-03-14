@@ -249,7 +249,7 @@ describe('integration', function()
       local extmarks = get_extmarks(bufnr, ns)
       local has_diff_add = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].line_hl_group == 'DiffsAdd' then
+        if mark[4] and mark[4].hl_group == 'DiffsAdd' then
           has_diff_add = true
           break
         end
@@ -275,7 +275,7 @@ describe('integration', function()
       local extmarks = get_extmarks(bufnr, ns)
       local has_diff_delete = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].line_hl_group == 'DiffsDelete' then
+        if mark[4] and mark[4].hl_group == 'DiffsDelete' then
           has_diff_delete = true
           break
         end
@@ -302,10 +302,10 @@ describe('integration', function()
       local has_add = false
       local has_delete = false
       for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].line_hl_group == 'DiffsAdd' then
+        if mark[4] and mark[4].hl_group == 'DiffsAdd' then
           has_add = true
         end
-        if mark[4] and mark[4].line_hl_group == 'DiffsDelete' then
+        if mark[4] and mark[4].hl_group == 'DiffsDelete' then
           has_delete = true
         end
       end
@@ -334,8 +334,8 @@ describe('integration', function()
       local line_bgs = {}
       for _, mark in ipairs(extmarks) do
         local d = mark[4]
-        if d and (d.line_hl_group == 'DiffsAdd' or d.line_hl_group == 'DiffsDelete') then
-          line_bgs[mark[2]] = d.line_hl_group
+        if d and (d.hl_group == 'DiffsAdd' or d.hl_group == 'DiffsDelete') then
+          line_bgs[mark[2]] = d.hl_group
         end
       end
       assert.is_nil(line_bgs[1])
@@ -417,10 +417,10 @@ describe('integration', function()
       local del_lines = {}
       for _, mark in ipairs(extmarks) do
         local d = mark[4]
-        if d and d.line_hl_group == 'DiffsAdd' then
+        if d and d.hl_group == 'DiffsAdd' then
           add_lines[mark[2]] = true
         end
-        if d and d.line_hl_group == 'DiffsDelete' then
+        if d and d.hl_group == 'DiffsDelete' then
           del_lines[mark[2]] = true
         end
       end
