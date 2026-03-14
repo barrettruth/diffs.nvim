@@ -465,7 +465,7 @@ describe('email-quoted diffs', function()
       local line_bg_count = 0
       for _, mark in ipairs(extmarks) do
         local d = mark[4]
-        if d and d.line_hl_group == 'DiffsAdd' then
+        if d and d.hl_group == 'DiffsAdd' then
           line_bg_count = line_bg_count + 1
         end
       end

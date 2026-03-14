@@ -543,11 +543,10 @@ local function compute_highlight_groups(is_default)
   local normal_fg = normal.fg or (dark and 0xcccccc or 0x333333)
 
   local alpha = config.highlights.blend_alpha or 0.6
-  local text_alpha = math.min(alpha + 0.3, 1.0)
   local blended_add = blend_color(add_bg, bg, alpha)
   local blended_del = blend_color(del_bg, bg, alpha)
-  local blended_add_text = blend_color(add_bg, bg, text_alpha)
-  local blended_del_text = blend_color(del_bg, bg, text_alpha)
+  local blended_add_text = add_bg
+  local blended_del_text = del_bg
 
   local clear_hl = { default = dflt, fg = normal_fg }
   if not transparent then
