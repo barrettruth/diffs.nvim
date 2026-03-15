@@ -636,10 +636,9 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
       end
 
       if opts.highlights.background and is_diff_line then
-        local bg_end_col = raw_len or (line_len + qw)
         pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
-          end_row = buf_line,
-          end_col = bg_end_col,
+          end_row = buf_line + 1,
+          end_col = 0,
           hl_group = line_hl,
           hl_eol = true,
           priority = p.line_bg,
