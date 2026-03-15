@@ -165,7 +165,7 @@ describe('decoration_provider', function()
   end)
 
   describe('hunk stability', function()
-    it('carries forward highlighted for stable hunks on section expansion', function()
+    it('forces full clear on section expansion (hunk count changed)', function()
       local bufnr = create_buffer({
         'M test.lua',
         '@@ -1,2 +1,2 @@',
@@ -193,14 +193,12 @@ describe('decoration_provider', function()
 
       local updated = diffs._test.hunk_cache[bufnr]
       assert.are.equal(3, #updated.hunks)
-      assert.is_true(updated.highlighted[1] == true)
-      assert.is_nil(updated.highlighted[2])
-      assert.is_true(updated.highlighted[3] == true)
-      assert.is_false(updated.pending_clear)
+      assert.are.same({}, updated.highlighted)
+      assert.is_true(updated.pending_clear)
       delete_buffer(bufnr)
     end)
 
-    it('carries forward highlighted for stable hunks on section collapse', function()
+    it('forces full clear on section collapse (stale extmarks from removed hunks)', function()
       local bufnr = create_buffer({
         'M test.lua',
         '@@ -1,2 +1,2 @@',
@@ -227,9 +225,8 @@ describe('decoration_provider', function()
 
       local updated = diffs._test.hunk_cache[bufnr]
       assert.are.equal(2, #updated.hunks)
-      assert.is_true(updated.highlighted[1] == true)
-      assert.is_true(updated.highlighted[2] == true)
-      assert.is_false(updated.pending_clear)
+      assert.are.same({}, updated.highlighted)
+      assert.is_true(updated.pending_clear)
       delete_buffer(bufnr)
     end)
 

@@ -437,7 +437,10 @@ local function ensure_cache(bufnr)
   if config.highlights.context.enabled then
     compute_hunk_context(hunks, config.highlights.context.lines)
   end
-  local carried = entry and not entry.pending_clear and carry_forward_highlighted(entry, hunks)
+  local carried = entry
+    and not entry.pending_clear
+    and #entry.hunks == #hunks
+    and carry_forward_highlighted(entry, hunks)
   hunk_cache[bufnr] = {
     hunks = hunks,
     tick = tick,
@@ -512,6 +515,23 @@ local function find_visible_hunks(hunks, toprow, botrow)
   end
 
   return first, last
+end
+
+---@param bufnr integer
+---@param ns_id integer
+---@param start_row integer
+---@param end_row integer
+local function clear_ns_by_start(bufnr, ns_id, start_row, end_row)
+  local marks = vim.api.nvim_buf_get_extmarks(
+    bufnr,
+    ns_id,
+    { start_row, 0 },
+    { end_row - 1, 2147483647 },
+    {}
+  )
+  for _, m in ipairs(marks) do
+    vim.api.nvim_buf_del_extmark(bufnr, ns_id, m[1])
+  end
 end
 
 local function compute_highlight_groups(is_default)
@@ -945,7 +965,7 @@ local function init()
           if hunk.header_start_line then
             clear_start = hunk.header_start_line - 1
           end
-          vim.api.nvim_buf_clear_namespace(bufnr, ns, clear_start, clear_end)
+          clear_ns_by_start(bufnr, ns, clear_start, clear_end)
           highlight.highlight_hunk(bufnr, ns, hunk, fast_hl_opts)
           entry.highlighted[i] = true
           count = count + 1
@@ -1185,6 +1205,7 @@ M._test = {
   invalidate_cache = invalidate_cache,
   hunks_eq = hunks_eq,
   process_pending_clear = process_pending_clear,
+  clear_ns_by_start = clear_ns_by_start,
   ft_retry_pending = ft_retry_pending,
   compute_hunk_context = compute_hunk_context,
   compute_highlight_groups = compute_highlight_groups,

@@ -397,48 +397,98 @@ describe('highlight', function()
       delete_buffer(bufnr)
     end)
 
-    it('line bg extmark survives adjacent clear_namespace starting at next row', function()
-      local bufnr = create_buffer({
-        'diff --git a/foo.py b/foo.py',
-        '@@ -1,2 +1,2 @@',
-        '-old',
-        '+new',
-      })
+    it(
+      'nvim_buf_clear_namespace kills line bg extmark whose end_row bleeds into cleared range',
+      function()
+        local bufnr = create_buffer({
+          'diff --git a/foo.py b/foo.py',
+          '@@ -1,2 +1,2 @@',
+          '-old',
+          '+new',
+        })
 
-      local hunk = {
-        filename = 'foo.py',
-        header_start_line = 1,
-        start_line = 2,
-        lines = { '-old', '+new' },
-        prefix_width = 1,
-      }
+        local hunk = {
+          filename = 'foo.py',
+          header_start_line = 1,
+          start_line = 2,
+          lines = { '-old', '+new' },
+          prefix_width = 1,
+        }
 
-      highlight.highlight_hunk(
-        bufnr,
-        ns,
-        hunk,
-        default_opts({ highlights = { background = true, treesitter = { enabled = false } } })
-      )
+        highlight.highlight_hunk(
+          bufnr,
+          ns,
+          hunk,
+          default_opts({ highlights = { background = true, treesitter = { enabled = false } } })
+        )
 
-      local last_body_row = hunk.start_line + #hunk.lines - 1
-      vim.api.nvim_buf_clear_namespace(bufnr, ns, last_body_row + 1, last_body_row + 10)
+        local last_body_row = hunk.start_line + #hunk.lines - 1
+        vim.api.nvim_buf_clear_namespace(bufnr, ns, last_body_row + 1, last_body_row + 10)
 
-      local marks = vim.api.nvim_buf_get_extmarks(
-        bufnr,
-        ns,
-        { last_body_row, 0 },
-        { last_body_row, -1 },
-        { details = true }
-      )
-      local has_line_bg = false
-      for _, mark in ipairs(marks) do
-        if mark[4] and mark[4].hl_group == 'DiffsAdd' then
-          has_line_bg = true
+        local marks = vim.api.nvim_buf_get_extmarks(
+          bufnr,
+          ns,
+          { last_body_row, 0 },
+          { last_body_row, -1 },
+          { details = true }
+        )
+        local has_line_bg = false
+        for _, mark in ipairs(marks) do
+          if mark[4] and mark[4].hl_group == 'DiffsAdd' then
+            has_line_bg = true
+          end
         end
+        assert.is_false(has_line_bg)
+        delete_buffer(bufnr)
       end
-      assert.is_true(has_line_bg)
-      delete_buffer(bufnr)
-    end)
+    )
+
+    it(
+      'clear_ns_by_start preserves line bg extmark whose end_row bleeds past cleared range',
+      function()
+        local bufnr = create_buffer({
+          'diff --git a/foo.py b/foo.py',
+          '@@ -1,2 +1,2 @@',
+          '-old',
+          '+new',
+        })
+
+        local hunk = {
+          filename = 'foo.py',
+          header_start_line = 1,
+          start_line = 2,
+          lines = { '-old', '+new' },
+          prefix_width = 1,
+        }
+
+        highlight.highlight_hunk(
+          bufnr,
+          ns,
+          hunk,
+          default_opts({ highlights = { background = true, treesitter = { enabled = false } } })
+        )
+
+        local last_body_row = hunk.start_line + #hunk.lines - 1
+        local clear_ns_by_start = require('diffs')._test.clear_ns_by_start
+        clear_ns_by_start(bufnr, ns, last_body_row + 1, last_body_row + 10)
+
+        local marks = vim.api.nvim_buf_get_extmarks(
+          bufnr,
+          ns,
+          { last_body_row, 0 },
+          { last_body_row, -1 },
+          { details = true }
+        )
+        local has_line_bg = false
+        for _, mark in ipairs(marks) do
+          if mark[4] and mark[4].hl_group == 'DiffsAdd' then
+            has_line_bg = true
+          end
+        end
+        assert.is_true(has_line_bg)
+        delete_buffer(bufnr)
+      end
+    )
 
     it('clear range covers last body line of hunk with header', function()
       local bufnr = create_buffer({
