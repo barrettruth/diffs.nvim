@@ -522,8 +522,13 @@ end
 ---@param start_row integer
 ---@param end_row integer
 local function clear_ns_by_start(bufnr, ns_id, start_row, end_row)
-  local marks =
-    vim.api.nvim_buf_get_extmarks(bufnr, ns_id, { start_row, 0 }, { end_row - 1, 2147483647 }, {})
+  local marks = vim.api.nvim_buf_get_extmarks(
+    bufnr,
+    ns_id,
+    { start_row, 0 },
+    { end_row - 1, 2147483647 },
+    {}
+  )
   for _, m in ipairs(marks) do
     vim.api.nvim_buf_del_extmark(bufnr, ns_id, m[1])
   end
