@@ -262,6 +262,59 @@ describe('parser', function()
       delete_buffer(bufnr)
     end)
 
+    it('extracts filename with mnemonic prefix c/ i/', function()
+      local bufnr = create_buffer({
+        'diff --git c/init.lua i/init.lua',
+        'index 3e8afa0..018159c 100644',
+        '--- c/init.lua',
+        '+++ i/init.lua',
+        '@@ -1,1 +1,2 @@',
+        ' local M = {}',
+        '+local x = 1',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('init.lua', hunks[1].filename)
+      assert.are.equal('lua', hunks[1].ft)
+      assert.are.equal('lua', hunks[1].lang)
+      delete_buffer(bufnr)
+    end)
+
+    it('extracts filename with mnemonic prefix w/ i/', function()
+      local bufnr = create_buffer({
+        'diff --git w/src/main.lua i/src/main.lua',
+        'index abc1234..def5678 100644',
+        '--- w/src/main.lua',
+        '+++ i/src/main.lua',
+        '@@ -1,1 +1,2 @@',
+        ' local M = {}',
+        '+local y = 2',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('src/main.lua', hunks[1].filename)
+      delete_buffer(bufnr)
+    end)
+
+    it('rejects non-letter prefix in diff header', function()
+      local bufnr = create_buffer({
+        'diff --git 1/init.lua 2/init.lua',
+        'index 3e8afa0..018159c 100644',
+        '--- 1/init.lua',
+        '+++ 2/init.lua',
+        '@@ -1,1 +1,2 @@',
+        ' local M = {}',
+        '+local x = 1',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.is_nil(hunks[1].filename)
+      delete_buffer(bufnr)
+    end)
+
     it('handles fugitive status format with diff headers', function()
       local bufnr = create_buffer({
         'Head: main',

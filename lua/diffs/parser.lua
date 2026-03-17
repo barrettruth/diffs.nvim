@@ -248,7 +248,7 @@ function M.parse_buffer(bufnr)
       end
     end
 
-    local diff_git_file = logical:match('^diff %-%-git a/.+ b/(.+)$')
+    local diff_git_file = logical:match('^diff %-%-git %a/.+ %a/(.+)$')
       or logical:match('^diff %-%-combined (.+)$')
       or logical:match('^diff %-%-cc (.+)$')
     local neogit_file = logical:match('^modified%s+(.+)$')
