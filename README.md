@@ -130,4 +130,5 @@ See the documentation for more information.
   decoration provider highlighting architecture, gitsigns blame popup
   highlighting, intra-line bg visibility fix
 - [@tris203](https://github.com/tris203) - support for transparent backgrounds
-- [@letientai299](https://github.com/letientai299) - `diff.mnemonicPrefix` support
+- [@letientai299](https://github.com/letientai299) - `diff.mnemonicPrefix`
+  support
