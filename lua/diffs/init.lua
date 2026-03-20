@@ -1000,13 +1000,25 @@ local function init()
             return
           end
           local cur = hunk_cache[bufnr]
-          if not cur or cur.tick ~= tick then
+          if not cur then
+            return
+          end
+          local hunks_to_hl = deferred_syntax
+          if cur.tick ~= tick then
             dbg(
-              'deferred syntax stale: cur.tick=%s captured=%d',
-              cur and tostring(cur.tick) or 'nil',
+              'deferred syntax tick changed: cur.tick=%s captured=%d, using current hunks',
+              tostring(cur.tick),
               tick
             )
-            return
+            hunks_to_hl = {}
+            for _, hunk in ipairs(cur.hunks or {}) do
+              if hunk.lang then
+                hunks_to_hl[#hunks_to_hl + 1] = hunk
+              end
+            end
+            if #hunks_to_hl == 0 then
+              return
+            end
           end
           local t1 = config.debug and vim.uv.hrtime() or nil
           local syntax_opts = {
@@ -1014,7 +1026,7 @@ local function init()
             highlights = config.highlights,
             syntax_only = true,
           }
-          for _, hunk in ipairs(deferred_syntax) do
+          for _, hunk in ipairs(hunks_to_hl) do
             highlight.highlight_hunk(bufnr, ns, hunk, syntax_opts)
           end
           if t1 then
