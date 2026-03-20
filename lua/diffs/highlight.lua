@@ -13,7 +13,17 @@ local diff = require('diffs.diff')
 ---@param priorities diffs.PrioritiesConfig
 ---@param context_before? string[]
 ---@return integer
-local function highlight_text(bufnr, ns, hunk, col_offset, text, lang, context_lines, priorities, context_before)
+local function highlight_text(
+  bufnr,
+  ns,
+  hunk,
+  col_offset,
+  text,
+  lang,
+  context_lines,
+  priorities,
+  context_before
+)
   local prefix_count = 0
   local parts = {}
   if context_before and #context_before > 0 then
