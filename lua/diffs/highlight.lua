@@ -11,12 +11,30 @@ local diff = require('diffs.diff')
 ---@param lang string
 ---@param context_lines? string[]
 ---@param priorities diffs.PrioritiesConfig
+---@param context_before? string[]
 ---@return integer
-local function highlight_text(bufnr, ns, hunk, col_offset, text, lang, context_lines, priorities)
-  local parse_text = text
-  if context_lines and #context_lines > 0 then
-    parse_text = text .. '\n' .. table.concat(context_lines, '\n')
+local function highlight_text(
+  bufnr,
+  ns,
+  hunk,
+  col_offset,
+  text,
+  lang,
+  context_lines,
+  priorities,
+  context_before
+)
+  local prefix_count = 0
+  local parts = {}
+  if context_before and #context_before > 0 then
+    prefix_count = #context_before
+    parts[#parts + 1] = table.concat(context_before, '\n')
   end
+  parts[#parts + 1] = text
+  if context_lines and #context_lines > 0 then
+    parts[#parts + 1] = table.concat(context_lines, '\n')
+  end
+  local parse_text = table.concat(parts, '\n')
 
   local ok, parser_obj = pcall(vim.treesitter.get_string_parser, parse_text, lang)
   if not ok or not parser_obj then
@@ -35,10 +53,11 @@ local function highlight_text(bufnr, ns, hunk, col_offset, text, lang, context_l
 
   local extmark_count = 0
   local header_line = hunk.start_line - 1
+  local target_row = prefix_count
 
   for id, node, metadata in query:iter_captures(trees[1]:root(), parse_text) do
     local sr, sc, _, ec = node:range()
-    if sr == 0 then
+    if sr == target_row then
       local capture_name = '@' .. query.captures[id] .. '.' .. lang
 
       local buf_sr = header_line
@@ -412,7 +431,8 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
         hunk.header_context,
         hunk.lang,
         new_code,
-        p
+        p,
+        hunk.context_before
       )
       if header_extmarks > 0 then
         dbg('header %s:%d applied %d extmarks', hunk.filename, hunk.start_line, header_extmarks)
