@@ -500,7 +500,7 @@ function M.greview(base, opts)
       parts[#parts + 1] = d > 0 and string.format('%' .. max_del .. 's', '-' .. d)
         or string.rep(' ', max_del)
     end
-    item.text = table.concat(parts, '  ')
+    item.text = table.concat(parts, '  '):gsub('%s+$', '')
   end
 
   local max_loc_fname = 0
@@ -522,10 +522,6 @@ function M.greview(base, opts)
     title = 'review: ' .. base,
     items = qf_items,
   })
-  vim.fn.setloclist(0, {}, ' ', {
-    title = 'review hunks: ' .. base,
-    items = loc_items,
-  })
 
   local existing_win = M.find_diffs_window()
   if existing_win then
@@ -535,6 +531,11 @@ function M.greview(base, opts)
     vim.cmd(opts.vertical and 'vsplit' or 'split')
     vim.api.nvim_win_set_buf(0, diff_buf)
   end
+
+  vim.fn.setloclist(0, {}, ' ', {
+    title = 'review hunks: ' .. base,
+    items = loc_items,
+  })
 
   M.setup_diff_buf(diff_buf)
   dbg('opened review buffer %d against %s', diff_buf, base)
