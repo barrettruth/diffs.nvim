@@ -2,7 +2,7 @@ local M = {}
 
 local repo_root_cache = {}
 
----@param filepath string
+---@param filepath? string
 ---@return string?
 function M.get_repo_root(filepath)
   local dir = vim.fn.fnamemodify(filepath, ':h')
