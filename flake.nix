@@ -41,23 +41,21 @@
             PATH="$tmpdir:$PATH" exec ${luaEnv}/bin/busted "$@"
           '';
           vimdoc-ls = vimdoc-language-server.packages.${pkgs.system}.default;
-          vimdoc-ls-ci = pkgs.writeShellScriptBin "vimdoc-language-server" ''
-            exec ${vimdoc-ls}/bin/vimdoc-language-server --runtime-tags "$@"
-          '';
           commonPackages = [
             busted-with-grammar
             pkgs.prettier
             pkgs.stylua
             pkgs.selene
             pkgs.lua-language-server
+            vimdoc-ls
           ];
         in
         {
           default = pkgs.mkShell {
-            packages = commonPackages ++ [ vimdoc-ls ];
+            packages = commonPackages;
           };
           ci = pkgs.mkShell {
-            packages = commonPackages ++ [ pkgs.neovim vimdoc-ls-ci ];
+            packages = commonPackages ++ [ pkgs.neovim ];
           };
         }
       );
