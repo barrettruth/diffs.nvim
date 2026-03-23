@@ -512,8 +512,7 @@ function M.greview(base, opts)
       .. string.rep(' ', max_loc_fname - #item.text)
       .. '  (hunk '
       .. item._hunk
-      .. ') '
-      .. item._header
+      .. ')'
     item._hunk = nil
     item._header = nil
   end
