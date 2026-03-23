@@ -362,6 +362,232 @@ function M.gdiff_section(repo_root, opts)
   end)
 end
 
+-- selene: allow(global_usage)
+function _G._diffs_qftf(info)
+  local items = info.quickfix == 1 and vim.fn.getqflist({ id = info.id, items = 0 }).items
+    or vim.fn.getloclist(0, { id = info.id, items = 0 }).items
+  local max_lnum = 0
+  for i = info.start_idx, info.end_idx do
+    local e = items[i]
+    if e.lnum > 0 then
+      max_lnum = math.max(max_lnum, #tostring(e.lnum))
+    end
+  end
+  local lnum_fmt = '%' .. math.max(max_lnum, 1) .. 'd'
+  local lines = {}
+  for i = info.start_idx, info.end_idx do
+    local e = items[i]
+    local text = e.text or ''
+    if max_lnum > 0 and e.lnum > 0 then
+      table.insert(lines, ('%s  %s'):format(lnum_fmt:format(e.lnum), text))
+    else
+      table.insert(lines, text)
+    end
+  end
+  return lines
+end
+
+---@class diffs.GreviewOpts
+---@field vertical? boolean
+---@field repo_root? string
+
+---@return string?
+local function default_branch()
+  local ref = vim.fn.system({ 'git', 'symbolic-ref', 'refs/remotes/origin/HEAD' })
+  if vim.v.shell_error ~= 0 then
+    return nil
+  end
+  return vim.trim(ref):gsub('^refs/remotes/', '')
+end
+
+---@param base? string
+---@param opts? diffs.GreviewOpts
+---@return integer?
+function M.greview(base, opts)
+  opts = opts or {}
+
+  if not base or base == '' then
+    base = default_branch()
+    if not base then
+      vim.notify(
+        '[diffs.nvim]: cannot detect default branch (try: git remote set-head origin -a)',
+        vim.log.levels.ERROR
+      )
+      return nil
+    end
+  end
+
+  local repo_root = opts.repo_root
+  if not repo_root then
+    local bufnr = vim.api.nvim_get_current_buf()
+    local filepath = vim.api.nvim_buf_get_name(bufnr)
+    repo_root = git.get_repo_root(filepath ~= '' and filepath or nil)
+  end
+  if not repo_root then
+    local cwd = vim.fn.getcwd()
+    repo_root = git.get_repo_root(cwd .. '/.')
+  end
+  if not repo_root then
+    vim.notify('[diffs.nvim]: not in a git repository', vim.log.levels.ERROR)
+    return nil
+  end
+
+  local target_name = 'diffs://review:' .. base
+  local existing_buf = vim.fn.bufnr(target_name)
+  if existing_buf ~= -1 then
+    pcall(vim.api.nvim_buf_delete, existing_buf, { force = true })
+  end
+
+  local cmd = { 'git', '-C', repo_root, 'diff', '--no-ext-diff', '--no-color', base }
+  local result = vim.fn.systemlist(cmd)
+  if vim.v.shell_error ~= 0 then
+    vim.notify('[diffs.nvim]: git diff failed', vim.log.levels.ERROR)
+    return nil
+  end
+  result = replace_combined_diffs(result, repo_root)
+  if #result == 0 then
+    vim.notify('[diffs.nvim]: no diff against ' .. base, vim.log.levels.INFO)
+    return nil
+  end
+
+  local diff_buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(diff_buf, 0, -1, false, result)
+  vim.api.nvim_set_option_value('buftype', 'nowrite', { buf = diff_buf })
+  vim.api.nvim_set_option_value('bufhidden', 'delete', { buf = diff_buf })
+  vim.api.nvim_set_option_value('swapfile', false, { buf = diff_buf })
+  vim.api.nvim_set_option_value('modifiable', false, { buf = diff_buf })
+  vim.api.nvim_set_option_value('filetype', 'diff', { buf = diff_buf })
+  vim.api.nvim_buf_set_name(diff_buf, 'diffs://review:' .. base)
+  vim.api.nvim_buf_set_var(diff_buf, 'diffs_repo_root', repo_root)
+
+  local qf_items = {}
+  local loc_items = {}
+  local current_file = nil
+  local file_adds, file_dels = {}, {}
+  local file_hunk_count = {}
+
+  for i, line in ipairs(result) do
+    local file = line:match('^diff %-%-git a/.+ b/(.+)$')
+    if file then
+      current_file = file
+      file_adds[file] = 0
+      file_dels[file] = 0
+      file_hunk_count[file] = 0
+      table.insert(qf_items, {
+        bufnr = diff_buf,
+        lnum = i,
+        text = file,
+      })
+    elseif current_file and line:match('^@@') then
+      file_hunk_count[current_file] = file_hunk_count[current_file] + 1
+      table.insert(loc_items, {
+        bufnr = diff_buf,
+        lnum = i,
+        text = current_file,
+        _hunk = file_hunk_count[current_file],
+        _header = line:match('^(@@.-@@)') or '',
+      })
+    elseif current_file then
+      local ch = line:sub(1, 1)
+      if ch == '+' and not line:match('^%+%+%+') then
+        file_adds[current_file] = file_adds[current_file] + 1
+      elseif ch == '-' and not line:match('^%-%-%-') then
+        file_dels[current_file] = file_dels[current_file] + 1
+      end
+    end
+  end
+
+  local max_fname = 0
+  local max_add, max_del = 0, 0
+  for _, item in ipairs(qf_items) do
+    max_fname = math.max(max_fname, #item.text)
+    local a = file_adds[item.text] or 0
+    local d = file_dels[item.text] or 0
+    if a > 0 then
+      max_add = math.max(max_add, #tostring(a) + 1)
+    end
+    if d > 0 then
+      max_del = math.max(max_del, #tostring(d) + 1)
+    end
+  end
+
+  for _, item in ipairs(qf_items) do
+    local file = item.text
+    local a = file_adds[file] or 0
+    local d = file_dels[file] or 0
+    local padded = file .. string.rep(' ', max_fname - #file)
+    local parts = { padded }
+    if max_add > 0 then
+      parts[#parts + 1] = a > 0 and string.format('%' .. max_add .. 's', '+' .. a)
+        or string.rep(' ', max_add)
+    end
+    if max_del > 0 then
+      parts[#parts + 1] = d > 0 and string.format('%' .. max_del .. 's', '-' .. d)
+        or string.rep(' ', max_del)
+    end
+    item.text = table.concat(parts, '  '):gsub('%s+$', '')
+  end
+
+  local max_loc_fname = 0
+  for _, item in ipairs(loc_items) do
+    max_loc_fname = math.max(max_loc_fname, #item.text)
+  end
+  for _, item in ipairs(loc_items) do
+    item.text = item.text
+      .. string.rep(' ', max_loc_fname - #item.text)
+      .. '  (hunk '
+      .. item._hunk
+      .. ') '
+      .. item._header
+    item._hunk = nil
+    item._header = nil
+  end
+
+  vim.fn.setqflist({}, ' ', {
+    title = 'review: ' .. base,
+    items = qf_items,
+    quickfixtextfunc = 'v:lua._diffs_qftf',
+  })
+
+  local existing_win = M.find_diffs_window()
+  if existing_win then
+    vim.api.nvim_set_current_win(existing_win)
+    vim.api.nvim_win_set_buf(existing_win, diff_buf)
+  else
+    vim.cmd(opts.vertical and 'vsplit' or 'split')
+    vim.api.nvim_win_set_buf(0, diff_buf)
+  end
+
+  vim.fn.setloclist(0, {}, ' ', {
+    title = 'review hunks: ' .. base,
+    items = loc_items,
+    quickfixtextfunc = 'v:lua._diffs_qftf',
+  })
+
+  M.setup_diff_buf(diff_buf)
+  dbg('opened review buffer %d against %s', diff_buf, base)
+
+  vim.schedule(function()
+    require('diffs').attach(diff_buf)
+  end)
+
+  return diff_buf
+end
+
+---@param buf integer
+---@param lnum integer
+---@return string?
+function M.review_file_at_line(buf, lnum)
+  local lines = vim.api.nvim_buf_get_lines(buf, 0, lnum, false)
+  for i = #lines, 1, -1 do
+    local file = lines[i]:match('^diff %-%-git a/.+ b/(.+)$')
+    if file then
+      return file
+    end
+  end
+  return nil
+end
+
 ---@param bufnr integer
 function M.read_buffer(bufnr)
   local name = vim.api.nvim_buf_get_name(bufnr)
@@ -392,6 +618,13 @@ function M.read_buffer(bufnr)
       diff_lines = {}
     end
 
+    diff_lines = replace_combined_diffs(diff_lines, repo_root)
+  elseif label == 'review' then
+    local cmd = { 'git', '-C', repo_root, 'diff', '--no-ext-diff', '--no-color', path }
+    diff_lines = vim.fn.systemlist(cmd)
+    if vim.v.shell_error ~= 0 then
+      diff_lines = {}
+    end
     diff_lines = replace_combined_diffs(diff_lines, repo_root)
   else
     local abs_path = repo_root .. '/' .. path
@@ -458,6 +691,36 @@ function M.setup()
   end, {
     nargs = '?',
     desc = 'Show unified diff against git revision in horizontal split',
+  })
+
+  vim.api.nvim_create_user_command('Greview', function(opts)
+    M.greview(opts.args ~= '' and opts.args or nil)
+  end, {
+    nargs = '?',
+    complete = function(arglead)
+      local refs = vim.fn.systemlist({
+        'git',
+        'for-each-ref',
+        '--format=%(refname:short)',
+        'refs/heads/',
+        'refs/remotes/',
+        'refs/tags/',
+      })
+      if vim.v.shell_error ~= 0 then
+        return {}
+      end
+      if arglead == '' then
+        return refs
+      end
+      local matches = {}
+      for _, ref in ipairs(refs) do
+        if ref:find(arglead, 1, true) == 1 then
+          table.insert(matches, ref)
+        end
+      end
+      return matches
+    end,
+    desc = 'Review diff against the default branch or a given git ref',
   })
 end
 

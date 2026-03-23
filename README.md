@@ -17,6 +17,7 @@ highlighting driven by treesitter.
   [vscode-diff](https://github.com/esmuellert/codediff.nvim) FFI backend for
   word-level accuracy)
 - `:Gdiff` unified diff against any revision
+- `:Greview` full-repo review diff with qflist/loclist navigation
 - Inline merge conflict detection, highlighting, and resolution
 - gitsigns.nvim blame popup highlighting
 - Email quoting/patch syntax support (`> diff ...`)

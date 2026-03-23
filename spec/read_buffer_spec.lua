@@ -286,6 +286,35 @@ describe('read_buffer', function()
 
       assert.is_truthy(vim.tbl_contains(captured_cmd, '--cached'))
     end)
+
+    it('runs git diff with base ref for review label', function()
+      local captured_cmd
+      mock_systemlist(function(cmd)
+        captured_cmd = cmd
+        return {
+          'diff --git a/file.lua b/file.lua',
+          '--- a/file.lua',
+          '+++ b/file.lua',
+          '@@ -1 +1 @@',
+          '-old',
+          '+new',
+        }
+      end)
+
+      local bufnr = create_diffs_buffer('diffs://review:origin/main', {
+        diffs_repo_root = '/home/test/repo',
+      })
+      commands.read_buffer(bufnr)
+
+      assert.is_not_nil(captured_cmd)
+      assert.are.equal('git', captured_cmd[1])
+      assert.are.equal('/home/test/repo', captured_cmd[3])
+      assert.are.equal('diff', captured_cmd[4])
+      assert.are.equal('origin/main', captured_cmd[#captured_cmd])
+
+      local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+      assert.are.equal('diff --git a/file.lua b/file.lua', lines[1])
+    end)
   end)
 
   describe('content', function()
