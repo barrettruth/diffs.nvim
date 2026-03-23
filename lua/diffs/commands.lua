@@ -366,15 +366,30 @@ end
 ---@field vertical? boolean
 ---@field repo_root? string
 
----@param base string
+---@return string?
+local function default_branch()
+  local ref = vim.fn.system({ 'git', 'symbolic-ref', 'refs/remotes/origin/HEAD' })
+  if vim.v.shell_error ~= 0 then
+    return nil
+  end
+  return vim.trim(ref):gsub('^refs/remotes/', '')
+end
+
+---@param base? string
 ---@param opts? diffs.GreviewOpts
 ---@return integer?
 function M.greview(base, opts)
   opts = opts or {}
 
   if not base or base == '' then
-    vim.notify('[diffs.nvim]: greview requires a base ref', vim.log.levels.ERROR)
-    return nil
+    base = default_branch()
+    if not base then
+      vim.notify(
+        '[diffs.nvim]: cannot detect default branch (try: git remote set-head origin -a)',
+        vim.log.levels.ERROR
+      )
+      return nil
+    end
   end
 
   local repo_root = opts.repo_root
@@ -478,13 +493,11 @@ function M.greview(base, opts)
     local padded = file .. string.rep(' ', max_fname - #file)
     local parts = { padded }
     if max_add > 0 then
-      parts[#parts + 1] = a > 0
-        and string.format('%' .. max_add .. 's', '+' .. a)
+      parts[#parts + 1] = a > 0 and string.format('%' .. max_add .. 's', '+' .. a)
         or string.rep(' ', max_add)
     end
     if max_del > 0 then
-      parts[#parts + 1] = d > 0
-        and string.format('%' .. max_del .. 's', '-' .. d)
+      parts[#parts + 1] = d > 0 and string.format('%' .. max_del .. 's', '-' .. d)
         or string.rep(' ', max_del)
     end
     item.text = table.concat(parts, '  ')
@@ -497,7 +510,10 @@ function M.greview(base, opts)
   for _, item in ipairs(loc_items) do
     item.text = item.text
       .. string.rep(' ', max_loc_fname - #item.text)
-      .. '  (hunk ' .. item._hunk .. ') ' .. item._header
+      .. '  (hunk '
+      .. item._hunk
+      .. ') '
+      .. item._header
     item._hunk = nil
     item._header = nil
   end
@@ -652,11 +668,15 @@ function M.setup()
   vim.api.nvim_create_user_command('Greview', function(opts)
     M.greview(opts.args ~= '' and opts.args or nil)
   end, {
-    nargs = 1,
+    nargs = '?',
     complete = function(arglead)
       local refs = vim.fn.systemlist({
-        'git', 'for-each-ref', '--format=%(refname:short)',
-        'refs/heads/', 'refs/remotes/', 'refs/tags/',
+        'git',
+        'for-each-ref',
+        '--format=%(refname:short)',
+        'refs/heads/',
+        'refs/remotes/',
+        'refs/tags/',
       })
       if vim.v.shell_error ~= 0 then
         return {}
@@ -672,7 +692,7 @@ function M.setup()
       end
       return matches
     end,
-    desc = 'Show unified diff against a git ref with qflist/loclist',
+    desc = 'Review diff against the default branch or a given git ref',
   })
 end
 

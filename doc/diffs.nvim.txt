@@ -446,10 +446,13 @@ COMMANDS                                                      *diffs-commands*
 :Ghdiff [revision]                                                   *:Ghdiff*
     Like |:Gdiff| but explicitly opens in a horizontal split.
 
-:Greview {base}                                                     *:Greview*
-    Open a unified diff of the entire repository against {base} (a git ref
-    such as `origin/main`, `HEAD~5`, or a commit SHA). Displays in a
-    horizontal split.
+:Greview [base]                                                     *:Greview*
+    Open a unified diff of the entire repository against [base]. Displays
+    in a horizontal split.
+
+    When called with no arguments, diffs against the remote default branch
+    (detected via `git symbolic-ref refs/remotes/origin/HEAD`). If the
+    remote HEAD ref is not set, run `git remote set-head origin -a` first.
 
     Populates the quickfix list with file entries (one per changed file,
     with `+N`/`-M` stats) and the location list with hunk entries (one per
@@ -464,15 +467,18 @@ COMMANDS                                                      *diffs-commands*
     diff replaces its buffer instead of creating another split.
 
     Parameters: ~
-        {base}  (string) Git ref to diff against. Required.
+        {base}  (string, optional) Git ref to diff against. Defaults to
+                the remote default branch.
 
     Examples: >vim
+        :Greview              " diff against remote default branch
         :Greview origin/main
         :Greview HEAD~10
         :Greview abc1234
 <
 
     Lua API: >lua
+        require('diffs.commands').greview()
         require('diffs.commands').greview('origin/main')
         require('diffs.commands').greview('origin/main', { vertical = true })
         require('diffs.commands').greview('origin/main', { repo_root = '/path/to/repo' })
@@ -600,13 +606,13 @@ Enable vim-fugitive (https://github.com/tpope/vim-fugitive) support: >lua
     vim.g.diffs = { integrations = { fugitive = true } }
 <
 
-|:Git| status and commit views receive treesitter syntax, line backgrounds,
+`:Git` status and commit views receive treesitter syntax, line backgrounds,
 and intra-line diffs. |:Gdiff| opens a unified diff against any revision (see
 |diffs-commands|).
 
 Fugitive status keymaps: ~
 
-When inside a |:Git| status buffer, diffs.nvim provides keymaps to open
+When inside a `:Git` status buffer, diffs.nvim provides keymaps to open
 unified diffs for files or entire sections.
 
 Keymaps: ~
@@ -1032,7 +1038,7 @@ Conflict highlights: ~
     DiffsConflictActions Dimmed foreground (no bold) for the codelens-style
                         action line shown when `show_actions` is true.
 
-Diff mode window highlights: ~ These are used for |winhighlight| remapping in
+Diff mode window highlights: ~ These are used for 'winhighlight' remapping in
 `&diff` windows.
 
                                                                 *DiffsDiffAdd*
