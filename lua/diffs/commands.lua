@@ -362,6 +362,31 @@ function M.gdiff_section(repo_root, opts)
   end)
 end
 
+-- selene: allow(global_usage)
+function _G._diffs_qftf(info)
+  local items = info.quickfix == 1 and vim.fn.getqflist({ id = info.id, items = 0 }).items
+    or vim.fn.getloclist(0, { id = info.id, items = 0 }).items
+  local max_lnum = 0
+  for i = info.start_idx, info.end_idx do
+    local e = items[i]
+    if e.lnum > 0 then
+      max_lnum = math.max(max_lnum, #tostring(e.lnum))
+    end
+  end
+  local lnum_fmt = '%' .. math.max(max_lnum, 1) .. 'd'
+  local lines = {}
+  for i = info.start_idx, info.end_idx do
+    local e = items[i]
+    local text = e.text or ''
+    if max_lnum > 0 and e.lnum > 0 then
+      table.insert(lines, ('%s  %s'):format(lnum_fmt:format(e.lnum), text))
+    else
+      table.insert(lines, text)
+    end
+  end
+  return lines
+end
+
 ---@class diffs.GreviewOpts
 ---@field vertical? boolean
 ---@field repo_root? string
@@ -512,7 +537,8 @@ function M.greview(base, opts)
       .. string.rep(' ', max_loc_fname - #item.text)
       .. '  (hunk '
       .. item._hunk
-      .. ')'
+      .. ') '
+      .. item._header
     item._hunk = nil
     item._header = nil
   end
@@ -520,6 +546,7 @@ function M.greview(base, opts)
   vim.fn.setqflist({}, ' ', {
     title = 'review: ' .. base,
     items = qf_items,
+    quickfixtextfunc = 'v:lua._diffs_qftf',
   })
 
   local existing_win = M.find_diffs_window()
@@ -534,6 +561,7 @@ function M.greview(base, opts)
   vim.fn.setloclist(0, {}, ' ', {
     title = 'review hunks: ' .. base,
     items = loc_items,
+    quickfixtextfunc = 'v:lua._diffs_qftf',
   })
 
   M.setup_diff_buf(diff_buf)
