@@ -112,6 +112,79 @@ describe('commands', function()
     end)
   end)
 
+  describe('setup registers Greview command', function()
+    it('registers Greview command', function()
+      commands.setup()
+      local cmds = vim.api.nvim_get_commands({})
+      assert.is_not_nil(cmds.Greview)
+    end)
+  end)
+
+  describe('review_file_at_line', function()
+    local test_buffers = {}
+
+    after_each(function()
+      for _, bufnr in ipairs(test_buffers) do
+        if vim.api.nvim_buf_is_valid(bufnr) then
+          vim.api.nvim_buf_delete(bufnr, { force = true })
+        end
+      end
+      test_buffers = {}
+    end)
+
+    it('returns filename at cursor line', function()
+      local bufnr = vim.api.nvim_create_buf(false, true)
+      table.insert(test_buffers, bufnr)
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {
+        'diff --git a/foo.lua b/foo.lua',
+        '--- a/foo.lua',
+        '+++ b/foo.lua',
+        '@@ -1,3 +1,4 @@',
+        ' local M = {}',
+        '+local x = 1',
+        ' return M',
+      })
+
+      assert.are.equal('foo.lua', commands.review_file_at_line(bufnr, 6))
+    end)
+
+    it('returns correct file in multi-file diff', function()
+      local bufnr = vim.api.nvim_create_buf(false, true)
+      table.insert(test_buffers, bufnr)
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {
+        'diff --git a/foo.lua b/foo.lua',
+        '@@ -1 +1 @@',
+        '-old',
+        '+new',
+        'diff --git a/bar.lua b/bar.lua',
+        '@@ -1 +1 @@',
+        '-old',
+        '+new',
+      })
+
+      assert.are.equal('foo.lua', commands.review_file_at_line(bufnr, 3))
+      assert.are.equal('bar.lua', commands.review_file_at_line(bufnr, 7))
+    end)
+
+    it('returns nil before any diff header', function()
+      local bufnr = vim.api.nvim_create_buf(false, true)
+      table.insert(test_buffers, bufnr)
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {
+        'some preamble text',
+        'diff --git a/foo.lua b/foo.lua',
+      })
+
+      assert.is_nil(commands.review_file_at_line(bufnr, 1))
+    end)
+
+    it('returns nil on empty buffer', function()
+      local bufnr = vim.api.nvim_create_buf(false, true)
+      table.insert(test_buffers, bufnr)
+
+      assert.is_nil(commands.review_file_at_line(bufnr, 1))
+    end)
+  end)
+
   describe('find_hunk_line', function()
     it('finds matching @@ header and returns target line', function()
       local diff_lines = {

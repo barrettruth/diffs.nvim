@@ -26,6 +26,7 @@ Features: ~
 - Optional diff prefix (`+`/`-`/` `) concealment
 - Gutter (line number) highlighting
 - |:Gdiff| unified diff against any revision
+- |:Greview| full-repo review diff with qflist/loclist navigation
 - Email quoting/patch syntax support (`> diff ...`)
 
 ==============================================================================
@@ -448,6 +449,46 @@ COMMANDS                                                      *diffs-commands*
 
 :Ghdiff [revision]                                                  *:Ghdiff*
     Like |:Gdiff| but explicitly opens in a horizontal split.
+
+:Greview {base}                                                    *:Greview*
+    Open a unified diff of the entire repository against {base} (a git ref
+    such as `origin/main`, `HEAD~5`, or a commit SHA). Displays in a
+    horizontal split.
+
+    Populates the quickfix list with file entries (one per changed file,
+    with `+N`/`-M` stats) and the location list with hunk entries (one per
+    `@@` header, with filename and hunk number). All entries point into the
+    diff buffer, so |:cnext|/|:cprev| navigate between files and
+    |:lnext|/|:lprev| navigate between hunks within the buffer.
+
+    The buffer is named `diffs://review:{base}`. Reloading with |:edit|
+    refreshes the diff content.
+
+    If a `diffs://` window already exists in the current tabpage, the new
+    diff replaces its buffer instead of creating another split.
+
+    Parameters: ~
+        {base}  (string) Git ref to diff against. Required.
+
+    Examples: >vim
+        :Greview origin/main
+        :Greview HEAD~10
+        :Greview abc1234
+<
+
+    Lua API: >lua
+        require('diffs.commands').greview('origin/main')
+        require('diffs.commands').greview('origin/main', { vertical = true })
+        require('diffs.commands').greview('origin/main', { repo_root = '/path/to/repo' })
+<
+    When called from async contexts (e.g., plugin callbacks where the
+    current buffer may not be in a git repo), pass `repo_root` explicitly
+    to avoid repo detection failures.
+
+    Utilities: ~
+        `require('diffs.commands').review_file_at_line(bufnr, lnum)` returns
+        the filename at a given line in a review buffer by walking backwards
+        to the nearest `diff --git` header.
 
 ==============================================================================
 MAPPINGS                                                     *diffs-mappings*
