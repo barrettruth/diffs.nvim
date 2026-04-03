@@ -126,10 +126,10 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
         show_virtual_text = true,
         show_actions = false,
         keymaps = {
-          ours = 'doo',
-          theirs = 'dot',
-          both = 'dob',
-          none = 'don',
+          ours = 'co',
+          theirs = 'ct',
+          both = 'cb',
+          none = 'c0',
           next = ']c',
           prev = '[c',
         },
@@ -742,10 +742,10 @@ Configuration: ~
         show_actions = false,
         priority = 200,
         keymaps = {
-          ours = 'doo',
-          theirs = 'dot',
-          both = 'dob',
-          none = 'don',
+          ours = 'co',
+          theirs = 'ct',
+          both = 'cb',
+          none = 'c0',
           next = ']c',
           prev = '[c',
         },
@@ -806,16 +806,16 @@ Configuration: ~
 
                                                        *diffs.ConflictKeymaps*
     Keymap fields: ~
-        {ours}               (string|false, default: 'doo')
+        {ours}               (string|false, default: 'co')
                              Accept current (ours) change.
 
-        {theirs}             (string|false, default: 'dot')
+        {theirs}             (string|false, default: 'ct')
                              Accept incoming (theirs) change.
 
-        {both}               (string|false, default: 'dob')
+        {both}               (string|false, default: 'cb')
                              Accept both changes (ours then theirs).
 
-        {none}               (string|false, default: 'don')
+        {none}               (string|false, default: 'c0')
                              Reject both changes (delete entire block).
 
         {next}               (string|false, default: ']c')
@@ -845,14 +845,14 @@ When pressing `du`/`dU` on an unmerged (`U`) file in the fugitive status
 buffer, diffs.nvim opens a unified diff of ours (`git show :2:path`) vs theirs
 (`git show :3:path`) with full treesitter and intra-line highlighting.
 
-The same conflict resolution keymaps (`doo`/`dot`/`dob`/`don`/`]c`/`[c`) are
+The same conflict resolution keymaps (`co`/`ct`/`cb`/`c0`/`]c`/`[c`) are
 available on the diff buffer. They resolve conflicts in the working file by
 matching diff hunks to conflict markers:
 
-- `doo` replaces the conflict region with ours content
-- `dot` replaces the conflict region with theirs content
-- `dob` replaces with both (ours then theirs)
-- `don` removes the conflict region entirely
+- `co` replaces the conflict region with ours content
+- `ct` replaces the conflict region with theirs content
+- `cb` replaces with both (ours then theirs)
+- `c0` removes the conflict region entirely
 - `]c`/`[c` navigate between unresolved conflict hunks
 
 Resolved hunks are marked with `(resolved)` virtual text. Hunks that
