@@ -8,10 +8,10 @@ local function default_config(overrides)
     show_virtual_text = true,
     show_actions = false,
     keymaps = {
-      ours = 'doo',
-      theirs = 'dot',
-      both = 'dob',
-      none = 'don',
+      ours = 'co',
+      theirs = 'ct',
+      both = 'cb',
+      none = 'c0',
       next = ']c',
       prev = '[c',
     },
@@ -721,8 +721,8 @@ describe('merge', function()
       end
       assert.are.equal(1, #hint_marks)
       assert.are.equal(3, hint_marks[1].line)
-      assert.is_truthy(hint_marks[1].text:find('doo'))
-      assert.is_truthy(hint_marks[1].text:find('dot'))
+      assert.is_truthy(hint_marks[1].text:find('co'))
+      assert.is_truthy(hint_marks[1].text:find('ct'))
 
       helpers.delete_buffer(d_bufnr)
     end)
