@@ -16,6 +16,8 @@ jobs:
     name: Test (Neovim ${{ matrix.nvim }})
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: repo
       - uses: rhysd/action-setup-vim@v1
         id: setup-vim
         with:
@@ -26,5 +28,6 @@ jobs:
             export PATH="$(dirname "$NVIM_BIN"):$PATH"
             busted
           '
+        working-directory: repo
         env:
           NVIM_BIN: ${{ steps.setup-vim.outputs.executable }}
