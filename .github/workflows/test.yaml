@@ -9,7 +9,10 @@ on:
 jobs:
   test:
     runs-on: [self-hosted, linux, x64, netcup, general]
-    container: ubuntu:24.04
+    container:
+      image: ubuntu:24.04
+      volumes:
+        - /nix/store:/nix/store:ro
     strategy:
       fail-fast: false
       matrix:
