@@ -17,14 +17,15 @@ jobs:
         - /etc/static:/etc/static:ro
       env:
         SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+        TMPDIR: /github/home/tmp
     strategy:
       fail-fast: false
       matrix:
         nvim: [stable, nightly]
     name: Test (Neovim ${{ matrix.nvim }})
     steps:
+      - run: mkdir -p $TMPDIR && apt-get update && apt-get install -y sudo git
       - uses: actions/checkout@v4
-
       - uses: nvim-neorocks/nvim-busted-action@v1
         with:
           nvim_version: ${{ matrix.nvim }}
