@@ -10,6 +10,8 @@ on:
 jobs:
   changes:
     runs-on: [self-hosted, linux, x64, netcup, general]
+    permissions:
+      pull-requests: read
     outputs:
       lua: ${{ steps.changes.outputs.lua }}
       markdown: ${{ steps.changes.outputs.markdown }}
