@@ -13,6 +13,10 @@ jobs:
       image: ubuntu:24.04
       volumes:
         - /nix/store:/nix/store:ro
+        - /etc/ssl:/etc/ssl:ro
+        - /etc/static:/etc/static:ro
+      env:
+        SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
     strategy:
       fail-fast: false
       matrix:
