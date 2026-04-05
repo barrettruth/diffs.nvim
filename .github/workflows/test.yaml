@@ -9,6 +9,7 @@ on:
 jobs:
   test:
     runs-on: [self-hosted, linux, x64, netcup, general]
+    container: ubuntu:24.04
     strategy:
       fail-fast: false
       matrix:
