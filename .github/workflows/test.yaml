@@ -13,10 +13,7 @@ jobs:
       image: ubuntu:24.04
       volumes:
         - /nix/store:/nix/store:ro
-        - /etc/ssl:/etc/ssl:ro
-        - /etc/static:/etc/static:ro
       env:
-        SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
         TMPDIR: /github/home/tmp
     strategy:
       fail-fast: false
@@ -24,7 +21,12 @@ jobs:
         nvim: [stable, nightly]
     name: Test (Neovim ${{ matrix.nvim }})
     steps:
-      - run: mkdir -p $TMPDIR && apt-get update && apt-get install -y sudo git
+      - run: |
+          mkdir -p $TMPDIR
+          cert=$(ls /nix/store/*-nss-cacert-*/etc/ssl/certs/ca-bundle.crt 2>/dev/null | head -1)
+          echo "SSL_CERT_FILE=$cert" >> $GITHUB_ENV
+          echo "NODE_EXTRA_CA_CERTS=$cert" >> $GITHUB_ENV
+          apt-get update && apt-get install -y sudo git
       - uses: actions/checkout@v4
       - uses: nvim-neorocks/nvim-busted-action@v1
         with:
