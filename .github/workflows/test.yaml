@@ -24,7 +24,7 @@ jobs:
           neovim: true
           version: ${{ matrix.nvim }}
       - run: |
-          nix develop .#ci --command bash -lc '
+          nix develop .#ci --command bash -c '
             export PATH="$(dirname "$NVIM_BIN"):$PATH"
             busted
           '
