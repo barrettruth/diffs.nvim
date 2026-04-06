@@ -33,7 +33,7 @@
             ]
           );
           busted-with-grammar = pkgs.writeShellScriptBin "busted" ''
-            nvim_bin=$(command -v nvim)
+            nvim_bin=$(which nvim)
             tmpdir=$(mktemp -d)
             trap 'rm -rf "$tmpdir"' EXIT
             printf '#!/bin/sh\nexec "%s" --cmd "set rtp+=${ts-plugin}/runtime" --cmd "set rtp+=${diff-grammar}" "$@"\n' "$nvim_bin" > "$tmpdir/nvim"
