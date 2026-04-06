@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    runs-on: [self-hosted, linux, x64, netcup, general]
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -16,18 +16,13 @@ jobs:
     name: Test (Neovim ${{ matrix.nvim }})
     steps:
       - uses: actions/checkout@v4
+
+      - uses: nvim-neorocks/nvim-busted-action@v1
         with:
-          path: repo
-      - uses: rhysd/action-setup-vim@v1
-        id: setup-vim
-        with:
-          neovim: true
-          version: ${{ matrix.nvim }}
-      - run: |
-          nix develop .#ci --command bash -c '
-            export PATH="$(dirname "$NVIM_BIN"):$PATH"
-            busted
-          '
-        working-directory: repo
-        env:
-          NVIM_BIN: ${{ steps.setup-vim.outputs.executable }}
+          nvim_version: ${{ matrix.nvim }}
+          before: |
+            git clone --depth 1 https://github.com/the-mikedavis/tree-sitter-diff /tmp/ts-diff
+            cd /tmp/ts-diff && cc -shared -fPIC -o diff.so -I./src src/parser.c
+            mkdir -p ~/.local/share/nvim/site/parser ~/.local/share/nvim/site/queries/diff
+            cp diff.so ~/.local/share/nvim/site/parser/
+            cp queries/*.scm ~/.local/share/nvim/site/queries/diff/
