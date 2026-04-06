@@ -217,6 +217,83 @@ local diff_windows = {}
 ---@type table<integer, diffs.HunkCacheEntry>
 local hunk_cache = {}
 
+local syntax_jobs = {}
+
+local function next_syntax_job(bufnr)
+  local job_id = (syntax_jobs[bufnr] or 0) + 1
+  syntax_jobs[bufnr] = job_id
+  return job_id
+end
+
+local function collect_syntax_hunks(hunks)
+  local syntax_hunks = {}
+  for _, hunk in ipairs(hunks or {}) do
+    local has_syntax = hunk.lang and config.highlights.treesitter.enabled
+    local needs_vim = not hunk.lang and hunk.ft and config.highlights.vim.enabled
+    if has_syntax or needs_vim then
+      syntax_hunks[#syntax_hunks + 1] = hunk
+    end
+  end
+  return syntax_hunks
+end
+
+local function run_deferred_syntax(bufnr, tick, changedtick, job_id, deferred_syntax)
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return false
+  end
+  if syntax_jobs[bufnr] ~= job_id then
+    log.dbg('deferred syntax job superseded: cur=%s job=%d', tostring(syntax_jobs[bufnr]), job_id)
+    return false
+  end
+  local live_changedtick = vim.api.nvim_buf_get_changedtick(bufnr)
+  if live_changedtick ~= changedtick then
+    log.dbg(
+      'deferred syntax changedtick changed: cur=%d captured=%d',
+      live_changedtick,
+      changedtick
+    )
+    return false
+  end
+  local cur = hunk_cache[bufnr]
+  if not cur then
+    return false
+  end
+  local hunks_to_hl = deferred_syntax
+  if cur.tick ~= tick then
+    log.dbg(
+      'deferred syntax tick changed: cur.tick=%s captured=%d, using current hunks',
+      tostring(cur.tick),
+      tick
+    )
+    hunks_to_hl = collect_syntax_hunks(cur.hunks or {})
+    if #hunks_to_hl == 0 then
+      return false
+    end
+    live_changedtick = vim.api.nvim_buf_get_changedtick(bufnr)
+    if live_changedtick ~= changedtick then
+      log.dbg(
+        'deferred syntax changedtick changed after refresh: cur=%d captured=%d',
+        live_changedtick,
+        changedtick
+      )
+      return false
+    end
+  end
+  local t1 = config.debug and vim.uv.hrtime() or nil
+  local syntax_opts = {
+    hide_prefix = config.hide_prefix,
+    highlights = config.highlights,
+    syntax_only = true,
+  }
+  for _, hunk in ipairs(hunks_to_hl) do
+    highlight.highlight_hunk(bufnr, ns, hunk, syntax_opts)
+  end
+  if t1 then
+    log.dbg('deferred pass: %d hunks in %.2fms', #hunks_to_hl, (vim.uv.hrtime() - t1) / 1e6)
+  end
+  return true
+end
+
 ---@param bufnr integer
 ---@return boolean
 function M.is_fugitive_buffer(bufnr)
@@ -265,6 +342,7 @@ local dbg = log.dbg
 
 ---@param bufnr integer
 local function invalidate_cache(bufnr)
+  syntax_jobs[bufnr] = (syntax_jobs[bufnr] or 0) + 1
   local entry = hunk_cache[bufnr]
   if entry then
     entry.tick = -1
@@ -966,14 +1044,17 @@ local function init()
             clear_start = hunk.header_start_line - 1
           end
           clear_ns_by_start(bufnr, ns, clear_start, clear_end)
-          highlight.highlight_hunk(bufnr, ns, hunk, fast_hl_opts)
+          local _, vim_cache_hit = highlight.highlight_hunk(bufnr, ns, hunk, fast_hl_opts)
           entry.highlighted[i] = true
           count = count + 1
           if hunk._skipped_max_lines then
             skipped_count = skipped_count + 1
           end
           local has_syntax = hunk.lang and config.highlights.treesitter.enabled
-          local needs_vim = not hunk.lang and hunk.ft and config.highlights.vim.enabled
+          local needs_vim = not hunk.lang
+            and hunk.ft
+            and config.highlights.vim.enabled
+            and not vim_cache_hit
           if has_syntax or needs_vim then
             table.insert(deferred_syntax, hunk)
           end
@@ -994,44 +1075,17 @@ local function init()
       end
       if #deferred_syntax > 0 then
         local tick = entry.tick
-        dbg('deferred syntax scheduled: %d hunks tick=%d', #deferred_syntax, tick)
+        local changedtick = vim.api.nvim_buf_get_changedtick(bufnr)
+        local job_id = next_syntax_job(bufnr)
+        dbg(
+          'deferred syntax scheduled: %d hunks tick=%d changedtick=%d job=%d',
+          #deferred_syntax,
+          tick,
+          changedtick,
+          job_id
+        )
         vim.schedule(function()
-          if not vim.api.nvim_buf_is_valid(bufnr) then
-            return
-          end
-          local cur = hunk_cache[bufnr]
-          if not cur then
-            return
-          end
-          local hunks_to_hl = deferred_syntax
-          if cur.tick ~= tick then
-            dbg(
-              'deferred syntax tick changed: cur.tick=%s captured=%d, using current hunks',
-              tostring(cur.tick),
-              tick
-            )
-            hunks_to_hl = {}
-            for _, hunk in ipairs(cur.hunks or {}) do
-              if hunk.lang then
-                hunks_to_hl[#hunks_to_hl + 1] = hunk
-              end
-            end
-            if #hunks_to_hl == 0 then
-              return
-            end
-          end
-          local t1 = config.debug and vim.uv.hrtime() or nil
-          local syntax_opts = {
-            hide_prefix = config.hide_prefix,
-            highlights = config.highlights,
-            syntax_only = true,
-          }
-          for _, hunk in ipairs(hunks_to_hl) do
-            highlight.highlight_hunk(bufnr, ns, hunk, syntax_opts)
-          end
-          if t1 then
-            dbg('deferred pass: %d hunks in %.2fms', #deferred_syntax, (vim.uv.hrtime() - t1) / 1e6)
-          end
+          run_deferred_syntax(bufnr, tick, changedtick, job_id, deferred_syntax)
         end)
       end
       if t0 and count > 0 then
@@ -1109,6 +1163,7 @@ function M.attach(bufnr)
       attached_buffers[bufnr] = nil
       hunk_cache[bufnr] = nil
       ft_retry_pending[bufnr] = nil
+      syntax_jobs[bufnr] = nil
       if neogit_augroup then
         pcall(vim.api.nvim_del_augroup_by_id, neogit_augroup)
       end
@@ -1230,6 +1285,8 @@ M._test = {
   get_config = function()
     return config
   end,
+  next_syntax_job = next_syntax_job,
+  run_deferred_syntax = run_deferred_syntax,
 }
 
 return M

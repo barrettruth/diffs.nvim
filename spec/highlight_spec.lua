@@ -7,6 +7,7 @@ describe('highlight', function()
 
     before_each(function()
       ns = vim.api.nvim_create_namespace('diffs_test')
+      highlight._test.clear_vim_syntax_cache()
       local normal = vim.api.nvim_get_hl(0, { name = 'Normal' })
       local diff_add = vim.api.nvim_get_hl(0, { name = 'DiffAdd' })
       local diff_delete = vim.api.nvim_get_hl(0, { name = 'DiffDelete' })
@@ -14,6 +15,10 @@ describe('highlight', function()
       vim.api.nvim_set_hl(0, 'DiffsAdd', { bg = diff_add.bg })
       vim.api.nvim_set_hl(0, 'DiffsDelete', { bg = diff_delete.bg })
       vim.api.nvim_set_hl(0, 'DiffsConflictMarker', { fg = 0x808080, bold = true })
+    end)
+
+    after_each(function()
+      highlight._test.clear_vim_syntax_cache()
     end)
 
     local function create_buffer(lines)
@@ -692,6 +697,73 @@ describe('highlight', function()
       end
       assert.is_true(has_syntax_hl)
       delete_buffer(bufnr)
+    end)
+
+    it('uses cached vim syntax extmarks when defer_vim_syntax enabled', function()
+      local orig_synID = vim.fn.synID
+      local orig_synIDtrans = vim.fn.synIDtrans
+      local orig_synIDattr = vim.fn.synIDattr
+      vim.fn.synID = function(_line, _col, _trans)
+        return 1
+      end
+      vim.fn.synIDtrans = function(id)
+        return id
+      end
+      vim.fn.synIDattr = function(_id, _what)
+        return 'Identifier'
+      end
+
+      highlight._test.clear_vim_syntax_cache()
+
+      local warm_bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' alpha',
+        '+beta',
+      })
+
+      local cached_bufnr = create_buffer({
+        '@@ -1,1 +1,2 @@',
+        ' alpha',
+        '+beta',
+      })
+
+      local hunk = {
+        filename = 'video.txt',
+        ft = 'text',
+        lang = nil,
+        start_line = 1,
+        lines = { ' alpha', '+beta' },
+      }
+
+      highlight.highlight_hunk(
+        warm_bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { treesitter = { enabled = false }, vim = { enabled = true } } })
+      )
+
+      local opts = default_opts({
+        highlights = { treesitter = { enabled = false }, vim = { enabled = true } },
+      })
+      opts.defer_vim_syntax = true
+      highlight.highlight_hunk(cached_bufnr, ns, hunk, opts)
+
+      vim.fn.synID = orig_synID
+      vim.fn.synIDtrans = orig_synIDtrans
+      vim.fn.synIDattr = orig_synIDattr
+
+      local extmarks = get_extmarks(cached_bufnr)
+      local has_syntax_hl = false
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].hl_group == 'Identifier' then
+          has_syntax_hl = true
+          break
+        end
+      end
+      assert.is_true(has_syntax_hl)
+      delete_buffer(warm_bufnr)
+      delete_buffer(cached_bufnr)
+      highlight._test.clear_vim_syntax_cache()
     end)
 
     it('respects vim.max_lines', function()
