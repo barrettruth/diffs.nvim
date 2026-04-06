@@ -350,9 +350,10 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              Creates a scratch buffer, sets the filetype, and
                              queries |synID()| per character to extract
                              highlight groups. Deferred via |vim.schedule()|
-                             so it never blocks the first paint. Slower than
-                             treesitter but covers languages without a TS
-                             parser installed (e.g., COBOL, Fortran).
+                             so cold renders never block the first paint.
+                             Warm hunks can reuse cached syntax spans. Slower
+                             than treesitter but covers languages without a
+                             TS parser installed (e.g., COBOL, Fortran).
 
         {max_lines}          (integer, default: 200)
                              Skip vim syntax highlighting for hunks with more
@@ -928,11 +929,15 @@ Syntax Highlighting Flash ~
                                                                  *diffs-flash*
 When opening a fugitive buffer, there is an unavoidable visual "flash" where
 the buffer briefly shows fugitive's default diff highlighting before
-diffs.nvim applies treesitter highlights.
+diffs.nvim applies its own highlights.
 
 This occurs because diffs.nvim hooks into the `FileType fugitive` event, which
 fires after vim-fugitive has already painted the buffer. The decoration
 provider applies highlights on the next redraw cycle.
+
+This is separate from vim syntax fallback rendering. For languages without a
+treesitter parser, cold fallback syntax may appear one frame later, while
+stale deferred fallback renders are discarded if the buffer changes.
 
 Conflicting Diff Plugins ~
                                                       *diffs-plugin-conflicts*

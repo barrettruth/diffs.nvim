@@ -3,6 +3,69 @@ local M = {}
 local dbg = require('diffs.log').dbg
 local diff = require('diffs.diff')
 
+local vim_syntax_cache = {}
+local vim_syntax_cache_size = 0
+local vim_syntax_cache_clock = 0
+local vim_syntax_cache_limit = 128
+
+local function get_vim_syntax_cache_key(ft, code_lines)
+  return ft .. '\0' .. table.concat(code_lines, '\n')
+end
+
+local function touch_vim_syntax_cache(entry)
+  vim_syntax_cache_clock = vim_syntax_cache_clock + 1
+  entry.used = vim_syntax_cache_clock
+end
+
+local function trim_vim_syntax_cache()
+  while vim_syntax_cache_size > vim_syntax_cache_limit do
+    local oldest_key = nil
+    local oldest_used = nil
+    for key, entry in pairs(vim_syntax_cache) do
+      if oldest_used == nil or entry.used < oldest_used then
+        oldest_key = key
+        oldest_used = entry.used
+      end
+    end
+    if not oldest_key then
+      break
+    end
+    vim_syntax_cache[oldest_key] = nil
+    vim_syntax_cache_size = vim_syntax_cache_size - 1
+  end
+end
+
+local function clear_vim_syntax_cache()
+  vim_syntax_cache = {}
+  vim_syntax_cache_size = 0
+  vim_syntax_cache_clock = 0
+end
+
+local function get_cached_vim_syntax_spans(ft, code_lines)
+  local key = get_vim_syntax_cache_key(ft, code_lines)
+  local entry = vim_syntax_cache[key]
+  if not entry then
+    return nil
+  end
+  touch_vim_syntax_cache(entry)
+  return entry.spans
+end
+
+local function put_vim_syntax_cache(ft, code_lines, spans)
+  local key = get_vim_syntax_cache_key(ft, code_lines)
+  local entry = vim_syntax_cache[key]
+  if not entry then
+    entry = { spans = spans }
+    vim_syntax_cache[key] = entry
+    vim_syntax_cache_size = vim_syntax_cache_size + 1
+  else
+    entry.spans = spans
+  end
+  touch_vim_syntax_cache(entry)
+  trim_vim_syntax_cache()
+  return spans
+end
+
 ---@param bufnr integer
 ---@param ns integer
 ---@param hunk diffs.Hunk
@@ -241,34 +304,7 @@ function M.coalesce_syntax_spans(query_fn, code_lines)
   return spans
 end
 
----@param bufnr integer
----@param ns integer
----@param hunk diffs.Hunk
----@param code_lines string[]
----@param covered_lines? table<integer, true>
----@param leading_offset? integer
----@param priorities diffs.PrioritiesConfig
----@return integer
-local function highlight_vim_syntax(
-  bufnr,
-  ns,
-  hunk,
-  code_lines,
-  covered_lines,
-  leading_offset,
-  priorities
-)
-  local ft = hunk.ft
-  if not ft then
-    return 0
-  end
-
-  if #code_lines == 0 then
-    return 0
-  end
-
-  leading_offset = leading_offset or 0
-
+local function compute_vim_syntax_spans(ft, code_lines)
   local scratch = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(scratch, 0, -1, false, code_lines)
   vim.api.nvim_set_option_value('bufhidden', 'wipe', { buf = scratch })
@@ -295,6 +331,20 @@ local function highlight_vim_syntax(
 
   pcall(vim.api.nvim_buf_delete, scratch, { force = true })
 
+  return spans
+end
+
+local function apply_vim_syntax_spans(
+  bufnr,
+  ns,
+  hunk,
+  spans,
+  covered_lines,
+  leading_offset,
+  priorities
+)
+  leading_offset = leading_offset or 0
+
   local hunk_line_count = #hunk.lines
   local col_off = (hunk.prefix_width or 1) + (hunk.quote_width or 0) - 1
   local extmark_count = 0
@@ -315,6 +365,67 @@ local function highlight_vim_syntax(
   end
 
   return extmark_count
+end
+
+---@param bufnr integer
+---@param ns integer
+---@param hunk diffs.Hunk
+---@param code_lines string[]
+---@param covered_lines? table<integer, true>
+---@param leading_offset? integer
+---@param priorities diffs.PrioritiesConfig
+---@return integer
+local function highlight_vim_syntax(
+  bufnr,
+  ns,
+  hunk,
+  code_lines,
+  covered_lines,
+  leading_offset,
+  priorities
+)
+  local ft = hunk.ft
+  if not ft then
+    return 0
+  end
+
+  if #code_lines == 0 then
+    return 0
+  end
+
+  local spans = get_cached_vim_syntax_spans(ft, code_lines)
+  if not spans then
+    spans = put_vim_syntax_cache(ft, code_lines, compute_vim_syntax_spans(ft, code_lines))
+  end
+
+  return apply_vim_syntax_spans(bufnr, ns, hunk, spans, covered_lines, leading_offset, priorities)
+end
+
+local function highlight_cached_vim_syntax(
+  bufnr,
+  ns,
+  hunk,
+  code_lines,
+  covered_lines,
+  leading_offset,
+  priorities
+)
+  local ft = hunk.ft
+  if not ft then
+    return 0, false
+  end
+
+  if #code_lines == 0 then
+    return 0, false
+  end
+
+  local spans = get_cached_vim_syntax_spans(ft, code_lines)
+  if not spans then
+    return 0, false
+  end
+
+  return apply_vim_syntax_spans(bufnr, ns, hunk, spans, covered_lines, leading_offset, priorities),
+    true
 end
 
 ---@param bufnr integer
@@ -352,14 +463,11 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     end
   end
 
-  if use_vim and opts.defer_vim_syntax then
-    use_vim = false
-  end
-
   ---@type table<integer, true>
   local covered_lines = {}
 
   local extmark_count = 0
+  local vim_cache_hit = false
   ---@type string[]
   local new_code = {}
 
@@ -440,12 +548,16 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
       extmark_count = extmark_count + header_extmarks
     end
   elseif use_vim then
-    ---@type string[]
     local code_lines = {}
     for _, line in ipairs(hunk.lines) do
       table.insert(code_lines, line:sub(pw + 1))
     end
-    extmark_count = highlight_vim_syntax(bufnr, ns, hunk, code_lines, covered_lines, 0, p)
+    if opts.defer_vim_syntax then
+      extmark_count, vim_cache_hit =
+        highlight_cached_vim_syntax(bufnr, ns, hunk, code_lines, covered_lines, 0, p)
+    else
+      extmark_count = highlight_vim_syntax(bufnr, ns, hunk, code_lines, covered_lines, 0, p)
+    end
   end
 
   if
@@ -715,6 +827,14 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
   end
 
   dbg('hunk %s:%d applied %d extmarks', hunk.filename, hunk.start_line, extmark_count)
+  return extmark_count, vim_cache_hit
 end
+
+M._test = {
+  clear_vim_syntax_cache = clear_vim_syntax_cache,
+  get_vim_syntax_cache_size = function()
+    return vim_syntax_cache_size
+  end,
+}
 
 return M

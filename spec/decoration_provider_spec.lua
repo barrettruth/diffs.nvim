@@ -149,6 +149,52 @@ describe('decoration_provider', function()
     end)
   end)
 
+  describe('deferred vim syntax', function()
+    it('skips stale deferred vim syntax when changedtick advanced', function()
+      local orig_synID = vim.fn.synID
+      local orig_synIDtrans = vim.fn.synIDtrans
+      local orig_synIDattr = vim.fn.synIDattr
+      vim.fn.synID = function(_line, _col, _trans)
+        return 1
+      end
+      vim.fn.synIDtrans = function(id)
+        return id
+      end
+      vim.fn.synIDattr = function(_id, _what)
+        return 'Identifier'
+      end
+
+      local bufnr = create_buffer({
+        'M video.txt',
+        '@@ -1,1 +1,2 @@',
+        ' alpha',
+        '+beta',
+      })
+      diffs.attach(bufnr)
+      local entry = diffs._test.hunk_cache[bufnr]
+      local changedtick = vim.api.nvim_buf_get_changedtick(bufnr)
+      local job_id = diffs._test.next_syntax_job(bufnr)
+
+      vim.api.nvim_buf_set_lines(bufnr, 1, 4, false, {
+        '@@ -1,1 +1,1 @@',
+        ' gamma',
+      })
+
+      local ok =
+        diffs._test.run_deferred_syntax(bufnr, entry.tick, changedtick, job_id, { entry.hunks[1] })
+      local ns_id = vim.api.nvim_create_namespace('diffs')
+      local extmarks = vim.api.nvim_buf_get_extmarks(bufnr, ns_id, 0, -1, { details = true })
+
+      vim.fn.synID = orig_synID
+      vim.fn.synIDtrans = orig_synIDtrans
+      vim.fn.synIDattr = orig_synIDattr
+
+      assert.is_false(ok)
+      assert.are.equal(0, #extmarks)
+      delete_buffer(bufnr)
+    end)
+  end)
+
   describe('BufWipeout cleanup', function()
     it('removes hunk_cache entry after buffer wipeout', function()
       local bufnr = create_buffer({
