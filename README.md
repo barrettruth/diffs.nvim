@@ -90,7 +90,7 @@ See the documentation for more information.
 - **Syntax "flashing"**: `diffs.nvim` hooks into the `FileType fugitive` event
   triggered by `vim-fugitive`, at which point the buffer is preliminarily
   painted. The decoration provider applies highlights on the next redraw cycle,
-  causing a brief visual "flash".
+  so a brief first-paint flash may still occur.
 
 - **Cold Start**: Treesitter grammar loading (~10ms) and query compilation
   (~4ms) are one-time costs per language per Neovim session. Each language pays
@@ -100,7 +100,9 @@ See the documentation for more information.
 - **Vim syntax fallback is deferred**: The vim syntax fallback (for languages
   without a treesitter parser) cannot run inside the decoration provider's
   redraw cycle due to Neovim's restriction on buffer mutations. Vim syntax
-  highlights for these hunks appear slightly delayed.
+  highlights for cold hunks may appear one frame later. Warm hunks can reuse
+  cached vim syntax spans, and stale deferred renders are ignored after buffer
+  changes.
 
 - **Conflicting diff plugins**: `diffs.nvim` may not interact well with other
   plugins that modify diff highlighting. Known plugins that may conflict:
