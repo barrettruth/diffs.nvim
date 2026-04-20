@@ -55,7 +55,7 @@ vim.api.nvim_create_autocmd('FileType', {
 
     if args.match == 'fugitive' then
       local fugitive_config = diffs.get_fugitive_config()
-      if fugitive_config.horizontal or fugitive_config.vertical then
+      if fugitive_config and (fugitive_config.horizontal or fugitive_config.vertical) then
         require('diffs.fugitive').setup_keymaps(args.buf, fugitive_config)
       end
     end

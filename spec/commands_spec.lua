@@ -1,8 +1,52 @@
 require('spec.helpers')
 
 local commands = require('diffs.commands')
+local git = require('diffs.git')
+
+local saved_git = {}
+local saved_systemlist
+local test_buffers = {}
+
+local function mock_repo_root(fn)
+  saved_git.get_repo_root = git.get_repo_root
+  git.get_repo_root = fn
+end
+
+local function mock_systemlist(fn)
+  saved_systemlist = vim.fn.systemlist
+  vim.fn.systemlist = function(cmd)
+    local result = fn(cmd)
+    saved_systemlist({ 'true' })
+    return result
+  end
+end
+
+local function restore_mocks()
+  for k, v in pairs(saved_git) do
+    git[k] = v
+  end
+  saved_git = {}
+  if saved_systemlist then
+    vim.fn.systemlist = saved_systemlist
+    saved_systemlist = nil
+  end
+end
+
+local function cleanup_buffers()
+  for _, bufnr in ipairs(test_buffers) do
+    if vim.api.nvim_buf_is_valid(bufnr) then
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end
+  end
+  test_buffers = {}
+end
 
 describe('commands', function()
+  after_each(function()
+    restore_mocks()
+    cleanup_buffers()
+  end)
+
   describe('setup', function()
     it('registers Gdiff, Gvdiff, and Ghdiff commands', function()
       commands.setup()
@@ -120,21 +164,158 @@ describe('commands', function()
     end)
   end)
 
+  describe('Greview helpers', function()
+    it('parses base-only review args', function()
+      local spec = commands._test.parse_review_arg('origin/main')
+      assert.are.same({ base = 'origin/main' }, spec)
+    end)
+
+    it('parses merge-base review args', function()
+      local spec = commands._test.parse_review_arg('origin/main...refs/pull/42/head')
+      assert.are.same({
+        base = 'origin/main',
+        target = 'refs/pull/42/head',
+        mode = 'merge-base',
+      }, spec)
+    end)
+
+    it('parses direct review args', function()
+      local spec = commands._test.parse_review_arg('origin/main..feature')
+      assert.are.same({
+        base = 'origin/main',
+        target = 'feature',
+        mode = 'direct',
+      }, spec)
+    end)
+
+    it('normalizes default base inside the resolved repo', function()
+      local captured_cmd
+      mock_repo_root(function(path)
+        assert.are.equal('/tmp/repo/.', path)
+        return '/tmp/repo'
+      end)
+      mock_systemlist(function(cmd)
+        captured_cmd = cmd
+        return { 'refs/remotes/origin/main' }
+      end)
+
+      local review = commands._test.normalize_greview({ repo = '/tmp/repo' })
+
+      assert.are.equal('/tmp/repo', review.repo_root)
+      assert.are.equal('origin/main', review.base)
+      assert.are.equal('origin/main', review.display)
+      assert.are.same(
+        { 'git', '-C', '/tmp/repo', 'symbolic-ref', 'refs/remotes/origin/HEAD' },
+        captured_cmd
+      )
+    end)
+
+    it('completes target refs after merge-base separator', function()
+      mock_repo_root(function()
+        return '/tmp/repo'
+      end)
+      mock_systemlist(function(cmd)
+        assert.are.same({
+          'git',
+          '-C',
+          '/tmp/repo',
+          'for-each-ref',
+          '--format=%(refname:short)',
+          'refs/heads/',
+          'refs/remotes/',
+          'refs/tags/',
+        }, cmd)
+        return { 'origin/main', 'refs/forge/pr/42', 'refs/forge/pr/43' }
+      end)
+
+      local matches = commands._test.complete_greview('origin/main...refs/forge/pr/4')
+
+      assert.are.same({
+        'origin/main...refs/forge/pr/42',
+        'origin/main...refs/forge/pr/43',
+      }, matches)
+    end)
+
+    it('completes target refs after direct separator', function()
+      mock_repo_root(function()
+        return '/tmp/repo'
+      end)
+      mock_systemlist(function()
+        return { 'origin/main', 'feature/a', 'feature/b' }
+      end)
+
+      local matches = commands._test.complete_greview('origin/main..feature/')
+
+      assert.are.same({ 'origin/main..feature/a', 'origin/main..feature/b' }, matches)
+    end)
+  end)
+
+  describe('greview', function()
+    it('opens a review buffer for an explicit merge-base target', function()
+      local captured_cmd
+      mock_repo_root(function(path)
+        assert.are.equal('/tmp/repo/.', path)
+        return '/tmp/repo'
+      end)
+      mock_systemlist(function(cmd)
+        captured_cmd = cmd
+        return {
+          'diff --git a/file.lua b/file.lua',
+          '--- a/file.lua',
+          '+++ b/file.lua',
+          '@@ -1 +1 @@',
+          '-old',
+          '+new',
+        }
+      end)
+
+      local bufnr = commands.greview({
+        base = 'origin/main',
+        target = 'refs/forge/pr/42',
+        mode = 'merge-base',
+        repo = '/tmp/repo',
+      })
+      table.insert(test_buffers, bufnr)
+      vim.wait(10, function()
+        return false
+      end)
+
+      assert.are.same({
+        'git',
+        '-C',
+        '/tmp/repo',
+        'diff',
+        '--no-ext-diff',
+        '--no-color',
+        '--merge-base',
+        'origin/main',
+        'refs/forge/pr/42',
+      }, captured_cmd)
+      assert.are.equal(
+        'diffs://review:origin/main...refs/forge/pr/42',
+        vim.api.nvim_buf_get_name(bufnr)
+      )
+      assert.are.equal('origin/main', vim.api.nvim_buf_get_var(bufnr, 'diffs_review_base'))
+      assert.are.equal('refs/forge/pr/42', vim.api.nvim_buf_get_var(bufnr, 'diffs_review_target'))
+      assert.are.equal('merge-base', vim.api.nvim_buf_get_var(bufnr, 'diffs_review_mode'))
+    end)
+  end)
+
   describe('review_file_at_line', function()
-    local test_buffers = {}
+    local review_test_buffers = {}
 
     after_each(function()
-      for _, bufnr in ipairs(test_buffers) do
+      for _, bufnr in ipairs(review_test_buffers) do
         if vim.api.nvim_buf_is_valid(bufnr) then
           vim.api.nvim_buf_delete(bufnr, { force = true })
         end
       end
-      test_buffers = {}
+      review_test_buffers = {}
     end)
 
     it('returns filename at cursor line', function()
       local bufnr = vim.api.nvim_create_buf(false, true)
-      table.insert(test_buffers, bufnr)
+      table.insert(review_test_buffers, bufnr)
       vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {
         'diff --git a/foo.lua b/foo.lua',
         '--- a/foo.lua',
@@ -150,7 +331,7 @@ describe('commands', function()
 
     it('returns correct file in multi-file diff', function()
       local bufnr = vim.api.nvim_create_buf(false, true)
-      table.insert(test_buffers, bufnr)
+      table.insert(review_test_buffers, bufnr)
       vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {
         'diff --git a/foo.lua b/foo.lua',
         '@@ -1 +1 @@',
@@ -168,7 +349,7 @@ describe('commands', function()
 
     it('returns nil before any diff header', function()
       local bufnr = vim.api.nvim_create_buf(false, true)
-      table.insert(test_buffers, bufnr)
+      table.insert(review_test_buffers, bufnr)
       vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {
         'some preamble text',
         'diff --git a/foo.lua b/foo.lua',
@@ -179,7 +360,7 @@ describe('commands', function()
 
     it('returns nil on empty buffer', function()
       local bufnr = vim.api.nvim_create_buf(false, true)
-      table.insert(test_buffers, bufnr)
+      table.insert(review_test_buffers, bufnr)
 
       assert.is_nil(commands.review_file_at_line(bufnr, 1))
     end)
