@@ -1,4 +1,4 @@
-name: test
+name: compatibility
 
 on:
   pull_request:
@@ -13,7 +13,7 @@ jobs:
       fail-fast: false
       matrix:
         nvim: [stable, nightly]
-    name: Test (Neovim ${{ matrix.nvim }})
+    name: Compatibility (Neovim ${{ matrix.nvim }})
     steps:
       - uses: actions/checkout@v4
 
