@@ -387,66 +387,267 @@ function _G._diffs_qftf(info)
   return lines
 end
 
----@class diffs.GreviewOpts
+---@class diffs.GreviewSpec
+---@field base? string
+---@field target? string
+---@field repo? string
+---@field mode? string
 ---@field vertical? boolean
----@field repo_root? string
 
+---@class diffs.NormalizedGreview
+---@field base string
+---@field target string?
+---@field repo_root string
+---@field mode string?
+---@field vertical boolean
+---@field display string
+---@field exec_args string[]
+
+---@param repo? string
 ---@return string?
-local function default_branch()
-  local ref = vim.fn.system({ 'git', 'symbolic-ref', 'refs/remotes/origin/HEAD' })
-  if vim.v.shell_error ~= 0 then
-    return nil
+local function resolve_repo_root(repo)
+  if repo and repo ~= '' then
+    return git.get_repo_root(repo .. '/.')
   end
-  return vim.trim(ref):gsub('^refs/remotes/', '')
+
+  local bufnr = vim.api.nvim_get_current_buf()
+  local filepath = vim.api.nvim_buf_get_name(bufnr)
+  local repo_root = git.get_repo_root(filepath ~= '' and filepath or nil)
+  if repo_root then
+    return repo_root
+  end
+
+  local cwd = vim.fn.getcwd()
+  return git.get_repo_root(cwd .. '/.')
 end
 
----@param base? string
----@param opts? diffs.GreviewOpts
----@return integer?
-function M.greview(base, opts)
-  opts = opts or {}
+---@param repo_root string
+---@return string?
+local function default_branch(repo_root)
+  local ref =
+    vim.fn.systemlist({ 'git', '-C', repo_root, 'symbolic-ref', 'refs/remotes/origin/HEAD' })
+  if vim.v.shell_error ~= 0 or not ref[1] or ref[1] == '' then
+    return nil
+  end
+  return ref[1]:gsub('^refs/remotes/', '')
+end
 
+---@param arg? string
+---@return diffs.GreviewSpec?, string?
+local function parse_review_arg(arg)
+  if not arg or arg == '' then
+    return {}, nil
+  end
+
+  local base, target = arg:match('^(.-)%.%.%.(.+)$')
+  if base then
+    if base == '' or target == '' then
+      return nil, 'invalid review spec'
+    end
+    return { base = base, target = target, mode = 'merge-base' }, nil
+  end
+
+  base, target = arg:match('^(.-)%.%.(.+)$')
+  if base then
+    if base == '' or target == '' then
+      return nil, 'invalid review spec'
+    end
+    return { base = base, target = target, mode = 'direct' }, nil
+  end
+
+  return { base = arg }, nil
+end
+
+---@param spec? diffs.GreviewSpec
+---@param repo_root_override? string
+---@return diffs.NormalizedGreview?, string?
+local function normalize_greview(spec, repo_root_override)
+  spec = spec or {}
+  if type(spec) ~= 'table' then
+    error('diffs: greview() expects a table spec')
+  end
+  if spec.base ~= nil and type(spec.base) ~= 'string' then
+    error('diffs: greview.base must be a string')
+  end
+  if spec.target ~= nil and type(spec.target) ~= 'string' then
+    error('diffs: greview.target must be a string')
+  end
+  if spec.repo ~= nil and type(spec.repo) ~= 'string' then
+    error('diffs: greview.repo must be a string')
+  end
+  if spec.mode ~= nil and type(spec.mode) ~= 'string' then
+    error('diffs: greview.mode must be a string')
+  end
+  if spec.vertical ~= nil and type(spec.vertical) ~= 'boolean' then
+    error('diffs: greview.vertical must be a boolean')
+  end
+
+  local repo_root = repo_root_override or resolve_repo_root(spec.repo)
+  if not repo_root then
+    return nil, 'not in a git repository'
+  end
+
+  local base = spec.base
   if not base or base == '' then
-    base = default_branch()
+    base = default_branch(repo_root)
     if not base then
-      vim.notify(
-        '[diffs.nvim]: cannot detect default branch (try: git remote set-head origin -a)',
-        vim.log.levels.ERROR
-      )
-      return nil
+      return nil, 'cannot detect default branch (try: git remote set-head origin -a)'
     end
   end
 
-  local repo_root = opts.repo_root
-  if not repo_root then
-    local bufnr = vim.api.nvim_get_current_buf()
-    local filepath = vim.api.nvim_buf_get_name(bufnr)
-    repo_root = git.get_repo_root(filepath ~= '' and filepath or nil)
+  local target = spec.target
+  if target == '' then
+    error('diffs: greview.target must be a non-empty string')
   end
-  if not repo_root then
-    local cwd = vim.fn.getcwd()
-    repo_root = git.get_repo_root(cwd .. '/.')
+
+  local mode = spec.mode
+  if target then
+    if mode == nil then
+      mode = 'merge-base'
+    elseif mode ~= 'merge-base' and mode ~= 'direct' then
+      error('diffs: greview.mode must be "merge-base" or "direct"')
+    end
+  elseif mode ~= nil then
+    error('diffs: greview.mode requires greview.target')
   end
-  if not repo_root then
-    vim.notify('[diffs.nvim]: not in a git repository', vim.log.levels.ERROR)
+
+  local display = base
+  local exec_args = { base }
+  if target then
+    if mode == 'merge-base' then
+      display = base .. '...' .. target
+      exec_args = { '--merge-base', base, target }
+    else
+      display = base .. '..' .. target
+      exec_args = { base, target }
+    end
+  end
+
+  return {
+    base = base,
+    target = target,
+    repo_root = repo_root,
+    mode = mode,
+    vertical = spec.vertical or false,
+    display = display,
+    exec_args = exec_args,
+  },
+    nil
+end
+
+---@param review diffs.NormalizedGreview
+---@return string[]
+local function build_review_cmd(review)
+  local cmd = { 'git', '-C', review.repo_root, 'diff', '--no-ext-diff', '--no-color' }
+  vim.list_extend(cmd, review.exec_args)
+  return cmd
+end
+
+---@param review diffs.NormalizedGreview
+---@return string
+local function review_buffer_name(review)
+  return 'diffs://review:' .. review.display
+end
+
+---@param repo_root? string
+---@return string[]
+local function list_refs(repo_root)
+  local cmd = { 'git' }
+  if repo_root then
+    table.insert(cmd, '-C')
+    table.insert(cmd, repo_root)
+  end
+  vim.list_extend(cmd, {
+    'for-each-ref',
+    '--format=%(refname:short)',
+    'refs/heads/',
+    'refs/remotes/',
+    'refs/tags/',
+  })
+  local refs = vim.fn.systemlist(cmd)
+  if vim.v.shell_error ~= 0 then
+    return {}
+  end
+  return refs
+end
+
+---@param arglead string
+---@return string[]
+local function complete_greview(arglead)
+  local refs = list_refs(resolve_repo_root(nil))
+  if arglead == '' then
+    return refs
+  end
+
+  local base, tail = arglead:match('^(.-)%.%.%.(.*)$')
+  if base then
+    if base == '' then
+      return {}
+    end
+    local matches = {}
+    for _, ref in ipairs(refs) do
+      if ref:find(tail, 1, true) == 1 then
+        table.insert(matches, base .. '...' .. ref)
+      end
+    end
+    return matches
+  end
+
+  base, tail = arglead:match('^(.-)%.%.(.*)$')
+  if base then
+    if base == '' then
+      return {}
+    end
+    local matches = {}
+    for _, ref in ipairs(refs) do
+      if ref:find(tail, 1, true) == 1 then
+        table.insert(matches, base .. '..' .. ref)
+      end
+    end
+    return matches
+  end
+
+  local matches = {}
+  for _, ref in ipairs(refs) do
+    if ref:find(arglead, 1, true) == 1 then
+      table.insert(matches, ref)
+    end
+  end
+  return matches
+end
+
+---@param review diffs.NormalizedGreview
+---@return string[]?, string?
+local function run_review(review)
+  local result = vim.fn.systemlist(build_review_cmd(review))
+  if vim.v.shell_error ~= 0 then
+    return nil, 'git diff failed'
+  end
+  return replace_combined_diffs(result, review.repo_root), nil
+end
+
+---@param spec? diffs.GreviewSpec
+---@return integer?
+function M.greview(spec)
+  local review, err = normalize_greview(spec)
+  if not review then
+    vim.notify('[diffs.nvim]: ' .. err, vim.log.levels.ERROR)
     return nil
   end
 
-  local target_name = 'diffs://review:' .. base
+  local target_name = review_buffer_name(review)
   local existing_buf = vim.fn.bufnr(target_name)
   if existing_buf ~= -1 then
     pcall(vim.api.nvim_buf_delete, existing_buf, { force = true })
   end
 
-  local cmd = { 'git', '-C', repo_root, 'diff', '--no-ext-diff', '--no-color', base }
-  local result = vim.fn.systemlist(cmd)
-  if vim.v.shell_error ~= 0 then
-    vim.notify('[diffs.nvim]: git diff failed', vim.log.levels.ERROR)
+  local result, diff_err = run_review(review)
+  if not result then
+    vim.notify('[diffs.nvim]: ' .. diff_err, vim.log.levels.ERROR)
     return nil
   end
-  result = replace_combined_diffs(result, repo_root)
   if #result == 0 then
-    vim.notify('[diffs.nvim]: no diff against ' .. base, vim.log.levels.INFO)
+    vim.notify('[diffs.nvim]: no diff against ' .. review.display, vim.log.levels.INFO)
     return nil
   end
 
@@ -457,8 +658,15 @@ function M.greview(base, opts)
   vim.api.nvim_set_option_value('swapfile', false, { buf = diff_buf })
   vim.api.nvim_set_option_value('modifiable', false, { buf = diff_buf })
   vim.api.nvim_set_option_value('filetype', 'diff', { buf = diff_buf })
-  vim.api.nvim_buf_set_name(diff_buf, 'diffs://review:' .. base)
-  vim.api.nvim_buf_set_var(diff_buf, 'diffs_repo_root', repo_root)
+  vim.api.nvim_buf_set_name(diff_buf, target_name)
+  vim.api.nvim_buf_set_var(diff_buf, 'diffs_repo_root', review.repo_root)
+  vim.api.nvim_buf_set_var(diff_buf, 'diffs_review_base', review.base)
+  if review.target then
+    vim.api.nvim_buf_set_var(diff_buf, 'diffs_review_target', review.target)
+  end
+  if review.mode then
+    vim.api.nvim_buf_set_var(diff_buf, 'diffs_review_mode', review.mode)
+  end
 
   local qf_items = {}
   local loc_items = {}
@@ -544,7 +752,7 @@ function M.greview(base, opts)
   end
 
   vim.fn.setqflist({}, ' ', {
-    title = 'review: ' .. base,
+    title = 'review: ' .. review.display,
     items = qf_items,
     quickfixtextfunc = 'v:lua._diffs_qftf',
   })
@@ -554,18 +762,18 @@ function M.greview(base, opts)
     vim.api.nvim_set_current_win(existing_win)
     vim.api.nvim_win_set_buf(existing_win, diff_buf)
   else
-    vim.cmd(opts.vertical and 'vsplit' or 'split')
+    vim.cmd(review.vertical and 'vsplit' or 'split')
     vim.api.nvim_win_set_buf(0, diff_buf)
   end
 
   vim.fn.setloclist(0, {}, ' ', {
-    title = 'review hunks: ' .. base,
+    title = 'review hunks: ' .. review.display,
     items = loc_items,
     quickfixtextfunc = 'v:lua._diffs_qftf',
   })
 
   M.setup_diff_buf(diff_buf)
-  dbg('opened review buffer %d against %s', diff_buf, base)
+  dbg('opened review buffer %d (%s)', diff_buf, review.display)
 
   vim.schedule(function()
     require('diffs').attach(diff_buf)
@@ -620,12 +828,46 @@ function M.read_buffer(bufnr)
 
     diff_lines = replace_combined_diffs(diff_lines, repo_root)
   elseif label == 'review' then
-    local cmd = { 'git', '-C', repo_root, 'diff', '--no-ext-diff', '--no-color', path }
-    diff_lines = vim.fn.systemlist(cmd)
-    if vim.v.shell_error ~= 0 then
+    local stored_base = nil
+    local stored_target = nil
+    local stored_mode = nil
+
+    pcall(function()
+      stored_base = vim.api.nvim_buf_get_var(bufnr, 'diffs_review_base')
+    end)
+    pcall(function()
+      stored_target = vim.api.nvim_buf_get_var(bufnr, 'diffs_review_target')
+    end)
+    pcall(function()
+      stored_mode = vim.api.nvim_buf_get_var(bufnr, 'diffs_review_mode')
+    end)
+
+    local review_spec
+    if stored_base then
+      review_spec = {
+        base = stored_base,
+        target = stored_target,
+        mode = stored_mode,
+      }
+    else
+      review_spec = select(1, parse_review_arg(path))
+    end
+
+    if review_spec then
+      local review = select(1, normalize_greview(review_spec, repo_root))
+      if review then
+        diff_lines = vim.fn.systemlist(build_review_cmd(review))
+        if vim.v.shell_error ~= 0 then
+          diff_lines = {}
+        else
+          diff_lines = replace_combined_diffs(diff_lines, repo_root)
+        end
+      else
+        diff_lines = {}
+      end
+    else
       diff_lines = {}
     end
-    diff_lines = replace_combined_diffs(diff_lines, repo_root)
   else
     local abs_path = repo_root .. '/' .. path
 
@@ -694,34 +936,23 @@ function M.setup()
   })
 
   vim.api.nvim_create_user_command('Greview', function(opts)
-    M.greview(opts.args ~= '' and opts.args or nil)
+    local spec, err = parse_review_arg(opts.args ~= '' and opts.args or nil)
+    if not spec then
+      vim.notify('[diffs.nvim]: ' .. err, vim.log.levels.ERROR)
+      return
+    end
+    M.greview(spec)
   end, {
     nargs = '?',
-    complete = function(arglead)
-      local refs = vim.fn.systemlist({
-        'git',
-        'for-each-ref',
-        '--format=%(refname:short)',
-        'refs/heads/',
-        'refs/remotes/',
-        'refs/tags/',
-      })
-      if vim.v.shell_error ~= 0 then
-        return {}
-      end
-      if arglead == '' then
-        return refs
-      end
-      local matches = {}
-      for _, ref in ipairs(refs) do
-        if ref:find(arglead, 1, true) == 1 then
-          table.insert(matches, ref)
-        end
-      end
-      return matches
-    end,
-    desc = 'Review diff against the default branch or a given git ref',
+    complete = complete_greview,
+    desc = 'Review the repo against the default branch or a git review spec',
   })
 end
+
+M._test = {
+  complete_greview = complete_greview,
+  normalize_greview = normalize_greview,
+  parse_review_arg = parse_review_arg,
+}
 
 return M
