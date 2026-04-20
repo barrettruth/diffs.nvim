@@ -4,14 +4,12 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     systems.url = "github:nix-systems/default";
-    vimdoc-language-server.url = "github:barrettruth/vimdoc-language-server";
   };
 
   outputs =
     {
       nixpkgs,
       systems,
-      vimdoc-language-server,
       ...
     }:
     let
@@ -40,7 +38,7 @@
             chmod +x "$tmpdir/nvim"
             PATH="$tmpdir:$PATH" exec ${luaEnv}/bin/busted "$@"
           '';
-          vimdoc-ls = vimdoc-language-server.packages.${pkgs.system}.default;
+          vimdoc-ls = pkgs.vimdoc-language-server;
           commonPackages = [
             busted-with-grammar
             pkgs.just
