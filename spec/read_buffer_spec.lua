@@ -315,6 +315,72 @@ describe('read_buffer', function()
       local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
       assert.are.equal('diff --git a/file.lua b/file.lua', lines[1])
     end)
+
+    it('runs merge-base review reload from stored review vars', function()
+      local captured_cmd
+      mock_systemlist(function(cmd)
+        captured_cmd = cmd
+        return {
+          'diff --git a/file.lua b/file.lua',
+          '--- a/file.lua',
+          '+++ b/file.lua',
+          '@@ -1 +1 @@',
+          '-old',
+          '+new',
+        }
+      end)
+
+      local bufnr = create_diffs_buffer('diffs://review:origin/main...refs/forge/pr/42', {
+        diffs_repo_root = '/home/test/repo',
+        diffs_review_base = 'origin/main',
+        diffs_review_target = 'refs/forge/pr/42',
+        diffs_review_mode = 'merge-base',
+      })
+      commands.read_buffer(bufnr)
+
+      assert.are.same({
+        'git',
+        '-C',
+        '/home/test/repo',
+        'diff',
+        '--no-ext-diff',
+        '--no-color',
+        '--merge-base',
+        'origin/main',
+        'refs/forge/pr/42',
+      }, captured_cmd)
+    end)
+
+    it('parses direct review specs from the buffer name when vars are absent', function()
+      local captured_cmd
+      mock_systemlist(function(cmd)
+        captured_cmd = cmd
+        return {
+          'diff --git a/file.lua b/file.lua',
+          '--- a/file.lua',
+          '+++ b/file.lua',
+          '@@ -1 +1 @@',
+          '-old',
+          '+new',
+        }
+      end)
+
+      local bufnr = create_diffs_buffer('diffs://review:origin/main..feature/topic', {
+        diffs_repo_root = '/home/test/repo',
+      })
+      commands.read_buffer(bufnr)
+
+      assert.are.same({
+        'git',
+        '-C',
+        '/home/test/repo',
+        'diff',
+        '--no-ext-diff',
+        '--no-color',
+        'origin/main',
+        'feature/topic',
+      }, captured_cmd)
+    end)
   end)
 
   describe('content', function()
