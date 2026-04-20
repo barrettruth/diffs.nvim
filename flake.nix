@@ -43,6 +43,7 @@
           vimdoc-ls = vimdoc-language-server.packages.${pkgs.system}.default;
           commonPackages = [
             busted-with-grammar
+            pkgs.just
             pkgs.prettier
             pkgs.stylua
             pkgs.selene
