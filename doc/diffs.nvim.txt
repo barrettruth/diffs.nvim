@@ -224,12 +224,9 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                                    extra_filetypes = { 'diff' },
                                  }
 <
-                             Adding `'diff'` also enables highlighting in
-                             picker preview buffers that set `filetype=diff`:
-                             telescope.nvim (git_commits, git_bcommits,
-                             git_status), snacks.nvim (syntax style only),
-                             and fzf-lua (builtin previewer only). Terminal-
-                             based previewers are not supported.
+                             This also covers any other buffer (e.g.
+                             scratch preview buffers from pickers) that
+                             ends up with a registered filetype.
 
         {highlights}         (table, default: see below)
                              Controls which highlight features are enabled.
@@ -900,8 +897,9 @@ after each resolution.
 API                                                                *diffs-api*
 
 attach({bufnr})                                               *diffs.attach()*
-    Manually attach highlighting to a buffer. Called automatically for
-    fugitive buffers via the `FileType fugitive` autocmd.
+    Attach highlighting to a buffer. Called automatically when the buffer's
+    filetype matches `git`, `gitcommit`, an enabled integration filetype,
+    or any entry in `extra_filetypes`.
 
     Parameters: ~
         {bufnr}  (integer, optional) Buffer number. Defaults to current buffer.
@@ -918,7 +916,7 @@ IMPLEMENTATION                                          *diffs-implementation*
 
 Summary / commit detail views: ~
 1. `FileType` autocmd for computed filetypes (see |diffs-config|) triggers
-   |diffs.attach()|. For `git` buffers, only `fugitive://` URIs are attached.
+   |diffs.attach()|.
 2. The buffer is parsed to detect file headers (`M path/to/file`,
    `diff --git a/... b/...`) and hunk headers (`@@ -10,3 +10,4 @@`)
 3. For each hunk:
