@@ -42,15 +42,6 @@ vim.api.nvim_create_autocmd('FileType', {
   pattern = require('diffs').compute_filetypes(vim.g.diffs or {}),
   callback = function(args)
     local diffs = require('diffs')
-    if args.match == 'git' then
-      local is_fugitive = diffs.get_fugitive_config()
-        and (diffs.is_fugitive_buffer(args.buf) or vim.b[args.buf].git_dir ~= nil)
-      local is_committia = diffs.get_committia_config()
-        and vim.api.nvim_buf_get_name(args.buf):match('__committia_diff__$')
-      if not is_fugitive and not is_committia then
-        return
-      end
-    end
     diffs.attach(args.buf)
 
     if args.match == 'fugitive' then
