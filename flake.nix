@@ -42,7 +42,7 @@
           commonPackages = [
             busted-with-grammar
             pkgs.just
-            pkgs.prettier
+            pkgs.biome
             pkgs.stylua
             pkgs.selene
             pkgs.lua-language-server
