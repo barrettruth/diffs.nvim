@@ -59,37 +59,72 @@ body:
       description: |
         Save the script below as `repro.lua`, edit if needed, and run:
         ```
-        nvim -u repro.lua
+        nvim --clean -u repro.lua
         ```
         Confirm the bug reproduces with this config before submitting.
       render: lua
       value: |
-        vim.env.LAZY_STDPATH = '.repro'
-        load(vim.fn.system('curl -s https://raw.githubusercontent.com/folke/lazy.nvim/main/bootstrap.lua'))()
-        require('lazy.nvim').setup({
-          spec = {
-            { 'barrettruth/midnight.nvim', lazy = false, config = function() vim.cmd.colorscheme('midnight') end },
-            { 'tpope/vim-fugitive' },
-            { 'NeogitOrg/neogit', dependencies = { 'nvim-lua/plenary.nvim' } },
-            { 'lewis6991/gitsigns.nvim', config = true },
-            { 'rhysd/committia.vim' },
-            { 'nvim-telescope/telescope.nvim', dependencies = { 'nvim-lua/plenary.nvim' } },
-            {
-              'barrettruth/diffs.nvim',
-              init = function()
-                vim.g.diffs = {
-                  debug = '/tmp/diffs.log',
-                  integrations = {
-                    fugitive = true,
-                    neogit = true,
-                    gitsigns = true,
-                    committia = true,
-                    telescope = true,
-                  },
-                }
-              end,
-            },
+        local root = vim.fn.fnamemodify('.repro', ':p')
+        vim.fn.mkdir(root, 'p')
+        vim.env.XDG_CONFIG_HOME = root
+        vim.env.XDG_DATA_HOME = root
+        vim.env.XDG_STATE_HOME = root
+        vim.env.XDG_CACHE_HOME = root
+
+        local data_site = vim.fn.stdpath('data') .. '/site'
+        vim.fn.mkdir(data_site, 'p')
+        vim.opt.packpath:prepend(data_site)
+
+        vim.o.background = 'dark'
+        vim.cmd.colorscheme('habamax')
+
+        vim.g.diffs = {
+          debug = '/tmp/diffs.log',
+          integrations = {
+            fugitive = true,
+            neogit = true,
+            gitsigns = true,
+            committia = true,
+            telescope = true,
           },
-        })
+        }
+
+        local plugins = {
+          { name = 'vim-fugitive', src = 'https://github.com/tpope/vim-fugitive' },
+          { name = 'plenary.nvim', src = 'https://github.com/nvim-lua/plenary.nvim' },
+          { name = 'neogit', src = 'https://github.com/NeogitOrg/neogit' },
+          { name = 'gitsigns.nvim', src = 'https://github.com/lewis6991/gitsigns.nvim' },
+          { name = 'committia.vim', src = 'https://github.com/rhysd/committia.vim' },
+          { name = 'telescope.nvim', src = 'https://github.com/nvim-telescope/telescope.nvim' },
+          { name = 'diffs.nvim', src = 'https://github.com/barrettruth/diffs.nvim' },
+        }
+
+        local uv = vim.uv or vim.loop
+
+        local function clone(src, path)
+          if uv.fs_stat(path) then
+            return
+          end
+          vim.fn.mkdir(vim.fn.fnamemodify(path, ':h'), 'p')
+          local out = vim.fn.system({ 'git', 'clone', '--filter=blob:none', src, path })
+          if vim.v.shell_error ~= 0 then
+            error(out)
+          end
+        end
+
+        if vim.pack then
+          vim.pack.add(vim.tbl_map(function(plugin)
+            return { src = plugin.src, name = plugin.name }
+          end, plugins), { confirm = false })
+        else
+          for _, plugin in ipairs(plugins) do
+            local path = data_site .. '/pack/repro/start/' .. plugin.name
+            clone(plugin.src, path)
+            vim.opt.runtimepath:prepend(path)
+          end
+        end
+
+        require('gitsigns').setup()
+        require('neogit').setup({})
     validations:
       required: true
