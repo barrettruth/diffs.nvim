@@ -64,6 +64,7 @@ body:
         Confirm the bug reproduces with this config before submitting.
       render: lua
       value: |
+        local host_data_site = vim.fn.stdpath('data') .. '/site'
         local root = vim.fn.fnamemodify('.repro', ':p')
         vim.fn.mkdir(root, 'p')
         vim.env.XDG_CONFIG_HOME = root
@@ -74,6 +75,9 @@ body:
         local data_site = vim.fn.stdpath('data') .. '/site'
         vim.fn.mkdir(data_site, 'p')
         vim.opt.packpath:prepend(data_site)
+        if vim.uv.fs_stat(host_data_site) then
+          vim.opt.runtimepath:append(host_data_site)
+        end
 
         vim.o.background = 'dark'
         vim.cmd.colorscheme('habamax')
