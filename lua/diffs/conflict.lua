@@ -12,6 +12,8 @@
 
 local M = {}
 
+local keymaps = require('diffs.keymaps')
+
 local ns = vim.api.nvim_create_namespace('diffs-conflict')
 
 ---@type table<integer, true>
@@ -19,6 +21,9 @@ local attached_buffers = {}
 
 ---@type table<integer, boolean>
 local diagnostics_suppressed = {}
+
+---@type table<integer, string[]>
+local buffer_keymaps = {}
 
 ---@param lines string[]
 ---@return diffs.ConflictRegion[]
@@ -95,11 +100,14 @@ end
 ---@return string?
 local function get_virtual_text_label(side, config)
   if config.format_virtual_text then
-    local keymap = side == 'ours' and config.keymaps.ours or config.keymaps.theirs
+    local keymap = side == 'ours' and keymaps.get_conflict_keymap(config, 'ours')
+      or keymaps.get_conflict_keymap(config, 'theirs')
     return config.format_virtual_text(side, keymap)
   end
   return side == 'ours' and 'current' or 'incoming'
 end
+
+local setup_keymaps
 
 ---@param bufnr integer
 ---@param regions diffs.ConflictRegion[]
@@ -128,10 +136,10 @@ local function apply_highlights(bufnr, regions, config)
     if config.show_actions then
       local parts = {}
       local actions = {
-        { 'Current', config.keymaps.ours },
-        { 'Incoming', config.keymaps.theirs },
-        { 'Both', config.keymaps.both },
-        { 'None', config.keymaps.none },
+        { 'Current', keymaps.get_conflict_keymap(config, 'ours') },
+        { 'Incoming', keymaps.get_conflict_keymap(config, 'theirs') },
+        { 'Both', keymaps.get_conflict_keymap(config, 'both') },
+        { 'None', keymaps.get_conflict_keymap(config, 'none') },
       }
       for _, action in ipairs(actions) do
         if action[2] then
@@ -254,6 +262,7 @@ function M.refresh(bufnr, config)
   local regions = parse_buffer(bufnr)
   if #regions == 0 then
     vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
+    keymaps.clear_buffer_keymaps(buffer_keymaps, bufnr)
     if diagnostics_suppressed[bufnr] then
       pcall(vim.diagnostic.reset, nil, bufnr)
       pcall(vim.diagnostic.enable, true, { bufnr = bufnr })
@@ -263,6 +272,9 @@ function M.refresh(bufnr, config)
     return
   end
   apply_highlights(bufnr, regions, config)
+  if not buffer_keymaps[bufnr] then
+    setup_keymaps(bufnr, config)
+  end
   if config.disable_diagnostics and not diagnostics_suppressed[bufnr] then
     pcall(vim.diagnostic.enable, false, { bufnr = bufnr })
     diagnostics_suppressed[bufnr] = true
@@ -386,28 +398,27 @@ end
 
 ---@param bufnr integer
 ---@param config diffs.ConflictConfig
-local function setup_keymaps(bufnr, config)
+setup_keymaps = function(bufnr, config)
   local km = config.keymaps
+  if km == false then
+    keymaps.clear_buffer_keymaps(buffer_keymaps, bufnr)
+    return
+  end
 
-  local maps = {
+  keymaps.set_buffer_keymaps(buffer_keymaps, bufnr, {
     { km.ours, '<Plug>(diffs-conflict-ours)' },
     { km.theirs, '<Plug>(diffs-conflict-theirs)' },
     { km.both, '<Plug>(diffs-conflict-both)' },
     { km.none, '<Plug>(diffs-conflict-none)' },
     { km.next, '<Plug>(diffs-conflict-next)' },
     { km.prev, '<Plug>(diffs-conflict-prev)' },
-  }
-
-  for _, map in ipairs(maps) do
-    if map[1] then
-      vim.keymap.set('n', map[1], map[2], { buffer = bufnr })
-    end
-  end
+  })
 end
 
 ---@param bufnr integer
 function M.detach(bufnr)
   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
+  keymaps.clear_buffer_keymaps(buffer_keymaps, bufnr)
   attached_buffers[bufnr] = nil
 
   if diagnostics_suppressed[bufnr] then
@@ -465,6 +476,7 @@ function M.attach(bufnr, config)
   vim.api.nvim_create_autocmd('BufWipeout', {
     buffer = bufnr,
     callback = function()
+      keymaps.clear_buffer_keymaps(buffer_keymaps, bufnr)
       attached_buffers[bufnr] = nil
       diagnostics_suppressed[bufnr] = nil
     end,

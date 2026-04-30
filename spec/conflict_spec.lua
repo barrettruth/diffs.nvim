@@ -7,14 +7,7 @@ local function default_config(overrides)
     disable_diagnostics = false,
     show_virtual_text = true,
     show_actions = false,
-    keymaps = {
-      ours = 'co',
-      theirs = 'ct',
-      both = 'cb',
-      none = 'c0',
-      next = ']c',
-      prev = '[c',
-    },
+    keymaps = false,
   }
   if overrides then
     cfg = vim.tbl_deep_extend('force', cfg, overrides)
@@ -304,6 +297,97 @@ describe('conflict', function()
 
       conflict.detach(bufnr)
       assert.are.equal(0, #get_extmarks(bufnr))
+
+      helpers.delete_buffer(bufnr)
+    end)
+  end)
+
+  describe('keymaps', function()
+    it('does not set buffer-local keymaps when disabled', function()
+      local bufnr = create_file_buffer({
+        '<<<<<<< HEAD',
+        'local x = 1',
+        '=======',
+        'local x = 2',
+        '>>>>>>> feature',
+      })
+
+      conflict.attach(bufnr, default_config())
+
+      assert.is_false(helpers.has_keymap(bufnr, 'gt'))
+
+      helpers.delete_buffer(bufnr)
+    end)
+
+    it('removes buffer-local keymaps on detach', function()
+      local bufnr = create_file_buffer({
+        '<<<<<<< HEAD',
+        'local x = 1',
+        '=======',
+        'local x = 2',
+        '>>>>>>> feature',
+      })
+      local cfg = default_config({ keymaps = helpers.default_conflict_keymaps() })
+
+      conflict.attach(bufnr, cfg)
+
+      assert.is_true(helpers.has_keymap(bufnr, 'gt'))
+
+      conflict.detach(bufnr)
+
+      assert.is_false(helpers.has_keymap(bufnr, 'gt'))
+
+      helpers.delete_buffer(bufnr)
+    end)
+
+    it('removes buffer-local keymaps when all conflicts are resolved', function()
+      local bufnr = create_file_buffer({
+        '<<<<<<< HEAD',
+        'local x = 1',
+        '=======',
+        'local x = 2',
+        '>>>>>>> feature',
+      })
+      local cfg = default_config({ keymaps = helpers.default_conflict_keymaps() })
+
+      conflict.attach(bufnr, cfg)
+
+      assert.is_true(helpers.has_keymap(bufnr, 'gt'))
+
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'local x = 2' })
+      conflict.refresh(bufnr, cfg)
+
+      assert.is_false(helpers.has_keymap(bufnr, 'gt'))
+
+      helpers.delete_buffer(bufnr)
+    end)
+
+    it('reinstalls buffer-local keymaps when conflicts return', function()
+      local bufnr = create_file_buffer({
+        '<<<<<<< HEAD',
+        'local x = 1',
+        '=======',
+        'local x = 2',
+        '>>>>>>> feature',
+      })
+      local cfg = default_config({ keymaps = helpers.default_conflict_keymaps() })
+
+      conflict.attach(bufnr, cfg)
+
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'local x = 2' })
+      conflict.refresh(bufnr, cfg)
+      assert.is_false(helpers.has_keymap(bufnr, 'gt'))
+
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {
+        '<<<<<<< HEAD',
+        'local x = 1',
+        '=======',
+        'local x = 2',
+        '>>>>>>> feature',
+      })
+      conflict.refresh(bufnr, cfg)
+
+      assert.is_true(helpers.has_keymap(bufnr, 'gt'))
 
       helpers.delete_buffer(bufnr)
     end)
@@ -825,7 +909,10 @@ describe('conflict', function()
         '>>>>>>> feature',
       })
 
-      conflict.attach(bufnr, default_config({ show_actions = true }))
+      conflict.attach(
+        bufnr,
+        default_config({ show_actions = true, keymaps = helpers.default_conflict_keymaps() })
+      )
 
       local extmarks = get_extmarks(bufnr)
       local virt_lines_count = 0
@@ -850,7 +937,10 @@ describe('conflict', function()
 
       conflict.attach(
         bufnr,
-        default_config({ show_actions = true, keymaps = { both = false, none = false } })
+        default_config({
+          show_actions = true,
+          keymaps = helpers.default_conflict_keymaps({ both = false, none = false }),
+        })
       )
 
       local extmarks = get_extmarks(bufnr)

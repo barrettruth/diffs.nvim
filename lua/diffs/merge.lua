@@ -1,11 +1,15 @@
 local M = {}
 
 local conflict = require('diffs.conflict')
+local keymaps = require('diffs.keymaps')
 
 local ns = vim.api.nvim_create_namespace('diffs-merge')
 
 ---@type table<integer, table<integer, true>>
 local resolved_hunks = {}
+
+---@type table<integer, string[]>
+local buffer_keymaps = {}
 
 ---@class diffs.MergeHunkInfo
 ---@field index integer
@@ -354,10 +358,10 @@ local function apply_hunk_hints(bufnr, config)
     else
       local parts = {}
       local actions = {
-        { 'current', config.keymaps.ours },
-        { 'incoming', config.keymaps.theirs },
-        { 'both', config.keymaps.both },
-        { 'none', config.keymaps.none },
+        { 'current', keymaps.get_conflict_keymap(config, 'ours') },
+        { 'incoming', keymaps.get_conflict_keymap(config, 'theirs') },
+        { 'both', keymaps.get_conflict_keymap(config, 'both') },
+        { 'none', keymaps.get_conflict_keymap(config, 'none') },
       }
       for _, action in ipairs(actions) do
         if action[2] then
@@ -384,20 +388,17 @@ function M.setup_keymaps(bufnr, config)
   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
 
   local km = config.keymaps
-
-  local maps = {
-    { km.ours, '<Plug>(diffs-merge-ours)' },
-    { km.theirs, '<Plug>(diffs-merge-theirs)' },
-    { km.both, '<Plug>(diffs-merge-both)' },
-    { km.none, '<Plug>(diffs-merge-none)' },
-    { km.next, '<Plug>(diffs-merge-next)' },
-    { km.prev, '<Plug>(diffs-merge-prev)' },
-  }
-
-  for _, map in ipairs(maps) do
-    if map[1] then
-      vim.keymap.set('n', map[1], map[2], { buffer = bufnr })
-    end
+  if km ~= false then
+    keymaps.set_buffer_keymaps(buffer_keymaps, bufnr, {
+      { km.ours, '<Plug>(diffs-merge-ours)' },
+      { km.theirs, '<Plug>(diffs-merge-theirs)' },
+      { km.both, '<Plug>(diffs-merge-both)' },
+      { km.none, '<Plug>(diffs-merge-none)' },
+      { km.next, '<Plug>(diffs-merge-next)' },
+      { km.prev, '<Plug>(diffs-merge-prev)' },
+    })
+  else
+    keymaps.clear_buffer_keymaps(buffer_keymaps, bufnr)
   end
 
   apply_hunk_hints(bufnr, config)
@@ -405,6 +406,7 @@ function M.setup_keymaps(bufnr, config)
   vim.api.nvim_create_autocmd('BufWipeout', {
     buffer = bufnr,
     callback = function()
+      keymaps.clear_buffer_keymaps(buffer_keymaps, bufnr)
       resolved_hunks[bufnr] = nil
     end,
   })
