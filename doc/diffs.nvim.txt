@@ -125,14 +125,7 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
         disable_diagnostics = true,
         show_virtual_text = true,
         show_actions = false,
-        keymaps = {
-          ours = 'co',
-          theirs = 'ct',
-          both = 'cb',
-          none = 'c0',
-          next = ']c',
-          prev = '[c',
-        },
+        keymaps = false,
       },
     }
 <
@@ -565,12 +558,12 @@ Example configuration: >lua
                         Jump to previous conflict marker. Wraps around.
 
 Example configuration: >lua
-    vim.keymap.set('n', 'co', '<Plug>(diffs-conflict-ours)')
-    vim.keymap.set('n', 'ct', '<Plug>(diffs-conflict-theirs)')
-    vim.keymap.set('n', 'cb', '<Plug>(diffs-conflict-both)')
-    vim.keymap.set('n', 'cn', '<Plug>(diffs-conflict-none)')
-    vim.keymap.set('n', ']c', '<Plug>(diffs-conflict-next)')
-    vim.keymap.set('n', '[c', '<Plug>(diffs-conflict-prev)')
+    vim.keymap.set('n', '<leader>co', '<Plug>(diffs-conflict-ours)')
+    vim.keymap.set('n', '<leader>ct', '<Plug>(diffs-conflict-theirs)')
+    vim.keymap.set('n', '<leader>cb', '<Plug>(diffs-conflict-both)')
+    vim.keymap.set('n', '<leader>c0', '<Plug>(diffs-conflict-none)')
+    vim.keymap.set('n', ']x', '<Plug>(diffs-conflict-next)')
+    vim.keymap.set('n', '[x', '<Plug>(diffs-conflict-prev)')
 <
 
                                                     *<Plug>(diffs-merge-ours)*
@@ -771,13 +764,20 @@ Configuration: ~
         show_virtual_text = true,
         show_actions = false,
         priority = 200,
+        keymaps = false,
+      },
+    }
+<
+    To opt in to buffer-local mappings, provide a table: >lua
+    vim.g.diffs = {
+      conflict = {
         keymaps = {
-          ours = 'co',
-          theirs = 'ct',
-          both = 'cb',
-          none = 'c0',
-          next = ']c',
-          prev = '[c',
+          ours = '<leader>co',
+          theirs = '<leader>ct',
+          both = '<leader>cb',
+          none = '<leader>c0',
+          next = ']x',
+          prev = '[x',
         },
       },
     }
@@ -821,37 +821,39 @@ Configuration: ~
                              Show a codelens-style action line above each
                              `<<<<<<<` marker listing available resolution
                              keymaps. Renders as virtual lines using the
-                             `DiffsConflictActions` highlight group.
-                             Only keymaps that are not `false` appear.
+                             `DiffsConflictActions` highlight group. Only
+                             configured keymaps appear.
 
         {priority}           (integer, default: 200)
                              Extmark priority for conflict region
                              backgrounds and markers. Adjust if other
                              plugins use the same priority range.
 
-        {keymaps}            (table, default: see above)
-                             Buffer-local keymaps for conflict resolution
-                             and navigation. Each value accepts a string
-                             (custom key) or `false` (disabled).
+        {keymaps}            (table|false, default: false)
+                             Opt-in buffer-local keymaps for conflict
+                             resolution and navigation in conflicted
+                             working buffers and merge diff views. Pass a
+                             table to enable plugin-defined mappings.
+                             Unspecified fields remain disabled.
 
                                                        *diffs.ConflictKeymaps*
     Keymap fields: ~
-        {ours}               (string|false, default: 'co')
+        {ours}               (string|false, default: false)
                              Accept current (ours) change.
 
-        {theirs}             (string|false, default: 'ct')
+        {theirs}             (string|false, default: false)
                              Accept incoming (theirs) change.
 
-        {both}               (string|false, default: 'cb')
+        {both}               (string|false, default: false)
                              Accept both changes (ours then theirs).
 
-        {none}               (string|false, default: 'c0')
+        {none}               (string|false, default: false)
                              Reject both changes (delete entire block).
 
-        {next}               (string|false, default: ']c')
+        {next}               (string|false, default: false)
                              Jump to next conflict marker. Wraps around.
 
-        {prev}               (string|false, default: '[c')
+        {prev}               (string|false, default: false)
                              Jump to previous conflict marker. Wraps
                              around.
 
