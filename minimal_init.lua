@@ -3,12 +3,16 @@ vim.o.background = 'dark'
 vim.o.number = true
 vim.o.relativenumber = true
 
+local host_data_site = vim.fn.stdpath('data') .. '/site'
 local root = vim.fn.fnamemodify('/tmp/diffs-harivansh-repro', ':p')
 vim.opt.packpath = { root }
 vim.env.XDG_CONFIG_HOME = root
 vim.env.XDG_DATA_HOME = root
 vim.env.XDG_STATE_HOME = root
 vim.env.XDG_CACHE_HOME = root
+if vim.uv.fs_stat(host_data_site) then
+  vim.opt.rtp:append(host_data_site)
+end
 
 vim.opt.rtp:prepend(vim.fn.expand('~/dev/diffs.nvim'))
 
