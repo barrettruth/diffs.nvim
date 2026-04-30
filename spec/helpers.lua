@@ -16,6 +16,21 @@ ensure_parser('vim')
 
 local M = {}
 
+function M.default_conflict_keymaps(overrides)
+  local keymaps = {
+    ours = 'go',
+    theirs = 'gt',
+    both = 'gb',
+    none = 'g0',
+    next = ']x',
+    prev = '[x',
+  }
+  if overrides then
+    keymaps = vim.tbl_extend('force', keymaps, overrides)
+  end
+  return keymaps
+end
+
 function M.create_buffer(lines)
   local bufnr = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines or {})
@@ -30,6 +45,15 @@ end
 
 function M.get_extmarks(bufnr, ns)
   return vim.api.nvim_buf_get_extmarks(bufnr, ns, 0, -1, { details = true })
+end
+
+function M.has_keymap(bufnr, lhs)
+  for _, keymap in ipairs(vim.api.nvim_buf_get_keymap(bufnr, 'n')) do
+    if keymap.lhs == lhs then
+      return true
+    end
+  end
+  return false
 end
 
 return M

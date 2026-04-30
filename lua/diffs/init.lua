@@ -55,6 +55,8 @@
 ---@field next string|false
 ---@field prev string|false
 
+---@alias diffs.ConflictKeymapName 'ours' | 'theirs' | 'both' | 'none' | 'next' | 'prev'
+
 ---@class diffs.ConflictConfig
 ---@field enabled boolean
 ---@field disable_diagnostics boolean
@@ -62,7 +64,7 @@
 ---@field format_virtual_text? fun(side: string, keymap: string|false): string?
 ---@field show_actions boolean
 ---@field priority integer
----@field keymaps diffs.ConflictKeymaps
+---@field keymaps diffs.ConflictKeymaps|false
 
 ---@class diffs.IntegrationsConfig
 ---@field fugitive diffs.FugitiveConfig|false
@@ -176,14 +178,7 @@ local default_config = {
     show_virtual_text = true,
     show_actions = false,
     priority = 200,
-    keymaps = {
-      ours = 'co',
-      theirs = 'ct',
-      both = 'cb',
-      none = 'c0',
-      next = ']c',
-      prev = '[c',
-    },
+    keymaps = false,
   },
 }
 
@@ -911,11 +906,13 @@ local function init()
     )
     vim.validate('conflict.show_actions', opts.conflict.show_actions, 'boolean', true)
     vim.validate('conflict.priority', opts.conflict.priority, 'number', true)
-    vim.validate('conflict.keymaps', opts.conflict.keymaps, 'table', true)
+    vim.validate('conflict.keymaps', opts.conflict.keymaps, function(v)
+      return v == nil or v == false or type(v) == 'table'
+    end, 'table or false')
 
-    if opts.conflict.keymaps then
+    if type(opts.conflict.keymaps) == 'table' then
       local keymap_validator = function(v)
-        return v == false or type(v) == 'string'
+        return v == nil or v == false or type(v) == 'string'
       end
       for _, key in ipairs({ 'ours', 'theirs', 'both', 'none', 'next', 'prev' }) do
         vim.validate(

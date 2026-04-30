@@ -7,14 +7,7 @@ local function default_config(overrides)
     disable_diagnostics = false,
     show_virtual_text = true,
     show_actions = false,
-    keymaps = {
-      ours = 'co',
-      theirs = 'ct',
-      both = 'cb',
-      none = 'c0',
-      next = ']c',
-      prev = '[c',
-    },
+    keymaps = false,
   }
   if overrides then
     cfg = vim.tbl_deep_extend('force', cfg, overrides)
@@ -695,7 +688,7 @@ describe('merge', function()
   end)
 
   describe('hunk hints', function()
-    it('adds keymap hints on hunk header lines', function()
+    it('does not add keymap hints without keymaps', function()
       local d_bufnr = create_diff_buffer({
         'diff --git a/file.lua b/file.lua',
         '--- a/file.lua',
@@ -712,6 +705,31 @@ describe('merge', function()
       local hint_marks = {}
       for _, mark in ipairs(extmarks) do
         if mark[4] and mark[4].virt_text then
+          table.insert(hint_marks, mark)
+        end
+      end
+      assert.are.equal(0, #hint_marks)
+
+      helpers.delete_buffer(d_bufnr)
+    end)
+
+    it('adds keymap hints on hunk header lines when keymaps are configured', function()
+      local d_bufnr = create_diff_buffer({
+        'diff --git a/file.lua b/file.lua',
+        '--- a/file.lua',
+        '+++ b/file.lua',
+        '@@ -1,1 +1,1 @@',
+        '-local x = 1',
+        '+local x = 2',
+      })
+
+      merge.setup_keymaps(d_bufnr, default_config({ keymaps = helpers.default_conflict_keymaps() }))
+
+      local extmarks =
+        vim.api.nvim_buf_get_extmarks(d_bufnr, merge.get_namespace(), 0, -1, { details = true })
+      local hint_marks = {}
+      for _, mark in ipairs(extmarks) do
+        if mark[4] and mark[4].virt_text then
           local text = ''
           for _, chunk in ipairs(mark[4].virt_text) do
             text = text .. chunk[1]
@@ -721,8 +739,8 @@ describe('merge', function()
       end
       assert.are.equal(1, #hint_marks)
       assert.are.equal(3, hint_marks[1].line)
-      assert.is_truthy(hint_marks[1].text:find('co'))
-      assert.is_truthy(hint_marks[1].text:find('ct'))
+      assert.is_truthy(hint_marks[1].text:find('go'))
+      assert.is_truthy(hint_marks[1].text:find('gt'))
 
       helpers.delete_buffer(d_bufnr)
     end)
