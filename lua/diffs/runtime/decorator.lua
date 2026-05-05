@@ -1,4 +1,4 @@
-local cache_mod = require('diffs.cache')
+local cache_mod = require('diffs.runtime.cache')
 local highlight = require('diffs.highlight')
 local log = require('diffs.log')
 
