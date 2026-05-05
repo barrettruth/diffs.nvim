@@ -38,8 +38,6 @@ local diff_windows = {}
 ---@type fun(bufnr: integer): boolean
 M.is_fugitive_buffer = attach_mod.is_fugitive_buffer
 
-M.compute_filetypes = config_mod.compute_filetypes
-
 local function compute_highlight_groups(is_default)
   local result = highlight_groups.apply(config, is_default)
   if result.transparent and not hl_retry_pending then

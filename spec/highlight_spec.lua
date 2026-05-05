@@ -474,7 +474,7 @@ describe('highlight', function()
         )
 
         local last_body_row = hunk.start_line + #hunk.lines - 1
-        local clear_ns_by_start = require('diffs')._test.clear_ns_by_start
+        local clear_ns_by_start = require('diffs.runtime.cache').clear_ns_by_start
         clear_ns_by_start(bufnr, ns, last_body_row + 1, last_body_row + 10)
 
         local marks = vim.api.nvim_buf_get_extmarks(

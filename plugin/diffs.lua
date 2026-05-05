@@ -4,6 +4,8 @@ end
 vim.g.loaded_diffs = 1
 
 require('diffs.commands').setup()
+local config = require('diffs.config')
+local runtime = require('diffs.runtime')
 
 local function get_raw_integration(key)
   local user = vim.g.diffs or {}
@@ -33,19 +35,18 @@ if tel_cfg == true or type(tel_cfg) == 'table' then
   vim.api.nvim_create_autocmd('User', {
     pattern = 'TelescopePreviewerLoaded',
     callback = function()
-      require('diffs').attach(vim.api.nvim_get_current_buf())
+      runtime.attach(vim.api.nvim_get_current_buf())
     end,
   })
 end
 
 vim.api.nvim_create_autocmd('FileType', {
-  pattern = require('diffs').compute_filetypes(vim.g.diffs or {}),
+  pattern = config.compute_filetypes(vim.g.diffs or {}),
   callback = function(args)
-    local diffs = require('diffs')
-    diffs.attach(args.buf)
+    runtime.attach(args.buf)
 
     if args.match == 'fugitive' then
-      local fugitive_config = diffs.get_fugitive_config()
+      local fugitive_config = runtime.get_fugitive_config()
       if fugitive_config and (fugitive_config.horizontal or fugitive_config.vertical) then
         require('diffs.fugitive').setup_keymaps(args.buf, fugitive_config)
       end
@@ -62,7 +63,7 @@ vim.api.nvim_create_autocmd('BufReadCmd', {
 
 vim.api.nvim_create_autocmd('BufReadPost', {
   callback = function(args)
-    local conflict_config = require('diffs').get_conflict_config()
+    local conflict_config = runtime.get_conflict_config()
     if conflict_config.enabled then
       require('diffs.conflict').attach(args.buf, conflict_config)
     end
@@ -73,9 +74,9 @@ vim.api.nvim_create_autocmd('OptionSet', {
   pattern = 'diff',
   callback = function()
     if vim.wo.diff then
-      require('diffs').attach_diff()
+      runtime.attach_diff()
     else
-      require('diffs').detach_diff()
+      runtime.detach_diff()
     end
   end,
 })
@@ -90,8 +91,8 @@ end, { desc = 'Unified diff (vertical)' })
 
 local function conflict_action(fn)
   local bufnr = vim.api.nvim_get_current_buf()
-  local config = require('diffs').get_conflict_config()
-  fn(bufnr, config)
+  local conflict_config = runtime.get_conflict_config()
+  fn(bufnr, conflict_config)
 end
 
 vim.keymap.set('n', '<Plug>(diffs-conflict-ours)', function()
@@ -115,8 +116,8 @@ end, { desc = 'Jump to previous conflict' })
 
 local function merge_action(fn)
   local bufnr = vim.api.nvim_get_current_buf()
-  local config = require('diffs').get_conflict_config()
-  fn(bufnr, config)
+  local conflict_config = runtime.get_conflict_config()
+  fn(bufnr, conflict_config)
 end
 
 vim.keymap.set('n', '<Plug>(diffs-merge-ours)', function()

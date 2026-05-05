@@ -1,5 +1,5 @@
 require('spec.helpers')
-local diffs = require('diffs')
+local runtime = require('diffs.runtime')
 
 describe('decoration_provider', function()
   local function create_buffer(lines)
@@ -24,8 +24,8 @@ describe('decoration_provider', function()
         '+local y = 3',
         ' local z = 4',
       })
-      diffs.attach(bufnr)
-      local entry = diffs._test.hunk_cache[bufnr]
+      runtime.attach(bufnr)
+      local entry = runtime._test.hunk_cache[bufnr]
       assert.is_not_nil(entry)
       assert.is_table(entry.hunks)
       assert.is_true(#entry.hunks > 0)
@@ -39,8 +39,8 @@ describe('decoration_provider', function()
         ' local x = 1',
         '+local y = 2',
       })
-      diffs.attach(bufnr)
-      local entry = diffs._test.hunk_cache[bufnr]
+      runtime.attach(bufnr)
+      local entry = runtime._test.hunk_cache[bufnr]
       local tick = vim.api.nvim_buf_get_changedtick(bufnr)
       assert.are.equal(tick, entry.tick)
       delete_buffer(bufnr)
@@ -53,11 +53,11 @@ describe('decoration_provider', function()
         ' local x = 1',
         '+local y = 2',
       })
-      diffs.attach(bufnr)
-      local tick_before = diffs._test.hunk_cache[bufnr].tick
+      runtime.attach(bufnr)
+      local tick_before = runtime._test.hunk_cache[bufnr].tick
       vim.api.nvim_buf_set_lines(bufnr, -1, -1, false, { '+local z = 3' })
-      diffs._test.ensure_cache(bufnr)
-      local tick_after = diffs._test.hunk_cache[bufnr].tick
+      runtime._test.ensure_cache(bufnr)
+      local tick_after = runtime._test.hunk_cache[bufnr].tick
       assert.is_true(tick_after > tick_before)
       delete_buffer(bufnr)
     end)
@@ -69,8 +69,8 @@ describe('decoration_provider', function()
         ' local x = 1',
         '+local y = 2',
       })
-      diffs.attach(bufnr)
-      local entry = diffs._test.hunk_cache[bufnr]
+      runtime.attach(bufnr)
+      local entry = runtime._test.hunk_cache[bufnr]
       local original_hunks = entry.hunks
       entry.pending_clear = false
 
@@ -80,9 +80,9 @@ describe('decoration_provider', function()
       entry.byte_count = bc
       entry.tick = -1
 
-      diffs._test.ensure_cache(bufnr)
+      runtime._test.ensure_cache(bufnr)
 
-      local updated = diffs._test.hunk_cache[bufnr]
+      local updated = runtime._test.hunk_cache[bufnr]
       local current_tick = vim.api.nvim_buf_get_changedtick(bufnr)
       assert.are.equal(original_hunks, updated.hunks)
       assert.are.equal(current_tick, updated.tick)
@@ -92,10 +92,10 @@ describe('decoration_provider', function()
 
     it('does nothing for invalid buffer', function()
       local bufnr = create_buffer({})
-      diffs.attach(bufnr)
+      runtime.attach(bufnr)
       vim.api.nvim_buf_delete(bufnr, { force = true })
       assert.has_no.errors(function()
-        diffs._test.ensure_cache(bufnr)
+        runtime._test.ensure_cache(bufnr)
       end)
     end)
   end)
@@ -103,9 +103,9 @@ describe('decoration_provider', function()
   describe('pending_clear', function()
     it('is true after invalidate_cache', function()
       local bufnr = create_buffer({})
-      diffs.attach(bufnr)
-      diffs._test.invalidate_cache(bufnr)
-      local entry = diffs._test.hunk_cache[bufnr]
+      runtime.attach(bufnr)
+      runtime._test.invalidate_cache(bufnr)
+      local entry = runtime._test.hunk_cache[bufnr]
       assert.is_true(entry.pending_clear)
       delete_buffer(bufnr)
     end)
@@ -117,8 +117,8 @@ describe('decoration_provider', function()
         ' local x = 1',
         '+local y = 2',
       })
-      diffs.attach(bufnr)
-      local entry = diffs._test.hunk_cache[bufnr]
+      runtime.attach(bufnr)
+      local entry = runtime._test.hunk_cache[bufnr]
       assert.is_true(entry.pending_clear)
       delete_buffer(bufnr)
     end)
@@ -130,19 +130,19 @@ describe('decoration_provider', function()
         ' local x = 1',
         '+local y = 2',
       })
-      diffs.attach(bufnr)
+      runtime.attach(bufnr)
       local ns_id = vim.api.nvim_create_namespace('diffs')
       vim.api.nvim_buf_set_extmark(bufnr, ns_id, 0, 0, { line_hl_group = 'DiffAdd' })
       assert.are.equal(1, #vim.api.nvim_buf_get_extmarks(bufnr, ns_id, 0, -1, {}))
 
-      diffs._test.invalidate_cache(bufnr)
-      diffs._test.ensure_cache(bufnr)
-      local entry = diffs._test.hunk_cache[bufnr]
+      runtime._test.invalidate_cache(bufnr)
+      runtime._test.ensure_cache(bufnr)
+      local entry = runtime._test.hunk_cache[bufnr]
       assert.is_true(entry.pending_clear)
 
-      diffs._test.process_pending_clear(bufnr)
+      runtime._test.process_pending_clear(bufnr)
 
-      entry = diffs._test.hunk_cache[bufnr]
+      entry = runtime._test.hunk_cache[bufnr]
       assert.is_false(entry.pending_clear)
       assert.are.same({}, vim.api.nvim_buf_get_extmarks(bufnr, ns_id, 0, -1, {}))
       delete_buffer(bufnr)
@@ -170,18 +170,23 @@ describe('decoration_provider', function()
         ' alpha',
         '+beta',
       })
-      diffs.attach(bufnr)
-      local entry = diffs._test.hunk_cache[bufnr]
+      runtime.attach(bufnr)
+      local entry = runtime._test.hunk_cache[bufnr]
       local changedtick = vim.api.nvim_buf_get_changedtick(bufnr)
-      local job_id = diffs._test.next_syntax_job(bufnr)
+      local job_id = runtime._test.next_syntax_job(bufnr)
 
       vim.api.nvim_buf_set_lines(bufnr, 1, 4, false, {
         '@@ -1,1 +1,1 @@',
         ' gamma',
       })
 
-      local ok =
-        diffs._test.run_deferred_syntax(bufnr, entry.tick, changedtick, job_id, { entry.hunks[1] })
+      local ok = runtime._test.run_deferred_syntax(
+        bufnr,
+        entry.tick,
+        changedtick,
+        job_id,
+        { entry.hunks[1] }
+      )
       local ns_id = vim.api.nvim_create_namespace('diffs')
       local extmarks = vim.api.nvim_buf_get_extmarks(bufnr, ns_id, 0, -1, { details = true })
 
@@ -203,10 +208,10 @@ describe('decoration_provider', function()
         ' local x = 1',
         '+local y = 2',
       })
-      diffs.attach(bufnr)
-      assert.is_not_nil(diffs._test.hunk_cache[bufnr])
+      runtime.attach(bufnr)
+      assert.is_not_nil(runtime._test.hunk_cache[bufnr])
       vim.api.nvim_buf_delete(bufnr, { force = true })
-      assert.is_nil(diffs._test.hunk_cache[bufnr])
+      assert.is_nil(runtime._test.hunk_cache[bufnr])
     end)
   end)
 
@@ -223,8 +228,8 @@ describe('decoration_provider', function()
         '+  return true',
         ' end',
       })
-      diffs.attach(bufnr)
-      local entry = diffs._test.hunk_cache[bufnr]
+      runtime.attach(bufnr)
+      local entry = runtime._test.hunk_cache[bufnr]
       assert.are.equal(2, #entry.hunks)
 
       entry.pending_clear = false
@@ -235,9 +240,9 @@ describe('decoration_provider', function()
         ' local z = 4',
         '+local w = 5',
       })
-      diffs._test.ensure_cache(bufnr)
+      runtime._test.ensure_cache(bufnr)
 
-      local updated = diffs._test.hunk_cache[bufnr]
+      local updated = runtime._test.hunk_cache[bufnr]
       assert.are.equal(3, #updated.hunks)
       assert.are.same({}, updated.highlighted)
       assert.is_true(updated.pending_clear)
@@ -259,17 +264,17 @@ describe('decoration_provider', function()
         '+  return true',
         ' end',
       })
-      diffs.attach(bufnr)
-      local entry = diffs._test.hunk_cache[bufnr]
+      runtime.attach(bufnr)
+      local entry = runtime._test.hunk_cache[bufnr]
       assert.are.equal(3, #entry.hunks)
 
       entry.pending_clear = false
       entry.highlighted = { [1] = true, [2] = true, [3] = true }
 
       vim.api.nvim_buf_set_lines(bufnr, 5, 8, false, {})
-      diffs._test.ensure_cache(bufnr)
+      runtime._test.ensure_cache(bufnr)
 
-      local updated = diffs._test.hunk_cache[bufnr]
+      local updated = runtime._test.hunk_cache[bufnr]
       assert.are.equal(2, #updated.hunks)
       assert.are.same({}, updated.highlighted)
       assert.is_true(updated.pending_clear)
@@ -288,8 +293,8 @@ describe('decoration_provider', function()
         '+  return true',
         ' end',
       })
-      diffs.attach(bufnr)
-      local entry = diffs._test.hunk_cache[bufnr]
+      runtime.attach(bufnr)
+      local entry = runtime._test.hunk_cache[bufnr]
       entry.highlighted = { [1] = true, [2] = true }
       entry.pending_clear = true
 
@@ -298,9 +303,9 @@ describe('decoration_provider', function()
         ' local z = 4',
         '+local w = 5',
       })
-      diffs._test.ensure_cache(bufnr)
+      runtime._test.ensure_cache(bufnr)
 
-      local updated = diffs._test.hunk_cache[bufnr]
+      local updated = runtime._test.hunk_cache[bufnr]
       assert.are.same({}, updated.highlighted)
       assert.is_true(updated.pending_clear)
       delete_buffer(bufnr)
@@ -314,8 +319,8 @@ describe('decoration_provider', function()
         '-local y = 2',
         '+local y = 3',
       })
-      diffs.attach(bufnr)
-      local entry = diffs._test.hunk_cache[bufnr]
+      runtime.attach(bufnr)
+      local entry = runtime._test.hunk_cache[bufnr]
 
       entry.pending_clear = false
       entry.highlighted = { [1] = true }
@@ -326,9 +331,9 @@ describe('decoration_provider', function()
         ' local a = 1',
         '+local b = 2',
       })
-      diffs._test.ensure_cache(bufnr)
+      runtime._test.ensure_cache(bufnr)
 
-      local updated = diffs._test.hunk_cache[bufnr]
+      local updated = runtime._test.hunk_cache[bufnr]
       assert.is_nil(updated.highlighted[1])
       assert.is_true(updated.pending_clear)
       delete_buffer(bufnr)
@@ -348,8 +353,8 @@ describe('decoration_provider', function()
         '+  return true',
         ' end',
       })
-      diffs.attach(bufnr)
-      local entry = diffs._test.hunk_cache[bufnr]
+      runtime.attach(bufnr)
+      local entry = runtime._test.hunk_cache[bufnr]
       assert.is_not_nil(entry)
       assert.are.equal(2, #entry.hunks)
       delete_buffer(bufnr)
@@ -362,8 +367,8 @@ describe('decoration_provider', function()
         '',
         'Nothing to see here',
       })
-      diffs.attach(bufnr)
-      local entry = diffs._test.hunk_cache[bufnr]
+      runtime.attach(bufnr)
+      local entry = runtime._test.hunk_cache[bufnr]
       assert.is_not_nil(entry)
       assert.are.same({}, entry.hunks)
       delete_buffer(bufnr)

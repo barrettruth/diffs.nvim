@@ -2,8 +2,8 @@ require('spec.helpers')
 
 vim.g.diffs = { integrations = { neogit = true } }
 
-local diffs = require('diffs')
 local parser = require('diffs.parser')
+local runtime = require('diffs.runtime')
 
 local function create_buffer(lines)
   local bufnr = vim.api.nvim_create_buf(false, true)
@@ -27,7 +27,7 @@ describe('neogit_integration', function()
         '+local y = 2',
       })
       vim.api.nvim_set_option_value('filetype', 'NeogitStatus', { buf = bufnr })
-      diffs.attach(bufnr)
+      runtime.attach(bufnr)
 
       assert.is_true(vim.b[bufnr].neogit_disable_hunk_highlight)
 
@@ -37,7 +37,7 @@ describe('neogit_integration', function()
     it('does not set neogit_disable_hunk_highlight on non-Neogit buffer', function()
       local bufnr = create_buffer({})
       vim.api.nvim_set_option_value('filetype', 'git', { buf = bufnr })
-      diffs.attach(bufnr)
+      runtime.attach(bufnr)
 
       assert.is_not_true(vim.b[bufnr].neogit_disable_hunk_highlight)
 
@@ -55,8 +55,8 @@ describe('neogit_integration', function()
         ' return M',
       })
       vim.api.nvim_set_option_value('filetype', 'NeogitStatus', { buf = bufnr })
-      diffs.attach(bufnr)
-      local entry = diffs._test.hunk_cache[bufnr]
+      runtime.attach(bufnr)
+      local entry = runtime._test.hunk_cache[bufnr]
       assert.is_not_nil(entry)
       assert.is_table(entry.hunks)
       assert.are.equal(1, #entry.hunks)
@@ -72,8 +72,8 @@ describe('neogit_integration', function()
         '+return M',
       })
       vim.api.nvim_set_option_value('filetype', 'NeogitDiffView', { buf = bufnr })
-      diffs.attach(bufnr)
-      local entry = diffs._test.hunk_cache[bufnr]
+      runtime.attach(bufnr)
+      local entry = runtime._test.hunk_cache[bufnr]
       assert.is_not_nil(entry)
       assert.is_table(entry.hunks)
       assert.are.equal(1, #entry.hunks)

@@ -2,6 +2,7 @@ local M = {}
 
 local git = require('diffs.git')
 local dbg = require('diffs.log').dbg
+local runtime = require('diffs.runtime')
 
 ---@return integer?
 function M.find_diffs_window()
@@ -175,7 +176,7 @@ function M.gdiff(revision, vertical)
   dbg('opened diff buffer %d for %s against %s', diff_buf, rel_path, revision)
 
   vim.schedule(function()
-    require('diffs').attach(diff_buf)
+    runtime.attach(diff_buf)
   end)
 end
 
@@ -296,14 +297,14 @@ function M.gdiff_file(filepath, opts)
   if diff_label == 'unmerged' then
     vim.api.nvim_buf_set_var(diff_buf, 'diffs_unmerged', true)
     vim.api.nvim_buf_set_var(diff_buf, 'diffs_working_path', filepath)
-    local conflict_config = require('diffs').get_conflict_config()
+    local conflict_config = runtime.get_conflict_config()
     require('diffs.merge').setup_keymaps(diff_buf, conflict_config)
   end
 
   dbg('opened diff buffer %d for %s (%s)', diff_buf, rel_path, diff_label)
 
   vim.schedule(function()
-    require('diffs').attach(diff_buf)
+    runtime.attach(diff_buf)
   end)
 end
 
@@ -358,7 +359,7 @@ function M.gdiff_section(repo_root, opts)
   dbg('opened section diff buffer %d (%s)', diff_buf, diff_label)
 
   vim.schedule(function()
-    require('diffs').attach(diff_buf)
+    runtime.attach(diff_buf)
   end)
 end
 
@@ -776,7 +777,7 @@ function M.greview(spec)
   dbg('opened review buffer %d (%s)', diff_buf, review.display)
 
   vim.schedule(function()
-    require('diffs').attach(diff_buf)
+    runtime.attach(diff_buf)
   end)
 
   return diff_buf
@@ -910,7 +911,7 @@ function M.read_buffer(bufnr)
 
   dbg('reloaded diff buffer %d (%s:%s)', bufnr, label, path)
 
-  require('diffs').attach(bufnr)
+  runtime.attach(bufnr)
 end
 
 function M.setup()
