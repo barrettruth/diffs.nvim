@@ -1,6 +1,6 @@
 require('spec.helpers')
-local diffs = require('diffs')
 local highlight = require('diffs.highlight')
+local runtime = require('diffs.runtime')
 
 local function setup_highlight_groups()
   local normal = vim.api.nvim_get_hl(0, { name = 'Normal' })
@@ -66,8 +66,8 @@ describe('integration', function()
         '+local y = 3',
         ' local z = 4',
       })
-      diffs.attach(bufnr)
-      local entry = diffs._test.hunk_cache[bufnr]
+      runtime.attach(bufnr)
+      local entry = runtime._test.hunk_cache[bufnr]
       assert.is_not_nil(entry)
       assert.are.equal(1, #entry.hunks)
       assert.are.equal('foo.lua', entry.hunks[1].filename)
@@ -85,8 +85,8 @@ describe('integration', function()
         ' local a = 1',
         '+local b = 2',
       })
-      diffs.attach(bufnr)
-      local entry = diffs._test.hunk_cache[bufnr]
+      runtime.attach(bufnr)
+      local entry = runtime._test.hunk_cache[bufnr]
       assert.is_not_nil(entry)
       assert.are.equal(2, #entry.hunks)
       delete_buffer(bufnr)
@@ -99,11 +99,11 @@ describe('integration', function()
         ' local x = 1',
         '+local y = 2',
       })
-      diffs.attach(bufnr)
-      local entry_before = diffs._test.hunk_cache[bufnr]
+      runtime.attach(bufnr)
+      local entry_before = runtime._test.hunk_cache[bufnr]
       local tick_before = entry_before.tick
-      diffs.attach(bufnr)
-      local entry_after = diffs._test.hunk_cache[bufnr]
+      runtime.attach(bufnr)
+      local entry_after = runtime._test.hunk_cache[bufnr]
       assert.are.equal(tick_before, entry_after.tick)
       delete_buffer(bufnr)
     end)
@@ -115,11 +115,11 @@ describe('integration', function()
         ' local x = 1',
         '+local y = 2',
       })
-      diffs.attach(bufnr)
-      local tick_before = diffs._test.hunk_cache[bufnr].tick
+      runtime.attach(bufnr)
+      local tick_before = runtime._test.hunk_cache[bufnr].tick
       vim.api.nvim_buf_set_lines(bufnr, -1, -1, false, { '+local z = 3' })
-      diffs.refresh(bufnr)
-      local entry = diffs._test.hunk_cache[bufnr]
+      runtime.refresh(bufnr)
+      local entry = runtime._test.hunk_cache[bufnr]
       assert.are.equal(-1, entry.tick)
       assert.is_true(entry.pending_clear)
       assert.is_true(tick_before >= 0)
@@ -147,11 +147,11 @@ describe('integration', function()
         '-    listen 80;',
         '+    listen 8080;',
       })
-      diffs.attach(bufnr)
-      local entry = diffs._test.hunk_cache[bufnr]
+      runtime.attach(bufnr)
+      local entry = runtime._test.hunk_cache[bufnr]
       assert.is_not_nil(entry)
       assert.is_nil(entry.hunks[1].ft)
-      assert.is_true(diffs._test.ft_retry_pending[bufnr] == true)
+      assert.is_true(runtime._test.ft_retry_pending[bufnr] == true)
       delete_buffer(bufnr)
     end)
 
@@ -163,8 +163,8 @@ describe('integration', function()
         '-    listen 80;',
         '+    listen 8080;',
       })
-      diffs.attach(bufnr)
-      assert.is_true(diffs._test.ft_retry_pending[bufnr] == true)
+      runtime.attach(bufnr)
+      assert.is_true(runtime._test.ft_retry_pending[bufnr] == true)
 
       local done = false
       vim.schedule(function()
@@ -174,7 +174,7 @@ describe('integration', function()
         return done
       end)
 
-      assert.is_nil(diffs._test.ft_retry_pending[bufnr])
+      assert.is_nil(runtime._test.ft_retry_pending[bufnr])
       delete_buffer(bufnr)
     end)
 
@@ -186,8 +186,8 @@ describe('integration', function()
         '-    listen 80;',
         '+    listen 8080;',
       })
-      diffs.attach(bufnr)
-      local tick_after_attach = diffs._test.hunk_cache[bufnr].tick
+      runtime.attach(bufnr)
+      local tick_after_attach = runtime._test.hunk_cache[bufnr].tick
       assert.is_true(tick_after_attach >= 0)
 
       local done = false
@@ -198,7 +198,7 @@ describe('integration', function()
         return done
       end)
 
-      local entry = diffs._test.hunk_cache[bufnr]
+      local entry = runtime._test.hunk_cache[bufnr]
       assert.are.equal(-1, entry.tick)
       assert.is_true(entry.pending_clear)
       delete_buffer(bufnr)
@@ -213,8 +213,8 @@ describe('integration', function()
         '-old line',
         '+new line',
       })
-      diffs.attach(bufnr)
-      assert.is_falsy(diffs._test.ft_retry_pending[bufnr])
+      runtime.attach(bufnr)
+      assert.is_falsy(runtime._test.ft_retry_pending[bufnr])
       delete_buffer(bufnr)
     end)
 
@@ -225,8 +225,8 @@ describe('integration', function()
         ' local x = 1',
         '+local y = 2',
       })
-      diffs.attach(bufnr)
-      assert.is_falsy(diffs._test.ft_retry_pending[bufnr])
+      runtime.attach(bufnr)
+      assert.is_falsy(runtime._test.ft_retry_pending[bufnr])
       delete_buffer(bufnr)
     end)
   end)
@@ -379,7 +379,7 @@ describe('integration', function()
         ' local x = 1',
         '+local y = 2',
       })
-      diffs.attach(bufnr)
+      runtime.attach(bufnr)
       local ns = get_diffs_ns()
       assert.is_not_nil(ns)
       assert.is_number(ns)

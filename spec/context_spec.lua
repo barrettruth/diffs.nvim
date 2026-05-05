@@ -1,7 +1,7 @@
 require('spec.helpers')
-local diffs = require('diffs')
+local cache = require('diffs.runtime.cache')
 local highlight = require('diffs.highlight')
-local compute_hunk_context = diffs._test.compute_hunk_context
+local compute_hunk_context = cache.compute_hunk_context
 
 describe('context', function()
   describe('compute_hunk_context', function()

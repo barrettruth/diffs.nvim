@@ -2,8 +2,9 @@ require('spec.helpers')
 
 vim.g.diffs = { integrations = { neojj = true } }
 
-local diffs = require('diffs')
+local config = require('diffs.config')
 local parser = require('diffs.parser')
+local runtime = require('diffs.runtime')
 
 local function create_buffer(lines)
   local bufnr = vim.api.nvim_create_buf(false, true)
@@ -27,7 +28,7 @@ describe('neojj_integration', function()
         '+local y = 2',
       })
       vim.api.nvim_set_option_value('filetype', 'NeojjStatus', { buf = bufnr })
-      diffs.attach(bufnr)
+      runtime.attach(bufnr)
 
       assert.is_true(vim.b[bufnr].neojj_disable_hunk_highlight)
 
@@ -37,7 +38,7 @@ describe('neojj_integration', function()
     it('does not set neojj_disable_hunk_highlight on non-Neojj buffer', function()
       local bufnr = create_buffer({})
       vim.api.nvim_set_option_value('filetype', 'git', { buf = bufnr })
-      diffs.attach(bufnr)
+      runtime.attach(bufnr)
 
       assert.is_not_true(vim.b[bufnr].neojj_disable_hunk_highlight)
 
@@ -55,8 +56,8 @@ describe('neojj_integration', function()
         ' return M',
       })
       vim.api.nvim_set_option_value('filetype', 'NeojjStatus', { buf = bufnr })
-      diffs.attach(bufnr)
-      local entry = diffs._test.hunk_cache[bufnr]
+      runtime.attach(bufnr)
+      local entry = runtime._test.hunk_cache[bufnr]
       assert.is_not_nil(entry)
       assert.is_table(entry.hunks)
       assert.are.equal(1, #entry.hunks)
@@ -72,8 +73,8 @@ describe('neojj_integration', function()
         '+return M',
       })
       vim.api.nvim_set_option_value('filetype', 'NeojjDiffView', { buf = bufnr })
-      diffs.attach(bufnr)
-      local entry = diffs._test.hunk_cache[bufnr]
+      runtime.attach(bufnr)
+      local entry = runtime._test.hunk_cache[bufnr]
       assert.is_not_nil(entry)
       assert.is_table(entry.hunks)
       assert.are.equal(1, #entry.hunks)
@@ -157,14 +158,14 @@ describe('neojj_integration', function()
 
   describe('compute_filetypes', function()
     it('includes Neojj filetypes when neojj integration is enabled', function()
-      local fts = diffs.compute_filetypes({ integrations = { neojj = true } })
+      local fts = config.compute_filetypes({ integrations = { neojj = true } })
       assert.is_true(vim.tbl_contains(fts, 'NeojjStatus'))
       assert.is_true(vim.tbl_contains(fts, 'NeojjCommitView'))
       assert.is_true(vim.tbl_contains(fts, 'NeojjDiffView'))
     end)
 
     it('excludes Neojj filetypes when neojj integration is disabled', function()
-      local fts = diffs.compute_filetypes({ integrations = { neojj = false } })
+      local fts = config.compute_filetypes({ integrations = { neojj = false } })
       assert.is_false(vim.tbl_contains(fts, 'NeojjStatus'))
       assert.is_false(vim.tbl_contains(fts, 'NeojjCommitView'))
       assert.is_false(vim.tbl_contains(fts, 'NeojjDiffView'))

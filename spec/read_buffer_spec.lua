@@ -1,8 +1,8 @@
 require('spec.helpers')
 
 local commands = require('diffs.commands')
-local diffs = require('diffs')
 local git = require('diffs.git')
+local runtime = require('diffs.runtime')
 
 local saved_git = {}
 local saved_systemlist
@@ -477,8 +477,8 @@ describe('read_buffer', function()
       mock_git()
 
       local attach_called_with
-      local original_attach = diffs.attach
-      diffs.attach = function(bufnr)
+      local original_attach = runtime.attach
+      runtime.attach = function(bufnr)
         attach_called_with = bufnr
       end
 
@@ -489,7 +489,7 @@ describe('read_buffer', function()
 
       assert.are.equal(bufnr, attach_called_with)
 
-      diffs.attach = original_attach
+      runtime.attach = original_attach
     end)
   end)
 end)

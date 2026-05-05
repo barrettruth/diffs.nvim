@@ -1,7 +1,8 @@
 require('spec.helpers')
-local diffs = require('diffs')
+local config = require('diffs.config')
+local runtime = require('diffs.runtime')
 
-describe('diffs', function()
+describe('diffs.runtime', function()
   describe('vim.g.diffs config', function()
     after_each(function()
       vim.g.diffs = nil
@@ -10,14 +11,14 @@ describe('diffs', function()
     it('accepts nil config', function()
       vim.g.diffs = nil
       assert.has_no.errors(function()
-        diffs.attach()
+        runtime.attach()
       end)
     end)
 
     it('accepts empty config', function()
       vim.g.diffs = {}
       assert.has_no.errors(function()
-        diffs.attach()
+        runtime.attach()
       end)
     end)
 
@@ -39,7 +40,7 @@ describe('diffs', function()
         },
       }
       assert.has_no.errors(function()
-        diffs.attach()
+        runtime.attach()
       end)
     end)
 
@@ -48,7 +49,7 @@ describe('diffs', function()
         hide_prefix = true,
       }
       assert.has_no.errors(function()
-        diffs.attach()
+        runtime.attach()
       end)
     end)
   end)
@@ -69,7 +70,7 @@ describe('diffs', function()
     it('does not error on empty buffer', function()
       local bufnr = create_buffer({})
       assert.has_no.errors(function()
-        diffs.attach(bufnr)
+        runtime.attach(bufnr)
       end)
       delete_buffer(bufnr)
     end)
@@ -82,7 +83,7 @@ describe('diffs', function()
         '+local y = 2',
       })
       assert.has_no.errors(function()
-        diffs.attach(bufnr)
+        runtime.attach(bufnr)
       end)
       delete_buffer(bufnr)
     end)
@@ -90,9 +91,9 @@ describe('diffs', function()
     it('is idempotent', function()
       local bufnr = create_buffer({})
       assert.has_no.errors(function()
-        diffs.attach(bufnr)
-        diffs.attach(bufnr)
-        diffs.attach(bufnr)
+        runtime.attach(bufnr)
+        runtime.attach(bufnr)
+        runtime.attach(bufnr)
       end)
       delete_buffer(bufnr)
     end)
@@ -114,16 +115,16 @@ describe('diffs', function()
     it('does not error on unattached buffer', function()
       local bufnr = create_buffer({})
       assert.has_no.errors(function()
-        diffs.refresh(bufnr)
+        runtime.refresh(bufnr)
       end)
       delete_buffer(bufnr)
     end)
 
     it('does not error on attached buffer', function()
       local bufnr = create_buffer({})
-      diffs.attach(bufnr)
+      runtime.attach(bufnr)
       assert.has_no.errors(function()
-        diffs.refresh(bufnr)
+        runtime.refresh(bufnr)
       end)
       delete_buffer(bufnr)
     end)
@@ -133,26 +134,26 @@ describe('diffs', function()
     it('returns true for fugitive:// URLs', function()
       local bufnr = vim.api.nvim_create_buf(false, true)
       vim.api.nvim_buf_set_name(bufnr, 'fugitive:///path/to/repo/.git//abc123:file.lua')
-      assert.is_true(diffs.is_fugitive_buffer(bufnr))
+      assert.is_true(runtime.is_fugitive_buffer(bufnr))
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
 
     it('returns false for normal paths', function()
       local bufnr = vim.api.nvim_create_buf(false, true)
       vim.api.nvim_buf_set_name(bufnr, '/home/user/project/file.lua')
-      assert.is_false(diffs.is_fugitive_buffer(bufnr))
+      assert.is_false(runtime.is_fugitive_buffer(bufnr))
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
 
     it('returns false for empty buffer names', function()
       local bufnr = vim.api.nvim_create_buf(false, true)
-      assert.is_false(diffs.is_fugitive_buffer(bufnr))
+      assert.is_false(runtime.is_fugitive_buffer(bufnr))
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
   end)
 
   describe('find_visible_hunks', function()
-    local find_visible_hunks = diffs._test.find_visible_hunks
+    local find_visible_hunks = runtime._test.find_visible_hunks
 
     local function make_hunk(start_row, end_row, opts)
       local lines = {}
@@ -268,8 +269,8 @@ describe('diffs', function()
         ' local x = 1',
         '+local y = 2',
       })
-      diffs.attach(bufnr)
-      local entry = diffs._test.hunk_cache[bufnr]
+      runtime.attach(bufnr)
+      local entry = runtime._test.hunk_cache[bufnr]
       assert.is_not_nil(entry)
       assert.is_table(entry.hunks)
       assert.is_number(entry.tick)
@@ -283,12 +284,12 @@ describe('diffs', function()
         ' local x = 1',
         '+local y = 2',
       })
-      diffs.attach(bufnr)
-      local entry1 = diffs._test.hunk_cache[bufnr]
+      runtime.attach(bufnr)
+      local entry1 = runtime._test.hunk_cache[bufnr]
       local tick1 = entry1.tick
       local hunks1 = entry1.hunks
-      diffs._test.ensure_cache(bufnr)
-      local entry2 = diffs._test.hunk_cache[bufnr]
+      runtime._test.ensure_cache(bufnr)
+      local entry2 = runtime._test.hunk_cache[bufnr]
       assert.are.equal(tick1, entry2.tick)
       assert.are.equal(hunks1, entry2.hunks)
       delete_buffer(bufnr)
@@ -296,9 +297,9 @@ describe('diffs', function()
 
     it('marks stale on invalidate', function()
       local bufnr = create_buffer({})
-      diffs.attach(bufnr)
-      diffs._test.invalidate_cache(bufnr)
-      local entry = diffs._test.hunk_cache[bufnr]
+      runtime.attach(bufnr)
+      runtime._test.invalidate_cache(bufnr)
+      local entry = runtime._test.hunk_cache[bufnr]
       assert.are.equal(-1, entry.tick)
       assert.is_true(entry.pending_clear)
       delete_buffer(bufnr)
@@ -306,10 +307,10 @@ describe('diffs', function()
 
     it('evicts on buffer wipeout', function()
       local bufnr = create_buffer({})
-      diffs.attach(bufnr)
-      assert.is_not_nil(diffs._test.hunk_cache[bufnr])
+      runtime.attach(bufnr)
+      assert.is_not_nil(runtime._test.hunk_cache[bufnr])
       vim.api.nvim_buf_delete(bufnr, { force = true })
-      assert.is_nil(diffs._test.hunk_cache[bufnr])
+      assert.is_nil(runtime._test.hunk_cache[bufnr])
     end)
 
     it('detects content change via tick', function()
@@ -318,18 +319,18 @@ describe('diffs', function()
         ' local x = 1',
         '+local y = 2',
       })
-      diffs.attach(bufnr)
-      local tick_before = diffs._test.hunk_cache[bufnr].tick
+      runtime.attach(bufnr)
+      local tick_before = runtime._test.hunk_cache[bufnr].tick
       vim.api.nvim_buf_set_lines(bufnr, -1, -1, false, { '+local z = 3' })
-      diffs._test.ensure_cache(bufnr)
-      local tick_after = diffs._test.hunk_cache[bufnr].tick
+      runtime._test.ensure_cache(bufnr)
+      local tick_after = runtime._test.hunk_cache[bufnr].tick
       assert.is_true(tick_after > tick_before)
       delete_buffer(bufnr)
     end)
   end)
 
   describe('compute_filetypes', function()
-    local compute = diffs.compute_filetypes
+    local compute = config.compute_filetypes
 
     it('returns core filetypes with empty config', function()
       local fts = compute({})
@@ -428,7 +429,7 @@ describe('diffs', function()
     describe('attach_diff', function()
       it('applies winhighlight to diff windows', function()
         local win, _ = create_diff_window()
-        diffs.attach_diff()
+        runtime.attach_diff()
 
         local whl = vim.api.nvim_get_option_value('winhighlight', { win = win })
         assert.is_not_nil(whl:match('DiffAdd:DiffsDiffAdd'))
@@ -440,9 +441,9 @@ describe('diffs', function()
       it('is idempotent', function()
         local win, _ = create_diff_window()
         assert.has_no.errors(function()
-          diffs.attach_diff()
-          diffs.attach_diff()
-          diffs.attach_diff()
+          runtime.attach_diff()
+          runtime.attach_diff()
+          runtime.attach_diff()
         end)
 
         local whl = vim.api.nvim_get_option_value('winhighlight', { win = win })
@@ -454,7 +455,7 @@ describe('diffs', function()
       it('applies to multiple diff windows', function()
         local win1, _ = create_diff_window()
         local win2, _ = create_diff_window()
-        diffs.attach_diff()
+        runtime.attach_diff()
 
         local whl1 = vim.api.nvim_get_option_value('winhighlight', { win = win1 })
         local whl2 = vim.api.nvim_get_option_value('winhighlight', { win = win2 })
@@ -470,7 +471,7 @@ describe('diffs', function()
         local non_diff_win = vim.api.nvim_get_current_win()
 
         local diff_win, _ = create_diff_window()
-        diffs.attach_diff()
+        runtime.attach_diff()
 
         local non_diff_whl = vim.api.nvim_get_option_value('winhighlight', { win = non_diff_win })
         local diff_whl = vim.api.nvim_get_option_value('winhighlight', { win = diff_win })
@@ -486,8 +487,8 @@ describe('diffs', function()
     describe('detach_diff', function()
       it('clears winhighlight from tracked windows', function()
         local win, _ = create_diff_window()
-        diffs.attach_diff()
-        diffs.detach_diff()
+        runtime.attach_diff()
+        runtime.detach_diff()
 
         local whl = vim.api.nvim_get_option_value('winhighlight', { win = win })
         assert.are.equal('', whl)
@@ -497,25 +498,25 @@ describe('diffs', function()
 
       it('does not error when no windows are tracked', function()
         assert.has_no.errors(function()
-          diffs.detach_diff()
+          runtime.detach_diff()
         end)
       end)
 
       it('handles already-closed windows gracefully', function()
         local win, _ = create_diff_window()
-        diffs.attach_diff()
+        runtime.attach_diff()
         close_window(win)
 
         assert.has_no.errors(function()
-          diffs.detach_diff()
+          runtime.detach_diff()
         end)
       end)
 
       it('clears all tracked windows', function()
         local win1, _ = create_diff_window()
         local win2, _ = create_diff_window()
-        diffs.attach_diff()
-        diffs.detach_diff()
+        runtime.attach_diff()
+        runtime.detach_diff()
 
         local whl1 = vim.api.nvim_get_option_value('winhighlight', { win = win1 })
         local whl2 = vim.api.nvim_get_option_value('winhighlight', { win = win2 })
@@ -544,14 +545,14 @@ describe('diffs', function()
       vim.schedule = function(cb)
         table.insert(schedule_cbs, cb)
       end
-      diffs._test.set_hl_retry_pending(false)
+      runtime._test.set_hl_retry_pending(false)
     end)
 
     after_each(function()
       vim.api.nvim_get_hl = saved_get_hl
       vim.api.nvim_set_hl = saved_set_hl
       vim.schedule = saved_schedule
-      diffs._test.set_hl_retry_pending(false)
+      runtime._test.set_hl_retry_pending(false)
     end)
 
     it('omits DiffsClear.bg when Normal.bg is nil (transparent)', function()
@@ -561,7 +562,7 @@ describe('diffs', function()
         end
         return saved_get_hl(ns, opts)
       end
-      diffs._test.compute_highlight_groups()
+      runtime._test.compute_highlight_groups()
       assert.is_nil(set_calls.DiffsClear.bg)
       assert.is_table(set_calls.DiffsAdd)
       assert.is_table(set_calls.DiffsDelete)
@@ -574,13 +575,13 @@ describe('diffs', function()
         end
         return saved_get_hl(ns, opts)
       end
-      diffs._test.compute_highlight_groups()
+      runtime._test.compute_highlight_groups()
       assert.are.equal(0x282828, set_calls.DiffsClear.bg)
     end)
 
     it('blend_alpha controls DiffsAdd.bg intensity', function()
-      local saved_config_alpha = diffs._test.get_config().highlights.blend_alpha
-      diffs._test.get_config().highlights.blend_alpha = 0.3
+      local saved_config_alpha = runtime._test.get_config().highlights.blend_alpha
+      runtime._test.get_config().highlights.blend_alpha = 0.3
       vim.api.nvim_get_hl = function(ns, opts)
         if opts.name == 'Normal' then
           return { fg = 0xc0c0c0, bg = 0x1e1e2e }
@@ -593,16 +594,16 @@ describe('diffs', function()
         end
         return saved_get_hl(ns, opts)
       end
-      diffs._test.compute_highlight_groups()
+      runtime._test.compute_highlight_groups()
       local bg_03 = set_calls.DiffsAdd.bg
 
-      diffs._test.get_config().highlights.blend_alpha = 0.9
-      diffs._test.compute_highlight_groups()
+      runtime._test.get_config().highlights.blend_alpha = 0.9
+      runtime._test.compute_highlight_groups()
       local bg_09 = set_calls.DiffsAdd.bg
 
       assert.is_not.equal(bg_03, bg_09)
 
-      diffs._test.get_config().highlights.blend_alpha = saved_config_alpha
+      runtime._test.get_config().highlights.blend_alpha = saved_config_alpha
     end)
 
     it('retries once then stops when Normal.bg stays nil', function()
@@ -612,11 +613,11 @@ describe('diffs', function()
         end
         return saved_get_hl(ns, opts)
       end
-      diffs._test.compute_highlight_groups()
+      runtime._test.compute_highlight_groups()
       assert.are.equal(1, #schedule_cbs)
       schedule_cbs[1]()
       assert.are.equal(1, #schedule_cbs)
-      assert.is_true(diffs._test.get_hl_retry_pending())
+      assert.is_true(runtime._test.get_hl_retry_pending())
     end)
 
     it('picks up bg on retry when colorscheme loads late', function()
@@ -631,7 +632,7 @@ describe('diffs', function()
         end
         return saved_get_hl(ns, opts)
       end
-      diffs._test.compute_highlight_groups()
+      runtime._test.compute_highlight_groups()
       assert.are.equal(1, #schedule_cbs)
       schedule_cbs[1]()
       assert.are.equal(0x1e1e2e, set_calls.DiffsClear.bg)

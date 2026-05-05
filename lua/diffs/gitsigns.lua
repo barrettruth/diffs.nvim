@@ -3,6 +3,7 @@ local M = {}
 local api = vim.api
 local fn = vim.fn
 local dbg = require('diffs.log').dbg
+local runtime = require('diffs.runtime')
 
 local ns = api.nvim_create_namespace('diffs-gitsigns')
 local gs_popup_ns = api.nvim_create_namespace('gitsigns_popup')
@@ -108,7 +109,7 @@ local function on_preview(preview_winid, preview_bufnr)
     api.nvim_buf_clear_namespace(preview_bufnr, gs_popup_ns, diff_start, diff_end)
     api.nvim_buf_clear_namespace(preview_bufnr, ns, diff_start, diff_end)
 
-    local opts = require('diffs').get_highlight_opts()
+    local opts = runtime.get_highlight_opts()
     local highlight = require('diffs.highlight')
     for _, hunk in ipairs(hunks) do
       highlight.highlight_hunk(preview_bufnr, ns, hunk, opts)
