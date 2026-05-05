@@ -3,47 +3,23 @@
 ---@field refresh fun(bufnr?: integer)
 local M = {}
 
+local cache_mod = require('diffs.cache')
 local config_mod = require('diffs.config')
-local highlight = require('diffs.highlight')
+local decorator = require('diffs.decorator')
+local highlight_groups = require('diffs.highlight_groups')
 local log = require('diffs.log')
-local parser = require('diffs.parser')
 
 local ns = vim.api.nvim_create_namespace('diffs')
 
----@param hex integer
----@param bg_hex integer
----@param alpha number
----@return integer
-local function blend_color(hex, bg_hex, alpha)
-  ---@diagnostic disable: undefined-global
-  local r = bit.band(bit.rshift(hex, 16), 0xFF)
-  local g = bit.band(bit.rshift(hex, 8), 0xFF)
-  local b = bit.band(hex, 0xFF)
-
-  local bg_r = bit.band(bit.rshift(bg_hex, 16), 0xFF)
-  local bg_g = bit.band(bit.rshift(bg_hex, 8), 0xFF)
-  local bg_b = bit.band(bg_hex, 0xFF)
-
-  local blend_r = math.floor(r * alpha + bg_r * (1 - alpha))
-  local blend_g = math.floor(g * alpha + bg_g * (1 - alpha))
-  local blend_b = math.floor(b * alpha + bg_b * (1 - alpha))
-
-  return bit.bor(bit.lshift(blend_r, 16), bit.lshift(blend_g, 8), blend_b)
-  ---@diagnostic enable: undefined-global
-end
-
----@param name string
----@return table
-local function resolve_hl(name)
-  local hl = vim.api.nvim_get_hl(0, { name = name })
-  while hl.link do
-    hl = vim.api.nvim_get_hl(0, { name = hl.link })
-  end
-  return hl
-end
-
 ---@type diffs.Config
 local config = config_mod.new()
+
+local cache = cache_mod.new({
+  ns = ns,
+  get_config = function()
+    return config
+  end,
+})
 
 local initialized = false
 local hl_retry_pending = false
@@ -55,99 +31,7 @@ local fast_hl_opts = {} ---@type diffs.HunkOpts
 local attached_buffers = {}
 
 ---@type table<integer, boolean>
-local ft_retry_pending = {}
-
----@type table<integer, boolean>
 local diff_windows = {}
-
----@class diffs.HunkCacheEntry
----@field hunks diffs.Hunk[]
----@field tick integer
----@field highlighted table<integer, true>
----@field pending_clear boolean
----@field warned_max_lines boolean
----@field line_count integer
----@field byte_count integer
-
----@type table<integer, diffs.HunkCacheEntry>
-local hunk_cache = {}
-
-local syntax_jobs = {}
-
-local function next_syntax_job(bufnr)
-  local job_id = (syntax_jobs[bufnr] or 0) + 1
-  syntax_jobs[bufnr] = job_id
-  return job_id
-end
-
-local function collect_syntax_hunks(hunks)
-  local syntax_hunks = {}
-  for _, hunk in ipairs(hunks or {}) do
-    local has_syntax = hunk.lang and config.highlights.treesitter.enabled
-    local needs_vim = not hunk.lang and hunk.ft and config.highlights.vim.enabled
-    if has_syntax or needs_vim then
-      syntax_hunks[#syntax_hunks + 1] = hunk
-    end
-  end
-  return syntax_hunks
-end
-
-local function run_deferred_syntax(bufnr, tick, changedtick, job_id, deferred_syntax)
-  if not vim.api.nvim_buf_is_valid(bufnr) then
-    return false
-  end
-  if syntax_jobs[bufnr] ~= job_id then
-    log.dbg('deferred syntax job superseded: cur=%s job=%d', tostring(syntax_jobs[bufnr]), job_id)
-    return false
-  end
-  local live_changedtick = vim.api.nvim_buf_get_changedtick(bufnr)
-  if live_changedtick ~= changedtick then
-    log.dbg(
-      'deferred syntax changedtick changed: cur=%d captured=%d',
-      live_changedtick,
-      changedtick
-    )
-    return false
-  end
-  local cur = hunk_cache[bufnr]
-  if not cur then
-    return false
-  end
-  local hunks_to_hl = deferred_syntax
-  if cur.tick ~= tick then
-    log.dbg(
-      'deferred syntax tick changed: cur.tick=%s captured=%d, using current hunks',
-      tostring(cur.tick),
-      tick
-    )
-    hunks_to_hl = collect_syntax_hunks(cur.hunks or {})
-    if #hunks_to_hl == 0 then
-      return false
-    end
-    live_changedtick = vim.api.nvim_buf_get_changedtick(bufnr)
-    if live_changedtick ~= changedtick then
-      log.dbg(
-        'deferred syntax changedtick changed after refresh: cur=%d captured=%d',
-        live_changedtick,
-        changedtick
-      )
-      return false
-    end
-  end
-  local t1 = config.debug and vim.uv.hrtime() or nil
-  local syntax_opts = {
-    hide_prefix = config.hide_prefix,
-    highlights = config.highlights,
-    syntax_only = true,
-  }
-  for _, hunk in ipairs(hunks_to_hl) do
-    highlight.highlight_hunk(bufnr, ns, hunk, syntax_opts)
-  end
-  if t1 then
-    log.dbg('deferred pass: %d hunks in %.2fms', #hunks_to_hl, (vim.uv.hrtime() - t1) / 1e6)
-  end
-  return true
-end
 
 ---@param bufnr integer
 ---@return boolean
@@ -159,387 +43,16 @@ M.compute_filetypes = config_mod.compute_filetypes
 
 local dbg = log.dbg
 
----@param bufnr integer
-local function invalidate_cache(bufnr)
-  syntax_jobs[bufnr] = (syntax_jobs[bufnr] or 0) + 1
-  local entry = hunk_cache[bufnr]
-  if entry then
-    entry.tick = -1
-    entry.pending_clear = true
-  end
-end
-
----@param a diffs.Hunk
----@param b diffs.Hunk
----@return boolean
-local function hunks_eq(a, b)
-  local n = #a.lines
-  if n ~= #b.lines or a.filename ~= b.filename then
-    return false
-  end
-  if a.lines[1] ~= b.lines[1] then
-    return false
-  end
-  if n > 1 and a.lines[n] ~= b.lines[n] then
-    return false
-  end
-  if n > 2 then
-    local mid = math.floor(n / 2) + 1
-    if a.lines[mid] ~= b.lines[mid] then
-      return false
-    end
-  end
-  return true
-end
-
----@param old_entry diffs.HunkCacheEntry
----@param new_hunks diffs.Hunk[]
----@return table<integer, true>?
-local function carry_forward_highlighted(old_entry, new_hunks)
-  local old_hunks = old_entry.hunks
-  local old_hl = old_entry.highlighted
-  local old_n = #old_hunks
-  local new_n = #new_hunks
-  local highlighted = {}
-
-  local prefix_len = 0
-  local limit = math.min(old_n, new_n)
-  for i = 1, limit do
-    if not hunks_eq(old_hunks[i], new_hunks[i]) then
-      break
-    end
-    if old_hl[i] then
-      highlighted[i] = true
-    end
-    prefix_len = i
-  end
-
-  local suffix_len = 0
-  local max_suffix = limit - prefix_len
-  for j = 0, max_suffix - 1 do
-    local old_idx = old_n - j
-    local new_idx = new_n - j
-    if not hunks_eq(old_hunks[old_idx], new_hunks[new_idx]) then
-      break
-    end
-    if old_hl[old_idx] then
-      highlighted[new_idx] = true
-    end
-    suffix_len = j + 1
-  end
-
-  dbg(
-    'carry_forward: %d prefix + %d suffix of %d old -> %d new hunks',
-    prefix_len,
-    suffix_len,
-    old_n,
-    new_n
-  )
-  if next(highlighted) == nil then
-    return nil
-  end
-  return highlighted
-end
-
----@param path string
----@return string[]?
-local function read_file_lines(path)
-  if vim.fn.isdirectory(path) == 1 then
-    return nil
-  end
-  local f = io.open(path, 'r')
-  if not f then
-    return nil
-  end
-  local lines = {}
-  for line in f:lines() do
-    lines[#lines + 1] = line
-  end
-  f:close()
-  return lines
-end
-
----@param hunks diffs.Hunk[]
----@param max_lines integer
-local function compute_hunk_context(hunks, max_lines)
-  ---@type table<string, string[]|false>
-  local file_cache = {}
-
-  for _, hunk in ipairs(hunks) do
-    if not hunk.repo_root or not hunk.filename or not hunk.file_new_start then
-      goto continue
-    end
-
-    local path = vim.fs.joinpath(hunk.repo_root, hunk.filename)
-    local file_lines = file_cache[path]
-    if file_lines == nil then
-      file_lines = read_file_lines(path) or false
-      file_cache[path] = file_lines
-    end
-    if not file_lines then
-      goto continue
-    end
-
-    local new_start = hunk.file_new_start
-    local new_count = hunk.file_new_count or 0
-    local total = #file_lines
-
-    local before_start = math.max(1, new_start - max_lines)
-    if before_start < new_start then
-      local before = {}
-      for i = before_start, new_start - 1 do
-        before[#before + 1] = file_lines[i]
-      end
-      hunk.context_before = before
-    end
-
-    local after_start = new_start + new_count
-    local after_end = math.min(total, after_start + max_lines - 1)
-    if after_start <= total then
-      local after = {}
-      for i = after_start, after_end do
-        after[#after + 1] = file_lines[i]
-      end
-      hunk.context_after = after
-    end
-
-    ::continue::
-  end
-end
-
----@param bufnr integer
-local function ensure_cache(bufnr)
-  if not vim.api.nvim_buf_is_valid(bufnr) then
-    return
-  end
-  local tick = vim.api.nvim_buf_get_changedtick(bufnr)
-  local entry = hunk_cache[bufnr]
-  if entry and entry.tick == tick then
-    return
-  end
-  if entry and not entry.pending_clear then
-    local lc = vim.api.nvim_buf_line_count(bufnr)
-    local bc = vim.api.nvim_buf_get_offset(bufnr, lc)
-    if lc == entry.line_count and bc == entry.byte_count then
-      entry.tick = tick
-      entry.pending_clear = true
-      dbg('content unchanged in buffer %d (tick %d), skipping reparse', bufnr, tick)
-      return
-    end
-  end
-  local hunks = parser.parse_buffer(bufnr)
-  local lc = vim.api.nvim_buf_line_count(bufnr)
-  local bc = vim.api.nvim_buf_get_offset(bufnr, lc)
-  dbg('parsed %d hunks in buffer %d (tick %d)', #hunks, bufnr, tick)
-  if config.highlights.context.enabled then
-    compute_hunk_context(hunks, config.highlights.context.lines)
-  end
-  local carried = entry
-    and not entry.pending_clear
-    and #entry.hunks == #hunks
-    and carry_forward_highlighted(entry, hunks)
-  hunk_cache[bufnr] = {
-    hunks = hunks,
-    tick = tick,
-    highlighted = carried or {},
-    pending_clear = not carried,
-    warned_max_lines = false,
-    line_count = lc,
-    byte_count = bc,
-  }
-
-  local has_nil_ft = false
-  for _, hunk in ipairs(hunks) do
-    if not has_nil_ft and not hunk.ft and hunk.filename then
-      has_nil_ft = true
-    end
-  end
-  if has_nil_ft and vim.fn.did_filetype() ~= 0 and not ft_retry_pending[bufnr] then
-    ft_retry_pending[bufnr] = true
-    vim.schedule(function()
-      if vim.api.nvim_buf_is_valid(bufnr) and hunk_cache[bufnr] then
-        dbg('retrying filetype detection for buffer %d (was blocked by did_filetype)', bufnr)
-        invalidate_cache(bufnr)
-        vim.cmd('redraw!')
-      end
-      ft_retry_pending[bufnr] = nil
-    end)
-  end
-end
-
----@param hunks diffs.Hunk[]
----@param toprow integer
----@param botrow integer
----@return integer first
----@return integer last
-local function find_visible_hunks(hunks, toprow, botrow)
-  local n = #hunks
-  if n == 0 then
-    return 0, 0
-  end
-
-  local lo, hi = 1, n + 1
-  while lo < hi do
-    local mid = math.floor((lo + hi) / 2)
-    local h = hunks[mid]
-    local bottom = h.start_line - 1 + #h.lines - 1
-    if bottom < toprow then
-      lo = mid + 1
-    else
-      hi = mid
-    end
-  end
-
-  if lo > n then
-    return 0, 0
-  end
-
-  local first = lo
-  local h = hunks[first]
-  local top = (h.header_start_line and (h.header_start_line - 1)) or (h.start_line - 1)
-  if top >= botrow then
-    return 0, 0
-  end
-
-  local last = first
-  for i = first + 1, n do
-    h = hunks[i]
-    top = (h.header_start_line and (h.header_start_line - 1)) or (h.start_line - 1)
-    if top >= botrow then
-      break
-    end
-    last = i
-  end
-
-  return first, last
-end
-
----@param bufnr integer
----@param ns_id integer
----@param start_row integer
----@param end_row integer
-local function clear_ns_by_start(bufnr, ns_id, start_row, end_row)
-  local marks = vim.api.nvim_buf_get_extmarks(
-    bufnr,
-    ns_id,
-    { start_row, 0 },
-    { end_row - 1, 2147483647 },
-    {}
-  )
-  for _, m in ipairs(marks) do
-    vim.api.nvim_buf_del_extmark(bufnr, ns_id, m[1])
-  end
-end
-
 local function compute_highlight_groups(is_default)
-  local normal = vim.api.nvim_get_hl(0, { name = 'Normal' })
-  local diff_add = vim.api.nvim_get_hl(0, { name = 'DiffAdd' })
-  local diff_delete = vim.api.nvim_get_hl(0, { name = 'DiffDelete' })
-  local diff_added = resolve_hl('diffAdded')
-  local diff_removed = resolve_hl('diffRemoved')
-
-  local dark = vim.o.background ~= 'light'
-  local transparent = not normal.bg
-  local bg = normal.bg or (dark and 0x1a1a1a or 0xf0f0f0)
-  local add_bg = diff_add.bg or (dark and 0x1a3a1a or 0xd0ffd0)
-  local del_bg = diff_delete.bg or (dark and 0x3a1a1a or 0xffd0d0)
-  local add_fg = diff_added.fg or diff_add.fg or (dark and 0x80d080 or 0x206020)
-  local del_fg = diff_removed.fg or diff_delete.fg or (dark and 0xd08080 or 0x802020)
-
-  if transparent and not hl_retry_pending then
+  local result = highlight_groups.apply(config, is_default)
+  if result.transparent and not hl_retry_pending then
     hl_retry_pending = true
     vim.schedule(function()
       compute_highlight_groups(false)
       for bufnr, _ in pairs(attached_buffers) do
-        invalidate_cache(bufnr)
+        cache:invalidate(bufnr)
       end
     end)
-  end
-
-  local dflt = is_default or false
-  local normal_fg = normal.fg or (dark and 0xcccccc or 0x333333)
-
-  local alpha = config.highlights.blend_alpha or 0.6
-  local blended_add = blend_color(add_bg, bg, alpha)
-  local blended_del = blend_color(del_bg, bg, alpha)
-  local blended_add_text = add_bg
-  local blended_del_text = del_bg
-
-  local clear_hl = { default = dflt, fg = normal_fg }
-  if not transparent then
-    clear_hl.bg = bg
-  end
-  vim.api.nvim_set_hl(0, 'DiffsClear', clear_hl)
-  vim.api.nvim_set_hl(0, 'DiffsAdd', { default = dflt, bg = blended_add })
-  vim.api.nvim_set_hl(0, 'DiffsDelete', { default = dflt, bg = blended_del })
-  vim.api.nvim_set_hl(0, 'DiffsAddNr', { default = dflt, fg = add_fg, bg = blended_add })
-  vim.api.nvim_set_hl(0, 'DiffsDeleteNr', { default = dflt, fg = del_fg, bg = blended_del })
-  vim.api.nvim_set_hl(0, 'DiffsAddText', { default = dflt, bg = blended_add_text })
-  vim.api.nvim_set_hl(0, 'DiffsDeleteText', { default = dflt, bg = blended_del_text })
-
-  dbg(
-    'highlight groups: Normal.bg=%s DiffAdd.bg=#%06x diffAdded.fg=#%06x',
-    normal.bg and string.format('#%06x', normal.bg) or 'NONE',
-    add_bg,
-    add_fg
-  )
-  dbg(
-    'DiffsAdd.bg=#%06x DiffsAddText.bg=#%06x DiffsAddNr.fg=#%06x',
-    blended_add,
-    blended_add_text,
-    add_fg
-  )
-  dbg('DiffsDelete.bg=#%06x DiffsDeleteText.bg=#%06x', blended_del, blended_del_text)
-
-  local diff_change = resolve_hl('DiffChange')
-  local diff_text = resolve_hl('DiffText')
-
-  vim.api.nvim_set_hl(0, 'DiffsDiffAdd', { default = dflt, bg = diff_add.bg })
-  vim.api.nvim_set_hl(
-    0,
-    'DiffsDiffDelete',
-    { default = dflt, fg = diff_delete.fg, bg = diff_delete.bg }
-  )
-  vim.api.nvim_set_hl(0, 'DiffsDiffChange', { default = dflt, bg = diff_change.bg })
-  vim.api.nvim_set_hl(0, 'DiffsDiffText', { default = dflt, bg = diff_text.bg })
-
-  local change_bg = diff_change.bg or 0x3a3a4a
-  local text_bg = diff_text.bg or 0x4a4a5a
-  local change_fg = diff_change.fg or diff_text.fg or 0x80a0c0
-
-  local base_alpha = math.max(alpha - 0.1, 0.0)
-  local blended_ours = blend_color(add_bg, bg, alpha)
-  local blended_theirs = blend_color(change_bg, bg, alpha)
-  local blended_base = blend_color(text_bg, bg, base_alpha)
-  local blended_ours_nr = add_fg
-  local blended_theirs_nr = change_fg
-  local blended_base_nr = change_fg
-
-  vim.api.nvim_set_hl(0, 'DiffsConflictOurs', { default = dflt, bg = blended_ours })
-  vim.api.nvim_set_hl(0, 'DiffsConflictTheirs', { default = dflt, bg = blended_theirs })
-  vim.api.nvim_set_hl(0, 'DiffsConflictBase', { default = dflt, bg = blended_base })
-  vim.api.nvim_set_hl(0, 'DiffsConflictMarker', { default = dflt, fg = 0x808080, bold = true })
-  vim.api.nvim_set_hl(0, 'DiffsConflictActions', { default = dflt, fg = 0x808080 })
-  vim.api.nvim_set_hl(
-    0,
-    'DiffsConflictOursNr',
-    { default = dflt, fg = blended_ours_nr, bg = blended_ours }
-  )
-  vim.api.nvim_set_hl(
-    0,
-    'DiffsConflictTheirsNr',
-    { default = dflt, fg = blended_theirs_nr, bg = blended_theirs }
-  )
-  vim.api.nvim_set_hl(
-    0,
-    'DiffsConflictBaseNr',
-    { default = dflt, fg = blended_base_nr, bg = blended_base }
-  )
-
-  if config.highlights.overrides then
-    for group, hl in pairs(config.highlights.overrides) do
-      vim.api.nvim_set_hl(0, group, hl)
-    end
   end
 end
 
@@ -567,109 +80,20 @@ local function init()
       hl_retry_pending = false
       compute_highlight_groups(false)
       for bufnr, _ in pairs(attached_buffers) do
-        invalidate_cache(bufnr)
+        cache:invalidate(bufnr)
       end
     end,
   })
 
-  vim.api.nvim_set_decoration_provider(ns, {
-    on_buf = function(_, bufnr)
-      if not attached_buffers[bufnr] then
-        return false
-      end
-      local t0 = config.debug and vim.uv.hrtime() or nil
-      ensure_cache(bufnr)
-      local entry = hunk_cache[bufnr]
-      if entry and entry.pending_clear then
-        vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
-        entry.highlighted = {}
-        entry.pending_clear = false
-      end
-      if t0 then
-        dbg('on_buf %d: %.2fms', bufnr, (vim.uv.hrtime() - t0) / 1e6)
-      end
+  decorator.setup({
+    ns = ns,
+    cache = cache,
+    attached_buffers = attached_buffers,
+    get_config = function()
+      return config
     end,
-    on_win = function(_, _, bufnr, toprow, botrow)
-      if not attached_buffers[bufnr] then
-        return false
-      end
-      local entry = hunk_cache[bufnr]
-      if not entry then
-        return
-      end
-      local first, last = find_visible_hunks(entry.hunks, toprow, botrow)
-      if first == 0 then
-        return
-      end
-      local t0 = config.debug and vim.uv.hrtime() or nil
-      local deferred_syntax = {}
-      local skipped_count = 0
-      local count = 0
-      for i = first, last do
-        if not entry.highlighted[i] then
-          local hunk = entry.hunks[i]
-          local clear_start = hunk.start_line - 1
-          local clear_end = hunk.start_line + #hunk.lines
-          if hunk.header_start_line then
-            clear_start = hunk.header_start_line - 1
-          end
-          clear_ns_by_start(bufnr, ns, clear_start, clear_end)
-          local _, vim_cache_hit = highlight.highlight_hunk(bufnr, ns, hunk, fast_hl_opts)
-          entry.highlighted[i] = true
-          count = count + 1
-          if hunk._skipped_max_lines then
-            skipped_count = skipped_count + 1
-          end
-          local has_syntax = hunk.lang and config.highlights.treesitter.enabled
-          local needs_vim = not hunk.lang
-            and hunk.ft
-            and config.highlights.vim.enabled
-            and not vim_cache_hit
-          if has_syntax or needs_vim then
-            table.insert(deferred_syntax, hunk)
-          end
-        end
-      end
-      if skipped_count > 0 and not entry.warned_max_lines and config.highlights.warn_max_lines then
-        entry.warned_max_lines = true
-        local n = skipped_count
-        vim.schedule(function()
-          vim.notify(
-            (
-              '[diffs.nvim]: Syntax highlighting skipped for %d hunk(s) — too large.'
-              .. ' See :h diffs-max-lines to resolve or suppress this warning.'
-            ):format(n),
-            vim.log.levels.WARN
-          )
-        end)
-      end
-      if #deferred_syntax > 0 then
-        local tick = entry.tick
-        local changedtick = vim.api.nvim_buf_get_changedtick(bufnr)
-        local job_id = next_syntax_job(bufnr)
-        dbg(
-          'deferred syntax scheduled: %d hunks tick=%d changedtick=%d job=%d',
-          #deferred_syntax,
-          tick,
-          changedtick,
-          job_id
-        )
-        vim.schedule(function()
-          run_deferred_syntax(bufnr, tick, changedtick, job_id, deferred_syntax)
-        end)
-      end
-      if t0 and count > 0 then
-        dbg(
-          'on_win %d: %d hunks [%d..%d] in %.2fms (viewport %d-%d)',
-          bufnr,
-          count,
-          first,
-          last,
-          (vim.uv.hrtime() - t0) / 1e6,
-          toprow,
-          botrow
-        )
-      end
+    get_fast_hl_opts = function()
+      return fast_hl_opts
     end,
   })
 
@@ -725,15 +149,13 @@ function M.attach(bufnr)
 
   dbg('attaching to buffer %d', bufnr)
 
-  ensure_cache(bufnr)
+  cache:ensure(bufnr)
 
   vim.api.nvim_create_autocmd('BufWipeout', {
     buffer = bufnr,
     callback = function()
       attached_buffers[bufnr] = nil
-      hunk_cache[bufnr] = nil
-      ft_retry_pending[bufnr] = nil
-      syntax_jobs[bufnr] = nil
+      cache:delete(bufnr)
       if neogit_augroup then
         pcall(vim.api.nvim_del_augroup_by_id, neogit_augroup)
       end
@@ -747,7 +169,7 @@ end
 ---@param bufnr? integer
 function M.refresh(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
-  invalidate_cache(bufnr)
+  cache:invalidate(bufnr)
 end
 
 local DIFF_WINHIGHLIGHT = table.concat({
@@ -826,25 +248,22 @@ function M.get_highlight_opts()
   return { hide_prefix = config.hide_prefix, highlights = config.highlights }
 end
 
-local function process_pending_clear(bufnr)
-  local entry = hunk_cache[bufnr]
-  if entry and entry.pending_clear then
-    vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
-    entry.highlighted = {}
-    entry.pending_clear = false
-  end
-end
-
 M._test = {
-  find_visible_hunks = find_visible_hunks,
-  hunk_cache = hunk_cache,
-  ensure_cache = ensure_cache,
-  invalidate_cache = invalidate_cache,
-  hunks_eq = hunks_eq,
-  process_pending_clear = process_pending_clear,
-  clear_ns_by_start = clear_ns_by_start,
-  ft_retry_pending = ft_retry_pending,
-  compute_hunk_context = compute_hunk_context,
+  find_visible_hunks = cache_mod.find_visible_hunks,
+  hunk_cache = cache.hunk_cache,
+  ensure_cache = function(bufnr)
+    cache:ensure(bufnr)
+  end,
+  invalidate_cache = function(bufnr)
+    cache:invalidate(bufnr)
+  end,
+  hunks_eq = cache_mod.hunks_eq,
+  process_pending_clear = function(bufnr)
+    cache:process_pending_clear(bufnr)
+  end,
+  clear_ns_by_start = cache_mod.clear_ns_by_start,
+  ft_retry_pending = cache.ft_retry_pending,
+  compute_hunk_context = cache_mod.compute_hunk_context,
   compute_highlight_groups = compute_highlight_groups,
   get_hl_retry_pending = function()
     return hl_retry_pending
@@ -855,8 +274,12 @@ M._test = {
   get_config = function()
     return config
   end,
-  next_syntax_job = next_syntax_job,
-  run_deferred_syntax = run_deferred_syntax,
+  next_syntax_job = function(bufnr)
+    return cache:next_syntax_job(bufnr)
+  end,
+  run_deferred_syntax = function(bufnr, tick, changedtick, job_id, deferred_syntax)
+    return cache:run_deferred_syntax(bufnr, tick, changedtick, job_id, deferred_syntax)
+  end,
 }
 
 return M
