@@ -484,8 +484,9 @@ COMMANDS                                                 *diffs.nvim-commands*
                                                  explicit warning.
     Submodule         gitlink, not file content   Not supported. Shows an
                                                  explicit warning.
-    Unmerged file     :2: (ours) -> :3:          Plain |:Gdiff| opens a
-                      (theirs)                   generated merge diff. Native
+    Unmerged file     :2: (ours) -> :3:          Plain |:Gdiff|, or an
+                      (theirs)                   explicit index object, opens
+                                                 a generated merge diff. Native
                                                  3-way `:Gdiffsplit!` windows
                                                  are not emulated.
     Merge-stage       :1:/:2:/:3: object         Not supported by |:Gdiff|
@@ -967,10 +968,13 @@ User events: ~
 ==============================================================================
 MERGE DIFF RESOLUTION                                       *diffs.nvim-merge*
 
-When pressing `du`/`dU` on an unmerged (`U`) file in the fugitive status buffer,
-or running |:Gdiff| directly on an unmerged worktree file, diffs.nvim opens a
-unified diff of ours (`git show :2:path`) vs theirs (`git show :3:path`) with
-full treesitter and intra-line highlighting.
+When running plain |:Gdiff| or an explicit index-object comparison (for example
+`:Gdiff :%`) on an unmerged worktree file, or pressing `du`/`dU` on an
+unmerged (`U`) file in the fugitive status buffer, diffs.nvim opens a unified
+diff of ours (`git show :2:path`) vs theirs (`git show :3:path`) with full
+treesitter and intra-line highlighting. Revision comparisons such as
+`:Gdiff HEAD` keep rendering that revision against the conflicted worktree
+buffer.
 
 The same conflict resolution keymaps (`co`/`ct`/`cb`/`c0`/`]c`/`[c`) are
 available on the diff buffer. They resolve conflicts in the working file by
