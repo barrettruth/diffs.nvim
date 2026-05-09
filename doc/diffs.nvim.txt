@@ -613,6 +613,16 @@ MAPPINGS                                                 *diffs.nvim-mappings*
 <Plug>(diffs-gvdiff)    Show index-to-worktree unified diff in a vertical
                         split. Equivalent to |:Gvdiff| with no arguments.
 
+                                                *<Plug>(diffs-gdiff-open-source)*
+<Plug>(diffs-gdiff-open-source)
+                        Open the real worktree file at the current generated
+                        |:Gdiff| hunk location. Generated buffers map this to
+                        <CR> by default. Map this plug key yourself if you want
+                        another alias: >lua
+                            vim.keymap.set('n', 'go',
+                              '<Plug>(diffs-gdiff-open-source)')
+<
+
 Example configuration: >lua
     vim.keymap.set('n', '<leader>gd', '<Plug>(diffs-gdiff)')
     vim.keymap.set('n', '<leader>gD', '<Plug>(diffs-gvdiff)')
@@ -690,7 +700,6 @@ Diff buffer mappings: ~
                     buffers.
     <CR>            Open the real worktree file at the current |:Gdiff| hunk
                     location when the right side is worktree-backed.
-    o               Same as <CR>.
     dp              In Normal mode, stage the current whole hunk when the
                     buffer compares the index to the worktree. In Visual mode,
                     stage selected changed lines inside one hunk.
