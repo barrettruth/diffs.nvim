@@ -6,6 +6,12 @@ format:
     stylua --check .
     biome format .
 
+commitlint range="origin/main..HEAD":
+    scripts/check-commit-subject --range "{{range}}"
+
+install-hooks:
+    git config core.hooksPath .githooks
+
 lint:
     git ls-files '*.lua' | xargs selene --display-style quiet
     lua-language-server --check lua --configpath "$(pwd)/.luarc.json" --checklevel=Warning
@@ -14,5 +20,5 @@ lint:
 test:
     busted
 
-ci: format lint test
+ci: commitlint format lint test
     @:

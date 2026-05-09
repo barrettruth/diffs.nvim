@@ -4,10 +4,40 @@ on:
   workflow_call:
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, edited]
   push:
     branches: [main]
 
 jobs:
+  commit-subjects:
+    name: Commit subjects
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Check commit subjects
+        shell: bash
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            scripts/check-commit-subject --subject "$PR_TITLE" --source "pull request title"
+            range="origin/${{ github.base_ref }}..HEAD"
+          elif [[ "${{ github.event_name }}" == "push" ]]; then
+            before="${{ github.event.before }}"
+            if [[ "$before" =~ ^0+$ ]]; then
+              range="${{ github.sha }}^!"
+            else
+              range="$before..${{ github.sha }}"
+            fi
+          else
+            exit 0
+          fi
+
+          scripts/check-commit-subject --range "$range"
+
   format:
     name: Format
     runs-on: ubuntu-latest

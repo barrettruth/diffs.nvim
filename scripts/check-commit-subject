@@ -1,0 +1,215 @@
+#!/usr/bin/env python3
+"""Validate Conventional Commit subjects for local hooks, CI, and Codex hooks."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import shlex
+import subprocess
+import sys
+from pathlib import Path
+
+
+TYPES = (
+    "build",
+    "chore",
+    "ci",
+    "docs",
+    "feat",
+    "fix",
+    "perf",
+    "refactor",
+    "revert",
+    "style",
+    "test",
+)
+
+SUBJECT_RE = re.compile(
+    rf"^({'|'.join(TYPES)})(\([a-z0-9][a-z0-9._/-]*\))?!?: \S.+$"
+)
+
+
+def valid_subject(subject: str) -> bool:
+    return bool(SUBJECT_RE.match(subject))
+
+
+def error_message(subject: str, source: str) -> str:
+    allowed = ", ".join(TYPES)
+    return "\n".join(
+        [
+            f"{source} must use Conventional Commits.",
+            "",
+            "Expected: <type>[optional scope][!]: <description>",
+            f"Allowed types: {allowed}",
+            "",
+            "Examples:",
+            "  fix(commands): route direct unmerged Gdiff files",
+            "  docs: clarify Gdiff help text",
+            "",
+            f"Got: {subject or '<empty>'}",
+        ]
+    )
+
+
+def check_subject(subject: str, source: str) -> bool:
+    if valid_subject(subject):
+        return True
+
+    print(error_message(subject, source), file=sys.stderr)
+    return False
+
+
+def commit_subject_from_file(path: Path) -> str:
+    with path.open(encoding="utf-8") as commit_msg:
+        for line in commit_msg:
+            subject = line.rstrip("\r\n")
+            if subject.startswith("#") or not subject.strip():
+                continue
+            return subject
+
+    return ""
+
+
+def git(args: list[str]) -> str:
+    return subprocess.check_output(["git", *args], text=True)
+
+
+def check_range(range_spec: str) -> bool:
+    commits = [
+        line for line in git(["rev-list", "--reverse", range_spec]).splitlines() if line
+    ]
+    ok = True
+
+    for commit in commits:
+        subject = git(["log", "-1", "--format=%s", commit]).rstrip("\n")
+        ok = check_subject(subject, f"commit {commit[:12]} subject") and ok
+
+    return ok
+
+
+def normalize_shell_tokens(command: str) -> list[str] | None:
+    try:
+        return shlex.split(command)
+    except ValueError:
+        return None
+
+
+def git_commit_args(tokens: list[str]) -> list[str] | None:
+    for idx, token in enumerate(tokens):
+        if token != "git":
+            continue
+
+        pos = idx + 1
+        while pos < len(tokens):
+            option = tokens[pos]
+            if option in {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}:
+                pos += 2
+                continue
+            if option.startswith(("--git-dir=", "--work-tree=", "--namespace=")):
+                pos += 1
+                continue
+            break
+
+        if pos < len(tokens) and tokens[pos] == "commit":
+            return tokens[pos + 1 :]
+
+    return None
+
+
+def inline_commit_subject(command: str) -> str | None:
+    tokens = normalize_shell_tokens(command)
+    if not tokens:
+        return None
+
+    while tokens[:3] == ["direnv", "exec", "."]:
+        tokens = tokens[3:]
+
+    args = git_commit_args(tokens)
+    if args is None:
+        return None
+
+    for idx, arg in enumerate(args):
+        if arg in {"-m", "--message"} and idx + 1 < len(args):
+            return args[idx + 1]
+        if arg.startswith("-") and not arg.startswith("--") and "m" in arg:
+            message = arg.split("m", 1)[1]
+            if message:
+                return message
+            if idx + 1 < len(args):
+                return args[idx + 1]
+        if arg.startswith("-m") and arg != "-m":
+            return arg[2:]
+        if arg.startswith("--message="):
+            return arg.split("=", 1)[1]
+
+    return None
+
+
+def codex_pre_tool_use() -> int:
+    try:
+        payload = json.load(sys.stdin)
+    except json.JSONDecodeError:
+        return 0
+
+    if payload.get("tool_name") != "Bash":
+        return 0
+
+    tool_input = payload.get("tool_input")
+    if not isinstance(tool_input, dict):
+        return 0
+
+    command = tool_input.get("command")
+    if not isinstance(command, str):
+        return 0
+
+    subject = inline_commit_subject(command)
+    if subject is None or valid_subject(subject):
+        return 0
+
+    print(
+        json.dumps(
+            {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": error_message(
+                        subject, "git commit subject"
+                    ),
+                }
+            }
+        )
+    )
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--message-file", type=Path)
+    parser.add_argument("--range", dest="range_spec")
+    parser.add_argument("--source", default="commit subject")
+    parser.add_argument("--subject")
+    parser.add_argument("--codex-pre-tool-use", action="store_true")
+    args = parser.parse_args()
+
+    if args.codex_pre_tool_use:
+        return codex_pre_tool_use()
+
+    if args.message_file is not None:
+        subject = commit_subject_from_file(args.message_file)
+        return 0 if check_subject(subject, "commit subject") else 1
+
+    if args.range_spec is not None:
+        return 0 if check_range(args.range_spec) else 1
+
+    if args.subject is not None:
+        return 0 if check_subject(args.subject, args.source) else 1
+
+    parser.error(
+        "one of --message-file, --range, --subject, or --codex-pre-tool-use is required"
+    )
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
