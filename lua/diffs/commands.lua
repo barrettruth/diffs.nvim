@@ -3,6 +3,7 @@ local M = {}
 local diffspec = require('diffs.spec')
 local gdiff_parser = require('diffs.gdiff')
 local git = require('diffs.git')
+local hunk_model = require('diffs.hunks')
 local dbg = require('diffs.log').dbg
 local render = require('diffs.render')
 local runtime = require('diffs.runtime')
@@ -26,6 +27,15 @@ end
 function M.setup_diff_buf(bufnr)
   vim.diagnostic.enable(false, { bufnr = bufnr })
   vim.keymap.set('n', 'q', '<cmd>close<CR>', { buffer = bufnr })
+  local has_hunks = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_hunks')
+  if has_hunks then
+    vim.keymap.set('n', ']c', function()
+      hunk_model.goto_next(bufnr)
+    end, { buffer = bufnr, desc = 'Next diff hunk' })
+    vim.keymap.set('n', '[c', function()
+      hunk_model.goto_prev(bufnr)
+    end, { buffer = bufnr, desc = 'Previous diff hunk' })
+  end
 end
 
 ---@param diff_lines string[]
@@ -101,6 +111,18 @@ end
 ---@param diff_spec diffs.DiffSpec
 local function set_diff_spec_var(bufnr, diff_spec)
   vim.api.nvim_buf_set_var(bufnr, 'diffs_spec', diffspec.new(diff_spec))
+end
+
+---@param bufnr integer
+---@param diff_lines string[]
+---@param diff_spec diffs.DiffSpec
+local function set_diff_hunks_var(bufnr, diff_lines, diff_spec)
+  vim.api.nvim_buf_set_var(bufnr, 'diffs_hunks', hunk_model.parse(diff_lines, diff_spec))
+end
+
+---@param bufnr integer
+local function clear_diff_hunks_var(bufnr)
+  pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_hunks')
 end
 
 ---@param bufnr integer
@@ -207,6 +229,7 @@ function M.gdiff(args, vertical)
   vim.api.nvim_set_option_value('filetype', 'diff', { buf = diff_buf })
   vim.api.nvim_buf_set_name(diff_buf, 'diffs://' .. diff_label .. ':' .. diff_path)
   set_diff_spec_var(diff_buf, diff_spec)
+  set_diff_hunks_var(diff_buf, diff_lines, diff_spec)
   if repo_root then
     vim.api.nvim_buf_set_var(diff_buf, 'diffs_repo_root', repo_root)
   end
@@ -972,6 +995,12 @@ function M.read_buffer(bufnr)
   vim.api.nvim_set_option_value('bufhidden', 'delete', { buf = bufnr })
   vim.api.nvim_set_option_value('swapfile', false, { buf = bufnr })
   vim.api.nvim_set_option_value('filetype', 'diff', { buf = bufnr })
+  if stored_spec then
+    set_diff_hunks_var(bufnr, diff_lines, stored_spec)
+  else
+    clear_diff_hunks_var(bufnr)
+  end
+  M.setup_diff_buf(bufnr)
 
   local debug_label = stored_spec and diffspec.label(stored_spec)
     or ((label or '?') .. ':' .. (path or '?'))

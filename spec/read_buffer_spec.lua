@@ -1,4 +1,4 @@
-require('spec.helpers')
+local helpers = require('spec.helpers')
 
 local commands = require('diffs.commands')
 local diffspec = require('diffs.spec')
@@ -272,6 +272,13 @@ describe('read_buffer', function()
         { 'index', '/tmp/meta_unstaged.lua' },
         { 'worktree', '/tmp/meta_unstaged.lua' },
       }, calls)
+      local diff_hunks = vim.api.nvim_buf_get_var(bufnr, 'diffs_hunks')
+      assert.are.equal(1, #diff_hunks)
+      assert.are.equal('meta_unstaged.lua', diff_hunks[1].file)
+      assert.is_true(diff_hunks[1].actionable)
+      assert.are.equal('worktree', diff_hunks[1].mutation_target)
+      assert.is_true(helpers.has_keymap(bufnr, ']c'))
+      assert.is_true(helpers.has_keymap(bufnr, '[c'))
     end)
 
     it('prefers diffs_spec metadata for HEAD to index reloads', function()
