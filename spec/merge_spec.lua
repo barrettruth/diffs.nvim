@@ -796,6 +796,58 @@ describe('merge', function()
       helpers.delete_buffer(d_bufnr)
       helpers.delete_buffer(w_bufnr)
     end)
+
+    it('does not replace pre-existing buffer-local keymaps', function()
+      local d_bufnr = create_diff_buffer({
+        'diff --git a/file.lua b/file.lua',
+        '--- a/file.lua',
+        '+++ b/file.lua',
+        '@@ -1,1 +1,1 @@',
+        '-local x = 1',
+        '+local x = 2',
+      })
+      vim.keymap.set('n', 'gt', '<Nop>', { buffer = d_bufnr, desc = 'user theirs' })
+      local cfg = default_config({ keymaps = helpers.default_conflict_keymaps() })
+
+      merge.setup_keymaps(d_bufnr, cfg)
+
+      local theirs = helpers.get_keymap(d_bufnr, 'gt')
+      local ours = helpers.get_keymap(d_bufnr, 'go')
+      assert.are.equal('user theirs', theirs.desc)
+      assert.are.equal('<Plug>(diffs-merge-ours)', ours.rhs)
+
+      merge.setup_keymaps(d_bufnr, default_config())
+
+      theirs = helpers.get_keymap(d_bufnr, 'gt')
+      assert.are.equal('user theirs', theirs.desc)
+      assert.is_false(helpers.has_keymap(d_bufnr, 'go'))
+
+      helpers.delete_buffer(d_bufnr)
+    end)
+
+    it('does not remove a user replacement during cleanup', function()
+      local d_bufnr = create_diff_buffer({
+        'diff --git a/file.lua b/file.lua',
+        '--- a/file.lua',
+        '+++ b/file.lua',
+        '@@ -1,1 +1,1 @@',
+        '-local x = 1',
+        '+local x = 2',
+      })
+      local cfg = default_config({ keymaps = helpers.default_conflict_keymaps() })
+
+      merge.setup_keymaps(d_bufnr, cfg)
+      assert.are.equal('<Plug>(diffs-merge-ours)', helpers.get_keymap(d_bufnr, 'go').rhs)
+
+      vim.keymap.set('n', 'go', '<Nop>', { buffer = d_bufnr, desc = 'user ours' })
+      merge.setup_keymaps(d_bufnr, default_config())
+
+      local ours = helpers.get_keymap(d_bufnr, 'go')
+      assert.are.equal('user ours', ours.desc)
+      assert.is_false(helpers.has_keymap(d_bufnr, 'gt'))
+
+      helpers.delete_buffer(d_bufnr)
+    end)
   end)
 
   describe('fugitive integration', function()
