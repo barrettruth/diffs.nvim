@@ -112,6 +112,19 @@ describe('fugitive', function()
       vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
+    it('parses copied file with similarity index and returns both names', function()
+      local buf = create_status_buffer({
+        'Staged (1)',
+        'C100  old.lua -> copy.lua',
+      })
+      local filename, section, _, old_filename, status = fugitive.get_file_at_line(buf, 2)
+      assert.equals('copy.lua', filename)
+      assert.equals('staged', section)
+      assert.equals('old.lua', old_filename)
+      assert.equals('C', status)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
     it('returns nil old_filename for non-renames', function()
       local buf = create_status_buffer({
         'Staged (1)',
