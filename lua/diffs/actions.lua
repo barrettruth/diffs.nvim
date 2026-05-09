@@ -4,8 +4,6 @@ local diffspec = require('diffs.spec')
 local git = require('diffs.git')
 local hunk_model = require('diffs.hunks')
 
-local endpoint_kind = diffspec.endpoint_kind
-
 ---@param bufnr integer
 ---@param name string
 ---@return any
@@ -45,18 +43,6 @@ local function hunk_diff_spec(hunk)
     return spec
   end
   return nil
-end
-
----@param spec diffs.DiffSpec
----@return boolean
-local function is_index_to_worktree(spec)
-  return spec.left.kind == endpoint_kind.index and spec.right.kind == endpoint_kind.worktree
-end
-
----@param spec diffs.DiffSpec
----@return boolean
-local function is_tree_to_index(spec)
-  return spec.left.kind == endpoint_kind.tree and spec.right.kind == endpoint_kind.index
 end
 
 ---@param lines string[]
@@ -363,11 +349,12 @@ function M.put_hunk(bufnr)
     return false
   end
 
-  if is_index_to_worktree(spec) then
+  local patch_actions = diffspec.patch_actions(spec)
+  if patch_actions.can_put then
     return mutate_hunk(bufnr, hunk, 'stage')
   end
 
-  if is_tree_to_index(spec) then
+  if patch_actions.can_obtain then
     notify('Gdiff hunk is already in the index', vim.log.levels.WARN)
     return false
   end
@@ -389,11 +376,12 @@ function M.obtain_hunk(bufnr)
     return false
   end
 
-  if is_tree_to_index(spec) then
+  local patch_actions = diffspec.patch_actions(spec)
+  if patch_actions.can_obtain then
     return mutate_hunk(bufnr, hunk, 'unstage')
   end
 
-  if is_index_to_worktree(spec) then
+  if patch_actions.can_put then
     notify('restoring worktree hunks is not supported', vim.log.levels.WARN)
     return false
   end
@@ -448,7 +436,8 @@ function M.put_range(bufnr, range_start, range_finish)
     return false
   end
 
-  if is_index_to_worktree(spec) then
+  local patch_actions = diffspec.patch_actions(spec)
+  if patch_actions.can_put then
     local patch = range_patch_or_notify(hunk, range_start, range_finish, 'left')
     if not patch then
       return false
@@ -459,7 +448,7 @@ function M.put_range(bufnr, range_start, range_finish)
     })
   end
 
-  if is_tree_to_index(spec) then
+  if patch_actions.can_obtain then
     notify('Gdiff hunk is already in the index', vim.log.levels.WARN)
     return false
   end
@@ -478,7 +467,8 @@ function M.obtain_range(bufnr, range_start, range_finish)
     return false
   end
 
-  if is_tree_to_index(spec) then
+  local patch_actions = diffspec.patch_actions(spec)
+  if patch_actions.can_obtain then
     local patch = range_patch_or_notify(hunk, range_start, range_finish, 'right')
     if not patch then
       return false
@@ -489,7 +479,7 @@ function M.obtain_range(bufnr, range_start, range_finish)
     })
   end
 
-  if is_index_to_worktree(spec) then
+  if patch_actions.can_put then
     notify('restoring worktree hunks is not supported', vim.log.levels.WARN)
     return false
   end

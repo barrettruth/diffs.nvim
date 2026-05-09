@@ -34,6 +34,8 @@ describe('diffs.hunks', function()
         '+++ b/lua/foo.lua',
       }, parsed[1].file_header_lines)
       assert.are.equal('@@ -1,3 +1,4 @@', parsed[1].header)
+      assert.is_true(parsed[1].can_put)
+      assert.is_false(parsed[1].can_obtain)
       assert.is_true(parsed[1].actionable)
       assert.are.equal('worktree', parsed[1].mutation_target)
       assert.are.same({ kind = 'index' }, parsed[1].edge.left)
@@ -150,10 +152,28 @@ describe('diffs.hunks', function()
       local parsed =
         hunks.parse(sample_lines(), diffspec.rev_to_rev('HEAD~1', 'HEAD', 'lua/foo.lua'))
 
+      assert.is_false(parsed[1].can_put)
+      assert.is_false(parsed[1].can_obtain)
       assert.is_false(parsed[1].actionable)
       assert.is_nil(parsed[1].mutation_target)
       assert.are.same({ kind = 'tree', rev = 'HEAD~1' }, parsed[1].edge.left)
       assert.are.same({ kind = 'tree', rev = 'HEAD' }, parsed[1].edge.right)
+    end)
+
+    it('keeps right-endpoint mutation metadata separate from patch actionability', function()
+      local worktree_parsed =
+        hunks.parse(sample_lines(), diffspec.rev_to_worktree('HEAD', 'lua/foo.lua'))
+      local index_parsed = hunks.parse(sample_lines(), diffspec.head_to_index('lua/foo.lua'))
+
+      assert.are.equal('worktree', worktree_parsed[1].mutation_target)
+      assert.is_false(worktree_parsed[1].can_put)
+      assert.is_false(worktree_parsed[1].can_obtain)
+      assert.is_false(worktree_parsed[1].actionable)
+
+      assert.are.equal('index', index_parsed[1].mutation_target)
+      assert.is_false(index_parsed[1].can_put)
+      assert.is_true(index_parsed[1].can_obtain)
+      assert.is_true(index_parsed[1].actionable)
     end)
   end)
 

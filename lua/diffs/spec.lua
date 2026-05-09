@@ -209,6 +209,19 @@ function M.mutation_target(diff_spec)
 end
 
 ---@param diff_spec diffs.DiffSpec
+---@return { can_put: boolean, can_obtain: boolean }
+function M.patch_actions(diff_spec)
+  diff_spec = M.new(diff_spec)
+
+  return {
+    can_put = diff_spec.left.kind == M.endpoint_kind.index
+      and diff_spec.right.kind == M.endpoint_kind.worktree,
+    can_obtain = diff_spec.left.kind == M.endpoint_kind.tree
+      and diff_spec.right.kind == M.endpoint_kind.index,
+  }
+end
+
+---@param diff_spec diffs.DiffSpec
 ---@return boolean
 function M.is_index_target(diff_spec)
   return M.mutation_target(diff_spec) == M.endpoint_kind.index
