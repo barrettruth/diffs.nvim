@@ -1,13 +1,29 @@
-require('spec.helpers')
+local helpers = require('spec.helpers')
 
 local fugitive = require('diffs.fugitive')
 
 describe('fugitive', function()
+  local test_buffers = {}
+
+  local function create_buffer(lines)
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines or {})
+    test_buffers[#test_buffers + 1] = buf
+    return buf
+  end
+
+  after_each(function()
+    for _, buf in ipairs(test_buffers) do
+      if vim.api.nvim_buf_is_valid(buf) then
+        vim.api.nvim_buf_delete(buf, { force = true })
+      end
+    end
+    test_buffers = {}
+  end)
+
   describe('get_section_at_line', function()
     local function create_status_buffer(lines)
-      local buf = vim.api.nvim_create_buf(false, true)
-      vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-      return buf
+      return create_buffer(lines)
     end
 
     it('returns staged for lines in Staged section', function()
@@ -23,7 +39,6 @@ describe('fugitive', function()
       })
       assert.equals('staged', fugitive.get_section_at_line(buf, 4))
       assert.equals('staged', fugitive.get_section_at_line(buf, 5))
-      vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
     it('returns unstaged for lines in Unstaged section', function()
@@ -39,7 +54,6 @@ describe('fugitive', function()
       })
       assert.equals('unstaged', fugitive.get_section_at_line(buf, 7))
       assert.equals('unstaged', fugitive.get_section_at_line(buf, 8))
-      vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
     it('returns untracked for lines in Untracked section', function()
@@ -52,7 +66,6 @@ describe('fugitive', function()
       })
       assert.equals('untracked', fugitive.get_section_at_line(buf, 4))
       assert.equals('untracked', fugitive.get_section_at_line(buf, 5))
-      vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
     it('returns nil for lines before any section', function()
@@ -65,15 +78,12 @@ describe('fugitive', function()
       })
       assert.is_nil(fugitive.get_section_at_line(buf, 1))
       assert.is_nil(fugitive.get_section_at_line(buf, 2))
-      vim.api.nvim_buf_delete(buf, { force = true })
     end)
   end)
 
   describe('get_file_at_line', function()
     local function create_status_buffer(lines)
-      local buf = vim.api.nvim_create_buf(false, true)
-      vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-      return buf
+      return create_buffer(lines)
     end
 
     it('parses simple modified file', function()
@@ -84,7 +94,6 @@ describe('fugitive', function()
       local filename, section = fugitive.get_file_at_line(buf, 2)
       assert.equals('src/foo.lua', filename)
       assert.equals('unstaged', section)
-      vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
     it('parses renamed file and returns both names', function()
@@ -97,7 +106,6 @@ describe('fugitive', function()
       assert.equals('staged', section)
       assert.is_false(is_header)
       assert.equals('oldname.lua', old_filename)
-      vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
     it('parses renamed file with similarity index', function()
@@ -109,7 +117,6 @@ describe('fugitive', function()
       assert.equals('new.lua', filename)
       assert.equals('staged', section)
       assert.equals('old.lua', old_filename)
-      vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
     it('parses copied file with similarity index and returns both names', function()
@@ -122,7 +129,6 @@ describe('fugitive', function()
       assert.equals('staged', section)
       assert.equals('old.lua', old_filename)
       assert.equals('C', status)
-      vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
     it('returns nil old_filename for non-renames', function()
@@ -134,7 +140,6 @@ describe('fugitive', function()
       assert.equals('modified.lua', filename)
       assert.equals('staged', section)
       assert.is_nil(old_filename)
-      vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
     it('handles renamed file with spaces in name', function()
@@ -145,7 +150,6 @@ describe('fugitive', function()
       local filename, _, _, old_filename = fugitive.get_file_at_line(buf, 2)
       assert.equals('new file.lua', filename)
       assert.equals('old file.lua', old_filename)
-      vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
     it('KNOWN LIMITATION: filename containing arrow parsed incorrectly', function()
@@ -156,7 +160,6 @@ describe('fugitive', function()
       local filename, _, _, old_filename = fugitive.get_file_at_line(buf, 2)
       assert.equals('b.lua -> c.lua', filename)
       assert.equals('a', old_filename)
-      vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
     it('unquotes git-quoted filenames with spaces', function()
@@ -166,7 +169,6 @@ describe('fugitive', function()
       })
       local filename = fugitive.get_file_at_line(buf, 2)
       assert.equals('path with spaces/file.lua', filename)
-      vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
     it('unquotes escaped quotes in filenames', function()
@@ -176,7 +178,6 @@ describe('fugitive', function()
       })
       local filename = fugitive.get_file_at_line(buf, 2)
       assert.equals('file"name.lua', filename)
-      vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
     it('unquotes octal escapes in filenames', function()
@@ -186,7 +187,6 @@ describe('fugitive', function()
       })
       local filename = fugitive.get_file_at_line(buf, 2)
       assert.equals('\195\169le.lua', filename)
-      vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
     it('passes through unquoted filenames unchanged', function()
@@ -196,7 +196,6 @@ describe('fugitive', function()
       })
       local filename = fugitive.get_file_at_line(buf, 2)
       assert.equals('normal.lua', filename)
-      vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
     it('unquotes renamed files with quotes', function()
@@ -207,7 +206,6 @@ describe('fugitive', function()
       local filename, _, _, old_filename = fugitive.get_file_at_line(buf, 2)
       assert.equals('new name.lua', filename)
       assert.equals('old name.lua', old_filename)
-      vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
     it('returns nil for section header', function()
@@ -217,7 +215,6 @@ describe('fugitive', function()
       })
       local filename = fugitive.get_file_at_line(buf, 1)
       assert.is_nil(filename)
-      vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
     it('walks back from hunk line to find file', function()
@@ -232,7 +229,6 @@ describe('fugitive', function()
       local filename, section = fugitive.get_file_at_line(buf, 5)
       assert.equals('file.lua', filename)
       assert.equals('unstaged', section)
-      vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
     it('handles file with both staged and unstaged indicator', function()
@@ -250,7 +246,6 @@ describe('fugitive', function()
       local filename2, section2 = fugitive.get_file_at_line(buf, 5)
       assert.equals('both.lua', filename2)
       assert.equals('unstaged', section2)
-      vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
     it('detects section header for Staged', function()
@@ -264,7 +259,6 @@ describe('fugitive', function()
       assert.is_nil(filename)
       assert.equals('staged', section)
       assert.is_true(is_header)
-      vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
     it('returns is_header=false for file lines', function()
@@ -276,15 +270,12 @@ describe('fugitive', function()
       assert.equals('file.lua', filename)
       assert.equals('staged', section)
       assert.is_false(is_header)
-      vim.api.nvim_buf_delete(buf, { force = true })
     end)
   end)
 
   describe('get_hunk_position', function()
     local function create_status_buffer(lines)
-      local buf = vim.api.nvim_create_buf(false, true)
-      vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-      return buf
+      return create_buffer(lines)
     end
 
     it('returns nil when on file header line', function()
@@ -297,7 +288,6 @@ describe('fugitive', function()
       })
       local pos = fugitive.get_hunk_position(buf, 2)
       assert.is_nil(pos)
-      vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
     it('returns nil when on @@ header line', function()
@@ -309,7 +299,6 @@ describe('fugitive', function()
       })
       local pos = fugitive.get_hunk_position(buf, 3)
       assert.is_nil(pos)
-      vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
     it('returns hunk header and offset for + line', function()
@@ -325,7 +314,6 @@ describe('fugitive', function()
       assert.is_not_nil(pos)
       assert.equals('@@ -1,3 +1,4 @@', pos.hunk_header)
       assert.equals(2, pos.offset)
-      vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
     it('returns hunk header and offset for context line', function()
@@ -341,7 +329,6 @@ describe('fugitive', function()
       assert.is_not_nil(pos)
       assert.equals('@@ -1,3 +1,4 @@', pos.hunk_header)
       assert.equals(3, pos.offset)
-      vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
     it('returns correct offset for first line after @@', function()
@@ -354,7 +341,6 @@ describe('fugitive', function()
       local pos = fugitive.get_hunk_position(buf, 4)
       assert.is_not_nil(pos)
       assert.equals(1, pos.offset)
-      vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
     it('handles @@ header with context text', function()
@@ -369,7 +355,6 @@ describe('fugitive', function()
       assert.is_not_nil(pos)
       assert.equals('@@ -10,3 +10,4 @@ function M.hello()', pos.hunk_header)
       assert.equals(2, pos.offset)
-      vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
     it('returns nil when section header interrupts search', function()
@@ -380,7 +365,58 @@ describe('fugitive', function()
       })
       local pos = fugitive.get_hunk_position(buf, 3)
       assert.is_nil(pos)
-      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+  end)
+
+  describe('setup_keymaps', function()
+    it('preserves pre-existing horizontal map and installs vertical map', function()
+      local buf = create_buffer()
+      vim.keymap.set('n', 'du', '<Nop>', { buffer = buf, desc = 'user horizontal' })
+
+      fugitive.setup_keymaps(buf, { horizontal = 'du', vertical = 'dU' })
+
+      assert.are.equal('user horizontal', helpers.get_keymap(buf, 'du').desc)
+      assert.are.equal('Unified diff (vertical)', helpers.get_keymap(buf, 'dU').desc)
+    end)
+
+    it('preserves pre-existing vertical map and installs horizontal map', function()
+      local buf = create_buffer()
+      vim.keymap.set('n', 'dU', '<Nop>', { buffer = buf, desc = 'user vertical' })
+
+      fugitive.setup_keymaps(buf, { horizontal = 'du', vertical = 'dU' })
+
+      assert.are.equal('Unified diff (horizontal)', helpers.get_keymap(buf, 'du').desc)
+      assert.are.equal('user vertical', helpers.get_keymap(buf, 'dU').desc)
+    end)
+
+    it('does not install disabled or empty maps', function()
+      local buf = create_buffer()
+
+      fugitive.setup_keymaps(buf, { horizontal = false, vertical = '' })
+
+      assert.is_false(helpers.has_keymap(buf, 'du'))
+      assert.is_false(helpers.has_keymap(buf, 'dU'))
+    end)
+
+    it('clears owned maps when disabled later', function()
+      local buf = create_buffer()
+
+      fugitive.setup_keymaps(buf, { horizontal = 'du', vertical = 'dU' })
+      fugitive.setup_keymaps(buf, { horizontal = false, vertical = false })
+
+      assert.is_false(helpers.has_keymap(buf, 'du'))
+      assert.is_false(helpers.has_keymap(buf, 'dU'))
+    end)
+
+    it('does not delete maps replaced after diffs.nvim installed them', function()
+      local buf = create_buffer()
+
+      fugitive.setup_keymaps(buf, { horizontal = 'du', vertical = 'dU' })
+      vim.keymap.set('n', 'du', '<Nop>', { buffer = buf, desc = 'user replacement' })
+      fugitive.setup_keymaps(buf, { horizontal = false, vertical = false })
+
+      assert.are.equal('user replacement', helpers.get_keymap(buf, 'du').desc)
+      assert.is_false(helpers.has_keymap(buf, 'dU'))
     end)
   end)
 end)
