@@ -328,6 +328,103 @@ local function buffer_hunks(bufnr)
 end
 
 ---@param bufnr integer
+---@param name string
+---@return any
+local function get_buf_var(bufnr, name)
+  local ok, value = pcall(vim.api.nvim_buf_get_var, bufnr, name)
+  if ok then
+    return value
+  end
+  return nil
+end
+
+---@param filepath string
+---@return integer?
+local function find_window_for_file(filepath)
+  local tabpage = vim.api.nvim_get_current_tabpage()
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(tabpage)) do
+    if vim.api.nvim_win_is_valid(win) then
+      local buf = vim.api.nvim_win_get_buf(win)
+      if vim.api.nvim_buf_get_name(buf) == filepath then
+        return win
+      end
+    end
+  end
+  return nil
+end
+
+---@param repo_root string
+---@param path string
+---@return string
+local function resolve_worktree_path(repo_root, path)
+  if path:sub(1, 1) == '/' then
+    return path
+  end
+  return vim.fs.joinpath(repo_root, path)
+end
+
+---@param bufnr integer
+---@return { path: string, lnum: integer }?, string?
+function M.source_at_cursor(bufnr)
+  local parsed = buffer_hunks(bufnr)
+  local cursor_line = vim.api.nvim_win_get_cursor(0)[1]
+  local hunk = M.hunk_at_line(parsed, cursor_line)
+  if not hunk then
+    return nil, 'cursor is not on a diff hunk'
+  end
+
+  local spec = hunk.diff_spec and diffspec.new(hunk.diff_spec) or nil
+  if not spec then
+    return nil, 'missing diffs_spec metadata for hunk'
+  end
+
+  if spec.right.kind == diffspec.endpoint_kind.index then
+    return nil, 'cannot open index-backed Gdiff hunk as a worktree file'
+  end
+  if spec.right.kind ~= diffspec.endpoint_kind.worktree then
+    return nil, 'cannot open read-only tree-backed Gdiff hunk as a worktree file'
+  end
+
+  local source = M.source_line_for(M.line_at(parsed, cursor_line)) or M.source_line_for(hunk)
+  if not source then
+    return nil, 'could not resolve source location for hunk'
+  end
+
+  local repo_root = get_buf_var(bufnr, 'diffs_repo_root')
+  if type(repo_root) ~= 'string' or repo_root == '' then
+    return nil, 'cannot open source without diffs_repo_root'
+  end
+
+  return {
+    path = resolve_worktree_path(repo_root, source.path),
+    lnum = source.lnum,
+  },
+    nil
+end
+
+---@param bufnr integer
+---@return boolean
+function M.open_source(bufnr)
+  local source, err = M.source_at_cursor(bufnr)
+  if not source then
+    vim.notify('[diffs.nvim]: ' .. err, vim.log.levels.WARN)
+    return false
+  end
+
+  local win = find_window_for_file(source.path)
+  if win then
+    vim.api.nvim_set_current_win(win)
+  else
+    vim.cmd.edit(vim.fn.fnameescape(source.path))
+  end
+
+  local line_count = vim.api.nvim_buf_line_count(0)
+  local lnum = math.max(1, math.min(source.lnum, line_count))
+  vim.api.nvim_win_set_cursor(0, { lnum, 0 })
+  return true
+end
+
+---@param bufnr integer
 function M.goto_next(bufnr)
   local parsed = buffer_hunks(bufnr)
   if #parsed == 0 then
