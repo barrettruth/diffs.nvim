@@ -48,12 +48,15 @@ function M.get_extmarks(bufnr, ns)
 end
 
 function M.has_keymap(bufnr, lhs, mode)
+  return M.get_keymap(bufnr, lhs, mode) ~= nil
+end
+
+function M.get_keymap(bufnr, lhs, mode)
   for _, keymap in ipairs(vim.api.nvim_buf_get_keymap(bufnr, mode or 'n')) do
     if keymap.lhs == lhs then
-      return true
+      return keymap
     end
   end
-  return false
 end
 
 return M

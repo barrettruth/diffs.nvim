@@ -8,7 +8,7 @@ local ns = vim.api.nvim_create_namespace('diffs-merge')
 ---@type table<integer, table<integer, true>>
 local resolved_hunks = {}
 
----@type table<integer, string[]>
+---@type table<integer, table<string, diffs.BufferKeymap>>
 local buffer_keymaps = {}
 
 ---@class diffs.MergeHunkInfo

@@ -391,6 +391,56 @@ describe('conflict', function()
 
       helpers.delete_buffer(bufnr)
     end)
+
+    it('does not replace pre-existing buffer-local keymaps', function()
+      local bufnr = create_file_buffer({
+        '<<<<<<< HEAD',
+        'local x = 1',
+        '=======',
+        'local x = 2',
+        '>>>>>>> feature',
+      })
+      vim.keymap.set('n', 'gt', '<Nop>', { buffer = bufnr, desc = 'user theirs' })
+      local cfg = default_config({ keymaps = helpers.default_conflict_keymaps() })
+
+      conflict.attach(bufnr, cfg)
+
+      local theirs = helpers.get_keymap(bufnr, 'gt')
+      local ours = helpers.get_keymap(bufnr, 'go')
+      assert.are.equal('user theirs', theirs.desc)
+      assert.are.equal('<Plug>(diffs-conflict-ours)', ours.rhs)
+
+      conflict.detach(bufnr)
+
+      theirs = helpers.get_keymap(bufnr, 'gt')
+      assert.are.equal('user theirs', theirs.desc)
+      assert.is_false(helpers.has_keymap(bufnr, 'go'))
+
+      helpers.delete_buffer(bufnr)
+    end)
+
+    it('does not remove a user replacement during cleanup', function()
+      local bufnr = create_file_buffer({
+        '<<<<<<< HEAD',
+        'local x = 1',
+        '=======',
+        'local x = 2',
+        '>>>>>>> feature',
+      })
+      local cfg = default_config({ keymaps = helpers.default_conflict_keymaps() })
+
+      conflict.attach(bufnr, cfg)
+      assert.are.equal('<Plug>(diffs-conflict-ours)', helpers.get_keymap(bufnr, 'go').rhs)
+
+      vim.keymap.set('n', 'go', '<Nop>', { buffer = bufnr, desc = 'user ours' })
+      conflict.detach(bufnr)
+
+      local ours = helpers.get_keymap(bufnr, 'go')
+      assert.are.equal('user ours', ours.desc)
+      assert.is_false(helpers.has_keymap(bufnr, 'gt'))
+
+      helpers.delete_buffer(bufnr)
+    end)
   end)
 
   describe('resolution', function()
