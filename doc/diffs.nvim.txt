@@ -409,9 +409,9 @@ syntax highlighting warning.
 ==============================================================================
 COMMANDS                                                      *diffs-commands*
 
-:Gdiff [revision]                                                     *:Gdiff*
-    Open a unified diff of the current file against a git revision. Displays
-    in a horizontal split below the current window.
+:Gdiff [object]                                                       *:Gdiff*
+    Open a unified diff of the current file against a Fugitive-style object.
+    Displays in a horizontal split below the current window.
 
     The diff buffer shows `+`/`-` lines with full syntax highlighting for the
     code language, plus diff header highlighting for `diff --git`, `---`,
@@ -421,20 +421,21 @@ COMMANDS                                                      *diffs-commands*
     diff replaces its buffer instead of creating another split.
 
     Parameters: ~
-        {revision}  (string, optional) Git revision to diff against.
-                    Defaults to HEAD.
+        {object}    (string, optional) Fugitive-style object to diff against.
+                    Defaults to the current file in the index.
 
     Examples: >vim
-        :Gdiff          " diff against HEAD
+        :Gdiff          " diff against the index
         :Gdiff main     " diff against main branch
         :Gdiff HEAD~3   " diff against 3 commits ago
+        :Gdiff :0:%     " diff against the index explicitly
         :Gdiff abc123   " diff against specific commit
 <
 
-:Gvdiff [revision]                                                   *:Gvdiff*
+:Gvdiff [object]                                                     *:Gvdiff*
     Like |:Gdiff| but opens in a vertical split.
 
-:Ghdiff [revision]                                                   *:Ghdiff*
+:Ghdiff [object]                                                     *:Ghdiff*
     Like |:Gdiff| but explicitly opens in a horizontal split.
 
 :Greview [review-spec]                                              *:Greview*
