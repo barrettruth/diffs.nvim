@@ -287,6 +287,46 @@ describe('read_buffer', function()
       assert.is_true(helpers.has_keymap(bufnr, 'dp'))
     end)
 
+    it('uses diffs_source metadata without parsing the display name', function()
+      local calls = {}
+      mock_git({
+        get_file_content = function(rev, filepath)
+          table.insert(calls, { 'file', rev, filepath })
+          return { 'tree' }
+        end,
+        get_index_content = function(filepath)
+          table.insert(calls, { 'index', filepath })
+          return { 'index' }
+        end,
+        get_working_content = function(filepath)
+          table.insert(calls, { 'worktree', filepath })
+          return { 'worktree' }
+        end,
+      })
+
+      local bufnr = create_diffs_buffer('diffs://metadata-only', {
+        diffs_repo_root = '/wrong',
+        diffs_source = {
+          version = 1,
+          kind = 'file',
+          repo_root = '/tmp',
+          spec = diffspec.index_to_worktree('source_meta.lua'),
+        },
+      })
+      commands.read_buffer(bufnr)
+
+      assert.are.same({
+        { 'index', '/tmp/source_meta.lua' },
+        { 'worktree', '/tmp/source_meta.lua' },
+      }, calls)
+      local diff_hunks = vim.api.nvim_buf_get_var(bufnr, 'diffs_hunks')
+      assert.are.equal(1, #diff_hunks)
+      assert.are.equal('source_meta.lua', diff_hunks[1].file)
+      assert.is_true(diff_hunks[1].can_put)
+      assert.is_false(diff_hunks[1].can_obtain)
+      assert.is_true(diff_hunks[1].actionable)
+    end)
+
     it('reloads untracked DiffSpec buffers with empty index content and hunk metadata', function()
       mock_git({
         get_index_content = function(filepath)
@@ -401,6 +441,29 @@ describe('read_buffer', function()
         { 'file', 'HEAD~3', '/tmp/meta_rev.lua' },
         { 'worktree', '/tmp/meta_rev.lua' },
       }, calls)
+    end)
+
+    it('warns and leaves content unchanged for invalid diffs_source metadata', function()
+      local notification
+      mock_notify(function(message, level)
+        notification = { message = message, level = level }
+      end)
+
+      local bufnr = create_diffs_buffer('diffs://unstaged:invalid_source.lua', {
+        diffs_source = {
+          version = 1,
+          kind = 'file',
+          repo_root = '/tmp',
+        },
+      })
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'stale content' })
+
+      commands.read_buffer(bufnr)
+
+      assert.is_not_nil(notification)
+      assert.are.equal(vim.log.levels.WARN, notification.level)
+      assert.is_true(notification.message:find('invalid diffs_source metadata', 1, true) ~= nil)
+      assert.are.same({ 'stale content' }, vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
     end)
 
     it('warns and leaves content unchanged for invalid diffs_spec metadata', function()
