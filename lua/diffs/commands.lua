@@ -1010,10 +1010,7 @@ function M.read_buffer(bufnr)
   local diff_lines
   local stored_spec, spec_err = get_diff_spec_var(bufnr)
   if spec_err then
-    vim.notify(
-      '[diffs]: invalid diffs_spec metadata: ' .. tostring(spec_err),
-      vim.log.levels.WARN
-    )
+    vim.notify('[diffs]: invalid diffs_spec metadata: ' .. tostring(spec_err), vim.log.levels.WARN)
     return
   end
 
@@ -1028,10 +1025,7 @@ function M.read_buffer(bufnr)
   else
     label, path = url_body:match('^([^:]+):(.+)$')
     if not label or not path then
-      vim.notify(
-        '[diffs]: cannot reload malformed diffs:// buffer: ' .. name,
-        vim.log.levels.WARN
-      )
+      vim.notify('[diffs]: cannot reload malformed diffs:// buffer: ' .. name, vim.log.levels.WARN)
       return
     end
   end
