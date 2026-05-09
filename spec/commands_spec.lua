@@ -557,6 +557,273 @@ describe('commands', function()
     end)
   end)
 
+  describe('generated buffer lifecycle matrix', function()
+    local section_lines = {
+      'diff --git a/lua/section.lua b/lua/section.lua',
+      '--- a/lua/section.lua',
+      '+++ b/lua/section.lua',
+      '@@ -1 +1 @@',
+      '-old section',
+      '+new section',
+    }
+
+    local review_lines = {
+      'diff --git a/lua/review.lua b/lua/review.lua',
+      '--- a/lua/review.lua',
+      '+++ b/lua/review.lua',
+      '@@ -1 +1 @@',
+      '-old review',
+      '+new review',
+    }
+
+    local file_content = {
+      ['/tmp/repo/lua/unstaged.lua'] = {
+        index = { 'local M = {}', 'return M' },
+        worktree = { 'local M = {}', 'local unstaged = true', 'return M' },
+      },
+      ['/tmp/repo/lua/staged.lua'] = {
+        head = { 'local M = {}', 'return M' },
+        index = { 'local M = {}', 'local staged = true', 'return M' },
+      },
+      ['/tmp/repo/lua/new.lua'] = {
+        worktree = { 'local M = {}', 'local new_file = true', 'return M' },
+      },
+    }
+
+    local function has_buf_var(bufnr, name)
+      local ok = pcall(vim.api.nvim_buf_get_var, bufnr, name)
+      return ok
+    end
+
+    local function contains_cmd_arg(cmd, arg)
+      for _, value in ipairs(cmd) do
+        if value == arg then
+          return true
+        end
+      end
+      return false
+    end
+
+    local function install_lifecycle_mocks()
+      mock_git_method('get_relative_path', function(filepath)
+        return filepath:match('^/tmp/repo/(.+)$')
+      end)
+      mock_repo_root(function()
+        return '/tmp/repo'
+      end)
+      mock_git_method('get_file_content', function(revision, filepath)
+        local entry = file_content[filepath]
+        if not entry or not entry.head then
+          return nil, 'file not in revision: ' .. revision
+        end
+        return entry.head
+      end)
+      mock_git_method('get_index_content', function(filepath)
+        local entry = file_content[filepath]
+        if not entry or not entry.index then
+          return nil, 'file not in index'
+        end
+        return entry.index
+      end)
+      mock_git_method('get_working_content', function(filepath)
+        local entry = file_content[filepath]
+        if not entry or not entry.worktree then
+          return nil, 'file not readable'
+        end
+        return entry.worktree
+      end)
+      mock_git_method('get_tree_mode', function()
+        return '100644'
+      end)
+      mock_git_method('get_index_mode', function(filepath)
+        local entry = file_content[filepath]
+        return entry and entry.index and '100644' or nil
+      end)
+      mock_git_method('get_working_mode', function(filepath)
+        local entry = file_content[filepath]
+        return entry and entry.worktree and '100644' or nil
+      end)
+      mock_systemlist(function(cmd)
+        if
+          contains_cmd_arg(cmd, '--name-status')
+          or contains_cmd_arg(cmd, '--numstat')
+          or contains_cmd_arg(cmd, '--raw')
+        then
+          return {}
+        end
+        if contains_cmd_arg(cmd, '--merge-base') then
+          return review_lines
+        end
+        return section_lines
+      end)
+      mock_runtime_attach(function() end)
+    end
+
+    local function set_stale_content(bufnr)
+      vim.api.nvim_set_option_value('modifiable', true, { buf = bufnr })
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'stale lifecycle content' })
+      vim.api.nvim_set_option_value('modifiable', false, { buf = bufnr })
+    end
+
+    local function assert_generated_options(bufnr)
+      assert.are.equal('nowrite', vim.api.nvim_get_option_value('buftype', { buf = bufnr }))
+      assert.are.equal('delete', vim.api.nvim_get_option_value('bufhidden', { buf = bufnr }))
+      assert.is_false(vim.api.nvim_get_option_value('swapfile', { buf = bufnr }))
+      assert.is_false(vim.api.nvim_get_option_value('modifiable', { buf = bufnr }))
+      assert.are.equal('diff', vim.api.nvim_get_option_value('filetype', { buf = bufnr }))
+    end
+
+    local function assert_no_hunk_maps(bufnr)
+      assert.is_false(helpers.has_keymap(bufnr, ']c'))
+      assert.is_false(helpers.has_keymap(bufnr, '[c'))
+      assert.is_false(helpers.has_keymap(bufnr, '<CR>'))
+      assert.is_false(helpers.has_keymap(bufnr, 'o'))
+      assert.is_false(helpers.has_keymap(bufnr, 'do'))
+      assert.is_false(helpers.has_keymap(bufnr, 'dp'))
+      assert.is_false(helpers.has_keymap(bufnr, 'do', 'x'))
+      assert.is_false(helpers.has_keymap(bufnr, 'dp', 'x'))
+    end
+
+    local function assert_hunk_maps(bufnr, hunk)
+      assert.is_true(helpers.has_keymap(bufnr, ']c'))
+      assert.is_true(helpers.has_keymap(bufnr, '[c'))
+      assert.is_true(helpers.has_keymap(bufnr, '<CR>'))
+      assert.is_true(helpers.has_keymap(bufnr, 'o'))
+      assert.are.equal(hunk.can_obtain, helpers.has_keymap(bufnr, 'do'))
+      assert.are.equal(hunk.can_put, helpers.has_keymap(bufnr, 'dp'))
+      assert.are.equal(hunk.can_obtain, helpers.has_keymap(bufnr, 'do', 'x'))
+      assert.are.equal(hunk.can_put, helpers.has_keymap(bufnr, 'dp', 'x'))
+    end
+
+    local function assert_lifecycle_state(bufnr, case)
+      assert.are.equal(case.buffer_name, vim.api.nvim_buf_get_name(bufnr))
+      assert.are.equal('/tmp/repo', vim.api.nvim_buf_get_var(bufnr, 'diffs_repo_root'))
+      assert_generated_options(bufnr)
+
+      if case.diff_spec then
+        assert.are.same(case.diff_spec, vim.api.nvim_buf_get_var(bufnr, 'diffs_spec'))
+      else
+        assert.is_false(has_buf_var(bufnr, 'diffs_spec'))
+      end
+
+      if case.review then
+        assert.are.equal(case.review.base, vim.api.nvim_buf_get_var(bufnr, 'diffs_review_base'))
+        assert.are.equal(case.review.target, vim.api.nvim_buf_get_var(bufnr, 'diffs_review_target'))
+        assert.are.equal(case.review.mode, vim.api.nvim_buf_get_var(bufnr, 'diffs_review_mode'))
+      end
+
+      if case.hunk then
+        local diff_hunks = vim.api.nvim_buf_get_var(bufnr, 'diffs_hunks')
+        assert.are.equal(1, #diff_hunks)
+        assert.are.equal(case.hunk.file, diff_hunks[1].file)
+        assert.are.equal(case.hunk.mutation_target, diff_hunks[1].mutation_target)
+        assert.are.equal(case.hunk.can_put, diff_hunks[1].can_put)
+        assert.are.equal(case.hunk.can_obtain, diff_hunks[1].can_obtain)
+        assert.are.equal(case.hunk.can_put or case.hunk.can_obtain, diff_hunks[1].actionable)
+        assert_hunk_maps(bufnr, case.hunk)
+      else
+        assert.is_false(has_buf_var(bufnr, 'diffs_hunks'))
+        assert_no_hunk_maps(bufnr)
+      end
+
+      local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+      assert.are.equal(case.first_line, lines[1])
+      assert.is_false(vim.tbl_contains(lines, 'stale lifecycle content'))
+    end
+
+    it('preserves generated buffer metadata and action keymaps across reloads', function()
+      install_lifecycle_mocks()
+
+      local cases = {
+        {
+          label = 'unstaged file',
+          open = function()
+            commands.gdiff_file('/tmp/repo/lua/unstaged.lua')
+          end,
+          buffer_name = 'diffs://unstaged:lua/unstaged.lua',
+          diff_spec = diffspec.index_to_worktree('lua/unstaged.lua'),
+          hunk = {
+            file = 'lua/unstaged.lua',
+            mutation_target = 'worktree',
+            can_put = true,
+            can_obtain = false,
+          },
+          first_line = 'diff --git a/lua/unstaged.lua b/lua/unstaged.lua',
+        },
+        {
+          label = 'staged file',
+          open = function()
+            commands.gdiff_file('/tmp/repo/lua/staged.lua', { staged = true })
+          end,
+          buffer_name = 'diffs://staged:lua/staged.lua',
+          diff_spec = diffspec.head_to_index('lua/staged.lua'),
+          hunk = {
+            file = 'lua/staged.lua',
+            mutation_target = 'index',
+            can_put = false,
+            can_obtain = true,
+          },
+          first_line = 'diff --git a/lua/staged.lua b/lua/staged.lua',
+        },
+        {
+          label = 'untracked file',
+          open = function()
+            commands.gdiff_file('/tmp/repo/lua/new.lua', { untracked = true })
+          end,
+          buffer_name = 'diffs://untracked:lua/new.lua',
+          diff_spec = diffspec.index_to_worktree('lua/new.lua'),
+          hunk = {
+            file = 'lua/new.lua',
+            mutation_target = 'worktree',
+            can_put = true,
+            can_obtain = false,
+          },
+          first_line = 'diff --git a/lua/new.lua b/lua/new.lua',
+        },
+        {
+          label = 'unstaged section',
+          open = function()
+            commands.gdiff_section('/tmp/repo')
+          end,
+          buffer_name = 'diffs://unstaged:all',
+          first_line = 'diff --git a/lua/section.lua b/lua/section.lua',
+        },
+        {
+          label = 'review',
+          open = function()
+            commands.greview({
+              base = 'origin/main',
+              target = 'refs/forge/pr/42',
+              mode = 'merge-base',
+              repo = '/tmp/repo',
+            })
+          end,
+          buffer_name = 'diffs://review:origin/main...refs/forge/pr/42',
+          review = {
+            base = 'origin/main',
+            target = 'refs/forge/pr/42',
+            mode = 'merge-base',
+          },
+          first_line = 'diff --git a/lua/review.lua b/lua/review.lua',
+        },
+      }
+
+      for _, case in ipairs(cases) do
+        case.open()
+        local bufnr = vim.api.nvim_get_current_buf()
+        table.insert(test_buffers, bufnr)
+
+        assert_lifecycle_state(bufnr, case)
+        set_stale_content(bufnr)
+
+        assert.has_no.errors(function()
+          commands.read_buffer(bufnr)
+        end, case.label)
+        assert_lifecycle_state(bufnr, case)
+      end
+    end)
+  end)
+
   describe('setup registers Greview command', function()
     it('registers Greview command', function()
       commands.setup()
