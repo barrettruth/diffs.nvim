@@ -4,6 +4,7 @@ local diffspec = require('diffs.spec')
 local gdiff_parser = require('diffs.gdiff')
 local git = require('diffs.git')
 local dbg = require('diffs.log').dbg
+local render = require('diffs.render')
 local runtime = require('diffs.runtime')
 
 ---@return integer?
@@ -57,39 +58,6 @@ function M.filter_combined_diffs(lines)
   return result
 end
 
----@param old_lines string[]
----@param new_lines string[]
----@param old_name string
----@param new_name string
----@return string[]
-local function generate_unified_diff(old_lines, new_lines, old_name, new_name)
-  local old_content = table.concat(old_lines, '\n')
-  local new_content = table.concat(new_lines, '\n')
-
-  local diff_fn = vim.text and vim.text.diff or vim.diff
-  local diff_output = diff_fn(old_content, new_content, {
-    result_type = 'unified',
-    ctxlen = 3,
-  })
-
-  if not diff_output or diff_output == '' then
-    return {}
-  end
-
-  local diff_lines = vim.split(diff_output, '\n', { plain = true })
-
-  local result = {
-    'diff --git a/' .. old_name .. ' b/' .. new_name,
-    '--- a/' .. old_name,
-    '+++ b/' .. new_name,
-  }
-  for _, line in ipairs(diff_lines) do
-    table.insert(result, line)
-  end
-
-  return result
-end
-
 ---@param diff_spec diffs.DiffSpec
 ---@return string
 local function gdiff_buffer_label(diff_spec)
@@ -116,49 +84,6 @@ local function gdiff_buffer_label(diff_spec)
   end
 
   return diffspec.label(diff_spec)
-end
-
----@param endpoint diffs.Endpoint
----@param filepath string
----@param bufnr integer
----@return string[]?, string?
-local function read_gdiff_endpoint(endpoint, filepath, bufnr)
-  endpoint = diffspec.endpoint(endpoint)
-
-  if endpoint.kind == diffspec.endpoint_kind.tree then
-    return git.get_file_content(endpoint.rev, filepath)
-  end
-
-  if endpoint.kind == diffspec.endpoint_kind.index then
-    return git.get_index_content(filepath)
-  end
-
-  if endpoint.kind == diffspec.endpoint_kind.worktree then
-    return vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), nil
-  end
-
-  return nil, 'unsupported endpoint: ' .. tostring(endpoint.kind)
-end
-
----@param endpoint diffs.Endpoint
----@param filepath string
----@return string[]?, string?
-local function read_repo_endpoint(endpoint, filepath)
-  endpoint = diffspec.endpoint(endpoint)
-
-  if endpoint.kind == diffspec.endpoint_kind.tree then
-    return git.get_file_content(endpoint.rev, filepath)
-  end
-
-  if endpoint.kind == diffspec.endpoint_kind.index then
-    return git.get_index_content(filepath)
-  end
-
-  if endpoint.kind == diffspec.endpoint_kind.worktree then
-    return git.get_working_content(filepath)
-  end
-
-  return nil, 'unsupported endpoint: ' .. tostring(endpoint.kind)
 end
 
 ---@param bufnr integer
@@ -194,24 +119,6 @@ local function get_diff_spec_var(bufnr)
   return parsed, nil
 end
 
----@param diff_spec diffs.DiffSpec
----@param repo_root string
----@return string[]?, string?
-local function read_diff_spec(diff_spec, repo_root)
-  diff_spec = diffspec.new(diff_spec)
-
-  if diff_spec.scope.kind ~= diffspec.scope_kind.file then
-    return nil, 'unsupported DiffSpec scope: ' .. tostring(diff_spec.scope.kind)
-  end
-
-  local path = diff_spec.scope.path
-  local abs_path = repo_root .. '/' .. path
-  local old_lines = read_repo_endpoint(diff_spec.left, abs_path) or {}
-  local new_lines = read_repo_endpoint(diff_spec.right, abs_path) or {}
-
-  return generate_unified_diff(old_lines, new_lines, path, path), nil
-end
-
 ---@param raw_lines string[]
 ---@param repo_root string
 ---@return string[]
@@ -230,7 +137,7 @@ local function replace_combined_diffs(raw_lines, repo_root)
     local filepath = repo_root .. '/' .. filename
     local old_lines = git.get_file_content(':2', filepath) or {}
     local new_lines = git.get_file_content(':3', filepath) or {}
-    local diff_lines = generate_unified_diff(old_lines, new_lines, filename, filename)
+    local diff_lines = render.unified_lines(old_lines, new_lines, filename, filename)
     for _, dl in ipairs(diff_lines) do
       table.insert(result, dl)
     end
@@ -272,27 +179,24 @@ function M.gdiff(args, vertical)
   local diff_spec = parsed.spec
   local diff_label = gdiff_buffer_label(diff_spec)
   local diff_path = diff_spec.scope.path
-
-  local old_lines, err = read_gdiff_endpoint(diff_spec.left, filepath, bufnr)
-  if not old_lines then
-    vim.notify('[diffs.nvim]: ' .. (err or 'unknown error'), vim.log.levels.ERROR)
+  local repo_root = git.get_repo_root(filepath)
+  if not repo_root then
+    vim.notify('[diffs.nvim]: not in a git repository', vim.log.levels.ERROR)
     return
   end
 
-  local new_lines, new_err = read_gdiff_endpoint(diff_spec.right, filepath, bufnr)
-  if not new_lines then
-    vim.notify('[diffs.nvim]: ' .. (new_err or 'unknown error'), vim.log.levels.ERROR)
+  local diff_lines, render_err = render.file(diff_spec, repo_root, {
+    worktree_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false),
+  })
+  if not diff_lines then
+    vim.notify('[diffs.nvim]: ' .. (render_err or 'unknown error'), vim.log.levels.ERROR)
     return
   end
-
-  local diff_lines = generate_unified_diff(old_lines, new_lines, diff_path, diff_path)
 
   if #diff_lines == 0 then
     vim.notify('[diffs.nvim]: no changes for ' .. diffspec.label(diff_spec), vim.log.levels.INFO)
     return
   end
-
-  local repo_root = git.get_repo_root(filepath)
 
   local diff_buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(diff_buf, 0, -1, false, diff_lines)
@@ -395,7 +299,7 @@ function M.gdiff_file(filepath, opts)
     end
   end
 
-  local diff_lines = generate_unified_diff(old_lines, new_lines, old_rel_path, rel_path)
+  local diff_lines = render.unified_lines(old_lines, new_lines, old_rel_path, rel_path)
 
   if #diff_lines == 0 then
     vim.notify('[diffs.nvim]: no changes', vim.log.levels.INFO)
@@ -971,7 +875,7 @@ function M.read_buffer(bufnr)
   local label, path
   if stored_spec then
     local read_err
-    diff_lines, read_err = read_diff_spec(stored_spec, repo_root)
+    diff_lines, read_err = render.file(stored_spec, repo_root, { empty_on_missing = true })
     if not diff_lines then
       vim.notify('[diffs.nvim]: ' .. read_err, vim.log.levels.WARN)
       return
@@ -1058,7 +962,7 @@ function M.read_buffer(bufnr)
       new_lines = git.get_working_content(abs_path) or {}
     end
 
-    diff_lines = generate_unified_diff(old_lines, new_lines, old_name, path)
+    diff_lines = render.unified_lines(old_lines, new_lines, old_name, path)
   end
 
   vim.api.nvim_set_option_value('modifiable', true, { buf = bufnr })
@@ -1117,7 +1021,6 @@ M._test = {
   gdiff_buffer_label = gdiff_buffer_label,
   normalize_greview = normalize_greview,
   parse_review_arg = parse_review_arg,
-  read_gdiff_endpoint = read_gdiff_endpoint,
 }
 
 return M
