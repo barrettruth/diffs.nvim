@@ -7,6 +7,7 @@ local runtime = require('diffs.runtime')
 
 local saved_git = {}
 local saved_runtime_attach
+local saved_runtime_get_conflict_config
 local saved_schedule
 local saved_systemlist
 local saved_notify
@@ -38,6 +39,13 @@ local function mock_runtime_attach(fn)
   saved_schedule = vim.schedule
   vim.schedule = function(callback)
     callback()
+  end
+end
+
+local function mock_conflict_config(config)
+  saved_runtime_get_conflict_config = runtime.get_conflict_config
+  runtime.get_conflict_config = function()
+    return config
   end
 end
 
@@ -77,6 +85,27 @@ local function create_repo()
   return repo_root
 end
 
+local function create_conflicted_repo()
+  local repo_root = create_repo()
+  local filepath = repo_root .. '/file.txt'
+  local base = git_cmd(repo_root, { 'rev-parse', 'HEAD' })[1]
+
+  git_cmd(repo_root, { 'checkout', '-qb', 'ours' })
+  vim.fn.writefile({ 'line 1', 'line 2 ours' }, filepath)
+  git_cmd(repo_root, { 'add', 'file.txt' })
+  git_cmd(repo_root, { 'commit', '-qm', 'ours' })
+
+  git_cmd(repo_root, { 'checkout', '-qb', 'theirs', base })
+  vim.fn.writefile({ 'line 1', 'line 2 theirs' }, filepath)
+  git_cmd(repo_root, { 'add', 'file.txt' })
+  git_cmd(repo_root, { 'commit', '-qm', 'theirs' })
+
+  local output = vim.fn.systemlist({ 'git', '-C', repo_root, 'merge', 'ours' })
+  assert.are_not.equal(0, vim.v.shell_error, table.concat(output, '\n'))
+
+  return repo_root, filepath
+end
+
 local function edit_file(path)
   vim.cmd('edit ' .. vim.fn.fnameescape(path))
   local bufnr = vim.api.nvim_get_current_buf()
@@ -92,6 +121,10 @@ local function restore_mocks()
   if saved_runtime_attach then
     runtime.attach = saved_runtime_attach
     saved_runtime_attach = nil
+  end
+  if saved_runtime_get_conflict_config then
+    runtime.get_conflict_config = saved_runtime_get_conflict_config
+    saved_runtime_get_conflict_config = nil
   end
   if saved_schedule then
     vim.schedule = saved_schedule
@@ -472,6 +505,42 @@ describe('commands', function()
           true
         ) ~= nil
       )
+    end)
+
+    it('routes direct :Gdiff on unmerged files to the generated unmerged view', function()
+      local _, filepath = create_conflicted_repo()
+      edit_file(filepath)
+      mock_runtime_attach(function() end)
+      mock_conflict_config({
+        keymaps = helpers.default_conflict_keymaps(),
+        show_virtual_text = false,
+      })
+
+      assert.is_true(git.is_unmerged(filepath))
+
+      commands.gdiff(nil, false)
+
+      local diff_buf = vim.api.nvim_get_current_buf()
+      table.insert(test_buffers, diff_buf)
+      local lines = vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false)
+      local text = table.concat(lines, '\n')
+
+      assert.are.equal('diffs://unmerged:file.txt', vim.api.nvim_buf_get_name(diff_buf))
+      assert.is_false(text:find('new file mode', 1, true) ~= nil)
+      assert.is_false(text:find('--- /dev/null', 1, true) ~= nil)
+      assert.is_true(text:find('-line 2 theirs', 1, true) ~= nil)
+      assert.is_true(text:find('+line 2 ours', 1, true) ~= nil)
+      assert.is_true(vim.api.nvim_buf_get_var(diff_buf, 'diffs_unmerged'))
+      assert.are.equal(filepath, vim.api.nvim_buf_get_var(diff_buf, 'diffs_working_path'))
+      assert.are.same({
+        version = 1,
+        kind = 'unmerged',
+        repo_root = vim.fn.fnamemodify(filepath, ':h'),
+        path = 'file.txt',
+        working_path = filepath,
+      }, vim.api.nvim_buf_get_var(diff_buf, 'diffs_source'))
+      assert.is_true(helpers.has_keymap(diff_buf, 'go'))
+      assert.is_true(helpers.has_keymap(diff_buf, 'gt'))
     end)
   end)
 

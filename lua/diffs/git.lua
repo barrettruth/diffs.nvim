@@ -177,6 +177,24 @@ function M.file_exists_in_index(filepath)
   return vim.v.shell_error == 0 and #result > 0
 end
 
+---@param filepath string
+---@return boolean
+function M.is_unmerged(filepath)
+  local repo_root = M.get_repo_root(filepath)
+  if not repo_root then
+    return false
+  end
+
+  local rel_path = M.get_relative_path(filepath)
+  if not rel_path then
+    return false
+  end
+
+  local result =
+    vim.fn.systemlist({ 'git', '-C', repo_root, 'ls-files', '--unmerged', '--', rel_path })
+  return vim.v.shell_error == 0 and #result > 0
+end
+
 ---@param revision string
 ---@param filepath string
 ---@return boolean
