@@ -417,6 +417,19 @@ syntax highlighting warning.
 ==============================================================================
 COMMANDS                                                 *diffs.nvim-commands*
 
+Generated workspace boundaries: ~
+
+diffs.nvim only replaces layout for buffers it creates and can model as
+explicit endpoints. Today that means generated |:Gdiff| buffers, |:Greview|
+buffers, and plugin-owned launches from integrations such as Fugitive status
+maps. Future generated commit or split views must follow the same rule: first
+model the source endpoints, then own the layout.
+
+Ordinary `git`, `gitcommit`, `diff`, `extra_filetypes`, picker previews, and
+third-party integration buffers remain highlight-only. diffs.nvim may attach
+syntax, backgrounds, and intra-line highlights to those buffers, but it must not
+replace their layout unless the user invoked a generated diffs.nvim view.
+
 :Gdiff [object]                                                       *:Gdiff*
     Open a unified diff of the current file against a Fugitive-style object.
     Displays in a horizontal split below the current window.
