@@ -24,6 +24,8 @@ local diffspec = require('diffs.spec')
 ---@field old_range diffs.GdiffHunkRange
 ---@field new_range diffs.GdiffHunkRange
 ---@field buffer_range diffs.GdiffHunkRange
+---@field file_header_range diffs.GdiffHunkRange?
+---@field file_header_lines string[]
 ---@field header string
 ---@field diff_spec diffs.DiffSpec?
 ---@field edge { left: diffs.Endpoint, right: diffs.Endpoint, mutation_target: "index"|"worktree"|nil }?
@@ -113,6 +115,16 @@ local function normalize_spec(diff_spec)
   return spec, target, target ~= nil
 end
 
+---@param lines string[]
+---@return string[]
+local function copy_lines(lines)
+  local copied = {}
+  for _, line in ipairs(lines) do
+    copied[#copied + 1] = line
+  end
+  return copied
+end
+
 ---@param diff_lines string[]
 ---@param diff_spec? diffs.DiffSpec
 ---@return diffs.GdiffHunk[]
@@ -124,6 +136,8 @@ function M.parse(diff_lines, diff_spec)
   local current_new_path = current_old_path
   local current_file = current_new_path or current_old_path
   local current_hunk = nil
+  local current_file_header_start = nil
+  local current_file_header_lines = {}
   local old_lnum = 0
   local new_lnum = 0
 
@@ -137,6 +151,22 @@ function M.parse(diff_lines, diff_spec)
     current_hunk = nil
   end
 
+  ---@param lnum integer
+  ---@param line string
+  local function start_file_header(lnum, line)
+    current_file_header_start = lnum
+    current_file_header_lines = { line }
+  end
+
+  ---@param lnum integer
+  ---@param line string
+  local function add_file_header_line(lnum, line)
+    if not current_file_header_start then
+      current_file_header_start = lnum
+    end
+    current_file_header_lines[#current_file_header_lines + 1] = line
+  end
+
   ---@param hunk diffs.GdiffHunk
   ---@param line diffs.GdiffHunkLine
   local function add_line(hunk, line)
@@ -148,17 +178,21 @@ function M.parse(diff_lines, diff_spec)
       finish_hunk(lnum - 1)
       current_old_path, current_new_path = parse_diff_git_paths(line)
       current_file = current_new_path or current_old_path
+      start_file_header(lnum, line)
     elseif line:match('^%-%-%- ') and not current_hunk then
       current_old_path = parse_old_path(line) or current_old_path
       current_file = current_new_path or current_old_path
+      add_file_header_line(lnum, line)
     elseif line:match('^%+%+%+ ') and not current_hunk then
       current_new_path = parse_new_path(line) or current_new_path
       current_file = current_new_path or current_old_path
+      add_file_header_line(lnum, line)
     else
       local old_range, new_range = parse_header_ranges(line)
       if old_range and new_range then
         finish_hunk(lnum - 1)
         local index = #hunks + 1
+        local file_header_lines = copy_lines(current_file_header_lines)
         current_hunk = {
           index = index,
           file = current_file,
@@ -166,6 +200,10 @@ function M.parse(diff_lines, diff_spec)
           old_range = old_range,
           new_range = new_range,
           buffer_range = range(lnum, 1),
+          file_header_range = current_file_header_start
+              and range(current_file_header_start, #file_header_lines)
+            or nil,
+          file_header_lines = file_header_lines,
           header = line,
           diff_spec = spec,
           edge = spec and {
@@ -238,6 +276,8 @@ function M.parse(diff_lines, diff_spec)
             hunk_index = current_hunk.index,
           })
         end
+      elseif current_file_header_start then
+        add_file_header_line(lnum, line)
       end
     end
   end
