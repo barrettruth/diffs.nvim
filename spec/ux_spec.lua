@@ -1,5 +1,8 @@
-local commands = require('diffs.commands')
 local helpers = require('spec.helpers')
+
+local commands = require('diffs.commands')
+local diffspec = require('diffs.spec')
+local hunks = require('diffs.hunks')
 
 local counter = 0
 
@@ -21,6 +24,25 @@ local function create_diffs_buffer(name)
   vim.api.nvim_set_option_value('filetype', 'diff', { buf = bufnr })
   vim.api.nvim_buf_set_name(bufnr, name or ('diffs://unstaged:file_' .. counter .. '.lua'))
   return bufnr
+end
+
+local function add_hunk_metadata(bufnr)
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  vim.api.nvim_buf_set_var(
+    bufnr,
+    'diffs_hunks',
+    hunks.parse(lines, diffspec.index_to_worktree('file.lua'))
+  )
+  vim.api.nvim_buf_set_var(bufnr, 'diffs_repo_root', '/tmp/repo')
+end
+
+local function keymap_desc(bufnr, lhs)
+  for _, keymap in ipairs(vim.api.nvim_buf_get_keymap(bufnr, 'n')) do
+    if keymap.lhs == lhs then
+      return keymap.desc
+    end
+  end
+  return nil
 end
 
 describe('ux', function()
@@ -62,6 +84,16 @@ describe('ux', function()
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
 
+    it('does not replace an existing q keymap', function()
+      local bufnr = create_diffs_buffer()
+      vim.keymap.set('n', 'q', '<Nop>', { buffer = bufnr, desc = 'user q' })
+
+      commands.setup_diff_buf(bufnr)
+
+      assert.are.equal('user q', keymap_desc(bufnr, 'q'))
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+
     it('q closes the window', function()
       local bufnr = create_diffs_buffer()
       commands.setup_diff_buf(bufnr)
@@ -78,6 +110,61 @@ describe('ux', function()
 
       local win_count_after = #vim.api.nvim_tabpage_list_wins(0)
       assert.equals(win_count_before - 1, win_count_after)
+    end)
+  end)
+
+  describe('hunk keymaps', function()
+    it('sets hunk keymaps only on hunk-aware diff buffers', function()
+      local bufnr = create_diffs_buffer()
+      commands.setup_diff_buf(bufnr)
+
+      assert.is_false(helpers.has_keymap(bufnr, ']c'))
+      assert.is_false(helpers.has_keymap(bufnr, '[c'))
+      assert.is_false(helpers.has_keymap(bufnr, '<CR>'))
+      assert.is_false(helpers.has_keymap(bufnr, 'o'))
+
+      add_hunk_metadata(bufnr)
+      commands.setup_diff_buf(bufnr)
+
+      assert.is_true(helpers.has_keymap(bufnr, ']c'))
+      assert.is_true(helpers.has_keymap(bufnr, '[c'))
+      assert.is_true(helpers.has_keymap(bufnr, '<CR>'))
+      assert.is_true(helpers.has_keymap(bufnr, 'o'))
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+
+    it('does not replace existing buffer-local hunk maps', function()
+      local bufnr = create_diffs_buffer()
+      add_hunk_metadata(bufnr)
+      vim.keymap.set('n', 'o', '<Nop>', { buffer = bufnr, desc = 'user open' })
+      vim.keymap.set('n', ']c', '<Nop>', { buffer = bufnr, desc = 'user next' })
+
+      commands.setup_diff_buf(bufnr)
+
+      assert.are.equal('user open', keymap_desc(bufnr, 'o'))
+      assert.are.equal('user next', keymap_desc(bufnr, ']c'))
+      assert.are.equal('Open source file', keymap_desc(bufnr, '<CR>'))
+      assert.are.equal('Previous diff hunk', keymap_desc(bufnr, '[c'))
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+
+    it('removes only plugin-owned hunk keymaps when metadata is removed', function()
+      local bufnr = create_diffs_buffer()
+      add_hunk_metadata(bufnr)
+      vim.keymap.set('n', 'o', '<Nop>', { buffer = bufnr, desc = 'user open' })
+      commands.setup_diff_buf(bufnr)
+
+      assert.are.equal('user open', keymap_desc(bufnr, 'o'))
+      assert.are.equal('Open source file', keymap_desc(bufnr, '<CR>'))
+
+      vim.api.nvim_buf_del_var(bufnr, 'diffs_hunks')
+      commands.setup_diff_buf(bufnr)
+
+      assert.are.equal('user open', keymap_desc(bufnr, 'o'))
+      assert.is_nil(keymap_desc(bufnr, '<CR>'))
+      assert.is_nil(keymap_desc(bufnr, ']c'))
+      assert.is_nil(keymap_desc(bufnr, '[c'))
+      vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
   end)
 
