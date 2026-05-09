@@ -1,6 +1,9 @@
 local M = {}
 
-local dbg = require('diffs.log').dbg
+local log = require('diffs.log')
+
+local dbg = log.dbg
+local notify = log.notify
 
 ---@type table?
 local cached_handle = nil
@@ -189,7 +192,7 @@ function M.ensure(callback)
   )
 
   local dest = lib_path()
-  vim.notify('[diffs]: downloading libvscode_diff...', vim.log.levels.INFO)
+  notify('downloading libvscode_diff...', vim.log.levels.INFO)
 
   local cmd = { 'curl', '-fSL', '-o', dest, url }
 
@@ -198,7 +201,7 @@ function M.ensure(callback)
     vim.schedule(function()
       local handle = nil
       if result.code ~= 0 then
-        vim.notify('[diffs]: failed to download libvscode_diff', vim.log.levels.WARN)
+        notify('failed to download libvscode_diff', vim.log.levels.WARN)
         dbg('curl failed: %s', result.stderr or '')
       else
         local f = io.open(version_path(), 'w')
@@ -206,7 +209,7 @@ function M.ensure(callback)
           f:write(EXPECTED_VERSION)
           f:close()
         end
-        vim.notify('[diffs]: libvscode_diff downloaded', vim.log.levels.INFO)
+        notify('libvscode_diff downloaded', vim.log.levels.INFO)
         handle = M.load()
       end
 

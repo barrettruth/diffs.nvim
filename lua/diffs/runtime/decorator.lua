@@ -77,9 +77,9 @@ function M.setup(opts)
         entry.warned_max_lines = true
         local n = skipped_count
         vim.schedule(function()
-          vim.notify(
+          log.notify(
             (
-              '[diffs]: Syntax highlighting skipped for %d hunk(s) — too large.'
+              'Syntax highlighting skipped for %d hunk(s) — too large.'
               .. ' See :h diffs-max-lines to resolve or suppress this warning.'
             ):format(n),
             vim.log.levels.WARN
