@@ -270,6 +270,83 @@ local function get_diff_spec_var(bufnr)
   return parsed, nil
 end
 
+---@param bufnr integer
+local function set_generated_diff_buffer_options(bufnr)
+  vim.api.nvim_set_option_value('buftype', 'nowrite', { buf = bufnr })
+  vim.api.nvim_set_option_value('bufhidden', 'delete', { buf = bufnr })
+  vim.api.nvim_set_option_value('swapfile', false, { buf = bufnr })
+  vim.api.nvim_set_option_value('modifiable', false, { buf = bufnr })
+  vim.api.nvim_set_option_value('filetype', 'diff', { buf = bufnr })
+end
+
+---@class diffs.GeneratedDiffBufferOpts
+---@field name string
+---@field lines string[]
+---@field repo_root? string
+---@field diff_spec? diffs.DiffSpec
+---@field vars? table<string, any>
+
+---@param opts diffs.GeneratedDiffBufferOpts
+---@return integer
+local function create_generated_diff_buffer(opts)
+  local bufnr = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, opts.lines)
+  set_generated_diff_buffer_options(bufnr)
+  vim.api.nvim_buf_set_name(bufnr, opts.name)
+
+  if opts.diff_spec then
+    set_diff_spec_var(bufnr, opts.diff_spec)
+    set_diff_hunks_var(bufnr, opts.lines, opts.diff_spec)
+  end
+  if opts.repo_root then
+    vim.api.nvim_buf_set_var(bufnr, 'diffs_repo_root', opts.repo_root)
+  end
+  for name, value in pairs(opts.vars or {}) do
+    if value ~= nil then
+      vim.api.nvim_buf_set_var(bufnr, name, value)
+    end
+  end
+
+  return bufnr
+end
+
+---@param bufnr integer
+---@param vertical? boolean
+local function show_generated_diff_buffer(bufnr, vertical)
+  local existing_win = M.find_diffs_window()
+  if existing_win then
+    vim.api.nvim_set_current_win(existing_win)
+    vim.api.nvim_win_set_buf(existing_win, bufnr)
+  else
+    vim.cmd(vertical and 'vsplit' or 'split')
+    vim.api.nvim_win_set_buf(0, bufnr)
+  end
+end
+
+---@param bufnr integer
+---@param diff_lines string[]
+---@param diff_spec? diffs.DiffSpec
+local function replace_generated_diff_buffer_lines(bufnr, diff_lines, diff_spec)
+  vim.api.nvim_set_option_value('modifiable', true, { buf = bufnr })
+  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, diff_lines)
+  set_generated_diff_buffer_options(bufnr)
+
+  if diff_spec then
+    set_diff_hunks_var(bufnr, diff_lines, diff_spec)
+  else
+    clear_diff_hunks_var(bufnr)
+  end
+end
+
+---@param bufnr integer
+local function attach_generated_diff_buffer(bufnr)
+  M.setup_diff_buf(bufnr)
+
+  vim.schedule(function()
+    runtime.attach(bufnr)
+  end)
+end
+
 ---@param raw_lines string[]
 ---@param repo_root string
 ---@return string[]
@@ -349,35 +426,15 @@ function M.gdiff(args, vertical)
     return
   end
 
-  local diff_buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(diff_buf, 0, -1, false, diff_lines)
-  vim.api.nvim_set_option_value('buftype', 'nowrite', { buf = diff_buf })
-  vim.api.nvim_set_option_value('bufhidden', 'delete', { buf = diff_buf })
-  vim.api.nvim_set_option_value('swapfile', false, { buf = diff_buf })
-  vim.api.nvim_set_option_value('modifiable', false, { buf = diff_buf })
-  vim.api.nvim_set_option_value('filetype', 'diff', { buf = diff_buf })
-  vim.api.nvim_buf_set_name(diff_buf, 'diffs://' .. diff_label .. ':' .. diff_path)
-  set_diff_spec_var(diff_buf, diff_spec)
-  set_diff_hunks_var(diff_buf, diff_lines, diff_spec)
-  if repo_root then
-    vim.api.nvim_buf_set_var(diff_buf, 'diffs_repo_root', repo_root)
-  end
-
-  local existing_win = M.find_diffs_window()
-  if existing_win then
-    vim.api.nvim_set_current_win(existing_win)
-    vim.api.nvim_win_set_buf(existing_win, diff_buf)
-  else
-    vim.cmd(vertical and 'vsplit' or 'split')
-    vim.api.nvim_win_set_buf(0, diff_buf)
-  end
-
-  M.setup_diff_buf(diff_buf)
+  local diff_buf = create_generated_diff_buffer({
+    name = 'diffs://' .. diff_label .. ':' .. diff_path,
+    lines = diff_lines,
+    repo_root = repo_root,
+    diff_spec = diff_spec,
+  })
+  show_generated_diff_buffer(diff_buf, vertical)
+  attach_generated_diff_buffer(diff_buf)
   dbg('opened diff buffer %d for %s (%s)', diff_buf, diff_path, diffspec.label(diff_spec))
-
-  vim.schedule(function()
-    runtime.attach(diff_buf)
-  end)
 end
 
 ---@class diffs.GdiffFileOpts
@@ -461,33 +518,16 @@ function M.gdiff_file(filepath, opts)
     return
   end
 
-  local diff_buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(diff_buf, 0, -1, false, diff_lines)
-  vim.api.nvim_set_option_value('buftype', 'nowrite', { buf = diff_buf })
-  vim.api.nvim_set_option_value('bufhidden', 'delete', { buf = diff_buf })
-  vim.api.nvim_set_option_value('swapfile', false, { buf = diff_buf })
-  vim.api.nvim_set_option_value('modifiable', false, { buf = diff_buf })
-  vim.api.nvim_set_option_value('filetype', 'diff', { buf = diff_buf })
-  vim.api.nvim_buf_set_name(diff_buf, 'diffs://' .. diff_label .. ':' .. rel_path)
-  if diff_spec then
-    set_diff_spec_var(diff_buf, diff_spec)
-    set_diff_hunks_var(diff_buf, diff_lines, diff_spec)
-  end
-  if repo_root then
-    vim.api.nvim_buf_set_var(diff_buf, 'diffs_repo_root', repo_root)
-  end
-  if old_rel_path ~= rel_path then
-    vim.api.nvim_buf_set_var(diff_buf, 'diffs_old_filepath', old_rel_path)
-  end
-
-  local existing_win = M.find_diffs_window()
-  if existing_win then
-    vim.api.nvim_set_current_win(existing_win)
-    vim.api.nvim_win_set_buf(existing_win, diff_buf)
-  else
-    vim.cmd(opts.vertical and 'vsplit' or 'split')
-    vim.api.nvim_win_set_buf(0, diff_buf)
-  end
+  local diff_buf = create_generated_diff_buffer({
+    name = 'diffs://' .. diff_label .. ':' .. rel_path,
+    lines = diff_lines,
+    repo_root = repo_root,
+    diff_spec = diff_spec,
+    vars = {
+      diffs_old_filepath = old_rel_path ~= rel_path and old_rel_path or nil,
+    },
+  })
+  show_generated_diff_buffer(diff_buf, opts.vertical)
 
   if opts.hunk_position then
     local target_line = M.find_hunk_line(diff_lines, opts.hunk_position)
@@ -497,7 +537,7 @@ function M.gdiff_file(filepath, opts)
     end
   end
 
-  M.setup_diff_buf(diff_buf)
+  attach_generated_diff_buffer(diff_buf)
 
   if diff_label == 'unmerged' then
     vim.api.nvim_buf_set_var(diff_buf, 'diffs_unmerged', true)
@@ -507,10 +547,6 @@ function M.gdiff_file(filepath, opts)
   end
 
   dbg('opened diff buffer %d for %s (%s)', diff_buf, rel_path, diff_label)
-
-  vim.schedule(function()
-    runtime.attach(diff_buf)
-  end)
 end
 
 ---@class diffs.GdiffSectionOpts
@@ -541,31 +577,14 @@ function M.gdiff_section(repo_root, opts)
   end
 
   local diff_label = opts.staged and 'staged' or 'unstaged'
-  local diff_buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(diff_buf, 0, -1, false, result)
-  vim.api.nvim_set_option_value('buftype', 'nowrite', { buf = diff_buf })
-  vim.api.nvim_set_option_value('bufhidden', 'delete', { buf = diff_buf })
-  vim.api.nvim_set_option_value('swapfile', false, { buf = diff_buf })
-  vim.api.nvim_set_option_value('modifiable', false, { buf = diff_buf })
-  vim.api.nvim_set_option_value('filetype', 'diff', { buf = diff_buf })
-  vim.api.nvim_buf_set_name(diff_buf, 'diffs://' .. diff_label .. ':all')
-  vim.api.nvim_buf_set_var(diff_buf, 'diffs_repo_root', repo_root)
-
-  local existing_win = M.find_diffs_window()
-  if existing_win then
-    vim.api.nvim_set_current_win(existing_win)
-    vim.api.nvim_win_set_buf(existing_win, diff_buf)
-  else
-    vim.cmd(opts.vertical and 'vsplit' or 'split')
-    vim.api.nvim_win_set_buf(0, diff_buf)
-  end
-
-  M.setup_diff_buf(diff_buf)
+  local diff_buf = create_generated_diff_buffer({
+    name = 'diffs://' .. diff_label .. ':all',
+    lines = result,
+    repo_root = repo_root,
+  })
+  show_generated_diff_buffer(diff_buf, opts.vertical)
+  attach_generated_diff_buffer(diff_buf)
   dbg('opened section diff buffer %d (%s)', diff_buf, diff_label)
-
-  vim.schedule(function()
-    runtime.attach(diff_buf)
-  end)
 end
 
 -- selene: allow(global_usage)
@@ -857,22 +876,16 @@ function M.greview(spec)
     return nil
   end
 
-  local diff_buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(diff_buf, 0, -1, false, result)
-  vim.api.nvim_set_option_value('buftype', 'nowrite', { buf = diff_buf })
-  vim.api.nvim_set_option_value('bufhidden', 'delete', { buf = diff_buf })
-  vim.api.nvim_set_option_value('swapfile', false, { buf = diff_buf })
-  vim.api.nvim_set_option_value('modifiable', false, { buf = diff_buf })
-  vim.api.nvim_set_option_value('filetype', 'diff', { buf = diff_buf })
-  vim.api.nvim_buf_set_name(diff_buf, target_name)
-  vim.api.nvim_buf_set_var(diff_buf, 'diffs_repo_root', review.repo_root)
-  vim.api.nvim_buf_set_var(diff_buf, 'diffs_review_base', review.base)
-  if review.target then
-    vim.api.nvim_buf_set_var(diff_buf, 'diffs_review_target', review.target)
-  end
-  if review.mode then
-    vim.api.nvim_buf_set_var(diff_buf, 'diffs_review_mode', review.mode)
-  end
+  local diff_buf = create_generated_diff_buffer({
+    name = target_name,
+    lines = result,
+    repo_root = review.repo_root,
+    vars = {
+      diffs_review_base = review.base,
+      diffs_review_target = review.target,
+      diffs_review_mode = review.mode,
+    },
+  })
 
   local qf_items = {}
   local loc_items = {}
@@ -963,14 +976,7 @@ function M.greview(spec)
     quickfixtextfunc = 'v:lua._diffs_qftf',
   })
 
-  local existing_win = M.find_diffs_window()
-  if existing_win then
-    vim.api.nvim_set_current_win(existing_win)
-    vim.api.nvim_win_set_buf(existing_win, diff_buf)
-  else
-    vim.cmd(review.vertical and 'vsplit' or 'split')
-    vim.api.nvim_win_set_buf(0, diff_buf)
-  end
+  show_generated_diff_buffer(diff_buf, review.vertical)
 
   vim.fn.setloclist(0, {}, ' ', {
     title = 'review hunks: ' .. review.display,
@@ -978,12 +984,8 @@ function M.greview(spec)
     quickfixtextfunc = 'v:lua._diffs_qftf',
   })
 
-  M.setup_diff_buf(diff_buf)
+  attach_generated_diff_buffer(diff_buf)
   dbg('opened review buffer %d (%s)', diff_buf, review.display)
-
-  vim.schedule(function()
-    runtime.attach(diff_buf)
-  end)
 
   return diff_buf
 end
@@ -1116,18 +1118,7 @@ function M.read_buffer(bufnr)
     diff_lines = render.unified_lines(old_lines, new_lines, old_name, path)
   end
 
-  vim.api.nvim_set_option_value('modifiable', true, { buf = bufnr })
-  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, diff_lines)
-  vim.api.nvim_set_option_value('modifiable', false, { buf = bufnr })
-  vim.api.nvim_set_option_value('buftype', 'nowrite', { buf = bufnr })
-  vim.api.nvim_set_option_value('bufhidden', 'delete', { buf = bufnr })
-  vim.api.nvim_set_option_value('swapfile', false, { buf = bufnr })
-  vim.api.nvim_set_option_value('filetype', 'diff', { buf = bufnr })
-  if stored_spec then
-    set_diff_hunks_var(bufnr, diff_lines, stored_spec)
-  else
-    clear_diff_hunks_var(bufnr)
-  end
+  replace_generated_diff_buffer_lines(bufnr, diff_lines, stored_spec)
   M.setup_diff_buf(bufnr)
 
   local debug_label = stored_spec and diffspec.label(stored_spec)
