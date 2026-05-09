@@ -714,8 +714,9 @@ describe('commands', function()
     end)
 
     it('routes direct :Gdiff on unmerged files to the generated unmerged view', function()
-      local _, filepath = create_conflicted_repo()
+      local repo_root, filepath = create_conflicted_repo()
       edit_file(filepath)
+      local source_win = vim.api.nvim_get_current_win()
       mock_runtime_attach(function() end)
       mock_conflict_config({
         keymaps = helpers.default_conflict_keymaps(),
@@ -728,25 +729,75 @@ describe('commands', function()
 
       local diff_buf = vim.api.nvim_get_current_buf()
       table.insert(test_buffers, diff_buf)
-      local lines = vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false)
-      local text = table.concat(lines, '\n')
 
-      assert.are.equal('diffs://unmerged:file.txt', vim.api.nvim_buf_get_name(diff_buf))
-      assert.is_false(text:find('new file mode', 1, true) ~= nil)
-      assert.is_false(text:find('--- /dev/null', 1, true) ~= nil)
-      assert.is_true(text:find('-line 2 theirs', 1, true) ~= nil)
-      assert.is_true(text:find('+line 2 ours', 1, true) ~= nil)
-      assert.is_true(vim.api.nvim_buf_get_var(diff_buf, 'diffs_unmerged'))
-      assert.are.equal(filepath, vim.api.nvim_buf_get_var(diff_buf, 'diffs_working_path'))
+      local function assert_unmerged_view(bufnr)
+        local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+        local text = table.concat(lines, '\n')
+
+        assert.are.equal('diffs://unmerged:file.txt', vim.api.nvim_buf_get_name(bufnr))
+        assert.are.equal(repo_root, vim.api.nvim_buf_get_var(bufnr, 'diffs_repo_root'))
+        assert.are.same({
+          version = 1,
+          kind = 'unmerged',
+          repo_root = repo_root,
+          path = 'file.txt',
+          working_path = filepath,
+        }, vim.api.nvim_buf_get_var(bufnr, 'diffs_source'))
+        assert.is_true(vim.api.nvim_buf_get_var(bufnr, 'diffs_unmerged'))
+        assert.are.equal(filepath, vim.api.nvim_buf_get_var(bufnr, 'diffs_working_path'))
+        assert.is_false(has_buf_var(bufnr, 'diffs_spec'))
+        assert.is_false(has_buf_var(bufnr, 'diffs_hunks'))
+        assert.are.equal('diff --git a/file.txt b/file.txt', lines[1])
+        assert.is_true(text:find('-line 2 theirs', 1, true) ~= nil)
+        assert.is_true(text:find('+line 2 ours', 1, true) ~= nil)
+        assert.is_true(text:find('--- /dev/null', 1, true) == nil)
+        assert.is_true(text:find('new file mode', 1, true) == nil)
+        assert.is_true(text:find('<<<<<<<', 1, true) == nil)
+        assert.is_true(helpers.has_keymap(bufnr, 'go'))
+        assert.is_true(helpers.has_keymap(bufnr, 'gt'))
+      end
+
+      assert_unmerged_view(diff_buf)
+
+      vim.api.nvim_set_option_value('modifiable', true, { buf = diff_buf })
+      vim.api.nvim_buf_set_lines(diff_buf, 0, -1, false, { 'stale unmerged content' })
+      vim.api.nvim_set_option_value('modifiable', false, { buf = diff_buf })
+
+      commands.read_buffer(diff_buf)
+
+      assert_unmerged_view(diff_buf)
+      helpers.delete_buffer(diff_buf)
+
+      for _, object in ipairs({ ':%', ':0:%' }) do
+        vim.api.nvim_set_current_win(source_win)
+        commands.gdiff(object, false)
+
+        local explicit_index_buf = vim.api.nvim_get_current_buf()
+        table.insert(test_buffers, explicit_index_buf)
+        assert_unmerged_view(explicit_index_buf)
+        helpers.delete_buffer(explicit_index_buf)
+      end
+
+      vim.api.nvim_set_current_win(source_win)
+      commands.gdiff('HEAD', false)
+
+      local revision_buf = vim.api.nvim_get_current_buf()
+      table.insert(test_buffers, revision_buf)
+      local revision_text = buffer_text(revision_buf)
+
+      assert.are.equal('diffs://HEAD:file.txt', vim.api.nvim_buf_get_name(revision_buf))
+      assert.are.same(
+        diffspec.rev_to_worktree('HEAD', 'file.txt'),
+        vim.api.nvim_buf_get_var(revision_buf, 'diffs_spec')
+      )
       assert.are.same({
         version = 1,
-        kind = 'unmerged',
-        repo_root = vim.fn.fnamemodify(filepath, ':h'),
-        path = 'file.txt',
-        working_path = filepath,
-      }, vim.api.nvim_buf_get_var(diff_buf, 'diffs_source'))
-      assert.is_true(helpers.has_keymap(diff_buf, 'go'))
-      assert.is_true(helpers.has_keymap(diff_buf, 'gt'))
+        kind = 'file',
+        repo_root = repo_root,
+        spec = diffspec.rev_to_worktree('HEAD', 'file.txt'),
+      }, vim.api.nvim_buf_get_var(revision_buf, 'diffs_source'))
+      assert.is_false(has_buf_var(revision_buf, 'diffs_unmerged'))
+      assert.is_true(revision_text:find('+<<<<<<<', 1, true) ~= nil)
     end)
   end)
 
