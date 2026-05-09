@@ -26,12 +26,12 @@ local function create_diffs_buffer(name)
   return bufnr
 end
 
-local function add_hunk_metadata(bufnr)
+local function add_hunk_metadata(bufnr, diff_spec)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   vim.api.nvim_buf_set_var(
     bufnr,
     'diffs_hunks',
-    hunks.parse(lines, diffspec.index_to_worktree('file.lua'))
+    hunks.parse(lines, diff_spec or diffspec.index_to_worktree('file.lua'))
   )
   vim.api.nvim_buf_set_var(bufnr, 'diffs_repo_root', '/tmp/repo')
 end
@@ -134,9 +134,9 @@ describe('ux', function()
       assert.is_true(helpers.has_keymap(bufnr, '[c'))
       assert.is_true(helpers.has_keymap(bufnr, '<CR>'))
       assert.is_true(helpers.has_keymap(bufnr, 'o'))
-      assert.is_true(helpers.has_keymap(bufnr, 'do'))
+      assert.is_false(helpers.has_keymap(bufnr, 'do'))
       assert.is_true(helpers.has_keymap(bufnr, 'dp'))
-      assert.is_true(helpers.has_keymap(bufnr, 'do', 'x'))
+      assert.is_false(helpers.has_keymap(bufnr, 'do', 'x'))
       assert.is_true(helpers.has_keymap(bufnr, 'dp', 'x'))
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
@@ -187,6 +187,28 @@ describe('ux', function()
       assert.is_nil(keymap_desc(bufnr, 'do'))
       assert.is_nil(keymap_desc(bufnr, 'dp'))
       assert.is_nil(keymap_desc(bufnr, 'dp', 'x'))
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+
+    it('updates plugin-owned action keymaps when hunk actionability changes', function()
+      local bufnr = create_diffs_buffer()
+      add_hunk_metadata(bufnr, diffspec.index_to_worktree('file.lua'))
+      commands.setup_diff_buf(bufnr)
+
+      assert.is_true(helpers.has_keymap(bufnr, 'dp'))
+      assert.is_false(helpers.has_keymap(bufnr, 'do'))
+
+      add_hunk_metadata(bufnr, diffspec.head_to_index('file.lua'))
+      commands.setup_diff_buf(bufnr)
+
+      assert.is_false(helpers.has_keymap(bufnr, 'dp'))
+      assert.is_false(helpers.has_keymap(bufnr, 'dp', 'x'))
+      assert.is_true(helpers.has_keymap(bufnr, 'do'))
+      assert.is_true(helpers.has_keymap(bufnr, 'do', 'x'))
+      assert.is_true(helpers.has_keymap(bufnr, ']c'))
+      assert.is_true(helpers.has_keymap(bufnr, '[c'))
+      assert.is_true(helpers.has_keymap(bufnr, '<CR>'))
+      assert.is_true(helpers.has_keymap(bufnr, 'o'))
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
   end)

@@ -29,6 +29,8 @@ local diffspec = require('diffs.spec')
 ---@field header string
 ---@field diff_spec diffs.DiffSpec?
 ---@field edge { left: diffs.Endpoint, right: diffs.Endpoint, mutation_target: "index"|"worktree"|nil }?
+---@field can_put boolean
+---@field can_obtain boolean
 ---@field actionable boolean
 ---@field mutation_target "index"|"worktree"|nil
 ---@field source_lnum integer
@@ -105,14 +107,15 @@ local function parse_new_path(line)
 end
 
 ---@param diff_spec diffs.DiffSpec?
----@return diffs.DiffSpec?, "index"|"worktree"|nil, boolean
+---@return diffs.DiffSpec?, "index"|"worktree"|nil, boolean, boolean
 local function normalize_spec(diff_spec)
   if not diff_spec then
-    return nil, nil, false
+    return nil, nil, false, false
   end
   local spec = diffspec.new(diff_spec)
   local target = diffspec.mutation_target(spec)
-  return spec, target, target ~= nil
+  local actions = diffspec.patch_actions(spec)
+  return spec, target, actions.can_put, actions.can_obtain
 end
 
 ---@param lines string[]
@@ -129,7 +132,7 @@ end
 ---@param diff_spec? diffs.DiffSpec
 ---@return diffs.GdiffHunk[]
 function M.parse(diff_lines, diff_spec)
-  local spec, target, actionable = normalize_spec(diff_spec)
+  local spec, target, can_put, can_obtain = normalize_spec(diff_spec)
   local hunks = {}
   local current_old_path = spec and spec.scope.kind == diffspec.scope_kind.file and spec.scope.path
     or nil
@@ -211,7 +214,9 @@ function M.parse(diff_lines, diff_spec)
             right = diffspec.endpoint(spec.right),
             mutation_target = target,
           } or nil,
-          actionable = actionable,
+          can_put = can_put,
+          can_obtain = can_obtain,
+          actionable = can_put or can_obtain,
           mutation_target = target,
           source_lnum = source_lnum(new_range.start),
           lines = {},

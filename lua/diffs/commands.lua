@@ -111,10 +111,18 @@ function M.setup_diff_buf(bufnr)
   if not get_buffer_keymap(bufnr, 'n', 'q') then
     vim.keymap.set('n', 'q', '<cmd>close<CR>', { buffer = bufnr })
   end
-  local has_hunks = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_hunks')
+  local has_hunks, parsed_hunks = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_hunks')
   if not has_hunks then
     clear_hunk_keymaps(bufnr)
     return
+  end
+
+  clear_hunk_keymaps(bufnr)
+  local can_put = false
+  local can_obtain = false
+  for _, hunk in ipairs(type(parsed_hunks) == 'table' and parsed_hunks or {}) do
+    can_put = can_put or hunk.can_put == true
+    can_obtain = can_obtain or hunk.can_obtain == true
   end
 
   set_hunk_keymap(bufnr, 'n', ']c', function()
@@ -129,28 +137,32 @@ function M.setup_diff_buf(bufnr)
   set_hunk_keymap(bufnr, 'n', 'o', function()
     hunk_model.open_source(bufnr)
   end, 'Open source file')
-  set_hunk_keymap(bufnr, 'n', 'do', function()
-    if actions.obtain_hunk(bufnr) then
-      M.read_buffer(bufnr)
-    end
-  end, 'Unstage Gdiff hunk')
-  set_hunk_keymap(bufnr, 'n', 'dp', function()
-    if actions.put_hunk(bufnr) then
-      M.read_buffer(bufnr)
-    end
-  end, 'Stage Gdiff hunk')
-  set_hunk_keymap(bufnr, 'x', 'do', function()
-    local range_start, range_finish = visual_range(bufnr)
-    if actions.obtain_range(bufnr, range_start, range_finish) then
-      M.read_buffer(bufnr)
-    end
-  end, 'Unstage selected Gdiff lines')
-  set_hunk_keymap(bufnr, 'x', 'dp', function()
-    local range_start, range_finish = visual_range(bufnr)
-    if actions.put_range(bufnr, range_start, range_finish) then
-      M.read_buffer(bufnr)
-    end
-  end, 'Stage selected Gdiff lines')
+  if can_obtain then
+    set_hunk_keymap(bufnr, 'n', 'do', function()
+      if actions.obtain_hunk(bufnr) then
+        M.read_buffer(bufnr)
+      end
+    end, 'Unstage Gdiff hunk')
+    set_hunk_keymap(bufnr, 'x', 'do', function()
+      local range_start, range_finish = visual_range(bufnr)
+      if actions.obtain_range(bufnr, range_start, range_finish) then
+        M.read_buffer(bufnr)
+      end
+    end, 'Unstage selected Gdiff lines')
+  end
+  if can_put then
+    set_hunk_keymap(bufnr, 'n', 'dp', function()
+      if actions.put_hunk(bufnr) then
+        M.read_buffer(bufnr)
+      end
+    end, 'Stage Gdiff hunk')
+    set_hunk_keymap(bufnr, 'x', 'dp', function()
+      local range_start, range_finish = visual_range(bufnr)
+      if actions.put_range(bufnr, range_start, range_finish) then
+        M.read_buffer(bufnr)
+      end
+    end, 'Stage selected Gdiff lines')
+  end
 
   ensure_hunk_keymap_cleanup(bufnr)
 end
