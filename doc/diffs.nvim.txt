@@ -20,6 +20,7 @@ All other integrations are opt-in. See |diffs.nvim-integrations|.
 Features: ~
 - Treesitter syntax highlighting in diff hunks
 - Character-level intra-line diff highlighting
+- Word-level diff highlighting
 - Vim syntax fallback for languages without a treesitter parser
 - Blended diff background colors that preserve syntax visibility
 - Optional diff prefix (`+`/`-`/` `) concealment
@@ -57,12 +58,17 @@ REQUIREMENTS                                         *diffs.nvim-requirements*
 
 - Neovim 0.9.0+
 - Treesitter parsers for languages you want highlighted
+- Optional: the Treesitter `diff` parser for the best experience
 
 ==============================================================================
 SETUP                                                       *diffs.nvim-setup*
 
-Install with lazy.nvim: >lua
-    { 'barrettruth/diffs.nvim' }
+With vim.pack (Neovim 0.12+): >lua
+    vim.pack.add({
+      'https://git.barrettruth.com/barrettruth/diffs.nvim',
+    })
+< With luarocks: >sh
+    luarocks install diffs.nvim
 <
 
 Do not lazy load with `event`, `lazy`, `ft`, `config`, or `keys` — diffs.nvim
