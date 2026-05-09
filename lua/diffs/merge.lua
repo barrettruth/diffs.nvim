@@ -2,6 +2,7 @@ local M = {}
 
 local conflict = require('diffs.conflict')
 local keymaps = require('diffs.keymaps')
+local notify = require('diffs.log').notify
 
 local ns = vim.api.nvim_create_namespace('diffs-merge')
 
@@ -159,7 +160,7 @@ function M.resolve_ours(bufnr, config)
     return
   end
   if M.is_resolved(bufnr, hunk.index) then
-    vim.notify('[diffs]: hunk already resolved', vim.log.levels.INFO)
+    notify('hunk already resolved', vim.log.levels.INFO)
     return
   end
   local working_bufnr = M.get_or_load_working_buf(bufnr)
@@ -168,7 +169,7 @@ function M.resolve_ours(bufnr, config)
   end
   local region = M.match_hunk_to_conflict(hunk, working_bufnr)
   if not region then
-    vim.notify('[diffs]: hunk does not correspond to a conflict region', vim.log.levels.INFO)
+    notify('hunk does not correspond to a conflict region', vim.log.levels.INFO)
     return
   end
   local lines = vim.api.nvim_buf_get_lines(working_bufnr, region.ours_start, region.ours_end, false)
@@ -186,7 +187,7 @@ function M.resolve_theirs(bufnr, config)
     return
   end
   if M.is_resolved(bufnr, hunk.index) then
-    vim.notify('[diffs]: hunk already resolved', vim.log.levels.INFO)
+    notify('hunk already resolved', vim.log.levels.INFO)
     return
   end
   local working_bufnr = M.get_or_load_working_buf(bufnr)
@@ -195,7 +196,7 @@ function M.resolve_theirs(bufnr, config)
   end
   local region = M.match_hunk_to_conflict(hunk, working_bufnr)
   if not region then
-    vim.notify('[diffs]: hunk does not correspond to a conflict region', vim.log.levels.INFO)
+    notify('hunk does not correspond to a conflict region', vim.log.levels.INFO)
     return
   end
   local lines =
@@ -214,7 +215,7 @@ function M.resolve_both(bufnr, config)
     return
   end
   if M.is_resolved(bufnr, hunk.index) then
-    vim.notify('[diffs]: hunk already resolved', vim.log.levels.INFO)
+    notify('hunk already resolved', vim.log.levels.INFO)
     return
   end
   local working_bufnr = M.get_or_load_working_buf(bufnr)
@@ -223,7 +224,7 @@ function M.resolve_both(bufnr, config)
   end
   local region = M.match_hunk_to_conflict(hunk, working_bufnr)
   if not region then
-    vim.notify('[diffs]: hunk does not correspond to a conflict region', vim.log.levels.INFO)
+    notify('hunk does not correspond to a conflict region', vim.log.levels.INFO)
     return
   end
   local ours = vim.api.nvim_buf_get_lines(working_bufnr, region.ours_start, region.ours_end, false)
@@ -250,7 +251,7 @@ function M.resolve_none(bufnr, config)
     return
   end
   if M.is_resolved(bufnr, hunk.index) then
-    vim.notify('[diffs]: hunk already resolved', vim.log.levels.INFO)
+    notify('hunk already resolved', vim.log.levels.INFO)
     return
   end
   local working_bufnr = M.get_or_load_working_buf(bufnr)
@@ -259,7 +260,7 @@ function M.resolve_none(bufnr, config)
   end
   local region = M.match_hunk_to_conflict(hunk, working_bufnr)
   if not region then
-    vim.notify('[diffs]: hunk does not correspond to a conflict region', vim.log.levels.INFO)
+    notify('hunk does not correspond to a conflict region', vim.log.levels.INFO)
     return
   end
   conflict.replace_region(working_bufnr, region, {})
@@ -302,7 +303,7 @@ function M.goto_next(bufnr)
     end
   end
 
-  vim.notify('[diffs]: wrapped to first hunk', vim.log.levels.INFO)
+  notify('wrapped to first hunk', vim.log.levels.INFO)
   vim.api.nvim_win_set_cursor(0, { candidates[1].start_line + 1, 0 })
 end
 
@@ -340,7 +341,7 @@ function M.goto_prev(bufnr)
     end
   end
 
-  vim.notify('[diffs]: wrapped to last hunk', vim.log.levels.INFO)
+  notify('wrapped to last hunk', vim.log.levels.INFO)
   vim.api.nvim_win_set_cursor(0, { candidates[#candidates].start_line + 1, 0 })
 end
 

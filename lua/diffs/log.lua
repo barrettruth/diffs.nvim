@@ -1,7 +1,22 @@
 local M = {}
 
+local prefix = '[diffs]: '
+
 local enabled = false
 local log_file = nil
+
+---@param message any
+---@return string
+local function format_message(message)
+  return prefix .. message
+end
+
+---@param message any
+---@param level integer
+---@param opts? table
+function M.notify(message, level, opts)
+  vim.notify(format_message(message), level, opts)
+end
 
 ---@param val boolean|string
 function M.set_enabled(val)
@@ -20,7 +35,7 @@ function M.dbg(msg, ...)
   if not enabled then
     return
   end
-  local formatted = '[diffs]: ' .. string.format(msg, ...)
+  local formatted = format_message(string.format(msg, ...))
   if log_file then
     local f = io.open(log_file, 'a')
     if f then

@@ -1,6 +1,7 @@
 local M = {}
 
 local diffspec = require('diffs.spec')
+local notify = require('diffs.log').notify
 
 ---@class diffs.GdiffHunkRange
 ---@field start integer
@@ -452,7 +453,7 @@ end
 function M.open_source(bufnr)
   local source, err = M.source_at_cursor(bufnr)
   if not source then
-    vim.notify('[diffs]: ' .. err, vim.log.levels.WARN)
+    notify(err, vim.log.levels.WARN)
     return false
   end
 
@@ -479,7 +480,7 @@ function M.goto_next(bufnr)
   local cursor_line = vim.api.nvim_win_get_cursor(0)[1]
   local next_hunk = M.next_hunk(parsed, cursor_line) or parsed[1]
   if next_hunk == parsed[1] and next_hunk.buffer_range.start <= cursor_line then
-    vim.notify('[diffs]: wrapped to first hunk', vim.log.levels.INFO)
+    notify('wrapped to first hunk', vim.log.levels.INFO)
   end
   vim.api.nvim_win_set_cursor(0, { next_hunk.buffer_range.start, 0 })
 end
@@ -494,7 +495,7 @@ function M.goto_prev(bufnr)
   local cursor_line = vim.api.nvim_win_get_cursor(0)[1]
   local prev_hunk = M.prev_hunk(parsed, cursor_line) or parsed[#parsed]
   if prev_hunk == parsed[#parsed] and prev_hunk.buffer_range.start >= cursor_line then
-    vim.notify('[diffs]: wrapped to last hunk', vim.log.levels.INFO)
+    notify('wrapped to last hunk', vim.log.levels.INFO)
   end
   vim.api.nvim_win_set_cursor(0, { prev_hunk.buffer_range.start, 0 })
 end
