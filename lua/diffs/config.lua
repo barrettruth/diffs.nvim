@@ -195,7 +195,7 @@ function M.migrate_integrations(opts)
       local old = 'vim.g.diffs.{' .. table.concat(stale, ', ') .. '}'
       local new = 'vim.g.diffs.integrations.{' .. table.concat(stale, ', ') .. '}'
       vim.notify(
-        '[diffs.nvim]: ignoring ' .. old .. '; move to ' .. new .. ' or remove',
+        '[diffs]: ignoring ' .. old .. '; move to ' .. new .. ' or remove',
         vim.log.levels.WARN
       )
     end

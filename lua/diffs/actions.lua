@@ -316,7 +316,7 @@ end
 ---@param message string
 ---@param level integer
 local function notify(message, level)
-  vim.notify('[diffs.nvim]: ' .. message, level)
+  vim.notify('[diffs]: ' .. message, level)
 end
 
 ---@param bufnr integer

@@ -199,7 +199,7 @@ function M.diff_file_under_cursor(vertical)
 
   local repo_root = get_repo_root_from_fugitive(bufnr)
   if not repo_root then
-    vim.notify('[diffs.nvim]: could not determine repository root', vim.log.levels.ERROR)
+    vim.notify('[diffs]: could not determine repository root', vim.log.levels.ERROR)
     return
   end
 
@@ -207,7 +207,7 @@ function M.diff_file_under_cursor(vertical)
     dbg('diff_section: %s', section or 'unknown')
     if section == 'untracked' then
       vim.notify(
-        '[diffs.nvim]: cannot diff untracked section; open an untracked file line instead',
+        '[diffs]: cannot diff untracked section; open an untracked file line instead',
         vim.log.levels.WARN
       )
       return
@@ -220,7 +220,7 @@ function M.diff_file_under_cursor(vertical)
   end
 
   if not filename then
-    vim.notify('[diffs.nvim]: no file under cursor', vim.log.levels.WARN)
+    vim.notify('[diffs]: no file under cursor', vim.log.levels.WARN)
     return
   end
 
