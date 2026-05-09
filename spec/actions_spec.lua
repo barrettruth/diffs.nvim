@@ -323,6 +323,25 @@ describe('diffs.actions', function()
     assert.is_true(buffer_text(bufnr):find('+line 22 changed', 1, true) ~= nil)
   end)
 
+  it('stages an untracked file hunk as a new file', function()
+    local repo_root = create_repo()
+    vim.fn.writefile({ 'new file line' }, repo_root .. '/new.txt')
+
+    local bufnr = create_diff_buffer(repo_root, diffspec.index_to_worktree('new.txt'))
+    move_to_hunk(bufnr, 1)
+
+    assert.is_true(actions.put_hunk(bufnr))
+
+    local cached =
+      git_text(repo_root, { 'diff', '--cached', '--no-ext-diff', '--no-color', '--', 'new.txt' })
+    local worktree = git_text(repo_root, { 'diff', '--no-ext-diff', '--no-color', '--', 'new.txt' })
+
+    assert.is_true(cached:find('new file mode 100644', 1, true) ~= nil)
+    assert.is_true(cached:find('--- /dev/null', 1, true) ~= nil)
+    assert.is_true(cached:find('+new file line', 1, true) ~= nil)
+    assert.are.equal('', worktree)
+  end)
+
   it('stages only selected added lines from a visual range', function()
     local repo_root = create_repo()
     write_repo_file(
@@ -430,6 +449,65 @@ describe('diffs.actions', function()
     assert.is_true(worktree:find('+line 2 changed', 1, true) ~= nil)
     assert.is_true(worktree:find('+line 22 changed', 1, true) ~= nil)
     assert.are.equal(0, #vim.api.nvim_buf_get_var(bufnr, 'diffs_hunks'))
+  end)
+
+  it('unstages a staged added-file hunk back to an untracked file', function()
+    local repo_root = create_repo()
+    vim.fn.writefile({ 'new file line' }, repo_root .. '/new.txt')
+    git_cmd(repo_root, { 'add', 'new.txt' })
+
+    local bufnr = create_diff_buffer(repo_root, diffspec.head_to_index('new.txt'))
+    move_to_hunk(bufnr, 1)
+
+    assert.is_true(actions.obtain_hunk(bufnr))
+
+    local cached =
+      git_text(repo_root, { 'diff', '--cached', '--no-ext-diff', '--no-color', '--', 'new.txt' })
+    vim.fn.systemlist({ 'git', '-C', repo_root, 'ls-files', '--error-unmatch', 'new.txt' })
+
+    assert.are.equal('', cached)
+    assert.is_not.equal(0, vim.v.shell_error)
+  end)
+
+  it('stages an unstaged deletion hunk', function()
+    local repo_root = create_repo()
+    vim.fn.delete(repo_root .. '/file.txt')
+
+    local bufnr = create_diff_buffer(repo_root, diffspec.index_to_worktree('file.txt'))
+    move_to_hunk(bufnr, 1)
+
+    assert.is_true(actions.put_hunk(bufnr))
+
+    local cached =
+      git_text(repo_root, { 'diff', '--cached', '--no-ext-diff', '--no-color', '--', 'file.txt' })
+    local worktree =
+      git_text(repo_root, { 'diff', '--no-ext-diff', '--no-color', '--', 'file.txt' })
+
+    assert.is_true(cached:find('deleted file mode 100644', 1, true) ~= nil)
+    assert.is_true(cached:find('+++ /dev/null', 1, true) ~= nil)
+    assert.is_true(cached:find('-line 1', 1, true) ~= nil)
+    assert.are.equal('', worktree)
+  end)
+
+  it('unstages a staged deletion hunk back to an unstaged deletion', function()
+    local repo_root = create_repo()
+    vim.fn.delete(repo_root .. '/file.txt')
+    git_cmd(repo_root, { 'add', '-u', 'file.txt' })
+
+    local bufnr = create_diff_buffer(repo_root, diffspec.head_to_index('file.txt'))
+    move_to_hunk(bufnr, 1)
+
+    assert.is_true(actions.obtain_hunk(bufnr))
+
+    local cached =
+      git_text(repo_root, { 'diff', '--cached', '--no-ext-diff', '--no-color', '--', 'file.txt' })
+    local worktree =
+      git_text(repo_root, { 'diff', '--no-ext-diff', '--no-color', '--', 'file.txt' })
+
+    assert.are.equal('', cached)
+    assert.is_true(worktree:find('deleted file mode 100644', 1, true) ~= nil)
+    assert.is_true(worktree:find('+++ /dev/null', 1, true) ~= nil)
+    assert.is_true(worktree:find('-line 1', 1, true) ~= nil)
   end)
 
   it('unstages only selected added lines from a visual range', function()

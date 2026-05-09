@@ -432,6 +432,40 @@ COMMANDS                                                 *diffs.nvim-commands*
         :Gdiff :0:%     " diff against the index explicitly
         :Gdiff abc123   " diff against specific commit
 <
+    Edge-case behavior: ~
+
+    Case              Endpoint model              Behavior ~
+    Untracked file    index -> working tree       Renders as a new file.
+                                                 `dp` stages the file.
+    Added file        HEAD -> index               Renders as a new file.
+                                                 `do` unstages the file.
+    Deleted file      index -> working tree or    Renders as a deleted
+                      HEAD -> index               file. `dp` stages an
+                                                 unstaged deletion; `do`
+                                                 unstages a staged deletion.
+    Both staged and   one view per edge           Plain |:Gdiff| shows
+    unstaged changes                              index -> working tree.
+                                                 Staged status rows show
+                                                 HEAD -> index.
+    Rename or copy    requires old and new paths  Not supported by the
+                                                 same-path DiffSpec model.
+                                                 Status-row views may render
+                                                 content-only old/new diffs,
+                                                 but hunk actions are disabled.
+    Mode-only change  no text hunk                Not supported. Shows an
+                                                 explicit warning.
+    Binary file       no text hunk                Not supported. Shows an
+                                                 explicit warning.
+    Submodule         gitlink, not file content   Not supported. Shows an
+                                                 explicit warning.
+    Merge stages      :1:/:2:/:3:                 Not supported by |:Gdiff|
+                                                 object parsing yet. Use the
+                                                 unmerged status-row action.
+
+    Supported hunk actions run `git apply --cached --check` before mutating
+    the index. Stale hunks, context drift, and index mismatches fail without
+    applying a partial mutation.
+
 
 :Gvdiff [object]                                                     *:Gvdiff*
     Like |:Gdiff| but opens in a vertical split.
