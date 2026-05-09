@@ -1,10 +1,12 @@
 require('spec.helpers')
 
 local commands = require('diffs.commands')
+local diffspec = require('diffs.spec')
 local git = require('diffs.git')
 local runtime = require('diffs.runtime')
 
 local saved_git = {}
+local saved_notify
 local saved_systemlist
 local test_buffers = {}
 
@@ -37,11 +39,20 @@ local function mock_systemlist(fn)
   end
 end
 
+local function mock_notify(fn)
+  saved_notify = vim.notify
+  vim.notify = fn
+end
+
 local function restore_mocks()
   for k, v in pairs(saved_git) do
     git[k] = v
   end
   saved_git = {}
+  if saved_notify then
+    vim.notify = saved_notify
+    saved_notify = nil
+  end
   if saved_systemlist then
     vim.fn.systemlist = saved_systemlist
     saved_systemlist = nil
@@ -92,6 +103,10 @@ describe('read_buffer', function()
     end)
 
     it('does nothing on malformed url without colon separator', function()
+      local notification
+      mock_notify(function(message, level)
+        notification = { message = message, level = level }
+      end)
       local bufnr = create_diffs_buffer('diffs://nocolonseparator')
       vim.api.nvim_buf_set_var(bufnr, 'diffs_repo_root', '/tmp')
       local lines_before = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
@@ -99,14 +114,24 @@ describe('read_buffer', function()
         commands.read_buffer(bufnr)
       end)
       assert.are.same(lines_before, vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
+      assert.is_not_nil(notification)
+      assert.are.equal(vim.log.levels.WARN, notification.level)
+      assert.is_true(notification.message:find('malformed diffs:// buffer', 1, true) ~= nil)
     end)
 
     it('does nothing when diffs_repo_root is missing', function()
+      local notification
+      mock_notify(function(message, level)
+        notification = { message = message, level = level }
+      end)
       local bufnr = create_diffs_buffer('diffs://staged:missing_root.lua')
       assert.has_no.errors(function()
         commands.read_buffer(bufnr)
       end)
       assert.are.same({ '' }, vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
+      assert.is_not_nil(notification)
+      assert.are.equal(vim.log.levels.WARN, notification.level)
+      assert.is_true(notification.message:find('without diffs_repo_root', 1, true) ~= nil)
     end)
   end)
 
@@ -218,6 +243,118 @@ describe('read_buffer', function()
 
       assert.are.equal('HEAD~3', captured_rev)
       assert.is_true(called_get_working)
+    end)
+
+    it('uses diffs_spec metadata without parsing the display name', function()
+      local calls = {}
+      mock_git({
+        get_file_content = function(rev, filepath)
+          table.insert(calls, { 'file', rev, filepath })
+          return { 'tree' }
+        end,
+        get_index_content = function(filepath)
+          table.insert(calls, { 'index', filepath })
+          return { 'index' }
+        end,
+        get_working_content = function(filepath)
+          table.insert(calls, { 'worktree', filepath })
+          return { 'worktree' }
+        end,
+      })
+
+      local bufnr = create_diffs_buffer('diffs://metadata-only', {
+        diffs_repo_root = '/tmp',
+        diffs_spec = diffspec.index_to_worktree('meta_unstaged.lua'),
+      })
+      commands.read_buffer(bufnr)
+
+      assert.are.same({
+        { 'index', '/tmp/meta_unstaged.lua' },
+        { 'worktree', '/tmp/meta_unstaged.lua' },
+      }, calls)
+    end)
+
+    it('prefers diffs_spec metadata for HEAD to index reloads', function()
+      local calls = {}
+      mock_git({
+        get_file_content = function(rev, filepath)
+          table.insert(calls, { 'file', rev, filepath })
+          return { 'head' }
+        end,
+        get_index_content = function(filepath)
+          table.insert(calls, { 'index', filepath })
+          return { 'index' }
+        end,
+        get_working_content = function(filepath)
+          table.insert(calls, { 'worktree', filepath })
+          return { 'worktree' }
+        end,
+      })
+
+      local bufnr = create_diffs_buffer('diffs://unstaged:meta_staged.lua', {
+        diffs_repo_root = '/tmp',
+        diffs_spec = diffspec.head_to_index('meta_staged.lua'),
+      })
+      commands.read_buffer(bufnr)
+
+      assert.are.same({
+        { 'file', 'HEAD', '/tmp/meta_staged.lua' },
+        { 'index', '/tmp/meta_staged.lua' },
+      }, calls)
+    end)
+
+    it('prefers diffs_spec metadata for revision to worktree reloads', function()
+      local calls = {}
+      mock_git({
+        get_file_content = function(rev, filepath)
+          table.insert(calls, { 'file', rev, filepath })
+          return { 'old' }
+        end,
+        get_index_content = function(filepath)
+          table.insert(calls, { 'index', filepath })
+          return { 'index' }
+        end,
+        get_working_content = function(filepath)
+          table.insert(calls, { 'worktree', filepath })
+          return { 'worktree' }
+        end,
+      })
+
+      local bufnr = create_diffs_buffer('diffs://unstaged:meta_rev.lua', {
+        diffs_repo_root = '/tmp',
+        diffs_spec = diffspec.rev_to_worktree('HEAD~3', 'meta_rev.lua'),
+      })
+      commands.read_buffer(bufnr)
+
+      assert.are.same({
+        { 'file', 'HEAD~3', '/tmp/meta_rev.lua' },
+        { 'worktree', '/tmp/meta_rev.lua' },
+      }, calls)
+    end)
+
+    it('warns and leaves content unchanged for invalid diffs_spec metadata', function()
+      local notification
+      mock_notify(function(message, level)
+        notification = { message = message, level = level }
+      end)
+
+      local bufnr = create_diffs_buffer('diffs://unstaged:invalid_meta.lua', {
+        diffs_repo_root = '/tmp',
+        diffs_spec = {
+          left = { kind = 'bogus' },
+          right = { kind = 'worktree' },
+          scope = { kind = 'file', path = 'invalid_meta.lua' },
+          mode = 'unified',
+        },
+      })
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'stale content' })
+
+      commands.read_buffer(bufnr)
+
+      assert.is_not_nil(notification)
+      assert.are.equal(vim.log.levels.WARN, notification.level)
+      assert.is_true(notification.message:find('invalid diffs_spec metadata', 1, true) ~= nil)
+      assert.are.same({ 'stale content' }, vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
     end)
 
     it('falls back from index to HEAD for unstaged when index returns nil', function()
