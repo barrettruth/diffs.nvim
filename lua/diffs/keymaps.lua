@@ -70,17 +70,18 @@ end
 
 ---@param registry table<integer, table<string, diffs.BufferKeymap>>
 ---@param bufnr integer
----@param maps [string|false, string|function][]
+---@param maps [string|false, string|function, table?][]
 function M.set_buffer_keymaps(registry, bufnr, maps)
   M.clear_buffer_keymaps(registry, bufnr)
 
   local installed = {}
   for _, map in ipairs(maps) do
     local lhs = map[1]
-    if type(lhs) == 'string' then
+    if type(lhs) == 'string' and lhs ~= '' then
       local current = get_buffer_keymap(bufnr, lhs)
       if not current or keymap_matches(current, installed[lhs]) then
-        vim.keymap.set('n', lhs, map[2], { buffer = bufnr })
+        local opts = vim.tbl_extend('force', { buffer = bufnr }, map[3] or {})
+        vim.keymap.set('n', lhs, map[2], opts)
         local installed_keymap = get_buffer_keymap(bufnr, lhs)
         if installed_keymap then
           installed[lhs] = keymap_identity(installed_keymap)
