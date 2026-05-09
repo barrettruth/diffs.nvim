@@ -120,6 +120,7 @@ end
 ---@field cached? boolean
 ---@field reverse? boolean
 ---@field check? boolean
+---@field recount? boolean
 
 ---@param repo_root string
 ---@param patch string
@@ -136,6 +137,9 @@ function M.apply_patch(repo_root, patch, opts)
   end
   if opts.check then
     table.insert(cmd, '--check')
+  end
+  if opts.recount then
+    table.insert(cmd, '--recount')
   end
 
   local output = vim.fn.systemlist(cmd, patch)

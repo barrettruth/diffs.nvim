@@ -606,10 +606,12 @@ Diff buffer mappings: ~
     <CR>            Open the real worktree file at the current |:Gdiff| hunk
                     location when the right side is worktree-backed.
     o               Same as <CR>.
-    dp              Stage the current whole hunk when the buffer compares the
-                    index to the worktree.
-    do              Unstage the current whole hunk when the buffer compares a
-                    tree to the index.
+    dp              In Normal mode, stage the current whole hunk when the
+                    buffer compares the index to the worktree. In Visual mode,
+                    stage selected changed lines inside one hunk.
+    do              In Normal mode, unstage the current whole hunk when the
+                    buffer compares a tree to the index. In Visual mode,
+                    unstage selected changed lines inside one hunk.
 
 ==============================================================================
 INTEGRATIONS                                         *diffs.nvim-integrations*

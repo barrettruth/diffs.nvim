@@ -42,6 +42,22 @@ local function file_lines(overrides)
   return lines
 end
 
+local function file_lines_with_insertions(after, inserted)
+  local lines = file_lines()
+  for offset, line in ipairs(inserted) do
+    table.insert(lines, after + offset, line)
+  end
+  return lines
+end
+
+local function file_lines_without(start, count)
+  local lines = file_lines()
+  for _ = 1, count do
+    table.remove(lines, start)
+  end
+  return lines
+end
+
 local function create_repo()
   local repo_root = vim.fn.tempname()
   vim.fn.mkdir(repo_root, 'p')
@@ -73,13 +89,33 @@ local function create_diff_buffer(repo_root, diff_spec)
   return bufnr
 end
 
-local function keymap_callback(bufnr, lhs)
-  for _, keymap in ipairs(vim.api.nvim_buf_get_keymap(bufnr, 'n')) do
+local function keymap_callback(bufnr, lhs, mode)
+  for _, keymap in ipairs(vim.api.nvim_buf_get_keymap(bufnr, mode or 'n')) do
     if keymap.lhs == lhs then
       return keymap.callback
     end
   end
   return nil
+end
+
+local function find_hunk_line(bufnr, kind, text)
+  for _, hunk in ipairs(vim.api.nvim_buf_get_var(bufnr, 'diffs_hunks')) do
+    for _, line in ipairs(hunk.lines) do
+      if line.kind == kind and line.text == text then
+        return line, hunk
+      end
+    end
+  end
+  error('could not find hunk line ' .. kind .. ' ' .. text)
+end
+
+local function find_hunks(bufnr)
+  return vim.api.nvim_buf_get_var(bufnr, 'diffs_hunks')
+end
+
+local function set_visual_range(bufnr, range_start, range_finish)
+  vim.api.nvim_buf_set_mark(bufnr, '<', range_start, 0, {})
+  vim.api.nvim_buf_set_mark(bufnr, '>', range_finish, 0, {})
 end
 
 local function move_to_hunk(bufnr, index)
@@ -154,6 +190,108 @@ describe('diffs.actions', function()
     )
   end)
 
+  it('builds a selected-add range patch for the side receiving the patch', function()
+    local diff_lines = {
+      'diff --git a/file.txt b/file.txt',
+      '--- a/file.txt',
+      '+++ b/file.txt',
+      '@@ -1 +1,3 @@',
+      ' line 1',
+      '+insert alpha',
+      '+insert beta',
+    }
+    local hunk = hunk_model.parse(diff_lines, diffspec.index_to_worktree('file.txt'))[1]
+
+    local patch = assert(actions.patch_for_range(hunk, 7, 7, { target = 'left' }))
+    local reverse_patch = assert(actions.patch_for_range(hunk, 7, 7, { target = 'right' }))
+
+    assert.are.equal(
+      table.concat({
+        'diff --git a/file.txt b/file.txt',
+        '--- a/file.txt',
+        '+++ b/file.txt',
+        '@@ -1 +1,3 @@',
+        ' line 1',
+        '+insert beta',
+        '',
+      }, '\n'),
+      patch
+    )
+    assert.are.equal(
+      table.concat({
+        'diff --git a/file.txt b/file.txt',
+        '--- a/file.txt',
+        '+++ b/file.txt',
+        '@@ -1 +1,3 @@',
+        ' line 1',
+        ' insert alpha',
+        '+insert beta',
+        '',
+      }, '\n'),
+      reverse_patch
+    )
+  end)
+
+  it('builds a selected-delete range patch for the side receiving the patch', function()
+    local diff_lines = {
+      'diff --git a/file.txt b/file.txt',
+      '--- a/file.txt',
+      '+++ b/file.txt',
+      '@@ -1,3 +1 @@',
+      ' line 1',
+      '-delete alpha',
+      '-delete beta',
+    }
+    local hunk = hunk_model.parse(diff_lines, diffspec.index_to_worktree('file.txt'))[1]
+
+    local patch = assert(actions.patch_for_range(hunk, 7, 7, { target = 'left' }))
+    local reverse_patch = assert(actions.patch_for_range(hunk, 7, 7, { target = 'right' }))
+
+    assert.are.equal(
+      table.concat({
+        'diff --git a/file.txt b/file.txt',
+        '--- a/file.txt',
+        '+++ b/file.txt',
+        '@@ -1,3 +1 @@',
+        ' line 1',
+        ' delete alpha',
+        '-delete beta',
+        '',
+      }, '\n'),
+      patch
+    )
+    assert.are.equal(
+      table.concat({
+        'diff --git a/file.txt b/file.txt',
+        '--- a/file.txt',
+        '+++ b/file.txt',
+        '@@ -1,3 +1 @@',
+        ' line 1',
+        '-delete beta',
+        '',
+      }, '\n'),
+      reverse_patch
+    )
+  end)
+
+  it('rejects partial replacement-group ranges before building a patch', function()
+    local diff_lines = {
+      'diff --git a/file.txt b/file.txt',
+      '--- a/file.txt',
+      '+++ b/file.txt',
+      '@@ -1,2 +1,2 @@',
+      ' line 1',
+      '-old',
+      '+new',
+    }
+    local hunk = hunk_model.parse(diff_lines, diffspec.index_to_worktree('file.txt'))[1]
+
+    local patch, err = actions.patch_for_range(hunk, 7, 7)
+
+    assert.is_nil(patch)
+    assert.are.equal('select the complete replacement group before applying it', err)
+  end)
+
   it('stages only the current unstaged hunk and refreshes the buffer', function()
     local repo_root = create_repo()
     write_repo_file(
@@ -185,6 +323,84 @@ describe('diffs.actions', function()
     assert.is_true(buffer_text(bufnr):find('+line 22 changed', 1, true) ~= nil)
   end)
 
+  it('stages only selected added lines from a visual range', function()
+    local repo_root = create_repo()
+    write_repo_file(
+      repo_root,
+      file_lines_with_insertions(2, {
+        'insert alpha',
+        'insert beta',
+      })
+    )
+
+    local bufnr = create_diff_buffer(repo_root, diffspec.index_to_worktree('file.txt'))
+    local selected = find_hunk_line(bufnr, 'add', '+insert beta')
+
+    assert.is_true(actions.put_range(bufnr, selected.lnum, selected.lnum))
+
+    local cached = git_text(
+      repo_root,
+      { 'diff', '--cached', '--no-ext-diff', '--no-color', '-U0', '--', 'file.txt' }
+    )
+    local worktree =
+      git_text(repo_root, { 'diff', '--no-ext-diff', '--no-color', '-U0', '--', 'file.txt' })
+
+    assert.is_true(cached:find('+insert beta', 1, true) ~= nil)
+    assert.is_nil(cached:find('+insert alpha', 1, true))
+    assert.is_true(worktree:find('+insert alpha', 1, true) ~= nil)
+    assert.is_nil(worktree:find('+insert beta', 1, true))
+  end)
+
+  it('stages a visual selection through the buffer-local dp map and refreshes', function()
+    local repo_root = create_repo()
+    write_repo_file(
+      repo_root,
+      file_lines_with_insertions(2, {
+        'insert alpha',
+        'insert beta',
+      })
+    )
+
+    local bufnr = create_diff_buffer(repo_root, diffspec.index_to_worktree('file.txt'))
+    local selected = find_hunk_line(bufnr, 'add', '+insert beta')
+    local callback = assert(keymap_callback(bufnr, 'dp', 'x'))
+
+    set_visual_range(bufnr, selected.lnum, selected.lnum)
+    callback()
+
+    local cached = git_text(
+      repo_root,
+      { 'diff', '--cached', '--no-ext-diff', '--no-color', '-U0', '--', 'file.txt' }
+    )
+
+    assert.is_true(cached:find('+insert beta', 1, true) ~= nil)
+    assert.is_nil(cached:find('+insert alpha', 1, true))
+    assert.is_nil(buffer_text(bufnr):find('+insert beta', 1, true))
+    assert.is_true(buffer_text(bufnr):find('+insert alpha', 1, true) ~= nil)
+  end)
+
+  it('stages only selected deleted lines from a visual range', function()
+    local repo_root = create_repo()
+    write_repo_file(repo_root, file_lines_without(3, 2))
+
+    local bufnr = create_diff_buffer(repo_root, diffspec.index_to_worktree('file.txt'))
+    local selected = find_hunk_line(bufnr, 'delete', '-line 4')
+
+    assert.is_true(actions.put_range(bufnr, selected.lnum, selected.lnum))
+
+    local cached = git_text(
+      repo_root,
+      { 'diff', '--cached', '--no-ext-diff', '--no-color', '-U0', '--', 'file.txt' }
+    )
+    local worktree =
+      git_text(repo_root, { 'diff', '--no-ext-diff', '--no-color', '-U0', '--', 'file.txt' })
+
+    assert.is_true(cached:find('-line 4', 1, true) ~= nil)
+    assert.is_nil(cached:find('-line 3', 1, true))
+    assert.is_true(worktree:find('-line 3', 1, true) ~= nil)
+    assert.is_nil(worktree:find('-line 4', 1, true))
+  end)
+
   it('unstages only the current staged hunk and refreshes the buffer', function()
     local repo_root = create_repo()
     write_repo_file(repo_root, file_lines({ [2] = 'line 2 changed' }))
@@ -214,6 +430,139 @@ describe('diffs.actions', function()
     assert.is_true(worktree:find('+line 2 changed', 1, true) ~= nil)
     assert.is_true(worktree:find('+line 22 changed', 1, true) ~= nil)
     assert.are.equal(0, #vim.api.nvim_buf_get_var(bufnr, 'diffs_hunks'))
+  end)
+
+  it('unstages only selected added lines from a visual range', function()
+    local repo_root = create_repo()
+    write_repo_file(
+      repo_root,
+      file_lines_with_insertions(2, {
+        'insert alpha',
+        'insert beta',
+      })
+    )
+    git_cmd(repo_root, { 'add', 'file.txt' })
+
+    local bufnr = create_diff_buffer(repo_root, diffspec.head_to_index('file.txt'))
+    local selected = find_hunk_line(bufnr, 'add', '+insert beta')
+
+    assert.is_true(actions.obtain_range(bufnr, selected.lnum, selected.lnum))
+
+    local cached = git_text(
+      repo_root,
+      { 'diff', '--cached', '--no-ext-diff', '--no-color', '-U0', '--', 'file.txt' }
+    )
+    local worktree =
+      git_text(repo_root, { 'diff', '--no-ext-diff', '--no-color', '-U0', '--', 'file.txt' })
+
+    assert.is_true(cached:find('+insert alpha', 1, true) ~= nil)
+    assert.is_nil(cached:find('+insert beta', 1, true))
+    assert.is_true(worktree:find('+insert beta', 1, true) ~= nil)
+    assert.is_nil(worktree:find('+insert alpha', 1, true))
+  end)
+
+  it('unstages a visual selection through the buffer-local do map and refreshes', function()
+    local repo_root = create_repo()
+    write_repo_file(
+      repo_root,
+      file_lines_with_insertions(2, {
+        'insert alpha',
+        'insert beta',
+      })
+    )
+    git_cmd(repo_root, { 'add', 'file.txt' })
+
+    local bufnr = create_diff_buffer(repo_root, diffspec.head_to_index('file.txt'))
+    local selected = find_hunk_line(bufnr, 'add', '+insert beta')
+    local callback = assert(keymap_callback(bufnr, 'do', 'x'))
+
+    set_visual_range(bufnr, selected.lnum, selected.lnum)
+    callback()
+
+    local cached = git_text(
+      repo_root,
+      { 'diff', '--cached', '--no-ext-diff', '--no-color', '-U0', '--', 'file.txt' }
+    )
+
+    assert.is_true(cached:find('+insert alpha', 1, true) ~= nil)
+    assert.is_nil(cached:find('+insert beta', 1, true))
+    assert.is_nil(buffer_text(bufnr):find('+insert beta', 1, true))
+    assert.is_true(buffer_text(bufnr):find('+insert alpha', 1, true) ~= nil)
+  end)
+
+  it('unstages only selected deleted lines from a visual range', function()
+    local repo_root = create_repo()
+    write_repo_file(repo_root, file_lines_without(3, 2))
+    git_cmd(repo_root, { 'add', 'file.txt' })
+
+    local bufnr = create_diff_buffer(repo_root, diffspec.head_to_index('file.txt'))
+    local selected = find_hunk_line(bufnr, 'delete', '-line 4')
+
+    assert.is_true(actions.obtain_range(bufnr, selected.lnum, selected.lnum))
+
+    local cached = git_text(
+      repo_root,
+      { 'diff', '--cached', '--no-ext-diff', '--no-color', '-U0', '--', 'file.txt' }
+    )
+    local worktree =
+      git_text(repo_root, { 'diff', '--no-ext-diff', '--no-color', '-U0', '--', 'file.txt' })
+
+    assert.is_true(cached:find('-line 3', 1, true) ~= nil)
+    assert.is_nil(cached:find('-line 4', 1, true))
+    assert.is_true(worktree:find('-line 4', 1, true) ~= nil)
+    assert.is_nil(worktree:find('-line 3', 1, true))
+  end)
+
+  it('rejects visual ranges that cross Gdiff hunks without touching the index', function()
+    local notifications = capture_notifications()
+    local repo_root = create_repo()
+    write_repo_file(
+      repo_root,
+      file_lines({
+        [2] = 'line 2 changed',
+        [22] = 'line 22 changed',
+      })
+    )
+
+    local bufnr = create_diff_buffer(repo_root, diffspec.index_to_worktree('file.txt'))
+    local hunks = find_hunks(bufnr)
+
+    assert.is_false(
+      actions.put_range(bufnr, hunks[1].buffer_range.finish, hunks[2].buffer_range.start)
+    )
+
+    local cached = git_text(
+      repo_root,
+      { 'diff', '--cached', '--no-ext-diff', '--no-color', '-U0', '--', 'file.txt' }
+    )
+    assert.are.equal('', cached)
+    assert.is_true(
+      notifications[#notifications].message:find(
+        'visual selection must stay within one Gdiff hunk',
+        1,
+        true
+      ) ~= nil
+    )
+  end)
+
+  it('rejects partial replacement visual ranges without touching the index', function()
+    local notifications = capture_notifications()
+    local repo_root = create_repo()
+    write_repo_file(repo_root, file_lines({ [2] = 'line 2 changed' }))
+
+    local bufnr = create_diff_buffer(repo_root, diffspec.index_to_worktree('file.txt'))
+    local selected = find_hunk_line(bufnr, 'add', '+line 2 changed')
+
+    assert.is_false(actions.put_range(bufnr, selected.lnum, selected.lnum))
+
+    local cached = git_text(
+      repo_root,
+      { 'diff', '--cached', '--no-ext-diff', '--no-color', '-U0', '--', 'file.txt' }
+    )
+    assert.are.equal('', cached)
+    assert.is_true(
+      notifications[#notifications].message:find('complete replacement group', 1, true) ~= nil
+    )
   end)
 
   it('leaves the index untouched when the apply check fails', function()
