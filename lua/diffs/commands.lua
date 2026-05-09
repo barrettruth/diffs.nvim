@@ -140,6 +140,78 @@ local function read_gdiff_endpoint(endpoint, filepath, bufnr)
   return nil, 'unsupported endpoint: ' .. tostring(endpoint.kind)
 end
 
+---@param endpoint diffs.Endpoint
+---@param filepath string
+---@return string[]?, string?
+local function read_repo_endpoint(endpoint, filepath)
+  endpoint = diffspec.endpoint(endpoint)
+
+  if endpoint.kind == diffspec.endpoint_kind.tree then
+    return git.get_file_content(endpoint.rev, filepath)
+  end
+
+  if endpoint.kind == diffspec.endpoint_kind.index then
+    return git.get_index_content(filepath)
+  end
+
+  if endpoint.kind == diffspec.endpoint_kind.worktree then
+    return git.get_working_content(filepath)
+  end
+
+  return nil, 'unsupported endpoint: ' .. tostring(endpoint.kind)
+end
+
+---@param bufnr integer
+---@param name string
+---@return any
+local function get_buf_var(bufnr, name)
+  local ok, value = pcall(vim.api.nvim_buf_get_var, bufnr, name)
+  if ok then
+    return value
+  end
+  return nil
+end
+
+---@param bufnr integer
+---@param diff_spec diffs.DiffSpec
+local function set_diff_spec_var(bufnr, diff_spec)
+  vim.api.nvim_buf_set_var(bufnr, 'diffs_spec', diffspec.new(diff_spec))
+end
+
+---@param bufnr integer
+---@return diffs.DiffSpec?, string?
+local function get_diff_spec_var(bufnr)
+  local raw = get_buf_var(bufnr, 'diffs_spec')
+  if raw == nil then
+    return nil, nil
+  end
+
+  local ok, parsed = pcall(diffspec.new, raw)
+  if not ok then
+    return nil, tostring(parsed)
+  end
+
+  return parsed, nil
+end
+
+---@param diff_spec diffs.DiffSpec
+---@param repo_root string
+---@return string[]?, string?
+local function read_diff_spec(diff_spec, repo_root)
+  diff_spec = diffspec.new(diff_spec)
+
+  if diff_spec.scope.kind ~= diffspec.scope_kind.file then
+    return nil, 'unsupported DiffSpec scope: ' .. tostring(diff_spec.scope.kind)
+  end
+
+  local path = diff_spec.scope.path
+  local abs_path = repo_root .. '/' .. path
+  local old_lines = read_repo_endpoint(diff_spec.left, abs_path) or {}
+  local new_lines = read_repo_endpoint(diff_spec.right, abs_path) or {}
+
+  return generate_unified_diff(old_lines, new_lines, path, path), nil
+end
+
 ---@param raw_lines string[]
 ---@param repo_root string
 ---@return string[]
@@ -230,6 +302,7 @@ function M.gdiff(args, vertical)
   vim.api.nvim_set_option_value('modifiable', false, { buf = diff_buf })
   vim.api.nvim_set_option_value('filetype', 'diff', { buf = diff_buf })
   vim.api.nvim_buf_set_name(diff_buf, 'diffs://' .. diff_label .. ':' .. diff_path)
+  set_diff_spec_var(diff_buf, diff_spec)
   if repo_root then
     vim.api.nvim_buf_set_var(diff_buf, 'diffs_repo_root', repo_root)
   end
@@ -876,19 +949,45 @@ function M.read_buffer(bufnr)
     return
   end
 
-  local label, path = url_body:match('^([^:]+):(.+)$')
-  if not label or not path then
-    return
-  end
-
-  local ok, repo_root = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_repo_root')
-  if not ok or not repo_root then
+  local repo_root = get_buf_var(bufnr, 'diffs_repo_root')
+  if not repo_root then
+    vim.notify(
+      '[diffs.nvim]: cannot reload diffs:// buffer without diffs_repo_root',
+      vim.log.levels.WARN
+    )
     return
   end
 
   local diff_lines
+  local stored_spec, spec_err = get_diff_spec_var(bufnr)
+  if spec_err then
+    vim.notify(
+      '[diffs.nvim]: invalid diffs_spec metadata: ' .. tostring(spec_err),
+      vim.log.levels.WARN
+    )
+    return
+  end
 
-  if path == 'all' then
+  local label, path
+  if stored_spec then
+    local read_err
+    diff_lines, read_err = read_diff_spec(stored_spec, repo_root)
+    if not diff_lines then
+      vim.notify('[diffs.nvim]: ' .. read_err, vim.log.levels.WARN)
+      return
+    end
+  else
+    label, path = url_body:match('^([^:]+):(.+)$')
+    if not label or not path then
+      vim.notify(
+        '[diffs.nvim]: cannot reload malformed diffs:// buffer: ' .. name,
+        vim.log.levels.WARN
+      )
+      return
+    end
+  end
+
+  if not stored_spec and path == 'all' then
     local cmd = { 'git', '-C', repo_root, 'diff', '--no-ext-diff', '--no-color' }
     if label == 'staged' then
       table.insert(cmd, '--cached')
@@ -899,20 +998,10 @@ function M.read_buffer(bufnr)
     end
 
     diff_lines = replace_combined_diffs(diff_lines, repo_root)
-  elseif label == 'review' then
-    local stored_base = nil
-    local stored_target = nil
-    local stored_mode = nil
-
-    pcall(function()
-      stored_base = vim.api.nvim_buf_get_var(bufnr, 'diffs_review_base')
-    end)
-    pcall(function()
-      stored_target = vim.api.nvim_buf_get_var(bufnr, 'diffs_review_target')
-    end)
-    pcall(function()
-      stored_mode = vim.api.nvim_buf_get_var(bufnr, 'diffs_review_mode')
-    end)
+  elseif not stored_spec and label == 'review' then
+    local stored_base = get_buf_var(bufnr, 'diffs_review_base')
+    local stored_target = get_buf_var(bufnr, 'diffs_review_target')
+    local stored_mode = get_buf_var(bufnr, 'diffs_review_mode')
 
     local review_spec
     if stored_base then
@@ -940,7 +1029,7 @@ function M.read_buffer(bufnr)
     else
       diff_lines = {}
     end
-  else
+  elseif not stored_spec then
     local abs_path = repo_root .. '/' .. path
 
     local old_ok, old_rel_path = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_old_filepath')
@@ -980,7 +1069,9 @@ function M.read_buffer(bufnr)
   vim.api.nvim_set_option_value('swapfile', false, { buf = bufnr })
   vim.api.nvim_set_option_value('filetype', 'diff', { buf = bufnr })
 
-  dbg('reloaded diff buffer %d (%s:%s)', bufnr, label, path)
+  local debug_label = stored_spec and diffspec.label(stored_spec)
+    or ((label or '?') .. ':' .. (path or '?'))
+  dbg('reloaded diff buffer %d (%s)', bufnr, debug_label)
 
   runtime.attach(bufnr)
 end

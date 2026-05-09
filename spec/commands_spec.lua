@@ -1,6 +1,7 @@
 require('spec.helpers')
 
 local commands = require('diffs.commands')
+local diffspec = require('diffs.spec')
 local git = require('diffs.git')
 
 local saved_git = {}
@@ -205,6 +206,10 @@ describe('commands', function()
       assert.is_true(called_index)
       assert.is_false(called_head)
       assert.are.equal('diffs://unstaged:lua/foo.lua', vim.api.nvim_buf_get_name(diff_buf))
+      assert.are.same(
+        diffspec.index_to_worktree('lua/foo.lua'),
+        vim.api.nvim_buf_get_var(diff_buf, 'diffs_spec')
+      )
       assert.are.equal('diff --git a/lua/foo.lua b/lua/foo.lua', lines[1])
       assert.is_true(table.concat(lines, '\n'):find('+local x = 1', 1, true) ~= nil)
     end)
@@ -247,6 +252,10 @@ describe('commands', function()
       assert.are.equal('HEAD~3', captured_revision)
       assert.are.equal('diffs://HEAD~3:lua/foo.lua', vim.api.nvim_buf_get_name(diff_buf))
       assert.are.equal('/tmp/repo', vim.api.nvim_buf_get_var(diff_buf, 'diffs_repo_root'))
+      assert.are.same(
+        diffspec.rev_to_worktree('HEAD~3', 'lua/foo.lua'),
+        vim.api.nvim_buf_get_var(diff_buf, 'diffs_spec')
+      )
       assert.are.equal('diff --git a/lua/foo.lua b/lua/foo.lua', lines[1])
       assert.are.equal('--- a/lua/foo.lua', lines[2])
       assert.are.equal('+++ b/lua/foo.lua', lines[3])
