@@ -9,7 +9,9 @@ local saved_git = {}
 local saved_runtime_attach
 local saved_schedule
 local saved_systemlist
+local saved_notify
 local test_buffers = {}
+local test_repos = {}
 
 local function mock_repo_root(fn)
   saved_git.get_repo_root = git.get_repo_root
@@ -39,6 +41,49 @@ local function mock_runtime_attach(fn)
   end
 end
 
+local function capture_notifications()
+  local notifications = {}
+  saved_notify = vim.notify
+  vim.notify = function(message, level)
+    notifications[#notifications + 1] = { message = message, level = level }
+  end
+  return notifications
+end
+
+local function git_cmd(repo_root, args)
+  local cmd = { 'git', '-C', repo_root }
+  for _, arg in ipairs(args) do
+    cmd[#cmd + 1] = arg
+  end
+  local output = vim.fn.systemlist(cmd)
+  assert.are.equal(0, vim.v.shell_error, table.concat(output, '\n'))
+  return output
+end
+
+local function create_repo()
+  local repo_root = vim.fn.tempname()
+  vim.fn.mkdir(repo_root, 'p')
+  test_repos[#test_repos + 1] = repo_root
+
+  vim.fn.systemlist({ 'git', 'init', '-q', repo_root })
+  assert.are.equal(0, vim.v.shell_error)
+  git_cmd(repo_root, { 'config', 'user.email', 'test@example.com' })
+  git_cmd(repo_root, { 'config', 'user.name', 'Test' })
+  git_cmd(repo_root, { 'config', 'core.filemode', 'true' })
+  vim.fn.writefile({ 'line 1', 'line 2' }, repo_root .. '/file.txt')
+  git_cmd(repo_root, { 'add', 'file.txt' })
+  git_cmd(repo_root, { 'commit', '-qm', 'initial' })
+
+  return repo_root
+end
+
+local function edit_file(path)
+  vim.cmd('edit ' .. vim.fn.fnameescape(path))
+  local bufnr = vim.api.nvim_get_current_buf()
+  test_buffers[#test_buffers + 1] = bufnr
+  return bufnr
+end
+
 local function restore_mocks()
   for k, v in pairs(saved_git) do
     git[k] = v
@@ -56,6 +101,10 @@ local function restore_mocks()
     vim.fn.systemlist = saved_systemlist
     saved_systemlist = nil
   end
+  if saved_notify then
+    vim.notify = saved_notify
+    saved_notify = nil
+  end
 end
 
 local function cleanup_buffers()
@@ -67,10 +116,18 @@ local function cleanup_buffers()
   test_buffers = {}
 end
 
+local function cleanup_repos()
+  for _, repo_root in ipairs(test_repos) do
+    vim.fn.delete(repo_root, 'rf')
+  end
+  test_repos = {}
+end
+
 describe('commands', function()
   after_each(function()
     restore_mocks()
     cleanup_buffers()
+    cleanup_repos()
   end)
 
   describe('setup', function()
@@ -337,6 +394,84 @@ describe('commands', function()
       assert.are.equal('--- a/lua/foo.lua', lines[2])
       assert.are.equal('+++ b/lua/foo.lua', lines[3])
       assert.is_true(table.concat(lines, '\n'):find('+local x = 1', 1, true) ~= nil)
+    end)
+  end)
+
+  describe('Gdiff real repository rendering', function()
+    it('reports no unstaged changes for staged-only tracked files', function()
+      local repo_root = create_repo()
+      local filepath = repo_root .. '/file.txt'
+      vim.fn.writefile({ 'line 1', 'line 2 staged' }, filepath)
+      git_cmd(repo_root, { 'add', 'file.txt' })
+      local source_buf = edit_file(filepath)
+      local notifications = capture_notifications()
+      mock_runtime_attach(function() end)
+
+      commands.gdiff(nil, false)
+
+      assert.are.equal(source_buf, vim.api.nvim_get_current_buf())
+      assert.is_true(
+        notifications[#notifications].message:find('no changes for index -> worktree', 1, true)
+          ~= nil
+      )
+    end)
+
+    it('reports no unstaged changes for staged additions matching the worktree', function()
+      local repo_root = create_repo()
+      local filepath = repo_root .. '/new.txt'
+      vim.fn.writefile({ 'new line' }, filepath)
+      git_cmd(repo_root, { 'add', 'new.txt' })
+      local source_buf = edit_file(filepath)
+      local notifications = capture_notifications()
+      mock_runtime_attach(function() end)
+
+      commands.gdiff(nil, false)
+
+      assert.are.equal(source_buf, vim.api.nvim_get_current_buf())
+      assert.is_true(
+        notifications[#notifications].message:find('no changes for index -> worktree', 1, true)
+          ~= nil
+      )
+    end)
+
+    it('uses buffer EOF state for final-newline-only direct diffs', function()
+      local repo_root = create_repo()
+      local filepath = repo_root .. '/file.txt'
+      vim.fn.writefile({ 'line 1', 'line 2' }, filepath, 'b')
+      local source_buf = edit_file(filepath)
+      mock_runtime_attach(function() end)
+
+      assert.is_false(vim.bo[source_buf].endofline)
+
+      commands.gdiff(nil, false)
+
+      local diff_buf = vim.api.nvim_get_current_buf()
+      table.insert(test_buffers, diff_buf)
+      local text = table.concat(vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false), '\n')
+      assert.is_true(text:find('-line 2', 1, true) ~= nil)
+      assert.is_true(text:find('+line 2', 1, true) ~= nil)
+      assert.is_true(text:find('\\ No newline at end of file', 1, true) ~= nil)
+    end)
+
+    it('reports mode-only direct changes instead of rendering fake text hunks', function()
+      local repo_root = create_repo()
+      local filepath = repo_root .. '/file.txt'
+      vim.fn.setfperm(filepath, 'rwxr-xr-x')
+      local source_buf = edit_file(filepath)
+      local notifications = capture_notifications()
+      mock_runtime_attach(function() end)
+
+      commands.gdiff(nil, false)
+
+      assert.are.equal(source_buf, vim.api.nvim_get_current_buf())
+      assert.are.equal(vim.log.levels.ERROR, notifications[#notifications].level)
+      assert.is_true(
+        notifications[#notifications].message:find(
+          'Gdiff does not support mode-only changes',
+          1,
+          true
+        ) ~= nil
+      )
     end)
   end)
 
