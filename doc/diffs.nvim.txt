@@ -458,9 +458,11 @@ COMMANDS                                                 *diffs.nvim-commands*
                                                  HEAD -> index.
     Rename or copy    requires old and new paths  Not supported by the
                                                  same-path DiffSpec model.
-                                                 Status-row views may render
-                                                 content-only old/new diffs,
-                                                 but hunk actions are disabled.
+                                                 Status-row old/new path
+                                                 views render content changes
+                                                 without hunk actions; pure
+                                                 renames report no text
+                                                 changes.
     Mode-only change  no text hunk                Not supported. Shows an
                                                  explicit warning.
     Binary file       no text hunk                Not supported. Shows an
@@ -721,8 +723,10 @@ Behavior by file status: ~
     ?           Untracked   (empty)         working tree    file as all-added
 
 On section headers, the keymap runs `git diff` (or `git diff --cached` for
-staged) and displays all changes in that section as a single unified diff.
-Untracked section headers show a warning since there is no meaningful diff.
+staged) and displays all changes in that section as a single unified diff
+without hunk actions. Empty staged or unstaged sections report which section has
+no changes. Untracked section headers show a warning since there is no
+meaningful diff.
 
 Configuration: ~
                                                    *diffs.nvim.FugitiveConfig*
