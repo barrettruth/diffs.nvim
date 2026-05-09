@@ -49,20 +49,6 @@ luarocks install diffs.nvim
 :help diffs.nvim
 ```
 
-## Generated `:Gdiff`
-
-`:Gdiff` opens a generated unified `diffs://` buffer, not native Fugitive
-`:Gdiffsplit` windows. Plain `:Gdiff` from a worktree file shows the
-index-to-worktree edge, so staged-only changes report no unstaged changes. In a
-Fugitive status buffer, `du`/`dU` choose the edge from the row: staged rows show
-`HEAD -> index`, unstaged rows show `index -> worktree`, untracked rows show an
-all-added file, and unmerged rows show ours `:2:` vs theirs `:3:`.
-
-Generated hunk actions are capability-scoped: `dp` stages supported
-index-to-worktree hunks/ranges, and `do` unstages supported tree-to-index
-hunks/ranges. Native `:Gdiffsplit!`, 3-way `&diff` windows, writable Fugitive
-object buffers, and `dq` are outside this generated-buffer contract.
-
 ## FAQ
 
 **Q: Does diffs.nvim support
