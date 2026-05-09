@@ -408,6 +408,16 @@ function M.greview(spec, deps)
     name = target_name,
     lines = result,
     repo_root = review.repo_root,
+    source = {
+      version = 1,
+      kind = 'review',
+      repo_root = review.repo_root,
+      review = {
+        base = review.base,
+        target = review.target,
+        mode = review.mode,
+      },
+    },
     vars = {
       diffs_review_base = review.base,
       diffs_review_target = review.target,
@@ -448,6 +458,19 @@ function M.file_at_line(buf, lnum)
     end
   end
   return nil
+end
+
+---@param source diffs.GeneratedBufferSource
+---@param deps diffs.ReviewDeps
+---@return string[]
+function M.reload_source(source, deps)
+  local normalized = select(1, M.normalize(source.review, source.repo_root))
+  if normalized then
+    local result = select(1, M.run(normalized, deps))
+    return result or {}
+  end
+
+  return {}
 end
 
 ---@param bufnr integer

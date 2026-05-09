@@ -275,6 +275,81 @@ local function get_diff_spec_var(bufnr)
   return parsed, nil
 end
 
+---@class diffs.GeneratedBufferSource
+---@field version integer
+---@field kind "file"|"file_pair"|"section"|"review"|"unmerged"
+---@field repo_root string
+---@field spec? diffs.DiffSpec
+---@field edge? "staged"|"unstaged"
+---@field path? string
+---@field old_path? string
+---@field section? "staged"|"unstaged"
+---@field review? diffs.GreviewSpec
+---@field working_path? string
+
+---@param source table
+---@return diffs.GeneratedBufferSource?
+local function normalize_source(source)
+  if type(source) ~= 'table' then
+    error('expected table')
+  end
+  if source.version ~= 1 then
+    error('expected version 1')
+  end
+  if type(source.repo_root) ~= 'string' or source.repo_root == '' then
+    error('expected repo_root')
+  end
+
+  if source.kind == 'file' then
+    if source.spec == nil then
+      error('expected file spec')
+    end
+    source.spec = diffspec.new(source.spec)
+  elseif source.kind == 'file_pair' then
+    if source.edge ~= 'staged' and source.edge ~= 'unstaged' then
+      error('expected file_pair edge')
+    end
+    if type(source.path) ~= 'string' or source.path == '' then
+      error('expected file_pair path')
+    end
+    if type(source.old_path) ~= 'string' or source.old_path == '' then
+      error('expected file_pair old_path')
+    end
+  elseif source.kind == 'section' then
+    if source.section ~= 'staged' and source.section ~= 'unstaged' then
+      error('expected section')
+    end
+  elseif source.kind == 'review' then
+    if type(source.review) ~= 'table' then
+      error('expected review spec')
+    end
+  elseif source.kind == 'unmerged' then
+    if type(source.path) ~= 'string' or source.path == '' then
+      error('expected unmerged path')
+    end
+  else
+    error('unknown source kind')
+  end
+
+  return source
+end
+
+---@param bufnr integer
+---@return diffs.GeneratedBufferSource?, string?
+local function get_source_var(bufnr)
+  local raw = get_buf_var(bufnr, 'diffs_source')
+  if raw == nil then
+    return nil, nil
+  end
+
+  local ok, source = pcall(normalize_source, raw)
+  if not ok then
+    return nil, tostring(source)
+  end
+
+  return source, nil
+end
+
 ---@param bufnr integer
 local function set_generated_diff_buffer_options(bufnr)
   vim.api.nvim_set_option_value('buftype', 'nowrite', { buf = bufnr })
@@ -289,6 +364,7 @@ end
 ---@field lines string[]
 ---@field repo_root? string
 ---@field diff_spec? diffs.DiffSpec
+---@field source? diffs.GeneratedBufferSource
 ---@field vars? table<string, any>
 
 ---@param opts diffs.GeneratedDiffBufferOpts
@@ -305,6 +381,9 @@ local function create_generated_diff_buffer(opts)
   end
   if opts.repo_root then
     vim.api.nvim_buf_set_var(bufnr, 'diffs_repo_root', opts.repo_root)
+  end
+  if opts.source then
+    vim.api.nvim_buf_set_var(bufnr, 'diffs_source', opts.source)
   end
   for name, value in pairs(opts.vars or {}) do
     if value ~= nil then
@@ -389,6 +468,71 @@ local function review_deps()
   }
 end
 
+---@param repo_root string
+---@param section "staged"|"unstaged"
+---@return string[]
+local function render_section_source(repo_root, section)
+  local cmd = { 'git', '-C', repo_root, 'diff', '--no-ext-diff', '--no-color' }
+  if section == 'staged' then
+    table.insert(cmd, '--cached')
+  end
+
+  local diff_lines = vim.fn.systemlist(cmd)
+  if vim.v.shell_error ~= 0 then
+    diff_lines = {}
+  end
+
+  return replace_combined_diffs(diff_lines, repo_root)
+end
+
+---@param source diffs.GeneratedBufferSource
+---@return string[]?, diffs.DiffSpec?, string?
+local function render_source(source)
+  if source.kind == 'file' then
+    local diff_lines, read_err = render.file(source.spec, source.repo_root, {
+      empty_on_missing = true,
+    })
+    if not diff_lines then
+      return nil, nil, read_err
+    end
+    return diff_lines, source.spec, diffspec.label(source.spec)
+  end
+
+  if source.kind == 'file_pair' then
+    local abs_path = source.repo_root .. '/' .. source.path
+    local old_abs_path = source.repo_root .. '/' .. source.old_path
+    local old_lines, new_lines
+    if source.edge == 'staged' then
+      old_lines = git.get_file_content('HEAD', old_abs_path) or {}
+      new_lines = git.get_index_content(abs_path) or {}
+    else
+      old_lines = git.get_index_content(old_abs_path)
+      if not old_lines then
+        old_lines = git.get_file_content('HEAD', old_abs_path) or {}
+      end
+      new_lines = git.get_working_content(abs_path) or {}
+    end
+    return render.unified_lines(old_lines, new_lines, source.old_path, source.path),
+      nil,
+      source.edge .. ':' .. source.path
+  end
+
+  if source.kind == 'section' then
+    return render_section_source(source.repo_root, source.section), nil, source.section .. ':all'
+  end
+
+  if source.kind == 'review' then
+    return review.reload_source(source, review_deps()), nil, 'review'
+  end
+
+  local abs_path = source.repo_root .. '/' .. source.path
+  local old_lines = git.get_file_content(':2', abs_path) or {}
+  local new_lines = git.get_file_content(':3', abs_path) or {}
+  return render.unified_lines(old_lines, new_lines, source.path, source.path),
+    nil,
+    'unmerged:' .. source.path
+end
+
 ---@param spec? diffs.GreviewSpec
 ---@return integer?
 function M.greview(spec)
@@ -459,6 +603,12 @@ function M.gdiff(args, vertical)
     lines = diff_lines,
     repo_root = repo_root,
     diff_spec = diff_spec,
+    source = {
+      version = 1,
+      kind = 'file',
+      repo_root = repo_root,
+      spec = diff_spec,
+    },
   })
   show_generated_diff_buffer(diff_buf, vertical)
   attach_generated_diff_buffer(diff_buf)
@@ -546,11 +696,39 @@ function M.gdiff_file(filepath, opts)
     return
   end
 
+  local source
+  if diff_spec then
+    source = {
+      version = 1,
+      kind = 'file',
+      repo_root = repo_root,
+      spec = diff_spec,
+    }
+  elseif opts.unmerged then
+    source = {
+      version = 1,
+      kind = 'unmerged',
+      repo_root = repo_root,
+      path = rel_path,
+      working_path = filepath,
+    }
+  else
+    source = {
+      version = 1,
+      kind = 'file_pair',
+      repo_root = repo_root,
+      edge = diff_label,
+      path = rel_path,
+      old_path = old_rel_path,
+    }
+  end
+
   local diff_buf = create_generated_diff_buffer({
     name = 'diffs://' .. diff_label .. ':' .. rel_path,
     lines = diff_lines,
     repo_root = repo_root,
     diff_spec = diff_spec,
+    source = source,
     vars = {
       diffs_old_filepath = old_rel_path ~= rel_path and old_rel_path or nil,
     },
@@ -609,6 +787,12 @@ function M.gdiff_section(repo_root, opts)
     name = 'diffs://' .. diff_label .. ':all',
     lines = result,
     repo_root = repo_root,
+    source = {
+      version = 1,
+      kind = 'section',
+      repo_root = repo_root,
+      section = diff_label,
+    },
   })
   show_generated_diff_buffer(diff_buf, opts.vertical)
   attach_generated_diff_buffer(diff_buf)
@@ -623,85 +807,97 @@ function M.read_buffer(bufnr)
     return
   end
 
-  local repo_root = get_buf_var(bufnr, 'diffs_repo_root')
+  local source, source_err = get_source_var(bufnr)
+  if source_err then
+    notify('invalid diffs_source metadata: ' .. tostring(source_err), vim.log.levels.WARN)
+    return
+  end
+
+  local repo_root = source and source.repo_root or get_buf_var(bufnr, 'diffs_repo_root')
   if not repo_root then
     notify('cannot reload diffs:// buffer without diffs_repo_root', vim.log.levels.WARN)
     return
   end
 
   local diff_lines
-  local stored_spec, spec_err = get_diff_spec_var(bufnr)
-  if spec_err then
-    notify('invalid diffs_spec metadata: ' .. tostring(spec_err), vim.log.levels.WARN)
-    return
-  end
-
+  local stored_spec
+  local debug_label
   local label, path
-  if stored_spec then
-    local read_err
-    diff_lines, read_err = render.file(stored_spec, repo_root, { empty_on_missing = true })
+
+  if source then
+    local render_err
+    diff_lines, stored_spec, render_err = render_source(source)
     if not diff_lines then
-      notify(read_err, vim.log.levels.WARN)
+      notify(render_err or 'cannot reload diffs:// buffer', vim.log.levels.WARN)
       return
     end
+    debug_label = render_err
   else
-    label, path = url_body:match('^([^:]+):(.+)$')
-    if not label or not path then
-      notify('cannot reload malformed diffs:// buffer: ' .. name, vim.log.levels.WARN)
+    local spec_err
+    stored_spec, spec_err = get_diff_spec_var(bufnr)
+    if spec_err then
+      notify('invalid diffs_spec metadata: ' .. tostring(spec_err), vim.log.levels.WARN)
       return
     end
-  end
 
-  if not stored_spec and path == 'all' then
-    local cmd = { 'git', '-C', repo_root, 'diff', '--no-ext-diff', '--no-color' }
-    if label == 'staged' then
-      table.insert(cmd, '--cached')
-    end
-    diff_lines = vim.fn.systemlist(cmd)
-    if vim.v.shell_error ~= 0 then
-      diff_lines = {}
-    end
-
-    diff_lines = replace_combined_diffs(diff_lines, repo_root)
-  elseif not stored_spec and label == 'review' then
-    diff_lines = review.reload(bufnr, repo_root, path, review_deps())
-  elseif not stored_spec then
-    local abs_path = repo_root .. '/' .. path
-
-    local old_ok, old_rel_path = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_old_filepath')
-    local old_abs_path = old_ok and old_rel_path and (repo_root .. '/' .. old_rel_path) or abs_path
-    local old_name = old_ok and old_rel_path or path
-
-    local old_lines, new_lines
-
-    if label == 'unmerged' then
-      old_lines = git.get_file_content(':2', abs_path) or {}
-      new_lines = git.get_file_content(':3', abs_path) or {}
-    elseif label == 'untracked' then
-      old_lines = {}
-      new_lines = git.get_working_content(abs_path) or {}
-    elseif label == 'staged' then
-      old_lines = git.get_file_content('HEAD', old_abs_path) or {}
-      new_lines = git.get_index_content(abs_path) or {}
-    elseif label == 'unstaged' then
-      old_lines = git.get_index_content(old_abs_path)
-      if not old_lines then
-        old_lines = git.get_file_content('HEAD', old_abs_path) or {}
+    if stored_spec then
+      local read_err
+      diff_lines, read_err = render.file(stored_spec, repo_root, { empty_on_missing = true })
+      if not diff_lines then
+        notify(read_err, vim.log.levels.WARN)
+        return
       end
-      new_lines = git.get_working_content(abs_path) or {}
+      debug_label = diffspec.label(stored_spec)
     else
-      old_lines = git.get_file_content(label, abs_path) or {}
-      new_lines = git.get_working_content(abs_path) or {}
+      label, path = url_body:match('^([^:]+):(.+)$')
+      if not label or not path then
+        notify('cannot reload malformed diffs:// buffer: ' .. name, vim.log.levels.WARN)
+        return
+      end
     end
 
-    diff_lines = render.unified_lines(old_lines, new_lines, old_name, path)
+    if not stored_spec and path == 'all' then
+      diff_lines = render_section_source(repo_root, label)
+    elseif not stored_spec and label == 'review' then
+      diff_lines = review.reload(bufnr, repo_root, path, review_deps())
+    elseif not stored_spec then
+      local abs_path = repo_root .. '/' .. path
+
+      local old_ok, old_rel_path = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_old_filepath')
+      local old_abs_path = old_ok and old_rel_path and (repo_root .. '/' .. old_rel_path)
+        or abs_path
+      local old_name = old_ok and old_rel_path or path
+
+      local old_lines, new_lines
+
+      if label == 'unmerged' then
+        old_lines = git.get_file_content(':2', abs_path) or {}
+        new_lines = git.get_file_content(':3', abs_path) or {}
+      elseif label == 'untracked' then
+        old_lines = {}
+        new_lines = git.get_working_content(abs_path) or {}
+      elseif label == 'staged' then
+        old_lines = git.get_file_content('HEAD', old_abs_path) or {}
+        new_lines = git.get_index_content(abs_path) or {}
+      elseif label == 'unstaged' then
+        old_lines = git.get_index_content(old_abs_path)
+        if not old_lines then
+          old_lines = git.get_file_content('HEAD', old_abs_path) or {}
+        end
+        new_lines = git.get_working_content(abs_path) or {}
+      else
+        old_lines = git.get_file_content(label, abs_path) or {}
+        new_lines = git.get_working_content(abs_path) or {}
+      end
+
+      diff_lines = render.unified_lines(old_lines, new_lines, old_name, path)
+    end
+    debug_label = debug_label or ((label or '?') .. ':' .. (path or '?'))
   end
 
   replace_generated_diff_buffer_lines(bufnr, diff_lines, stored_spec)
   M.setup_diff_buf(bufnr)
 
-  local debug_label = stored_spec and diffspec.label(stored_spec)
-    or ((label or '?') .. ':' .. (path or '?'))
   dbg('reloaded diff buffer %d (%s)', bufnr, debug_label)
 
   runtime.attach(bufnr)
