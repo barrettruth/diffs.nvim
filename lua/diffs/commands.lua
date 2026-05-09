@@ -585,6 +585,20 @@ function M.gdiff(args, vertical)
     return
   end
 
+  if
+    diff_spec.left.kind == diffspec.endpoint_kind.index
+    and diff_spec.right.kind == diffspec.endpoint_kind.worktree
+    and diff_spec.scope.kind == diffspec.scope_kind.file
+    and diff_path == rel_path
+    and git.is_unmerged(filepath)
+  then
+    M.gdiff_file(filepath, {
+      vertical = vertical,
+      unmerged = true,
+    })
+    return
+  end
+
   local diff_lines, render_err = render.file(diff_spec, repo_root, {
     worktree_lines = content.from_buffer(bufnr),
   })
