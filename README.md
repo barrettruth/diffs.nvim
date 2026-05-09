@@ -13,26 +13,31 @@ highlighting driven by treesitter.
   [vim-fugitive](https://github.com/tpope/vim-fugitive),
   [Neogit](https://github.com/NeogitOrg/neogit), builtin `diff` filetype, and
   more!
-- Character-level intra-line diff highlighting (with optional
-  [vscode-diff](https://github.com/esmuellert/codediff.nvim) FFI backend for
-  word-level accuracy)
+- Character-level intra-line diff highlighting
+- Word-level diff highlighting
 - `:Gdiff` unified diff against any revision
 - `:Greview` full-repo review diff with qflist/loclist navigation
 - Inline merge conflict detection, highlighting, and resolution
-- gitsigns.nvim blame popup highlighting
 - Email quoting/patch syntax support (`> diff ...`)
 - Vim syntax fallback
-- Configurable highlighiting blend & priorities
-- Context-inclusive, high-accuracy highlights
+- Configurable highlighting blend & priorities
 
 ## Requirements
 
 - Neovim 0.9.0+
+- Optional: the Treesitter `diff` parser for the best experience
 
 ## Installation
 
-Install with your package manager of choice or via
-[luarocks](https://luarocks.org/modules/barrettruth/diffs.nvim):
+With `vim.pack` (Neovim 0.12+):
+
+```lua
+vim.pack.add({
+  'https://git.barrettruth.com/barrettruth/diffs.nvim',
+})
+```
+
+Or via [luarocks](https://luarocks.org/modules/barrettruth/diffs.nvim):
 
 ```
 luarocks install diffs.nvim
@@ -45,22 +50,6 @@ luarocks install diffs.nvim
 ```
 
 ## FAQ
-
-**Q: How do I install with lazy.nvim?**
-
-```lua
-{
-  'barrettruth/diffs.nvim',
-  init = function()
-    vim.g.diffs = {
-      ...
-    }
-  end,
-}
-```
-
-Do not lazy load `diffs.nvim` with `event`, `lazy`, `ft`, `config`, or `keys` to
-control loading - `diffs.nvim` lazy-loads itself.
 
 **Q: Does diffs.nvim support
 [vim-fugitive](https://github.com/tpope/vim-fugitive)/[Neogit](https://github.com/NeogitOrg/neogit)/[neojj](https://github.com/NicholasZolton/neojj)/[gitsigns](https://github.com/lewis6991/gitsigns.nvim)/[fzf-lua](https://github.com/ibhagwan/fzf-lua)?**
