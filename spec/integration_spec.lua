@@ -128,15 +128,34 @@ describe('integration', function()
   end)
 
   describe('ft_retry_pending', function()
+    local saved_schedule
+    local scheduled_callbacks
+
+    local function run_scheduled_callbacks()
+      local callbacks = scheduled_callbacks
+      scheduled_callbacks = {}
+      for _, callback in ipairs(callbacks) do
+        callback()
+      end
+    end
+
     before_each(function()
       rawset(vim.fn, 'did_filetype', function()
         return 1
       end)
+      saved_schedule = vim.schedule
+      scheduled_callbacks = {}
+      vim.schedule = function(callback)
+        scheduled_callbacks[#scheduled_callbacks + 1] = callback
+      end
       require('diffs.parser')._test.ft_lang_cache = {}
     end)
 
     after_each(function()
       rawset(vim.fn, 'did_filetype', nil)
+      vim.schedule = saved_schedule
+      saved_schedule = nil
+      scheduled_callbacks = nil
     end)
 
     it('sets ft_retry_pending when nil-ft hunks detected under did_filetype', function()
@@ -166,13 +185,7 @@ describe('integration', function()
       runtime.attach(bufnr)
       assert.is_true(runtime._test.ft_retry_pending[bufnr] == true)
 
-      local done = false
-      vim.schedule(function()
-        done = true
-      end)
-      vim.wait(1000, function()
-        return done
-      end)
+      run_scheduled_callbacks()
 
       assert.is_nil(runtime._test.ft_retry_pending[bufnr])
       delete_buffer(bufnr)
@@ -190,13 +203,7 @@ describe('integration', function()
       local tick_after_attach = runtime._test.hunk_cache[bufnr].tick
       assert.is_true(tick_after_attach >= 0)
 
-      local done = false
-      vim.schedule(function()
-        done = true
-      end)
-      vim.wait(1000, function()
-        return done
-      end)
+      run_scheduled_callbacks()
 
       local entry = runtime._test.hunk_cache[bufnr]
       assert.are.equal(-1, entry.tick)

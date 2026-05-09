@@ -360,6 +360,7 @@ function M.gdiff_file(filepath, opts)
 
   local old_lines, new_lines, err
   local diff_label
+  local diff_spec
 
   if opts.unmerged then
     old_lines = git.get_file_content(':2', filepath)
@@ -389,6 +390,9 @@ function M.gdiff_file(filepath, opts)
       new_lines = {}
     end
     diff_label = 'staged'
+    if old_rel_path == rel_path then
+      diff_spec = diffspec.head_to_index(rel_path)
+    end
   else
     old_lines, err = git.get_index_content(opts.old_filepath or filepath)
     if not old_lines then
@@ -401,6 +405,9 @@ function M.gdiff_file(filepath, opts)
       end
     else
       diff_label = 'unstaged'
+      if old_rel_path == rel_path then
+        diff_spec = diffspec.index_to_worktree(rel_path)
+      end
     end
     new_lines, err = git.get_working_content(filepath)
     if not new_lines then
@@ -425,6 +432,10 @@ function M.gdiff_file(filepath, opts)
   vim.api.nvim_set_option_value('modifiable', false, { buf = diff_buf })
   vim.api.nvim_set_option_value('filetype', 'diff', { buf = diff_buf })
   vim.api.nvim_buf_set_name(diff_buf, 'diffs://' .. diff_label .. ':' .. rel_path)
+  if diff_spec then
+    set_diff_spec_var(diff_buf, diff_spec)
+    set_diff_hunks_var(diff_buf, diff_lines, diff_spec)
+  end
   if repo_root then
     vim.api.nvim_buf_set_var(diff_buf, 'diffs_repo_root', repo_root)
   end

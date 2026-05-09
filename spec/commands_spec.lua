@@ -3,8 +3,11 @@ local helpers = require('spec.helpers')
 local commands = require('diffs.commands')
 local diffspec = require('diffs.spec')
 local git = require('diffs.git')
+local runtime = require('diffs.runtime')
 
 local saved_git = {}
+local saved_runtime_attach
+local saved_schedule
 local saved_systemlist
 local test_buffers = {}
 
@@ -27,11 +30,28 @@ local function mock_systemlist(fn)
   end
 end
 
+local function mock_runtime_attach(fn)
+  saved_runtime_attach = runtime.attach
+  runtime.attach = fn
+  saved_schedule = vim.schedule
+  vim.schedule = function(callback)
+    callback()
+  end
+end
+
 local function restore_mocks()
   for k, v in pairs(saved_git) do
     git[k] = v
   end
   saved_git = {}
+  if saved_runtime_attach then
+    runtime.attach = saved_runtime_attach
+    saved_runtime_attach = nil
+  end
+  if saved_schedule then
+    vim.schedule = saved_schedule
+    saved_schedule = nil
+  end
   if saved_systemlist then
     vim.fn.systemlist = saved_systemlist
     saved_systemlist = nil
@@ -193,14 +213,12 @@ describe('commands', function()
         assert.are.equal('/tmp/repo/lua/foo.lua', filepath)
         return '/tmp/repo'
       end)
+      mock_runtime_attach(function() end)
 
       commands.gdiff(nil, false)
 
       local diff_buf = vim.api.nvim_get_current_buf()
       table.insert(test_buffers, diff_buf)
-      vim.wait(10, function()
-        return false
-      end)
       local lines = vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false)
 
       assert.is_true(called_index)
@@ -250,14 +268,12 @@ describe('commands', function()
         assert.are.equal('/tmp/repo/lua/foo.lua', filepath)
         return '/tmp/repo'
       end)
+      mock_runtime_attach(function() end)
 
       commands.gdiff('HEAD~3', false)
 
       local diff_buf = vim.api.nvim_get_current_buf()
       table.insert(test_buffers, diff_buf)
-      vim.wait(10, function()
-        return false
-      end)
       local lines = vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false)
 
       assert.are.equal('HEAD~3', captured_revision)
@@ -275,6 +291,85 @@ describe('commands', function()
       assert.are.equal('--- a/lua/foo.lua', lines[2])
       assert.are.equal('+++ b/lua/foo.lua', lines[3])
       assert.is_true(table.concat(lines, '\n'):find('+local x = 1', 1, true) ~= nil)
+    end)
+  end)
+
+  describe('gdiff_file DiffSpec metadata', function()
+    it('marks fugitive-style staged file diffs as HEAD to index buffers', function()
+      mock_git_method('get_relative_path', function(filepath)
+        if filepath == '/tmp/repo/lua/foo.lua' then
+          return 'lua/foo.lua'
+        end
+        return nil
+      end)
+      mock_git_method('get_file_content', function(revision, filepath)
+        assert.are.equal('HEAD', revision)
+        assert.are.equal('/tmp/repo/lua/foo.lua', filepath)
+        return { 'local M = {}', 'return M' }
+      end)
+      mock_git_method('get_index_content', function(filepath)
+        assert.are.equal('/tmp/repo/lua/foo.lua', filepath)
+        return { 'local M = {}', 'local x = 1', 'return M' }
+      end)
+      mock_repo_root(function(filepath)
+        assert.are.equal('/tmp/repo/lua/foo.lua', filepath)
+        return '/tmp/repo'
+      end)
+      mock_runtime_attach(function() end)
+
+      commands.gdiff_file('/tmp/repo/lua/foo.lua', { staged = true })
+
+      local diff_buf = vim.api.nvim_get_current_buf()
+      table.insert(test_buffers, diff_buf)
+
+      assert.are.equal('diffs://staged:lua/foo.lua', vim.api.nvim_buf_get_name(diff_buf))
+      assert.are.same(
+        diffspec.head_to_index('lua/foo.lua'),
+        vim.api.nvim_buf_get_var(diff_buf, 'diffs_spec')
+      )
+      local diff_hunks = vim.api.nvim_buf_get_var(diff_buf, 'diffs_hunks')
+      assert.are.equal(1, #diff_hunks)
+      assert.are.equal('index', diff_hunks[1].mutation_target)
+      assert.is_true(helpers.has_keymap(diff_buf, 'do'))
+      assert.is_true(helpers.has_keymap(diff_buf, 'dp'))
+    end)
+
+    it('marks fugitive-style unstaged file diffs as index to worktree buffers', function()
+      mock_git_method('get_relative_path', function(filepath)
+        if filepath == '/tmp/repo/lua/foo.lua' then
+          return 'lua/foo.lua'
+        end
+        return nil
+      end)
+      mock_git_method('get_index_content', function(filepath)
+        assert.are.equal('/tmp/repo/lua/foo.lua', filepath)
+        return { 'local M = {}', 'return M' }
+      end)
+      mock_git_method('get_working_content', function(filepath)
+        assert.are.equal('/tmp/repo/lua/foo.lua', filepath)
+        return { 'local M = {}', 'local x = 1', 'return M' }
+      end)
+      mock_repo_root(function(filepath)
+        assert.are.equal('/tmp/repo/lua/foo.lua', filepath)
+        return '/tmp/repo'
+      end)
+      mock_runtime_attach(function() end)
+
+      commands.gdiff_file('/tmp/repo/lua/foo.lua')
+
+      local diff_buf = vim.api.nvim_get_current_buf()
+      table.insert(test_buffers, diff_buf)
+
+      assert.are.equal('diffs://unstaged:lua/foo.lua', vim.api.nvim_buf_get_name(diff_buf))
+      assert.are.same(
+        diffspec.index_to_worktree('lua/foo.lua'),
+        vim.api.nvim_buf_get_var(diff_buf, 'diffs_spec')
+      )
+      local diff_hunks = vim.api.nvim_buf_get_var(diff_buf, 'diffs_hunks')
+      assert.are.equal(1, #diff_hunks)
+      assert.are.equal('worktree', diff_hunks[1].mutation_target)
+      assert.is_true(helpers.has_keymap(diff_buf, 'do'))
+      assert.is_true(helpers.has_keymap(diff_buf, 'dp'))
     end)
   end)
 
@@ -390,6 +485,7 @@ describe('commands', function()
           '+new',
         }
       end)
+      mock_runtime_attach(function() end)
 
       local bufnr = commands.greview({
         base = 'origin/main',
@@ -398,9 +494,6 @@ describe('commands', function()
         repo = '/tmp/repo',
       })
       table.insert(test_buffers, bufnr)
-      vim.wait(10, function()
-        return false
-      end)
 
       assert.are.same({
         'git',
