@@ -706,6 +706,8 @@ describe('commands', function()
         assert.is_false(has_buf_var(bufnr, 'diffs_spec'))
       end
 
+      assert.are.same(case.source, vim.api.nvim_buf_get_var(bufnr, 'diffs_source'))
+
       if case.review then
         assert.are.equal(case.review.base, vim.api.nvim_buf_get_var(bufnr, 'diffs_review_base'))
         assert.are.equal(case.review.target, vim.api.nvim_buf_get_var(bufnr, 'diffs_review_target'))
@@ -742,6 +744,12 @@ describe('commands', function()
           end,
           buffer_name = 'diffs://unstaged:lua/unstaged.lua',
           diff_spec = diffspec.index_to_worktree('lua/unstaged.lua'),
+          source = {
+            version = 1,
+            kind = 'file',
+            repo_root = '/tmp/repo',
+            spec = diffspec.index_to_worktree('lua/unstaged.lua'),
+          },
           hunk = {
             file = 'lua/unstaged.lua',
             mutation_target = 'worktree',
@@ -757,6 +765,12 @@ describe('commands', function()
           end,
           buffer_name = 'diffs://staged:lua/staged.lua',
           diff_spec = diffspec.head_to_index('lua/staged.lua'),
+          source = {
+            version = 1,
+            kind = 'file',
+            repo_root = '/tmp/repo',
+            spec = diffspec.head_to_index('lua/staged.lua'),
+          },
           hunk = {
             file = 'lua/staged.lua',
             mutation_target = 'index',
@@ -772,6 +786,12 @@ describe('commands', function()
           end,
           buffer_name = 'diffs://untracked:lua/new.lua',
           diff_spec = diffspec.index_to_worktree('lua/new.lua'),
+          source = {
+            version = 1,
+            kind = 'file',
+            repo_root = '/tmp/repo',
+            spec = diffspec.index_to_worktree('lua/new.lua'),
+          },
           hunk = {
             file = 'lua/new.lua',
             mutation_target = 'worktree',
@@ -786,6 +806,12 @@ describe('commands', function()
             commands.gdiff_section('/tmp/repo')
           end,
           buffer_name = 'diffs://unstaged:all',
+          source = {
+            version = 1,
+            kind = 'section',
+            repo_root = '/tmp/repo',
+            section = 'unstaged',
+          },
           first_line = 'diff --git a/lua/section.lua b/lua/section.lua',
         },
         {
@@ -799,6 +825,16 @@ describe('commands', function()
             })
           end,
           buffer_name = 'diffs://review:origin/main...refs/forge/pr/42',
+          source = {
+            version = 1,
+            kind = 'review',
+            repo_root = '/tmp/repo',
+            review = {
+              base = 'origin/main',
+              target = 'refs/forge/pr/42',
+              mode = 'merge-base',
+            },
+          },
           review = {
             base = 'origin/main',
             target = 'refs/forge/pr/42',
