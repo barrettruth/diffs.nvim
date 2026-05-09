@@ -3,6 +3,7 @@ local M = {}
 local diffspec = require('diffs.spec')
 local git = require('diffs.git')
 local hunk_model = require('diffs.hunks')
+local notify = require('diffs.log').notify
 
 ---@param bufnr integer
 ---@param name string
@@ -297,12 +298,6 @@ local function range_action_context(bufnr, range_start, range_finish)
   end
 
   return start_hunk, spec, nil
-end
-
----@param message string
----@param level integer
-local function notify(message, level)
-  vim.notify('[diffs]: ' .. message, level)
 end
 
 ---@param bufnr integer

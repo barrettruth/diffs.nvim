@@ -13,6 +13,7 @@
 local M = {}
 
 local keymaps = require('diffs.keymaps')
+local notify = require('diffs.log').notify
 
 local ns = vim.api.nvim_create_namespace('diffs-conflict')
 
@@ -285,7 +286,7 @@ end
 ---@param config diffs.ConflictConfig
 function M.resolve_ours(bufnr, config)
   if not vim.api.nvim_get_option_value('modifiable', { buf = bufnr }) then
-    vim.notify('[diffs]: buffer is not modifiable', vim.log.levels.WARN)
+    notify('buffer is not modifiable', vim.log.levels.WARN)
     return
   end
   local regions = parse_buffer(bufnr)
@@ -303,7 +304,7 @@ end
 ---@param config diffs.ConflictConfig
 function M.resolve_theirs(bufnr, config)
   if not vim.api.nvim_get_option_value('modifiable', { buf = bufnr }) then
-    vim.notify('[diffs]: buffer is not modifiable', vim.log.levels.WARN)
+    notify('buffer is not modifiable', vim.log.levels.WARN)
     return
   end
   local regions = parse_buffer(bufnr)
@@ -321,7 +322,7 @@ end
 ---@param config diffs.ConflictConfig
 function M.resolve_both(bufnr, config)
   if not vim.api.nvim_get_option_value('modifiable', { buf = bufnr }) then
-    vim.notify('[diffs]: buffer is not modifiable', vim.log.levels.WARN)
+    notify('buffer is not modifiable', vim.log.levels.WARN)
     return
   end
   local regions = parse_buffer(bufnr)
@@ -347,7 +348,7 @@ end
 ---@param config diffs.ConflictConfig
 function M.resolve_none(bufnr, config)
   if not vim.api.nvim_get_option_value('modifiable', { buf = bufnr }) then
-    vim.notify('[diffs]: buffer is not modifiable', vim.log.levels.WARN)
+    notify('buffer is not modifiable', vim.log.levels.WARN)
     return
   end
   local regions = parse_buffer(bufnr)
@@ -374,7 +375,7 @@ function M.goto_next(bufnr)
       return
     end
   end
-  vim.notify('[diffs]: wrapped to first conflict', vim.log.levels.INFO)
+  notify('wrapped to first conflict', vim.log.levels.INFO)
   vim.api.nvim_win_set_cursor(0, { regions[1].marker_ours + 1, 0 })
 end
 
@@ -392,7 +393,7 @@ function M.goto_prev(bufnr)
       return
     end
   end
-  vim.notify('[diffs]: wrapped to last conflict', vim.log.levels.INFO)
+  notify('wrapped to last conflict', vim.log.levels.INFO)
   vim.api.nvim_win_set_cursor(0, { regions[#regions].marker_ours + 1, 0 })
 end
 

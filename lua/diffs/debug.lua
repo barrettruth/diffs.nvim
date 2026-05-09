@@ -1,5 +1,7 @@
 local M = {}
 
+local notify = require('diffs.log').notify
+
 local ns = vim.api.nvim_create_namespace('diffs')
 
 function M.dump()
@@ -63,7 +65,7 @@ function M.dump()
   if f then
     f:write(vim.json.encode(result))
     f:close()
-    vim.notify('[diffs]: debug dump: ' .. path, vim.log.levels.INFO)
+    notify('debug dump: ' .. path, vim.log.levels.INFO)
   end
 end
 

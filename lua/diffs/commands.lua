@@ -5,9 +5,12 @@ local diffspec = require('diffs.spec')
 local gdiff_parser = require('diffs.gdiff')
 local git = require('diffs.git')
 local hunk_model = require('diffs.hunks')
-local dbg = require('diffs.log').dbg
+local log = require('diffs.log')
 local render = require('diffs.render')
 local runtime = require('diffs.runtime')
+
+local dbg = log.dbg
+local notify = log.notify
 
 ---@class diffs.HunkKeymap
 ---@field mode string
@@ -381,13 +384,13 @@ function M.gdiff(args, vertical)
   local filepath = vim.api.nvim_buf_get_name(bufnr)
 
   if filepath == '' then
-    vim.notify('[diffs]: cannot diff unnamed buffer', vim.log.levels.ERROR)
+    notify('cannot diff unnamed buffer', vim.log.levels.ERROR)
     return
   end
 
   local rel_path = git.get_relative_path(filepath)
   if not rel_path then
-    vim.notify('[diffs]: not in a git repository', vim.log.levels.ERROR)
+    notify('not in a git repository', vim.log.levels.ERROR)
     return
   end
 
@@ -396,7 +399,7 @@ function M.gdiff(args, vertical)
     current = diffspec.worktree(),
   })
   if not parsed then
-    vim.notify('[diffs]: ' .. parse_err, vim.log.levels.ERROR)
+    notify(parse_err, vim.log.levels.ERROR)
     return
   end
 
@@ -409,7 +412,7 @@ function M.gdiff(args, vertical)
   local diff_path = diff_spec.scope.path
   local repo_root = git.get_repo_root(filepath)
   if not repo_root then
-    vim.notify('[diffs]: not in a git repository', vim.log.levels.ERROR)
+    notify('not in a git repository', vim.log.levels.ERROR)
     return
   end
 
@@ -417,12 +420,12 @@ function M.gdiff(args, vertical)
     worktree_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false),
   })
   if not diff_lines then
-    vim.notify('[diffs]: ' .. (render_err or 'unknown error'), vim.log.levels.ERROR)
+    notify(render_err or 'unknown error', vim.log.levels.ERROR)
     return
   end
 
   if #diff_lines == 0 then
-    vim.notify('[diffs]: no changes for ' .. diffspec.label(diff_spec), vim.log.levels.INFO)
+    notify('no changes for ' .. diffspec.label(diff_spec), vim.log.levels.INFO)
     return
   end
 
@@ -452,13 +455,13 @@ function M.gdiff_file(filepath, opts)
 
   local rel_path = git.get_relative_path(filepath)
   if not rel_path then
-    vim.notify('[diffs]: not in a git repository', vim.log.levels.ERROR)
+    notify('not in a git repository', vim.log.levels.ERROR)
     return
   end
 
   local repo_root = git.get_repo_root(filepath)
   if not repo_root then
-    vim.notify('[diffs]: not in a git repository', vim.log.levels.ERROR)
+    notify('not in a git repository', vim.log.levels.ERROR)
     return
   end
 
@@ -507,14 +510,14 @@ function M.gdiff_file(filepath, opts)
 
   if not diff_lines then
     if err then
-      vim.notify('[diffs]: ' .. err, vim.log.levels.ERROR)
+      notify(err, vim.log.levels.ERROR)
       return
     end
     diff_lines = render.unified_lines(old_lines or {}, new_lines or {}, old_rel_path, rel_path)
   end
 
   if #diff_lines == 0 then
-    vim.notify('[diffs]: no changes', vim.log.levels.INFO)
+    notify('no changes', vim.log.levels.INFO)
     return
   end
 
@@ -565,14 +568,14 @@ function M.gdiff_section(repo_root, opts)
 
   local result = vim.fn.systemlist(cmd)
   if vim.v.shell_error ~= 0 then
-    vim.notify('[diffs]: git diff failed', vim.log.levels.ERROR)
+    notify('git diff failed', vim.log.levels.ERROR)
     return
   end
 
   result = replace_combined_diffs(result, repo_root)
 
   if #result == 0 then
-    vim.notify('[diffs]: no changes in section', vim.log.levels.INFO)
+    notify('no changes in section', vim.log.levels.INFO)
     return
   end
 
@@ -856,7 +859,7 @@ end
 function M.greview(spec)
   local review, err = normalize_greview(spec)
   if not review then
-    vim.notify('[diffs]: ' .. err, vim.log.levels.ERROR)
+    notify(err, vim.log.levels.ERROR)
     return nil
   end
 
@@ -868,11 +871,11 @@ function M.greview(spec)
 
   local result, diff_err = run_review(review)
   if not result then
-    vim.notify('[diffs]: ' .. diff_err, vim.log.levels.ERROR)
+    notify(diff_err, vim.log.levels.ERROR)
     return nil
   end
   if #result == 0 then
-    vim.notify('[diffs]: no diff against ' .. review.display, vim.log.levels.INFO)
+    notify('no diff against ' .. review.display, vim.log.levels.INFO)
     return nil
   end
 
@@ -1014,17 +1017,14 @@ function M.read_buffer(bufnr)
 
   local repo_root = get_buf_var(bufnr, 'diffs_repo_root')
   if not repo_root then
-    vim.notify(
-      '[diffs]: cannot reload diffs:// buffer without diffs_repo_root',
-      vim.log.levels.WARN
-    )
+    notify('cannot reload diffs:// buffer without diffs_repo_root', vim.log.levels.WARN)
     return
   end
 
   local diff_lines
   local stored_spec, spec_err = get_diff_spec_var(bufnr)
   if spec_err then
-    vim.notify('[diffs]: invalid diffs_spec metadata: ' .. tostring(spec_err), vim.log.levels.WARN)
+    notify('invalid diffs_spec metadata: ' .. tostring(spec_err), vim.log.levels.WARN)
     return
   end
 
@@ -1033,13 +1033,13 @@ function M.read_buffer(bufnr)
     local read_err
     diff_lines, read_err = render.file(stored_spec, repo_root, { empty_on_missing = true })
     if not diff_lines then
-      vim.notify('[diffs]: ' .. read_err, vim.log.levels.WARN)
+      notify(read_err, vim.log.levels.WARN)
       return
     end
   else
     label, path = url_body:match('^([^:]+):(.+)$')
     if not label or not path then
-      vim.notify('[diffs]: cannot reload malformed diffs:// buffer: ' .. name, vim.log.levels.WARN)
+      notify('cannot reload malformed diffs:// buffer: ' .. name, vim.log.levels.WARN)
       return
     end
   end
@@ -1153,7 +1153,7 @@ function M.setup()
   vim.api.nvim_create_user_command('Greview', function(opts)
     local spec, err = parse_review_arg(opts.args ~= '' and opts.args or nil)
     if not spec then
-      vim.notify('[diffs]: ' .. err, vim.log.levels.ERROR)
+      notify(err, vim.log.levels.ERROR)
       return
     end
     M.greview(spec)
