@@ -1,5 +1,6 @@
 local M = {}
 
+local actions = require('diffs.actions')
 local diffspec = require('diffs.spec')
 local gdiff_parser = require('diffs.gdiff')
 local git = require('diffs.git')
@@ -109,6 +110,16 @@ function M.setup_diff_buf(bufnr)
   set_hunk_keymap(bufnr, 'o', function()
     hunk_model.open_source(bufnr)
   end, 'Open source file')
+  set_hunk_keymap(bufnr, 'do', function()
+    if actions.obtain_hunk(bufnr) then
+      M.read_buffer(bufnr)
+    end
+  end, 'Unstage Gdiff hunk')
+  set_hunk_keymap(bufnr, 'dp', function()
+    if actions.put_hunk(bufnr) then
+      M.read_buffer(bufnr)
+    end
+  end, 'Stage Gdiff hunk')
 
   ensure_hunk_keymap_cleanup(bufnr)
 end
