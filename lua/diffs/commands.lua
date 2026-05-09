@@ -1,5 +1,6 @@
 local M = {}
 
+local diffspec = require('diffs.spec')
 local git = require('diffs.git')
 local dbg = require('diffs.log').dbg
 local runtime = require('diffs.runtime')
@@ -88,6 +89,13 @@ local function generate_unified_diff(old_lines, new_lines, old_name, new_name)
   return result
 end
 
+---@param revision? string
+---@param rel_path string
+---@return diffs.DiffSpec
+local function gdiff_revision_spec(revision, rel_path)
+  return diffspec.rev_to_worktree(revision or 'HEAD', rel_path)
+end
+
 ---@param raw_lines string[]
 ---@param repo_root string
 ---@return string[]
@@ -118,8 +126,6 @@ end
 ---@param revision? string
 ---@param vertical? boolean
 function M.gdiff(revision, vertical)
-  revision = revision or 'HEAD'
-
   local bufnr = vim.api.nvim_get_current_buf()
   local filepath = vim.api.nvim_buf_get_name(bufnr)
 
@@ -134,7 +140,11 @@ function M.gdiff(revision, vertical)
     return
   end
 
-  local old_lines, err = git.get_file_content(revision, filepath)
+  local diff_spec = gdiff_revision_spec(revision, rel_path)
+  local revision_label = diff_spec.left.rev
+  local diff_path = diff_spec.scope.path
+
+  local old_lines, err = git.get_file_content(revision_label, filepath)
   if not old_lines then
     vim.notify('[diffs.nvim]: ' .. (err or 'unknown error'), vim.log.levels.ERROR)
     return
@@ -142,10 +152,10 @@ function M.gdiff(revision, vertical)
 
   local new_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
 
-  local diff_lines = generate_unified_diff(old_lines, new_lines, rel_path, rel_path)
+  local diff_lines = generate_unified_diff(old_lines, new_lines, diff_path, diff_path)
 
   if #diff_lines == 0 then
-    vim.notify('[diffs.nvim]: no diff against ' .. revision, vim.log.levels.INFO)
+    vim.notify('[diffs.nvim]: no diff against ' .. revision_label, vim.log.levels.INFO)
     return
   end
 
@@ -158,7 +168,7 @@ function M.gdiff(revision, vertical)
   vim.api.nvim_set_option_value('swapfile', false, { buf = diff_buf })
   vim.api.nvim_set_option_value('modifiable', false, { buf = diff_buf })
   vim.api.nvim_set_option_value('filetype', 'diff', { buf = diff_buf })
-  vim.api.nvim_buf_set_name(diff_buf, 'diffs://' .. revision .. ':' .. rel_path)
+  vim.api.nvim_buf_set_name(diff_buf, 'diffs://' .. revision_label .. ':' .. diff_path)
   if repo_root then
     vim.api.nvim_buf_set_var(diff_buf, 'diffs_repo_root', repo_root)
   end
@@ -173,7 +183,7 @@ function M.gdiff(revision, vertical)
   end
 
   M.setup_diff_buf(diff_buf)
-  dbg('opened diff buffer %d for %s against %s', diff_buf, rel_path, revision)
+  dbg('opened diff buffer %d for %s against %s', diff_buf, diff_path, revision_label)
 
   vim.schedule(function()
     runtime.attach(diff_buf)
@@ -952,6 +962,7 @@ end
 
 M._test = {
   complete_greview = complete_greview,
+  gdiff_revision_spec = gdiff_revision_spec,
   normalize_greview = normalize_greview,
   parse_review_arg = parse_review_arg,
 }
