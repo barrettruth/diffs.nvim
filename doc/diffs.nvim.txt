@@ -599,6 +599,10 @@ Diff buffer mappings: ~
     q               Close the diff window. Available in all `diffs://`
                     buffers created by |:Gdiff|, |:Gvdiff|, |:Ghdiff|,
                     or the fugitive status keymaps.
+    ]c              Jump to the next hunk boundary in generated |:Gdiff|
+                    buffers.
+    [c              Jump to the previous hunk boundary in generated |:Gdiff|
+                    buffers.
 
 ==============================================================================
 INTEGRATIONS                                         *diffs.nvim-integrations*
