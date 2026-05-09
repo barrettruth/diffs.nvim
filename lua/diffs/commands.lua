@@ -387,9 +387,15 @@ function M.gdiff_file(filepath, opts)
     return
   end
 
+  local repo_root = git.get_repo_root(filepath)
+  if not repo_root then
+    vim.notify('[diffs.nvim]: not in a git repository', vim.log.levels.ERROR)
+    return
+  end
+
   local old_rel_path = opts.old_filepath and git.get_relative_path(opts.old_filepath) or rel_path
 
-  local old_lines, new_lines, err
+  local old_lines, new_lines, err, diff_lines
   local diff_label
   local diff_spec
 
@@ -404,56 +410,44 @@ function M.gdiff_file(filepath, opts)
     end
     diff_label = 'unmerged'
   elseif opts.untracked then
-    old_lines = {}
-    new_lines, err = git.get_working_content(filepath)
-    if not new_lines then
-      vim.notify('[diffs.nvim]: ' .. (err or 'cannot read file'), vim.log.levels.ERROR)
-      return
-    end
+    diff_spec = diffspec.index_to_worktree(rel_path)
     diff_label = 'untracked'
+    diff_lines, err = render.file(diff_spec, repo_root)
   elseif opts.staged then
-    old_lines, err = git.get_file_content('HEAD', opts.old_filepath or filepath)
-    if not old_lines then
-      old_lines = {}
-    end
-    new_lines, err = git.get_index_content(filepath)
-    if not new_lines then
-      new_lines = {}
-    end
     diff_label = 'staged'
     if old_rel_path == rel_path then
       diff_spec = diffspec.head_to_index(rel_path)
+      diff_lines, err = render.file(diff_spec, repo_root)
+    else
+      old_lines = git.get_file_content('HEAD', opts.old_filepath or filepath) or {}
+      new_lines = git.get_index_content(filepath) or {}
     end
   else
-    old_lines, err = git.get_index_content(opts.old_filepath or filepath)
-    if not old_lines then
-      old_lines, err = git.get_file_content('HEAD', opts.old_filepath or filepath)
-      if not old_lines then
-        old_lines = {}
-        diff_label = 'untracked'
-      else
-        diff_label = 'unstaged'
-      end
+    diff_label = 'unstaged'
+    if old_rel_path == rel_path then
+      diff_spec = diffspec.index_to_worktree(rel_path)
+      diff_lines, err = render.file(diff_spec, repo_root)
     else
-      diff_label = 'unstaged'
-      if old_rel_path == rel_path then
-        diff_spec = diffspec.index_to_worktree(rel_path)
+      old_lines = git.get_index_content(opts.old_filepath or filepath)
+      if not old_lines then
+        old_lines = git.get_file_content('HEAD', opts.old_filepath or filepath) or {}
       end
-    end
-    new_lines, err = git.get_working_content(filepath)
-    if not new_lines then
-      new_lines = {}
+      new_lines = git.get_working_content(filepath) or {}
     end
   end
 
-  local diff_lines = render.unified_lines(old_lines, new_lines, old_rel_path, rel_path)
+  if not diff_lines then
+    if err then
+      vim.notify('[diffs.nvim]: ' .. err, vim.log.levels.ERROR)
+      return
+    end
+    diff_lines = render.unified_lines(old_lines or {}, new_lines or {}, old_rel_path, rel_path)
+  end
 
   if #diff_lines == 0 then
     vim.notify('[diffs.nvim]: no changes', vim.log.levels.INFO)
     return
   end
-
-  local repo_root = git.get_repo_root(filepath)
 
   local diff_buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(diff_buf, 0, -1, false, diff_lines)

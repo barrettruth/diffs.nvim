@@ -285,6 +285,64 @@ describe('read_buffer', function()
       assert.is_true(helpers.has_keymap(bufnr, 'dp'))
     end)
 
+    it('reloads untracked DiffSpec buffers with empty index content and hunk metadata', function()
+      mock_git({
+        get_index_content = function(filepath)
+          assert.are.equal('/tmp/new.lua', filepath)
+          return nil, 'file not in index'
+        end,
+        get_working_content = function(filepath)
+          assert.are.equal('/tmp/new.lua', filepath)
+          return { 'local M = {}', 'return M' }
+        end,
+      })
+
+      local bufnr = create_diffs_buffer('diffs://untracked:new.lua', {
+        diffs_repo_root = '/tmp',
+        diffs_spec = diffspec.index_to_worktree('new.lua'),
+      })
+      commands.read_buffer(bufnr)
+
+      local text = table.concat(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), '\n')
+      assert.is_true(text:find('new file mode 100644', 1, true) ~= nil)
+      assert.is_true(text:find('--- /dev/null', 1, true) ~= nil)
+      local diff_hunks = vim.api.nvim_buf_get_var(bufnr, 'diffs_hunks')
+      assert.are.equal(1, #diff_hunks)
+      assert.are.equal('new.lua', diff_hunks[1].file)
+      assert.is_true(diff_hunks[1].actionable)
+    end)
+
+    it(
+      'reloads staged deletion DiffSpec buffers with empty index content and hunk metadata',
+      function()
+        mock_git({
+          get_file_content = function(rev, filepath)
+            assert.are.equal('HEAD', rev)
+            assert.are.equal('/tmp/deleted.lua', filepath)
+            return { 'local M = {}', 'return M' }
+          end,
+          get_index_content = function(filepath)
+            assert.are.equal('/tmp/deleted.lua', filepath)
+            return nil, 'file not in index'
+          end,
+        })
+
+        local bufnr = create_diffs_buffer('diffs://staged:deleted.lua', {
+          diffs_repo_root = '/tmp',
+          diffs_spec = diffspec.head_to_index('deleted.lua'),
+        })
+        commands.read_buffer(bufnr)
+
+        local text = table.concat(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), '\n')
+        assert.is_true(text:find('deleted file mode 100644', 1, true) ~= nil)
+        assert.is_true(text:find('+++ /dev/null', 1, true) ~= nil)
+        local diff_hunks = vim.api.nvim_buf_get_var(bufnr, 'diffs_hunks')
+        assert.are.equal(1, #diff_hunks)
+        assert.are.equal('deleted.lua', diff_hunks[1].file)
+        assert.are.equal('index', diff_hunks[1].mutation_target)
+      end
+    )
+
     it('prefers diffs_spec metadata for HEAD to index reloads', function()
       local calls = {}
       mock_git({

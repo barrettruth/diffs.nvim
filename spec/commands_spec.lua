@@ -243,6 +243,47 @@ describe('commands', function()
       assert.is_true(table.concat(lines, '\n'):find('+local x = 1', 1, true) ~= nil)
     end)
 
+    it('opens default :Gdiff for untracked files as index to worktree additions', function()
+      local source_buf = vim.api.nvim_create_buf(false, true)
+      table.insert(test_buffers, source_buf)
+      vim.api.nvim_buf_set_name(source_buf, '/tmp/repo/lua/new.lua')
+      vim.api.nvim_buf_set_lines(source_buf, 0, -1, false, {
+        'local M = {}',
+        'return M',
+      })
+      vim.api.nvim_set_current_buf(source_buf)
+
+      mock_git_method('get_relative_path', function(filepath)
+        assert.are.equal('/tmp/repo/lua/new.lua', filepath)
+        return 'lua/new.lua'
+      end)
+      mock_git_method('get_index_content', function(filepath)
+        assert.are.equal('/tmp/repo/lua/new.lua', filepath)
+        return nil, 'file not in index'
+      end)
+      mock_repo_root(function(filepath)
+        assert.are.equal('/tmp/repo/lua/new.lua', filepath)
+        return '/tmp/repo'
+      end)
+      mock_runtime_attach(function() end)
+
+      commands.gdiff(nil, false)
+
+      local diff_buf = vim.api.nvim_get_current_buf()
+      table.insert(test_buffers, diff_buf)
+      local lines = vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false)
+
+      assert.are.equal('diffs://unstaged:lua/new.lua', vim.api.nvim_buf_get_name(diff_buf))
+      assert.are.same(
+        diffspec.index_to_worktree('lua/new.lua'),
+        vim.api.nvim_buf_get_var(diff_buf, 'diffs_spec')
+      )
+      local text = table.concat(lines, '\n')
+      assert.is_true(text:find('new file mode 100644', 1, true) ~= nil)
+      assert.is_true(text:find('--- /dev/null', 1, true) ~= nil)
+      assert.is_true(text:find('+local M = {}', 1, true) ~= nil)
+    end)
+
     it('preserves the explicit revision generated buffer surface', function()
       local source_buf = vim.api.nvim_create_buf(false, true)
       table.insert(test_buffers, source_buf)
@@ -370,6 +411,121 @@ describe('commands', function()
       assert.are.equal('worktree', diff_hunks[1].mutation_target)
       assert.is_true(helpers.has_keymap(diff_buf, 'do'))
       assert.is_true(helpers.has_keymap(diff_buf, 'dp'))
+    end)
+
+    it('marks fugitive-style untracked file diffs as index to worktree buffers', function()
+      mock_git_method('get_relative_path', function(filepath)
+        if filepath == '/tmp/repo/lua/new.lua' then
+          return 'lua/new.lua'
+        end
+        return nil
+      end)
+      mock_git_method('get_index_content', function(filepath)
+        assert.are.equal('/tmp/repo/lua/new.lua', filepath)
+        return nil, 'file not in index'
+      end)
+      mock_git_method('get_working_content', function(filepath)
+        assert.are.equal('/tmp/repo/lua/new.lua', filepath)
+        return { 'local M = {}', 'return M' }
+      end)
+      mock_repo_root(function(filepath)
+        assert.are.equal('/tmp/repo/lua/new.lua', filepath)
+        return '/tmp/repo'
+      end)
+      mock_runtime_attach(function() end)
+
+      commands.gdiff_file('/tmp/repo/lua/new.lua', { untracked = true })
+
+      local diff_buf = vim.api.nvim_get_current_buf()
+      table.insert(test_buffers, diff_buf)
+
+      assert.are.equal('diffs://untracked:lua/new.lua', vim.api.nvim_buf_get_name(diff_buf))
+      assert.are.same(
+        diffspec.index_to_worktree('lua/new.lua'),
+        vim.api.nvim_buf_get_var(diff_buf, 'diffs_spec')
+      )
+      local text = table.concat(vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false), '\n')
+      assert.is_true(text:find('new file mode 100644', 1, true) ~= nil)
+      assert.is_true(text:find('--- /dev/null', 1, true) ~= nil)
+      local diff_hunks = vim.api.nvim_buf_get_var(diff_buf, 'diffs_hunks')
+      assert.are.equal(1, #diff_hunks)
+      assert.are.equal('worktree', diff_hunks[1].mutation_target)
+      assert.is_true(helpers.has_keymap(diff_buf, 'do'))
+      assert.is_true(helpers.has_keymap(diff_buf, 'dp'))
+    end)
+
+    it('marks fugitive-style staged additions as HEAD to index buffers', function()
+      mock_git_method('get_relative_path', function(filepath)
+        if filepath == '/tmp/repo/lua/new.lua' then
+          return 'lua/new.lua'
+        end
+        return nil
+      end)
+      mock_git_method('get_file_content', function(revision, filepath)
+        assert.are.equal('HEAD', revision)
+        assert.are.equal('/tmp/repo/lua/new.lua', filepath)
+        return nil, 'file not in revision: HEAD'
+      end)
+      mock_git_method('get_index_content', function(filepath)
+        assert.are.equal('/tmp/repo/lua/new.lua', filepath)
+        return { 'local M = {}', 'return M' }
+      end)
+      mock_repo_root(function(filepath)
+        assert.are.equal('/tmp/repo/lua/new.lua', filepath)
+        return '/tmp/repo'
+      end)
+      mock_runtime_attach(function() end)
+
+      commands.gdiff_file('/tmp/repo/lua/new.lua', { staged = true })
+
+      local diff_buf = vim.api.nvim_get_current_buf()
+      table.insert(test_buffers, diff_buf)
+
+      assert.are.equal('diffs://staged:lua/new.lua', vim.api.nvim_buf_get_name(diff_buf))
+      assert.are.same(
+        diffspec.head_to_index('lua/new.lua'),
+        vim.api.nvim_buf_get_var(diff_buf, 'diffs_spec')
+      )
+      local text = table.concat(vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false), '\n')
+      assert.is_true(text:find('new file mode 100644', 1, true) ~= nil)
+      assert.is_true(text:find('--- /dev/null', 1, true) ~= nil)
+    end)
+
+    it('marks fugitive-style staged deletions as HEAD to index buffers', function()
+      mock_git_method('get_relative_path', function(filepath)
+        if filepath == '/tmp/repo/lua/deleted.lua' then
+          return 'lua/deleted.lua'
+        end
+        return nil
+      end)
+      mock_git_method('get_file_content', function(revision, filepath)
+        assert.are.equal('HEAD', revision)
+        assert.are.equal('/tmp/repo/lua/deleted.lua', filepath)
+        return { 'local M = {}', 'return M' }
+      end)
+      mock_git_method('get_index_content', function(filepath)
+        assert.are.equal('/tmp/repo/lua/deleted.lua', filepath)
+        return nil, 'file not in index'
+      end)
+      mock_repo_root(function(filepath)
+        assert.are.equal('/tmp/repo/lua/deleted.lua', filepath)
+        return '/tmp/repo'
+      end)
+      mock_runtime_attach(function() end)
+
+      commands.gdiff_file('/tmp/repo/lua/deleted.lua', { staged = true })
+
+      local diff_buf = vim.api.nvim_get_current_buf()
+      table.insert(test_buffers, diff_buf)
+
+      assert.are.equal('diffs://staged:lua/deleted.lua', vim.api.nvim_buf_get_name(diff_buf))
+      assert.are.same(
+        diffspec.head_to_index('lua/deleted.lua'),
+        vim.api.nvim_buf_get_var(diff_buf, 'diffs_spec')
+      )
+      local text = table.concat(vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false), '\n')
+      assert.is_true(text:find('deleted file mode 100644', 1, true) ~= nil)
+      assert.is_true(text:find('+++ /dev/null', 1, true) ~= nil)
     end)
   end)
 

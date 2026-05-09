@@ -74,9 +74,9 @@ end
 ---@param line string
 ---@return string?, string?, string?
 local function parse_file_line(line)
-  local old, new = line:match('^R%d*%s+(.-)%s+->%s+(.+)$')
+  local rename_status, old, new = line:match('^([RC])%d*%s+(.-)%s+->%s+(.+)$')
   if old and new then
-    return unquote(vim.trim(new)), unquote(vim.trim(old)), 'R'
+    return unquote(vim.trim(new)), unquote(vim.trim(old)), rename_status
   end
 
   local status, filename = line:match('^([MADRCU?])[MADRCU%s]*%s+(.+)$')
@@ -206,7 +206,10 @@ function M.diff_file_under_cursor(vertical)
   if is_header then
     dbg('diff_section: %s', section or 'unknown')
     if section == 'untracked' then
-      vim.notify('[diffs.nvim]: cannot diff untracked section', vim.log.levels.WARN)
+      vim.notify(
+        '[diffs.nvim]: cannot diff untracked section; open an untracked file line instead',
+        vim.log.levels.WARN
+      )
       return
     end
     commands.gdiff_section(repo_root, {

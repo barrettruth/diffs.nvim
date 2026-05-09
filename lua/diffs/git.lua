@@ -2,6 +2,10 @@ local M = {}
 
 local repo_root_cache = {}
 
+local function is_index_stage(revision)
+  return type(revision) == 'string' and revision:match('^:%d$') ~= nil
+end
+
 ---@param filepath? string
 ---@return string?
 function M.get_repo_root(filepath)
@@ -17,6 +21,16 @@ function M.get_repo_root(filepath)
   return result[1]
 end
 
+---@param repo_root string
+---@param filepath string
+---@return string?
+local function relative_path(repo_root, filepath)
+  if vim.startswith(filepath, repo_root) then
+    return filepath:sub(#repo_root + 2)
+  end
+  return vim.fn.fnamemodify(filepath, ':.')
+end
+
 ---@param revision string
 ---@param filepath string
 ---@return string[]?, string?
@@ -26,14 +40,19 @@ function M.get_file_content(revision, filepath)
     return nil, 'not in a git repository'
   end
 
-  local rel_path = vim.fn.fnamemodify(filepath, ':.')
-  if vim.startswith(filepath, repo_root) then
-    rel_path = filepath:sub(#repo_root + 2)
+  local rel_path = relative_path(repo_root, filepath)
+
+  if not is_index_stage(revision) then
+    vim.fn.system({ 'git', '-C', repo_root, 'rev-parse', '--verify', revision .. '^{tree}' })
+    if vim.v.shell_error ~= 0 then
+      return nil, 'failed to resolve revision: ' .. revision
+    end
   end
 
-  local result = vim.fn.systemlist({ 'git', '-C', repo_root, 'show', revision .. ':' .. rel_path })
+  local result =
+    vim.fn.systemlist({ 'git', '-C', repo_root, 'show', revision .. ':' .. rel_path }, nil, true)
   if vim.v.shell_error ~= 0 then
-    return nil, 'failed to get file at revision: ' .. revision
+    return nil, 'file not in revision: ' .. revision
   end
   return result, nil
 end
@@ -45,10 +64,7 @@ function M.get_relative_path(filepath)
   if not repo_root then
     return nil
   end
-  if vim.startswith(filepath, repo_root) then
-    return filepath:sub(#repo_root + 2)
-  end
-  return vim.fn.fnamemodify(filepath, ':.')
+  return relative_path(repo_root, filepath)
 end
 
 ---@param filepath string
@@ -64,7 +80,7 @@ function M.get_index_content(filepath)
     return nil, 'could not determine relative path'
   end
 
-  local result = vim.fn.systemlist({ 'git', '-C', repo_root, 'show', ':0:' .. rel_path })
+  local result = vim.fn.systemlist({ 'git', '-C', repo_root, 'show', ':0:' .. rel_path }, nil, true)
   if vim.v.shell_error ~= 0 then
     return nil, 'file not in index'
   end
@@ -77,8 +93,68 @@ function M.get_working_content(filepath)
   if vim.fn.filereadable(filepath) ~= 1 then
     return nil, 'file not readable'
   end
-  local lines = vim.fn.readfile(filepath)
+  local lines = vim.fn.readfile(filepath, 'b')
   return lines, nil
+end
+
+---@param filepath string
+---@return string?
+function M.get_index_mode(filepath)
+  local repo_root = M.get_repo_root(filepath)
+  if not repo_root then
+    return nil
+  end
+
+  local rel_path = M.get_relative_path(filepath)
+  if not rel_path then
+    return nil
+  end
+
+  local result =
+    vim.fn.systemlist({ 'git', '-C', repo_root, 'ls-files', '--stage', '--', rel_path })
+  if vim.v.shell_error ~= 0 or #result == 0 then
+    return nil
+  end
+  return result[1]:match('^(%d+)')
+end
+
+---@param revision string
+---@param filepath string
+---@return string?
+function M.get_tree_mode(revision, filepath)
+  if is_index_stage(revision) then
+    return nil
+  end
+
+  local repo_root = M.get_repo_root(filepath)
+  if not repo_root then
+    return nil
+  end
+
+  local rel_path = M.get_relative_path(filepath)
+  if not rel_path then
+    return nil
+  end
+
+  local result = vim.fn.systemlist({ 'git', '-C', repo_root, 'ls-tree', revision, '--', rel_path })
+  if vim.v.shell_error ~= 0 or #result == 0 then
+    return nil
+  end
+  return result[1]:match('^(%d+)')
+end
+
+---@param filepath string
+---@return string?
+function M.get_working_mode(filepath)
+  if vim.fn.filereadable(filepath) ~= 1 then
+    return nil
+  end
+
+  local perm = vim.fn.getfperm(filepath)
+  if perm:sub(3, 3) == 'x' then
+    return '100755'
+  end
+  return '100644'
 end
 
 ---@param filepath string
@@ -94,8 +170,9 @@ function M.file_exists_in_index(filepath)
     return false
   end
 
-  vim.fn.system({ 'git', '-C', repo_root, 'ls-files', '--stage', '--', rel_path })
-  return vim.v.shell_error == 0
+  local result =
+    vim.fn.systemlist({ 'git', '-C', repo_root, 'ls-files', '--stage', '--', rel_path })
+  return vim.v.shell_error == 0 and #result > 0
 end
 
 ---@param revision string
