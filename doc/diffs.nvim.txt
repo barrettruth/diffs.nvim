@@ -428,6 +428,21 @@ COMMANDS                                                 *diffs.nvim-commands*
     If a `diffs://` window already exists in the current tabpage, the new
     diff replaces its buffer instead of creating another split.
 
+    This is a generated unified diff workspace, not Fugitive `:Gdiffsplit`
+    parity. diffs.nvim owns the `diffs://` buffer, hunk metadata, and plugin
+    actions. It does not enter native Vim `&diff` mode, open writable Fugitive
+    object buffers, or emulate `:Gdiffsplit` window lifecycle.
+
+    Plain direct |:Gdiff| from a worktree file compares the index to the
+    worktree and shows only unstaged changes. Staged-only changes report no
+    changes for that edge. To view staged changes, use a staged Fugitive status
+    row with |diffs.nvim-du|/|diffs.nvim-dU| or an explicit supported object
+    form such as `:Gdiff :0:%`.
+
+    Fugitive does not provide a `--staged` `:Gdiffsplit` flag, so diffs.nvim
+    does not add one to |:Gdiff|. Endpoint selection is expressed through the
+    object argument and through Fugitive status-row context.
+
     Parameters: ~
         ++novertical (optional) Force a horizontal split. Useful with |:Gvdiff|
                     or command wrappers.
@@ -478,7 +493,15 @@ COMMANDS                                                 *diffs.nvim-commands*
 
     Supported hunk actions run `git apply --cached --check` before mutating
     the index. Stale hunks, context drift, and index mismatches fail without
-    applying a partial mutation.
+    applying a partial mutation. Mutation maps are capability-scoped: `dp`
+    appears only for supported index -> worktree hunks/ranges, and `do`
+    appears only for supported tree -> index hunks/ranges. Read-only and
+    unsupported generated buffers do not expose mutation maps.
+
+    Native paired-window expectations such as `:Gdiffsplit`, `:Gdiffsplit!`,
+    3-way `&diff` windows, writable Fugitive object buffers, and `dq` are
+    outside the generated-buffer contract. Track that product direction in
+    upstream issues #252 and #253.
 
 
 :Gvdiff [object]                                                     *:Gvdiff*
@@ -699,7 +722,9 @@ and intra-line diffs. |:Gdiff| opens a unified diff against any revision (see
 Fugitive status keymaps: ~
 
 When inside a `:Git` status buffer, diffs.nvim provides keymaps to open
-unified diffs for files or entire sections.
+generated unified diffs for files or entire sections. These keymaps reuse
+Fugitive status context for endpoint selection; they do not call
+`:Gdiffsplit` or open native Vim diff windows.
 
 Keymaps: ~
                                                *diffs.nvim-du* *diffs.nvim-dU*
@@ -727,6 +752,10 @@ staged) and displays all changes in that section as a single unified diff
 without hunk actions. Empty staged or unstaged sections report which section has
 no changes. Untracked section headers show a warning since there is no
 meaningful diff.
+
+This status-row behavior is intentionally narrower than Fugitive `:Gdiffsplit`.
+It preserves the useful edge selection model while keeping generated
+`diffs://` buffers read-only, explicit, and owned by diffs.nvim.
 
 Configuration: ~
                                                    *diffs.nvim.FugitiveConfig*
