@@ -22,7 +22,7 @@ local attached_buffers = {}
 ---@type table<integer, boolean>
 local diagnostics_suppressed = {}
 
----@type table<integer, string[]>
+---@type table<integer, table<string, diffs.BufferKeymap>>
 local buffer_keymaps = {}
 
 ---@param lines string[]
