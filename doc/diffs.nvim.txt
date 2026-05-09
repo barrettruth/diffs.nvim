@@ -396,7 +396,7 @@ threshold, diffs.nvim skips syntax highlighting for that hunk to avoid lag.
 Context lines (lines with a space prefix) are not counted toward the limit.
 
 A warning is shown when this happens: >
-    [diffs.nvim]: Syntax highlighting skipped for 1 hunk(s) — too large.
+    [diffs]: Syntax highlighting skipped for 1 hunk(s) — too large.
 <
 To increase the threshold: >lua
     vim.g.diffs = {

@@ -79,7 +79,7 @@ function M.setup(opts)
         vim.schedule(function()
           vim.notify(
             (
-              '[diffs.nvim]: Syntax highlighting skipped for %d hunk(s) — too large.'
+              '[diffs]: Syntax highlighting skipped for %d hunk(s) — too large.'
               .. ' See :h diffs-max-lines to resolve or suppress this warning.'
             ):format(n),
             vim.log.levels.WARN
