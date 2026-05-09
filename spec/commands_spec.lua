@@ -113,6 +113,20 @@ local function edit_file(path)
   return bufnr
 end
 
+local function write_binary_file(path, text)
+  vim.fn.system({ 'sh', '-c', 'printf "$1" > "$2"', 'sh', text, path })
+  assert.are.equal(0, vim.v.shell_error)
+end
+
+local function buffer_text(bufnr)
+  return table.concat(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), '\n')
+end
+
+local function has_buf_var(bufnr, name)
+  local ok = pcall(vim.api.nvim_buf_get_var, bufnr, name)
+  return ok
+end
+
 local function restore_mocks()
   for k, v in pairs(saved_git) do
     git[k] = v
@@ -467,6 +481,42 @@ describe('commands', function()
       )
     end)
 
+    it('reports no unstaged changes for staged deletions matching the worktree', function()
+      local repo_root = create_repo()
+      local filepath = repo_root .. '/file.txt'
+      git_cmd(repo_root, { 'rm', '-q', 'file.txt' })
+      local source_buf = edit_file(filepath)
+      local notifications = capture_notifications()
+      mock_runtime_attach(function() end)
+
+      commands.gdiff(nil, false)
+
+      assert.are.equal(source_buf, vim.api.nvim_get_current_buf())
+      assert.is_true(
+        notifications[#notifications].message:find('no changes for index -> worktree', 1, true)
+          ~= nil
+      )
+    end)
+
+    it('shows only the unstaged edge when a file has staged and unstaged changes', function()
+      local repo_root = create_repo()
+      local filepath = repo_root .. '/file.txt'
+      vim.fn.writefile({ 'line 1', 'line 2 staged' }, filepath)
+      git_cmd(repo_root, { 'add', 'file.txt' })
+      vim.fn.writefile({ 'line 1', 'line 2 unstaged' }, filepath)
+      edit_file(filepath)
+      mock_runtime_attach(function() end)
+
+      commands.gdiff(nil, false)
+
+      local diff_buf = vim.api.nvim_get_current_buf()
+      table.insert(test_buffers, diff_buf)
+      local text = buffer_text(diff_buf)
+      assert.is_true(text:find('-line 2 staged', 1, true) ~= nil)
+      assert.is_true(text:find('+line 2 unstaged', 1, true) ~= nil)
+      assert.is_false(text:find('-line 2\n', 1, true) ~= nil)
+    end)
+
     it('uses buffer EOF state for final-newline-only direct diffs', function()
       local repo_root = create_repo()
       local filepath = repo_root .. '/file.txt'
@@ -505,6 +555,162 @@ describe('commands', function()
           true
         ) ~= nil
       )
+    end)
+
+    it('reports mode-only status-row changes without rendering text hunks', function()
+      local repo_root = create_repo()
+      local filepath = repo_root .. '/file.txt'
+      vim.fn.setfperm(filepath, 'rwxr-xr-x')
+      local notifications = capture_notifications()
+      mock_runtime_attach(function() end)
+
+      commands.gdiff_file(filepath)
+
+      assert.are.equal(vim.log.levels.ERROR, notifications[#notifications].level)
+      assert.is_true(
+        notifications[#notifications].message:find(
+          'Gdiff does not support mode-only changes',
+          1,
+          true
+        ) ~= nil
+      )
+    end)
+
+    it('reports binary status-row changes without rendering text hunks', function()
+      local repo_root = create_repo()
+      local filepath = repo_root .. '/bin.dat'
+      write_binary_file(filepath, 'binary\\000old')
+      git_cmd(repo_root, { 'add', 'bin.dat' })
+      git_cmd(repo_root, { 'commit', '-qm', 'binary' })
+      write_binary_file(filepath, 'binary\\000new')
+      local notifications = capture_notifications()
+      mock_runtime_attach(function() end)
+
+      commands.gdiff_file(filepath)
+
+      assert.are.equal(vim.log.levels.ERROR, notifications[#notifications].level)
+      assert.is_true(
+        notifications[#notifications].message:find('Gdiff does not support binary files', 1, true)
+          ~= nil
+      )
+    end)
+
+    it('reports submodule status-row changes without rendering pseudo text hunks', function()
+      local repo_root = create_repo()
+      local submodule_path = repo_root .. '/submodule'
+      git_cmd(repo_root, {
+        'update-index',
+        '--add',
+        '--cacheinfo',
+        '160000,0123456789012345678901234567890123456789,submodule',
+      })
+      local notifications = capture_notifications()
+      mock_runtime_attach(function() end)
+
+      commands.gdiff_file(submodule_path, { staged = true })
+
+      assert.are.equal(vim.log.levels.ERROR, notifications[#notifications].level)
+      assert.is_true(
+        notifications[#notifications].message:find(
+          'Gdiff does not support submodule changes',
+          1,
+          true
+        ) ~= nil
+      )
+    end)
+
+    it('reports pure status-row renames as no text changes with actions unavailable', function()
+      local repo_root = create_repo()
+      local old_filepath = repo_root .. '/file.txt'
+      local new_filepath = repo_root .. '/renamed.txt'
+      git_cmd(repo_root, { 'mv', 'file.txt', 'renamed.txt' })
+      local source_buf = edit_file(new_filepath)
+      local notifications = capture_notifications()
+      mock_runtime_attach(function() end)
+
+      commands.gdiff_file(new_filepath, { staged = true, old_filepath = old_filepath })
+
+      assert.are.equal(source_buf, vim.api.nvim_get_current_buf())
+      assert.are.equal(vim.log.levels.INFO, notifications[#notifications].level)
+      assert.is_true(
+        notifications[#notifications].message:find(
+          'no text changes for staged rename/copy file.txt -> renamed.txt',
+          1,
+          true
+        ) ~= nil
+      )
+      assert.is_true(
+        notifications[#notifications].message:find(
+          'generated hunk actions are unavailable',
+          1,
+          true
+        ) ~= nil
+      )
+    end)
+
+    it('renders status-row rename content changes without hunk actions', function()
+      local repo_root = create_repo()
+      local old_filepath = repo_root .. '/file.txt'
+      local new_filepath = repo_root .. '/renamed.txt'
+      git_cmd(repo_root, { 'mv', 'file.txt', 'renamed.txt' })
+      vim.fn.writefile({ 'line 1', 'line 2 renamed' }, new_filepath)
+      git_cmd(repo_root, { 'add', 'renamed.txt' })
+      mock_runtime_attach(function() end)
+
+      commands.gdiff_file(new_filepath, { staged = true, old_filepath = old_filepath })
+
+      local diff_buf = vim.api.nvim_get_current_buf()
+      table.insert(test_buffers, diff_buf)
+      local text = buffer_text(diff_buf)
+      assert.are.equal('diffs://staged:renamed.txt', vim.api.nvim_buf_get_name(diff_buf))
+      assert.is_true(text:find('diff --git a/file.txt b/renamed.txt', 1, true) ~= nil)
+      assert.is_true(text:find('-line 2', 1, true) ~= nil)
+      assert.is_true(text:find('+line 2 renamed', 1, true) ~= nil)
+      assert.is_false(has_buf_var(diff_buf, 'diffs_hunks'))
+      assert.is_false(helpers.has_keymap(diff_buf, 'do'))
+      assert.is_false(helpers.has_keymap(diff_buf, 'dp'))
+      assert.are.same({
+        version = 1,
+        kind = 'file_pair',
+        repo_root = repo_root,
+        edge = 'staged',
+        path = 'renamed.txt',
+        old_path = 'file.txt',
+      }, vim.api.nvim_buf_get_var(diff_buf, 'diffs_source'))
+    end)
+
+    it('opens staged and unstaged section headers as explicit section buffers', function()
+      local repo_root = create_repo()
+      vim.fn.writefile({ 'line 1', 'line 2 staged' }, repo_root .. '/file.txt')
+      git_cmd(repo_root, { 'add', 'file.txt' })
+      vim.fn.writefile({ 'line 1', 'line 2 staged', 'line 3 unstaged' }, repo_root .. '/file.txt')
+      mock_runtime_attach(function() end)
+
+      commands.gdiff_section(repo_root, { staged = true })
+      local staged_buf = vim.api.nvim_get_current_buf()
+      table.insert(test_buffers, staged_buf)
+      assert.are.equal('diffs://staged:all', vim.api.nvim_buf_get_name(staged_buf))
+      assert.is_true(buffer_text(staged_buf):find('+line 2 staged', 1, true) ~= nil)
+      assert.is_false(has_buf_var(staged_buf, 'diffs_hunks'))
+      assert.are.same({
+        version = 1,
+        kind = 'section',
+        repo_root = repo_root,
+        section = 'staged',
+      }, vim.api.nvim_buf_get_var(staged_buf, 'diffs_source'))
+
+      commands.gdiff_section(repo_root)
+      local unstaged_buf = vim.api.nvim_get_current_buf()
+      table.insert(test_buffers, unstaged_buf)
+      assert.are.equal('diffs://unstaged:all', vim.api.nvim_buf_get_name(unstaged_buf))
+      assert.is_true(buffer_text(unstaged_buf):find('+line 3 unstaged', 1, true) ~= nil)
+      assert.is_false(has_buf_var(unstaged_buf, 'diffs_hunks'))
+      assert.are.same({
+        version = 1,
+        kind = 'section',
+        repo_root = repo_root,
+        section = 'unstaged',
+      }, vim.api.nvim_buf_get_var(unstaged_buf, 'diffs_source'))
     end)
 
     it('routes direct :Gdiff on unmerged files to the generated unmerged view', function()
@@ -793,11 +999,6 @@ describe('commands', function()
         worktree = { 'local M = {}', 'local new_file = true', 'return M' },
       },
     }
-
-    local function has_buf_var(bufnr, name)
-      local ok = pcall(vim.api.nvim_buf_get_var, bufnr, name)
-      return ok
-    end
 
     local function contains_cmd_arg(cmd, arg)
       for _, value in ipairs(cmd) do

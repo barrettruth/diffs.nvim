@@ -533,6 +533,14 @@ local function render_source(source)
     'unmerged:' .. source.path
 end
 
+---@param diff_label string
+---@param rel_path string
+---@param old_rel_path string
+---@return string
+local function file_pair_label(diff_label, rel_path, old_rel_path)
+  return diff_label .. ' rename/copy ' .. old_rel_path .. ' -> ' .. rel_path
+end
+
 ---@param spec? diffs.GreviewSpec
 ---@return integer?
 function M.greview(spec)
@@ -706,7 +714,18 @@ function M.gdiff_file(filepath, opts)
   end
 
   if #diff_lines == 0 then
-    notify('no changes', vim.log.levels.INFO)
+    if diff_spec then
+      notify('no changes for ' .. diffspec.label(diff_spec), vim.log.levels.INFO)
+    elseif opts.unmerged then
+      notify('no changes for unmerged file:' .. rel_path, vim.log.levels.INFO)
+    else
+      notify(
+        'no text changes for '
+          .. file_pair_label(diff_label, rel_path, old_rel_path)
+          .. '; generated hunk actions are unavailable',
+        vim.log.levels.INFO
+      )
+    end
     return
   end
 
@@ -791,12 +810,12 @@ function M.gdiff_section(repo_root, opts)
 
   result = replace_combined_diffs(result, repo_root)
 
+  local diff_label = opts.staged and 'staged' or 'unstaged'
   if #result == 0 then
-    notify('no changes in section', vim.log.levels.INFO)
+    notify('no changes in ' .. diff_label .. ' section', vim.log.levels.INFO)
     return
   end
 
-  local diff_label = opts.staged and 'staged' or 'unstaged'
   local diff_buf = create_generated_diff_buffer({
     name = 'diffs://' .. diff_label .. ':all',
     lines = result,
