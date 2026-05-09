@@ -2,10 +2,14 @@ local M = {}
 
 local commands = require('diffs.commands')
 local git = require('diffs.git')
+local keymaps = require('diffs.keymaps')
 local log = require('diffs.log')
 
 local dbg = log.dbg
 local notify = log.notify
+
+---@type table<integer, table<string, diffs.BufferKeymap>>
+local buffer_keymaps = {}
 
 ---@alias diffs.FugitiveSection 'staged' | 'unstaged' | 'untracked' | nil
 
@@ -252,19 +256,30 @@ end
 ---@param bufnr integer
 ---@param config { horizontal: string|false, vertical: string|false }
 function M.setup_keymaps(bufnr, config)
-  if config.horizontal and config.horizontal ~= '' then
-    vim.keymap.set('n', config.horizontal, function()
-      M.diff_file_under_cursor(false)
-    end, { buffer = bufnr, desc = 'Unified diff (horizontal)' })
-    dbg('set keymap %s for buffer %d', config.horizontal, bufnr)
-  end
+  keymaps.set_buffer_keymaps(buffer_keymaps, bufnr, {
+    {
+      config.horizontal,
+      function()
+        M.diff_file_under_cursor(false)
+      end,
+      { desc = 'Unified diff (horizontal)' },
+    },
+    {
+      config.vertical,
+      function()
+        M.diff_file_under_cursor(true)
+      end,
+      { desc = 'Unified diff (vertical)' },
+    },
+  })
 
-  if config.vertical and config.vertical ~= '' then
-    vim.keymap.set('n', config.vertical, function()
-      M.diff_file_under_cursor(true)
-    end, { buffer = bufnr, desc = 'Unified diff (vertical)' })
-    dbg('set keymap %s for buffer %d', config.vertical, bufnr)
-  end
+  vim.api.nvim_create_autocmd('BufWipeout', {
+    buffer = bufnr,
+    callback = function()
+      keymaps.clear_buffer_keymaps(buffer_keymaps, bufnr)
+    end,
+  })
+  dbg('set fugitive keymaps for buffer %d', bufnr)
 end
 
 return M
