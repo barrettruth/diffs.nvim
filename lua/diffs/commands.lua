@@ -139,9 +139,6 @@ function M.setup_diff_buf(bufnr)
   set_hunk_keymap(bufnr, 'n', '<CR>', function()
     hunk_model.open_source(bufnr)
   end, 'Open source file')
-  set_hunk_keymap(bufnr, 'n', 'o', function()
-    hunk_model.open_source(bufnr)
-  end, 'Open source file')
   if can_obtain then
     set_hunk_keymap(bufnr, 'n', 'do', function()
       if actions.obtain_hunk(bufnr) then
