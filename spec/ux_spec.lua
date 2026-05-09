@@ -36,8 +36,8 @@ local function add_hunk_metadata(bufnr)
   vim.api.nvim_buf_set_var(bufnr, 'diffs_repo_root', '/tmp/repo')
 end
 
-local function keymap_desc(bufnr, lhs)
-  for _, keymap in ipairs(vim.api.nvim_buf_get_keymap(bufnr, 'n')) do
+local function keymap_desc(bufnr, lhs, mode)
+  for _, keymap in ipairs(vim.api.nvim_buf_get_keymap(bufnr, mode or 'n')) do
     if keymap.lhs == lhs then
       return keymap.desc
     end
@@ -124,6 +124,8 @@ describe('ux', function()
       assert.is_false(helpers.has_keymap(bufnr, 'o'))
       assert.is_false(helpers.has_keymap(bufnr, 'do'))
       assert.is_false(helpers.has_keymap(bufnr, 'dp'))
+      assert.is_false(helpers.has_keymap(bufnr, 'do', 'x'))
+      assert.is_false(helpers.has_keymap(bufnr, 'dp', 'x'))
 
       add_hunk_metadata(bufnr)
       commands.setup_diff_buf(bufnr)
@@ -134,6 +136,8 @@ describe('ux', function()
       assert.is_true(helpers.has_keymap(bufnr, 'o'))
       assert.is_true(helpers.has_keymap(bufnr, 'do'))
       assert.is_true(helpers.has_keymap(bufnr, 'dp'))
+      assert.is_true(helpers.has_keymap(bufnr, 'do', 'x'))
+      assert.is_true(helpers.has_keymap(bufnr, 'dp', 'x'))
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
 
@@ -144,6 +148,8 @@ describe('ux', function()
       vim.keymap.set('n', ']c', '<Nop>', { buffer = bufnr, desc = 'user next' })
       vim.keymap.set('n', 'do', '<Nop>', { buffer = bufnr, desc = 'user obtain' })
       vim.keymap.set('n', 'dp', '<Nop>', { buffer = bufnr, desc = 'user put' })
+      vim.keymap.set('x', 'do', '<Nop>', { buffer = bufnr, desc = 'user visual obtain' })
+      vim.keymap.set('x', 'dp', '<Nop>', { buffer = bufnr, desc = 'user visual put' })
 
       commands.setup_diff_buf(bufnr)
 
@@ -151,6 +157,8 @@ describe('ux', function()
       assert.are.equal('user next', keymap_desc(bufnr, ']c'))
       assert.are.equal('user obtain', keymap_desc(bufnr, 'do'))
       assert.are.equal('user put', keymap_desc(bufnr, 'dp'))
+      assert.are.equal('user visual obtain', keymap_desc(bufnr, 'do', 'x'))
+      assert.are.equal('user visual put', keymap_desc(bufnr, 'dp', 'x'))
       assert.are.equal('Open source file', keymap_desc(bufnr, '<CR>'))
       assert.are.equal('Previous diff hunk', keymap_desc(bufnr, '[c'))
       vim.api.nvim_buf_delete(bufnr, { force = true })
@@ -160,20 +168,25 @@ describe('ux', function()
       local bufnr = create_diffs_buffer()
       add_hunk_metadata(bufnr)
       vim.keymap.set('n', 'o', '<Nop>', { buffer = bufnr, desc = 'user open' })
+      vim.keymap.set('x', 'do', '<Nop>', { buffer = bufnr, desc = 'user visual obtain' })
       commands.setup_diff_buf(bufnr)
 
       assert.are.equal('user open', keymap_desc(bufnr, 'o'))
+      assert.are.equal('user visual obtain', keymap_desc(bufnr, 'do', 'x'))
       assert.are.equal('Open source file', keymap_desc(bufnr, '<CR>'))
+      assert.are.equal('Stage selected Gdiff lines', keymap_desc(bufnr, 'dp', 'x'))
 
       vim.api.nvim_buf_del_var(bufnr, 'diffs_hunks')
       commands.setup_diff_buf(bufnr)
 
       assert.are.equal('user open', keymap_desc(bufnr, 'o'))
+      assert.are.equal('user visual obtain', keymap_desc(bufnr, 'do', 'x'))
       assert.is_nil(keymap_desc(bufnr, '<CR>'))
       assert.is_nil(keymap_desc(bufnr, ']c'))
       assert.is_nil(keymap_desc(bufnr, '[c'))
       assert.is_nil(keymap_desc(bufnr, 'do'))
       assert.is_nil(keymap_desc(bufnr, 'dp'))
+      assert.is_nil(keymap_desc(bufnr, 'dp', 'x'))
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
   end)

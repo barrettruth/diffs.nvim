@@ -9,16 +9,22 @@ local dbg = require('diffs.log').dbg
 local render = require('diffs.render')
 local runtime = require('diffs.runtime')
 
----@type table<integer, table<string, function>>
+---@class diffs.HunkKeymap
+---@field mode string
+---@field lhs string
+---@field callback function
+
+---@type table<integer, diffs.HunkKeymap[]>
 local hunk_keymaps = {}
 ---@type table<integer, integer>
 local hunk_keymap_autocmds = {}
 
 ---@param bufnr integer
+---@param mode string
 ---@param lhs string
 ---@return table?
-local function get_buffer_keymap(bufnr, lhs)
-  for _, keymap in ipairs(vim.api.nvim_buf_get_keymap(bufnr, 'n')) do
+local function get_buffer_keymap(bufnr, mode, lhs)
+  for _, keymap in ipairs(vim.api.nvim_buf_get_keymap(bufnr, mode)) do
     if keymap.lhs == lhs then
       return keymap
     end
@@ -32,10 +38,10 @@ local function clear_hunk_keymaps(bufnr)
   if not registered then
     return
   end
-  for lhs, callback in pairs(registered) do
-    local current = get_buffer_keymap(bufnr, lhs)
-    if current and current.callback == callback then
-      pcall(vim.keymap.del, 'n', lhs, { buffer = bufnr })
+  for _, keymap in ipairs(registered) do
+    local current = get_buffer_keymap(bufnr, keymap.mode, keymap.lhs)
+    if current and current.callback == keymap.callback then
+      pcall(vim.keymap.del, keymap.mode, keymap.lhs, { buffer = bufnr })
     end
   end
   hunk_keymaps[bufnr] = nil
@@ -58,17 +64,30 @@ local function ensure_hunk_keymap_cleanup(bufnr)
 end
 
 ---@param bufnr integer
+---@param mode string
 ---@param lhs string
 ---@param callback function
 ---@param desc string
-local function set_hunk_keymap(bufnr, lhs, callback, desc)
-  if get_buffer_keymap(bufnr, lhs) then
+local function set_hunk_keymap(bufnr, mode, lhs, callback, desc)
+  if get_buffer_keymap(bufnr, mode, lhs) then
     return
   end
 
-  vim.keymap.set('n', lhs, callback, { buffer = bufnr, desc = desc })
+  vim.keymap.set(mode, lhs, callback, { buffer = bufnr, desc = desc })
   hunk_keymaps[bufnr] = hunk_keymaps[bufnr] or {}
-  hunk_keymaps[bufnr][lhs] = callback
+  hunk_keymaps[bufnr][#hunk_keymaps[bufnr] + 1] = {
+    mode = mode,
+    lhs = lhs,
+    callback = callback,
+  }
+end
+
+---@param bufnr integer
+---@return integer, integer
+local function visual_range(bufnr)
+  local start_line = vim.api.nvim_buf_get_mark(bufnr, '<')[1]
+  local finish_line = vim.api.nvim_buf_get_mark(bufnr, '>')[1]
+  return math.min(start_line, finish_line), math.max(start_line, finish_line)
 end
 
 ---@return integer?
@@ -89,7 +108,7 @@ end
 ---@param bufnr integer
 function M.setup_diff_buf(bufnr)
   vim.diagnostic.enable(false, { bufnr = bufnr })
-  if not get_buffer_keymap(bufnr, 'q') then
+  if not get_buffer_keymap(bufnr, 'n', 'q') then
     vim.keymap.set('n', 'q', '<cmd>close<CR>', { buffer = bufnr })
   end
   local has_hunks = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_hunks')
@@ -98,28 +117,40 @@ function M.setup_diff_buf(bufnr)
     return
   end
 
-  set_hunk_keymap(bufnr, ']c', function()
+  set_hunk_keymap(bufnr, 'n', ']c', function()
     hunk_model.goto_next(bufnr)
   end, 'Next diff hunk')
-  set_hunk_keymap(bufnr, '[c', function()
+  set_hunk_keymap(bufnr, 'n', '[c', function()
     hunk_model.goto_prev(bufnr)
   end, 'Previous diff hunk')
-  set_hunk_keymap(bufnr, '<CR>', function()
+  set_hunk_keymap(bufnr, 'n', '<CR>', function()
     hunk_model.open_source(bufnr)
   end, 'Open source file')
-  set_hunk_keymap(bufnr, 'o', function()
+  set_hunk_keymap(bufnr, 'n', 'o', function()
     hunk_model.open_source(bufnr)
   end, 'Open source file')
-  set_hunk_keymap(bufnr, 'do', function()
+  set_hunk_keymap(bufnr, 'n', 'do', function()
     if actions.obtain_hunk(bufnr) then
       M.read_buffer(bufnr)
     end
   end, 'Unstage Gdiff hunk')
-  set_hunk_keymap(bufnr, 'dp', function()
+  set_hunk_keymap(bufnr, 'n', 'dp', function()
     if actions.put_hunk(bufnr) then
       M.read_buffer(bufnr)
     end
   end, 'Stage Gdiff hunk')
+  set_hunk_keymap(bufnr, 'x', 'do', function()
+    local range_start, range_finish = visual_range(bufnr)
+    if actions.obtain_range(bufnr, range_start, range_finish) then
+      M.read_buffer(bufnr)
+    end
+  end, 'Unstage selected Gdiff lines')
+  set_hunk_keymap(bufnr, 'x', 'dp', function()
+    local range_start, range_finish = visual_range(bufnr)
+    if actions.put_range(bufnr, range_start, range_finish) then
+      M.read_buffer(bufnr)
+    end
+  end, 'Stage selected Gdiff lines')
 
   ensure_hunk_keymap_cleanup(bufnr)
 end
