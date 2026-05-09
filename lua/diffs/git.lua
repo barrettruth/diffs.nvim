@@ -116,4 +116,30 @@ function M.file_exists_at_revision(revision, filepath)
   return vim.v.shell_error == 0
 end
 
+---@class diffs.GitApplyOpts
+---@field cached? boolean
+---@field reverse? boolean
+---@field check? boolean
+
+---@param repo_root string
+---@param patch string
+---@param opts? diffs.GitApplyOpts
+---@return boolean, string[]
+function M.apply_patch(repo_root, patch, opts)
+  opts = opts or {}
+  local cmd = { 'git', '-C', repo_root, 'apply' }
+  if opts.cached then
+    table.insert(cmd, '--cached')
+  end
+  if opts.reverse then
+    table.insert(cmd, '--reverse')
+  end
+  if opts.check then
+    table.insert(cmd, '--check')
+  end
+
+  local output = vim.fn.systemlist(cmd, patch)
+  return vim.v.shell_error == 0, output
+end
+
 return M

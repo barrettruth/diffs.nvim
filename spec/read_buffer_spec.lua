@@ -281,6 +281,8 @@ describe('read_buffer', function()
       assert.is_true(helpers.has_keymap(bufnr, '[c'))
       assert.is_true(helpers.has_keymap(bufnr, '<CR>'))
       assert.is_true(helpers.has_keymap(bufnr, 'o'))
+      assert.is_true(helpers.has_keymap(bufnr, 'do'))
+      assert.is_true(helpers.has_keymap(bufnr, 'dp'))
     end)
 
     it('prefers diffs_spec metadata for HEAD to index reloads', function()

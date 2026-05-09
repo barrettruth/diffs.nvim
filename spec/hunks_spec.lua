@@ -27,6 +27,12 @@ describe('diffs.hunks', function()
       assert.are.same({ start = 1, count = 3, finish = 3 }, parsed[1].old_range)
       assert.are.same({ start = 1, count = 4, finish = 4 }, parsed[1].new_range)
       assert.are.same({ start = 4, count = 6, finish = 9 }, parsed[1].buffer_range)
+      assert.are.same({ start = 1, count = 3, finish = 3 }, parsed[1].file_header_range)
+      assert.are.same({
+        'diff --git a/lua/foo.lua b/lua/foo.lua',
+        '--- a/lua/foo.lua',
+        '+++ b/lua/foo.lua',
+      }, parsed[1].file_header_lines)
       assert.are.equal('@@ -1,3 +1,4 @@', parsed[1].header)
       assert.is_true(parsed[1].actionable)
       assert.are.equal('worktree', parsed[1].mutation_target)
@@ -94,6 +100,7 @@ describe('diffs.hunks', function()
       assert.are.same({ start = 7, count = 3, finish = 9 }, parsed[2].buffer_range)
       assert.are.same({ start = 10, count = 1, finish = 10 }, parsed[2].old_range)
       assert.are.same({ start = 10, count = 1, finish = 10 }, parsed[2].new_range)
+      assert.are.same(parsed[1].file_header_lines, parsed[2].file_header_lines)
     end)
 
     it('detects hunks across multiple files', function()
