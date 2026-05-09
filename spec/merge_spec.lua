@@ -1,5 +1,6 @@
 local helpers = require('spec.helpers')
 local merge = require('diffs.merge')
+local rails = require('diffs.rails')
 
 local function default_config(overrides)
   local cfg = {
@@ -47,6 +48,31 @@ describe('merge', function()
       })
 
       local hunks = merge.parse_hunks(bufnr)
+      assert.are.equal(1, #hunks)
+      assert.are.equal(3, hunks[1].start_line)
+      assert.are.equal(7, hunks[1].end_line)
+      assert.are.same({ 'local x = 1' }, hunks[1].del_lines)
+      assert.are.same({ 'local x = 2' }, hunks[1].add_lines)
+
+      helpers.delete_buffer(bufnr)
+    end)
+
+    it('parses generated hunks with line-number rails', function()
+      local annotated, info = rails.annotate({
+        'diff --git a/file.lua b/file.lua',
+        '--- a/file.lua',
+        '+++ b/file.lua',
+        '@@ -1,3 +1,3 @@',
+        ' local M = {}',
+        '-local x = 1',
+        '+local x = 2',
+        ' return M',
+      })
+      local bufnr = helpers.create_buffer(annotated)
+      vim.api.nvim_buf_set_var(bufnr, 'diffs_rail_width', info.prefix_width)
+
+      local hunks = merge.parse_hunks(bufnr)
+
       assert.are.equal(1, #hunks)
       assert.are.equal(3, hunks[1].start_line)
       assert.are.equal(7, hunks[1].end_line)
