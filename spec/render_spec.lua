@@ -195,6 +195,48 @@ describe('diffs.render', function()
     assert.is_true(text:find('-line 1', 1, true) ~= nil)
   end)
 
+  it('renders clean index to worktree edges as empty diffs', function()
+    local repo_root = create_repo()
+
+    local lines, err = render.file(diffspec.index_to_worktree('file.txt'), repo_root)
+
+    assert.is_nil(err)
+    assert.are.same({}, lines)
+  end)
+
+  it('renders clean HEAD to index edges as empty diffs', function()
+    local repo_root = create_repo()
+
+    local lines, err = render.file(diffspec.head_to_index('file.txt'), repo_root)
+
+    assert.is_nil(err)
+    assert.are.same({}, lines)
+  end)
+
+  it('preserves real trailing blank line changes', function()
+    local repo_root = create_repo()
+    vim.fn.writefile({ 'line 1', 'line 2', '' }, repo_root .. '/file.txt')
+
+    local lines, err = render.file(diffspec.index_to_worktree('file.txt'), repo_root)
+
+    assert.is_nil(err)
+    local text = table.concat(lines, '\n')
+    assert.is_true(text:find('\n+\n', 1, true) ~= nil)
+  end)
+
+  it('renders final-newline-only changes with no-newline metadata', function()
+    local repo_root = create_repo()
+    vim.fn.writefile({ 'line 1', 'line 2' }, repo_root .. '/file.txt', 'b')
+
+    local lines, err = render.file(diffspec.index_to_worktree('file.txt'), repo_root)
+
+    assert.is_nil(err)
+    local text = table.concat(lines, '\n')
+    assert.is_true(text:find('-line 2', 1, true) ~= nil)
+    assert.is_true(text:find('+line 2', 1, true) ~= nil)
+    assert.is_true(text:find('\\ No newline at end of file', 1, true) ~= nil)
+  end)
+
   it('rejects same-path rename projections before rendering actionable hunks', function()
     local repo_root = create_repo()
     git_cmd(repo_root, { 'mv', 'file.txt', 'renamed.txt' })

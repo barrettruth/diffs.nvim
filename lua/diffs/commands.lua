@@ -1,6 +1,7 @@
 local M = {}
 
 local actions = require('diffs.actions')
+local content = require('diffs.content')
 local diffspec = require('diffs.spec')
 local gdiff_parser = require('diffs.gdiff')
 local git = require('diffs.git')
@@ -414,7 +415,7 @@ function M.gdiff(args, vertical)
   end
 
   local diff_lines, render_err = render.file(diff_spec, repo_root, {
-    worktree_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false),
+    worktree_lines = content.from_buffer(bufnr),
   })
   if not diff_lines then
     vim.notify('[diffs]: ' .. (render_err or 'unknown error'), vim.log.levels.ERROR)

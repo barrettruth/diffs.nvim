@@ -1,10 +1,11 @@
 local M = {}
 
+local content = require('diffs.content')
 local diffspec = require('diffs.spec')
 local git = require('diffs.git')
 
 ---@class diffs.RenderFileOpts
----@field worktree_lines? string[]
+---@field worktree_lines? diffs.ContentLines|string[]
 ---@field empty_on_missing? boolean
 ---@field old_path? string
 ---@field new_path? string
@@ -37,16 +38,16 @@ function M.has_binary_lines(lines)
   return false
 end
 
----@param old_lines string[]
----@param new_lines string[]
+---@param old_lines diffs.ContentLines|string[]
+---@param new_lines diffs.ContentLines|string[]
 ---@param old_name string
 ---@param new_name string
 ---@param opts? diffs.UnifiedLinesOpts
 ---@return string[]
 function M.unified_lines(old_lines, new_lines, old_name, new_name, opts)
   opts = opts or {}
-  local old_content = table.concat(old_lines, '\n')
-  local new_content = table.concat(new_lines, '\n')
+  local old_content = content.to_string(old_lines)
+  local new_content = content.to_string(new_lines)
 
   local diff_fn = vim.text and vim.text.diff or vim.diff
   local diff_output = diff_fn(old_content, new_content, {
@@ -118,7 +119,7 @@ end
 ---@param endpoint diffs.Endpoint
 ---@param filepath string
 ---@param opts? diffs.RenderFileOpts
----@return string[]?, string?, boolean
+---@return diffs.ContentLines|string[]?, string?, boolean
 function M.read_endpoint(endpoint, filepath, opts)
   endpoint = diffspec.endpoint(endpoint)
   opts = opts or {}

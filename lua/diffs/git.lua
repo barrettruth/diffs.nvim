@@ -1,5 +1,7 @@
 local M = {}
 
+local content = require('diffs.content')
+
 local repo_root_cache = {}
 
 local function is_index_stage(revision)
@@ -33,7 +35,7 @@ end
 
 ---@param revision string
 ---@param filepath string
----@return string[]?, string?
+---@return diffs.ContentLines?, string?
 function M.get_file_content(revision, filepath)
   local repo_root = M.get_repo_root(filepath)
   if not repo_root then
@@ -54,7 +56,7 @@ function M.get_file_content(revision, filepath)
   if vim.v.shell_error ~= 0 then
     return nil, 'file not in revision: ' .. revision
   end
-  return result, nil
+  return content.from_raw_lines(result), nil
 end
 
 ---@param filepath string
@@ -68,7 +70,7 @@ function M.get_relative_path(filepath)
 end
 
 ---@param filepath string
----@return string[]?, string?
+---@return diffs.ContentLines?, string?
 function M.get_index_content(filepath)
   local repo_root = M.get_repo_root(filepath)
   if not repo_root then
@@ -84,17 +86,17 @@ function M.get_index_content(filepath)
   if vim.v.shell_error ~= 0 then
     return nil, 'file not in index'
   end
-  return result, nil
+  return content.from_raw_lines(result), nil
 end
 
 ---@param filepath string
----@return string[]?, string?
+---@return diffs.ContentLines?, string?
 function M.get_working_content(filepath)
   if vim.fn.filereadable(filepath) ~= 1 then
     return nil, 'file not readable'
   end
   local lines = vim.fn.readfile(filepath, 'b')
-  return lines, nil
+  return content.from_raw_lines(lines, { empty_is_empty = vim.fn.getfsize(filepath) == 0 }), nil
 end
 
 ---@param filepath string
