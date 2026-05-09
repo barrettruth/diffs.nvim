@@ -1,4 +1,4 @@
-require('spec.helpers')
+local helpers = require('spec.helpers')
 
 local diffspec = require('diffs.spec')
 local hunks = require('diffs.hunks')
@@ -230,6 +230,124 @@ describe('diffs.hunks', function()
 
       hunks.goto_prev(bufnr)
       assert.are.same({ 4, 0 }, vim.api.nvim_win_get_cursor(0))
+    end)
+  end)
+
+  describe('source opening', function()
+    local source_buf
+    local diff_buf
+    local source_win
+    local diff_win
+    local saved_notify
+
+    local function cleanup()
+      if saved_notify then
+        vim.notify = saved_notify
+        saved_notify = nil
+      end
+      pcall(vim.cmd, 'only')
+      helpers.delete_buffer(diff_buf)
+      helpers.delete_buffer(source_buf)
+      source_buf = nil
+      diff_buf = nil
+      source_win = nil
+      diff_win = nil
+    end
+
+    local function create_source_window()
+      source_buf = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_buf_set_name(source_buf, '/tmp/repo/lua/foo.lua')
+      vim.api.nvim_buf_set_lines(source_buf, 0, -1, false, {
+        'local a = 1',
+        'local b = 3',
+        'local c = 4',
+        'local d = 5',
+      })
+      vim.api.nvim_set_current_buf(source_buf)
+      source_win = vim.api.nvim_get_current_win()
+    end
+
+    local function create_diff_window(diff_spec)
+      local lines = sample_lines()
+      diff_buf = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_buf_set_lines(diff_buf, 0, -1, false, lines)
+      vim.api.nvim_buf_set_var(diff_buf, 'diffs_hunks', hunks.parse(lines, diff_spec))
+      vim.api.nvim_buf_set_var(diff_buf, 'diffs_repo_root', '/tmp/repo')
+      vim.cmd('split')
+      diff_win = vim.api.nvim_get_current_win()
+      vim.api.nvim_win_set_buf(diff_win, diff_buf)
+    end
+
+    after_each(cleanup)
+
+    it('opens an existing worktree source window from an added line', function()
+      create_source_window()
+      create_diff_window(diffspec.index_to_worktree('lua/foo.lua'))
+
+      vim.api.nvim_win_set_cursor(diff_win, { 7, 0 })
+
+      assert.is_true(hunks.open_source(diff_buf))
+      assert.are.equal(source_win, vim.api.nvim_get_current_win())
+      assert.are.equal(source_buf, vim.api.nvim_get_current_buf())
+      assert.are.same({ 2, 0 }, vim.api.nvim_win_get_cursor(0))
+    end)
+
+    it('maps deleted lines to the best worktree source line', function()
+      create_source_window()
+      create_diff_window(diffspec.rev_to_worktree('HEAD', 'lua/foo.lua'))
+
+      vim.api.nvim_win_set_cursor(diff_win, { 6, 0 })
+
+      assert.is_true(hunks.open_source(diff_buf))
+      assert.are.equal(source_win, vim.api.nvim_get_current_win())
+      assert.are.same({ 2, 0 }, vim.api.nvim_win_get_cursor(0))
+    end)
+
+    it('refuses index-backed hunks with a clear message', function()
+      local notification
+      saved_notify = vim.notify
+      vim.notify = function(message, level)
+        notification = { message = message, level = level }
+      end
+      create_source_window()
+      create_diff_window(diffspec.head_to_index('lua/foo.lua'))
+
+      vim.api.nvim_win_set_cursor(diff_win, { 7, 0 })
+
+      assert.is_false(hunks.open_source(diff_buf))
+      assert.are.equal(diff_win, vim.api.nvim_get_current_win())
+      assert.is_not_nil(notification)
+      assert.are.equal(vim.log.levels.WARN, notification.level)
+      assert.is_true(notification.message:find('index%-backed Gdiff hunk') ~= nil)
+    end)
+
+    it('refuses read-only tree-backed hunks with a clear message', function()
+      local notification
+      saved_notify = vim.notify
+      vim.notify = function(message, level)
+        notification = { message = message, level = level }
+      end
+      create_source_window()
+      create_diff_window(diffspec.rev_to_rev('HEAD~1', 'HEAD', 'lua/foo.lua'))
+
+      vim.api.nvim_win_set_cursor(diff_win, { 7, 0 })
+
+      assert.is_false(hunks.open_source(diff_buf))
+      assert.is_not_nil(notification)
+      assert.are.equal(vim.log.levels.WARN, notification.level)
+      assert.is_true(notification.message:find('read%-only tree%-backed Gdiff hunk') ~= nil)
+    end)
+
+    it('returns the resolved source location without opening it', function()
+      create_source_window()
+      create_diff_window(diffspec.index_to_worktree('lua/foo.lua'))
+
+      vim.api.nvim_win_set_cursor(diff_win, { 9, 0 })
+
+      assert.are.same(
+        { path = '/tmp/repo/lua/foo.lua', lnum = 4 },
+        hunks.source_at_cursor(diff_buf)
+      )
     end)
   end)
 end)

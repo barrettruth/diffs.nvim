@@ -279,6 +279,8 @@ describe('read_buffer', function()
       assert.are.equal('worktree', diff_hunks[1].mutation_target)
       assert.is_true(helpers.has_keymap(bufnr, ']c'))
       assert.is_true(helpers.has_keymap(bufnr, '[c'))
+      assert.is_true(helpers.has_keymap(bufnr, '<CR>'))
+      assert.is_true(helpers.has_keymap(bufnr, 'o'))
     end)
 
     it('prefers diffs_spec metadata for HEAD to index reloads', function()

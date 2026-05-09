@@ -8,6 +8,68 @@ local dbg = require('diffs.log').dbg
 local render = require('diffs.render')
 local runtime = require('diffs.runtime')
 
+---@type table<integer, table<string, function>>
+local hunk_keymaps = {}
+---@type table<integer, integer>
+local hunk_keymap_autocmds = {}
+
+---@param bufnr integer
+---@param lhs string
+---@return table?
+local function get_buffer_keymap(bufnr, lhs)
+  for _, keymap in ipairs(vim.api.nvim_buf_get_keymap(bufnr, 'n')) do
+    if keymap.lhs == lhs then
+      return keymap
+    end
+  end
+  return nil
+end
+
+---@param bufnr integer
+local function clear_hunk_keymaps(bufnr)
+  local registered = hunk_keymaps[bufnr]
+  if not registered then
+    return
+  end
+  for lhs, callback in pairs(registered) do
+    local current = get_buffer_keymap(bufnr, lhs)
+    if current and current.callback == callback then
+      pcall(vim.keymap.del, 'n', lhs, { buffer = bufnr })
+    end
+  end
+  hunk_keymaps[bufnr] = nil
+end
+
+---@param bufnr integer
+local function ensure_hunk_keymap_cleanup(bufnr)
+  if hunk_keymap_autocmds[bufnr] then
+    return
+  end
+
+  hunk_keymap_autocmds[bufnr] = vim.api.nvim_create_autocmd('BufWipeout', {
+    buffer = bufnr,
+    once = true,
+    callback = function()
+      hunk_keymaps[bufnr] = nil
+      hunk_keymap_autocmds[bufnr] = nil
+    end,
+  })
+end
+
+---@param bufnr integer
+---@param lhs string
+---@param callback function
+---@param desc string
+local function set_hunk_keymap(bufnr, lhs, callback, desc)
+  if get_buffer_keymap(bufnr, lhs) then
+    return
+  end
+
+  vim.keymap.set('n', lhs, callback, { buffer = bufnr, desc = desc })
+  hunk_keymaps[bufnr] = hunk_keymaps[bufnr] or {}
+  hunk_keymaps[bufnr][lhs] = callback
+end
+
 ---@return integer?
 function M.find_diffs_window()
   local tabpage = vim.api.nvim_get_current_tabpage()
@@ -26,16 +88,29 @@ end
 ---@param bufnr integer
 function M.setup_diff_buf(bufnr)
   vim.diagnostic.enable(false, { bufnr = bufnr })
-  vim.keymap.set('n', 'q', '<cmd>close<CR>', { buffer = bufnr })
-  local has_hunks = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_hunks')
-  if has_hunks then
-    vim.keymap.set('n', ']c', function()
-      hunk_model.goto_next(bufnr)
-    end, { buffer = bufnr, desc = 'Next diff hunk' })
-    vim.keymap.set('n', '[c', function()
-      hunk_model.goto_prev(bufnr)
-    end, { buffer = bufnr, desc = 'Previous diff hunk' })
+  if not get_buffer_keymap(bufnr, 'q') then
+    vim.keymap.set('n', 'q', '<cmd>close<CR>', { buffer = bufnr })
   end
+  local has_hunks = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_hunks')
+  if not has_hunks then
+    clear_hunk_keymaps(bufnr)
+    return
+  end
+
+  set_hunk_keymap(bufnr, ']c', function()
+    hunk_model.goto_next(bufnr)
+  end, 'Next diff hunk')
+  set_hunk_keymap(bufnr, '[c', function()
+    hunk_model.goto_prev(bufnr)
+  end, 'Previous diff hunk')
+  set_hunk_keymap(bufnr, '<CR>', function()
+    hunk_model.open_source(bufnr)
+  end, 'Open source file')
+  set_hunk_keymap(bufnr, 'o', function()
+    hunk_model.open_source(bufnr)
+  end, 'Open source file')
+
+  ensure_hunk_keymap_cleanup(bufnr)
 end
 
 ---@param diff_lines string[]

@@ -603,6 +603,9 @@ Diff buffer mappings: ~
                     buffers.
     [c              Jump to the previous hunk boundary in generated |:Gdiff|
                     buffers.
+    <CR>            Open the real worktree file at the current |:Gdiff| hunk
+                    location when the right side is worktree-backed.
+    o               Same as <CR>.
 
 ==============================================================================
 INTEGRATIONS                                         *diffs.nvim-integrations*
