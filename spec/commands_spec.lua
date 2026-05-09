@@ -161,30 +161,55 @@ describe('commands', function()
     end)
   end)
 
-  describe('Gdiff DiffSpec mapping', function()
-    it('expresses default :Gdiff as HEAD to worktree for the current file', function()
-      local spec = commands._test.gdiff_revision_spec(nil, 'lua/foo.lua')
+  describe('Gdiff DiffSpec rendering', function()
+    it('opens default :Gdiff as an unstaged index to worktree diff', function()
+      local source_buf = vim.api.nvim_create_buf(false, true)
+      table.insert(test_buffers, source_buf)
+      vim.api.nvim_buf_set_name(source_buf, '/tmp/repo/lua/foo.lua')
+      vim.api.nvim_buf_set_lines(source_buf, 0, -1, false, {
+        'local M = {}',
+        'local x = 1',
+        'return M',
+      })
+      vim.api.nvim_set_current_buf(source_buf)
 
-      assert.are.same({
-        left = { kind = 'tree', rev = 'HEAD' },
-        right = { kind = 'worktree' },
-        scope = { kind = 'file', path = 'lua/foo.lua' },
-        mode = 'unified',
-      }, spec)
+      local called_index = false
+      local called_head = false
+      mock_git_method('get_relative_path', function(filepath)
+        assert.are.equal('/tmp/repo/lua/foo.lua', filepath)
+        return 'lua/foo.lua'
+      end)
+      mock_git_method('get_index_content', function(filepath)
+        called_index = true
+        assert.are.equal('/tmp/repo/lua/foo.lua', filepath)
+        return { 'local M = {}', 'return M' }
+      end)
+      mock_git_method('get_file_content', function()
+        called_head = true
+        return { 'should not be used' }
+      end)
+      mock_repo_root(function(filepath)
+        assert.are.equal('/tmp/repo/lua/foo.lua', filepath)
+        return '/tmp/repo'
+      end)
+
+      commands.gdiff(nil, false)
+
+      local diff_buf = vim.api.nvim_get_current_buf()
+      table.insert(test_buffers, diff_buf)
+      vim.wait(10, function()
+        return false
+      end)
+      local lines = vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false)
+
+      assert.is_true(called_index)
+      assert.is_false(called_head)
+      assert.are.equal('diffs://unstaged:lua/foo.lua', vim.api.nvim_buf_get_name(diff_buf))
+      assert.are.equal('diff --git a/lua/foo.lua b/lua/foo.lua', lines[1])
+      assert.is_true(table.concat(lines, '\n'):find('+local x = 1', 1, true) ~= nil)
     end)
 
-    it('expresses explicit :Gdiff revision args as revision to worktree', function()
-      local spec = commands._test.gdiff_revision_spec('HEAD~3', 'lua/foo.lua')
-
-      assert.are.same({
-        left = { kind = 'tree', rev = 'HEAD~3' },
-        right = { kind = 'worktree' },
-        scope = { kind = 'file', path = 'lua/foo.lua' },
-        mode = 'unified',
-      }, spec)
-    end)
-
-    it('preserves the existing generated buffer surface while using the spec', function()
+    it('preserves the explicit revision generated buffer surface', function()
       local source_buf = vim.api.nvim_create_buf(false, true)
       table.insert(test_buffers, source_buf)
       vim.api.nvim_buf_set_name(source_buf, '/tmp/repo/lua/foo.lua')
