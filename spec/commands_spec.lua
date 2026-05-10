@@ -218,6 +218,23 @@ local function create_mode_only_review_repo()
   }
 end
 
+local function create_mixed_mode_review_repo()
+  local repo = create_mode_only_review_repo()
+
+  git_cmd(repo.repo_root, { 'checkout', '-f', 'mode-base' })
+  write_repo_file(repo.repo_root, 'lua/changed.lua', { 'old' })
+  git_cmd(repo.repo_root, { 'add', 'lua/changed.lua' })
+  git_cmd(repo.repo_root, { 'commit', '-qm', 'add changed file' })
+
+  git_cmd(repo.repo_root, { 'checkout', '-f', 'mode-topic' })
+  git_cmd(repo.repo_root, { 'rebase', 'mode-base' })
+  write_repo_file(repo.repo_root, 'lua/changed.lua', { 'new' })
+  git_cmd(repo.repo_root, { 'add', 'lua/changed.lua' })
+  git_cmd(repo.repo_root, { 'commit', '-qm', 'change file' })
+
+  return repo
+end
+
 local function edit_file(path)
   vim.cmd('edit ' .. vim.fn.fnameescape(path))
   local bufnr = vim.api.nvim_get_current_buf()
@@ -269,6 +286,38 @@ local function find_quickfix_window()
     end
   end
   return nil
+end
+
+---@param loclist boolean
+---@return integer?
+local function find_list_window(loclist)
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    local info = vim.fn.getwininfo(win)[1]
+    if type(info) == 'table' and info.quickfix == 1 then
+      if loclist and info.loclist == 1 then
+        return win
+      end
+      if not loclist and info.loclist == 0 then
+        return win
+      end
+    end
+  end
+  return nil
+end
+
+---@param win integer
+---@return integer?
+local function find_loclist_window_for_window(win)
+  local winnr = vim.fn.win_id2win(win)
+  if winnr == 0 then
+    return nil
+  end
+
+  local loclist = vim.fn.getloclist(winnr, { winid = 0 })
+  if type(loclist) ~= 'table' or type(loclist.winid) ~= 'number' or loclist.winid == 0 then
+    return nil
+  end
+  return loclist.winid
 end
 
 local function find_buffer_line(bufnr, text)
@@ -2453,6 +2502,302 @@ describe('commands', function()
       assert.are.same(
         diffspec.rev_to_rev(repo.base, repo.target, 'lua/one.lua'),
         vim.api.nvim_buf_get_var(second_opened.right_buf, 'diffs_spec')
+      )
+    end)
+
+    it('follows review file transitions after the split pair is opened once', function()
+      local repo = create_review_repo()
+      mock_runtime_attach(function() end)
+
+      local bufnr = commands.greview({
+        base = repo.base,
+        target = repo.target,
+        mode = 'direct',
+        repo = repo.repo_root,
+      })
+      assert.is_not_nil(bufnr)
+      table.insert(test_buffers, bufnr)
+      local review_win = vim.api.nvim_get_current_win()
+
+      local two_line = find_buffer_line(bufnr, '+line 2 changed')
+      assert.is_not_nil(two_line)
+      vim.api.nvim_win_set_cursor(review_win, { two_line, 0 })
+      local opened = commands.greview_split({ bufnr = bufnr })
+      assert.is_not_nil(opened)
+      table.insert(test_buffers, opened.left_buf)
+      table.insert(test_buffers, opened.right_buf)
+
+      vim.api.nvim_set_current_win(review_win)
+      local one_line = find_buffer_line(bufnr, '+new one')
+      assert.is_not_nil(one_line)
+      vim.api.nvim_win_set_cursor(review_win, { one_line, 0 })
+      vim.api.nvim_exec_autocmds('CursorMoved', { buffer = bufnr })
+
+      local followed_right
+      vim.wait(100, function()
+        local ok, right = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_review_split_buf')
+        if not ok or right == opened.right_buf or not vim.api.nvim_buf_is_valid(right) then
+          return false
+        end
+        local spec = vim.api.nvim_buf_get_var(right, 'diffs_spec')
+        if spec.scope and spec.scope.path == 'lua/one.lua' then
+          followed_right = right
+          return true
+        end
+        return false
+      end)
+
+      assert.is_not_nil(followed_right)
+      table.insert(test_buffers, followed_right)
+      table.insert(test_buffers, vim.api.nvim_buf_get_var(followed_right, 'diffs_split_peer'))
+      assert.is_false(vim.api.nvim_buf_is_valid(opened.left_buf))
+      assert.is_false(vim.api.nvim_buf_is_valid(opened.right_buf))
+      assert.are.equal(review_win, vim.api.nvim_get_current_win())
+
+      local qf = quickfix_items()
+      assert.are.equal(2, #qf)
+      assert.are.equal(bufnr, qf[1].bufnr)
+      assert.are.equal(bufnr, qf[2].bufnr)
+    end)
+
+    it('moves same-file review hunk transitions through the existing split pair', function()
+      local repo = create_review_repo()
+      mock_runtime_attach(function() end)
+
+      local bufnr = commands.greview({
+        base = repo.base,
+        target = repo.target,
+        mode = 'direct',
+        repo = repo.repo_root,
+      })
+      assert.is_not_nil(bufnr)
+      table.insert(test_buffers, bufnr)
+      local review_win = vim.api.nvim_get_current_win()
+
+      local first_hunk_line = find_buffer_line(bufnr, '+line 2 changed')
+      assert.is_not_nil(first_hunk_line)
+      vim.api.nvim_win_set_cursor(review_win, { first_hunk_line, 0 })
+      local opened = commands.greview_split({ bufnr = bufnr })
+      assert.is_not_nil(opened)
+      table.insert(test_buffers, opened.left_buf)
+      table.insert(test_buffers, opened.right_buf)
+      local split_hunks = vim.api.nvim_buf_get_var(opened.right_buf, 'diffs_split_hunks')
+
+      vim.api.nvim_set_current_win(review_win)
+      local second_hunk_line = find_buffer_line(bufnr, '+line 11 changed')
+      assert.is_not_nil(second_hunk_line)
+      vim.api.nvim_win_set_cursor(review_win, { second_hunk_line, 0 })
+      vim.api.nvim_exec_autocmds('CursorMoved', { buffer = bufnr })
+
+      vim.wait(100, function()
+        return vim.api.nvim_win_get_cursor(opened.right_win)[1] == split_hunks[2].new_range.start
+      end)
+
+      assert.are.equal(opened.right_buf, vim.api.nvim_buf_get_var(bufnr, 'diffs_review_split_buf'))
+      assert.are.same(
+        { split_hunks[2].old_range.start, 0 },
+        vim.api.nvim_win_get_cursor(opened.left_win)
+      )
+      assert.are.same(
+        { split_hunks[2].new_range.start, 0 },
+        vim.api.nvim_win_get_cursor(opened.right_win)
+      )
+      assert.are.equal(review_win, vim.api.nvim_get_current_win())
+    end)
+
+    it('updates the owned split pair after review quickfix and loclist jumps', function()
+      local repo = create_review_repo()
+      mock_runtime_attach(function() end)
+
+      local bufnr = commands.greview({
+        base = repo.base,
+        target = repo.target,
+        mode = 'direct',
+        repo = repo.repo_root,
+      })
+      assert.is_not_nil(bufnr)
+      table.insert(test_buffers, bufnr)
+
+      local one_line = find_buffer_line(bufnr, '+new one')
+      assert.is_not_nil(one_line)
+      vim.api.nvim_win_set_cursor(0, { one_line, 0 })
+      local opened = commands.greview_split({ bufnr = bufnr })
+      assert.is_not_nil(opened)
+      table.insert(test_buffers, opened.left_buf)
+      table.insert(test_buffers, opened.right_buf)
+
+      vim.cmd('copen')
+      local qf_win = find_list_window(false)
+      assert.is_not_nil(qf_win)
+      vim.api.nvim_set_current_win(qf_win)
+      vim.api.nvim_win_set_cursor(qf_win, { 2, 0 })
+      vim.cmd('normal \r')
+
+      local followed_right
+      vim.wait(100, function()
+        local ok, right = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_review_split_buf')
+        if not ok or right == opened.right_buf or not vim.api.nvim_buf_is_valid(right) then
+          return false
+        end
+        local spec = vim.api.nvim_buf_get_var(right, 'diffs_spec')
+        if spec.scope and spec.scope.path == 'lua/two.lua' then
+          followed_right = right
+          return true
+        end
+        return false
+      end)
+
+      assert.is_not_nil(followed_right)
+      table.insert(test_buffers, followed_right)
+      local followed_left = vim.api.nvim_buf_get_var(followed_right, 'diffs_split_peer')
+      table.insert(test_buffers, followed_left)
+
+      local review_win = find_window_for_buffer(bufnr)
+      assert.is_not_nil(review_win)
+      vim.api.nvim_set_current_win(review_win)
+      vim.cmd('lopen')
+      local loc_win = find_loclist_window_for_window(review_win)
+      assert.is_not_nil(loc_win)
+      vim.api.nvim_set_current_win(loc_win)
+      vim.api.nvim_win_set_cursor(loc_win, { 2, 0 })
+      vim.cmd('normal \r')
+
+      local right_win = find_window_for_buffer(followed_right)
+      local left_win = find_window_for_buffer(followed_left)
+      local split_hunks = vim.api.nvim_buf_get_var(followed_right, 'diffs_split_hunks')
+      vim.wait(100, function()
+        return right_win
+          and vim.api.nvim_win_is_valid(right_win)
+          and vim.api.nvim_win_get_cursor(right_win)[1] == split_hunks[2].new_range.start
+      end)
+
+      assert.are.equal(followed_right, vim.api.nvim_buf_get_var(bufnr, 'diffs_review_split_buf'))
+      assert.are.same({ split_hunks[2].old_range.start, 0 }, vim.api.nvim_win_get_cursor(left_win))
+      assert.are.same({ split_hunks[2].new_range.start, 0 }, vim.api.nvim_win_get_cursor(right_win))
+    end)
+
+    it('stops following after the owned split pair is closed', function()
+      local repo = create_review_repo()
+      mock_runtime_attach(function() end)
+
+      local bufnr = commands.greview({
+        base = repo.base,
+        target = repo.target,
+        mode = 'direct',
+        repo = repo.repo_root,
+      })
+      assert.is_not_nil(bufnr)
+      table.insert(test_buffers, bufnr)
+      local review_win = vim.api.nvim_get_current_win()
+
+      local two_line = find_buffer_line(bufnr, '+line 2 changed')
+      assert.is_not_nil(two_line)
+      vim.api.nvim_win_set_cursor(review_win, { two_line, 0 })
+      local opened = commands.greview_split({ bufnr = bufnr })
+      assert.is_not_nil(opened)
+
+      split.close_pair(opened.right_buf)
+      assert.is_false(vim.api.nvim_buf_is_valid(opened.left_buf))
+      assert.is_false(vim.api.nvim_buf_is_valid(opened.right_buf))
+      assert.is_false(has_buf_var(bufnr, 'diffs_review_split_buf'))
+
+      vim.api.nvim_set_current_win(review_win)
+      local one_line = find_buffer_line(bufnr, '+new one')
+      assert.is_not_nil(one_line)
+      vim.api.nvim_win_set_cursor(review_win, { one_line, 0 })
+      vim.api.nvim_exec_autocmds('CursorMoved', { buffer = bufnr })
+
+      assert.is_false(has_buf_var(bufnr, 'diffs_review_split_buf'))
+    end)
+
+    it('closes stale review split pairs for unsupported auto-follow selections', function()
+      local repo = create_mixed_mode_review_repo()
+      local notifications = capture_notifications()
+      mock_runtime_attach(function() end)
+
+      local bufnr = commands.greview({
+        base = repo.base,
+        target = repo.target,
+        mode = 'direct',
+        repo = repo.repo_root,
+      })
+      assert.is_not_nil(bufnr)
+      table.insert(test_buffers, bufnr)
+      local review_win = vim.api.nvim_get_current_win()
+
+      local changed_line = find_buffer_line(bufnr, '+new')
+      assert.is_not_nil(changed_line)
+      vim.api.nvim_win_set_cursor(review_win, { changed_line, 0 })
+      local opened = commands.greview_split({ bufnr = bufnr })
+      assert.is_not_nil(opened)
+
+      local mode_line = find_buffer_line(bufnr, 'diff --git a/scripts/tool.sh b/scripts/tool.sh')
+      assert.is_not_nil(mode_line)
+      vim.api.nvim_set_current_win(review_win)
+      vim.api.nvim_win_set_cursor(review_win, { mode_line, 0 })
+      vim.api.nvim_exec_autocmds('CursorMoved', { buffer = bufnr })
+
+      vim.wait(100, function()
+        return not vim.api.nvim_buf_is_valid(opened.right_buf)
+          and not has_buf_var(bufnr, 'diffs_review_split_buf')
+      end)
+
+      assert.is_false(vim.api.nvim_buf_is_valid(opened.left_buf))
+      assert.is_false(vim.api.nvim_buf_is_valid(opened.right_buf))
+      assert.is_false(has_buf_var(bufnr, 'diffs_review_split_buf'))
+      assert.are.equal(0, #notifications)
+    end)
+
+    it('keeps Greview follow compatible with split-pair cursor sync', function()
+      local repo = create_review_repo()
+      mock_runtime_attach(function() end)
+
+      local bufnr = commands.greview({
+        base = repo.base,
+        target = repo.target,
+        mode = 'direct',
+        repo = repo.repo_root,
+      })
+      assert.is_not_nil(bufnr)
+      table.insert(test_buffers, bufnr)
+      local review_win = vim.api.nvim_get_current_win()
+
+      local first_hunk_line = find_buffer_line(bufnr, '+line 2 changed')
+      assert.is_not_nil(first_hunk_line)
+      vim.api.nvim_win_set_cursor(review_win, { first_hunk_line, 0 })
+      local opened = commands.greview_split({ bufnr = bufnr })
+      assert.is_not_nil(opened)
+      table.insert(test_buffers, opened.left_buf)
+      table.insert(test_buffers, opened.right_buf)
+      local split_hunks = vim.api.nvim_buf_get_var(opened.right_buf, 'diffs_split_hunks')
+
+      vim.api.nvim_set_current_win(opened.right_win)
+      split.goto_next(opened.right_buf)
+      assert.are.same(
+        { split_hunks[2].old_range.start, 0 },
+        vim.api.nvim_win_get_cursor(opened.left_win)
+      )
+      assert.are.same(
+        { split_hunks[2].new_range.start, 0 },
+        vim.api.nvim_win_get_cursor(opened.right_win)
+      )
+
+      vim.api.nvim_set_current_win(review_win)
+      vim.api.nvim_win_set_cursor(review_win, { first_hunk_line, 0 })
+      vim.api.nvim_exec_autocmds('CursorMoved', { buffer = bufnr })
+
+      vim.wait(100, function()
+        return vim.api.nvim_win_get_cursor(opened.right_win)[1] == split_hunks[1].new_range.start
+      end)
+
+      assert.are.equal(opened.right_buf, vim.api.nvim_buf_get_var(bufnr, 'diffs_review_split_buf'))
+      assert.are.same(
+        { split_hunks[1].old_range.start, 0 },
+        vim.api.nvim_win_get_cursor(opened.left_win)
+      )
+      assert.are.same(
+        { split_hunks[1].new_range.start, 0 },
+        vim.api.nvim_win_get_cursor(opened.right_win)
       )
     end)
 

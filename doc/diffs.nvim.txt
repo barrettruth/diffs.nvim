@@ -689,6 +689,9 @@ Generated paired-window contract: ~             *diffs.nvim-paired-windows*
         `require('diffs.commands').greview_split()` opens the currently
         selected |:Greview| file in a generated split pair. It uses the review
         buffer cursor, quickfix item, or loclist item as the file selection.
+        Once opened, that Greview-owned pair follows review-map file and hunk
+        selection until the pair is closed. The review quickfix list remains
+        the authoritative file map.
 
         `require('diffs.commands').review_file_at_line(bufnr, lnum)` returns
         the filename at a given line in a review buffer by walking backwards
@@ -720,7 +723,8 @@ MAPPINGS                                                 *diffs.nvim-mappings*
                         Open the currently selected |:Greview| file in a
                         generated split pair. The review buffer remains the
                         full-repo map; this action opens one file pair for
-                        focused inspection.
+                        focused inspection and follows later review-map
+                        selections until that pair is closed.
 
 Example configuration: >lua
     vim.keymap.set('n', '<leader>gd', '<Plug>(diffs-gdiff)')
