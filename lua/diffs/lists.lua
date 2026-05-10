@@ -5,6 +5,9 @@ local hunk_model = require('diffs.hunks')
 local generated_list_autocmds = {}
 local generated_list_state = {}
 local quickfix_keymap_autocmd
+---@type fun(item: table?)?
+local generated_jump_callback
+local quickfix_enter_desc = 'Open quickfix item'
 
 local group = vim.api.nvim_create_augroup('diffs_generated_lists', { clear = false })
 
@@ -463,8 +466,32 @@ local function jump_current_quickfix_item()
   local item, is_loclist = current_quickfix_item()
   local row = vim.api.nvim_win_get_cursor(0)[1]
   local command = is_loclist and 'll' or 'cc'
-  vim.cmd(command .. ' ' .. row)
+  local jumped = false
+  if type(item) == 'table' and type(item.bufnr) == 'number' then
+    local item_win = windows_for_buffer(item.bufnr)[1]
+    if item_win then
+      if generated_jump_callback then
+        generated_jump_callback(item)
+      end
+      local lnum = math.max(1, math.min(item.lnum or 1, vim.api.nvim_buf_line_count(item.bufnr)))
+      local col = math.max(0, (item.col or 1) - 1)
+      vim.api.nvim_set_current_win(item_win)
+      vim.api.nvim_win_set_cursor(item_win, { lnum, col })
+      jumped = true
+    end
+  end
+  if not jumped then
+    vim.cmd(command .. ' ' .. row)
+  end
   sync_split_item(item)
+  if generated_jump_callback then
+    generated_jump_callback(item)
+  end
+end
+
+---@param callback fun(item: table?)?
+function M.set_generated_jump_callback(callback)
+  generated_jump_callback = callback
 end
 
 ---@class diffs.GeneratedFileSelectionOpts
@@ -519,14 +546,26 @@ function M.selected_generated_file(opts)
 end
 
 ---@param bufnr integer
----@return boolean
-local function has_enter_keymap(bufnr)
+---@return table?
+local function enter_keymap(bufnr)
   for _, keymap in ipairs(vim.api.nvim_buf_get_keymap(bufnr, 'n')) do
     if keymap.lhs == '<CR>' then
-      return true
+      return keymap
     end
   end
-  return false
+  return nil
+end
+
+---@param bufnr integer
+local function set_quickfix_keymap(bufnr)
+  local existing = enter_keymap(bufnr)
+  if existing and existing.desc ~= quickfix_enter_desc then
+    return
+  end
+  vim.keymap.set('n', '<CR>', jump_current_quickfix_item, {
+    buffer = bufnr,
+    desc = quickfix_enter_desc,
+  })
 end
 
 function M.ensure_quickfix_keymap()
@@ -538,15 +577,18 @@ function M.ensure_quickfix_keymap()
     group = group,
     pattern = 'qf',
     callback = function(args)
-      if has_enter_keymap(args.buf) then
-        return
-      end
-      vim.keymap.set('n', '<CR>', jump_current_quickfix_item, {
-        buffer = args.buf,
-        desc = 'Open quickfix item',
-      })
+      set_quickfix_keymap(args.buf)
     end,
   })
+
+  for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+    if
+      vim.api.nvim_buf_is_valid(bufnr)
+      and vim.api.nvim_get_option_value('filetype', { buf = bufnr }) == 'qf'
+    then
+      set_quickfix_keymap(bufnr)
+    end
+  end
 end
 
 -- selene: allow(global_usage)
