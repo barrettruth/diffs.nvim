@@ -29,8 +29,12 @@ end
 local function mock_systemlist(fn)
   saved_systemlist = vim.fn.systemlist
   vim.fn.systemlist = function(cmd)
-    local result = fn(cmd)
-    saved_systemlist({ 'true' })
+    local result, shell_error = fn(cmd)
+    if shell_error and shell_error ~= 0 then
+      saved_systemlist({ 'false' })
+    else
+      saved_systemlist({ 'true' })
+    end
     return result
   end
 end
@@ -1448,6 +1452,12 @@ describe('commands', function()
         return entry and entry.worktree and '100644' or nil
       end)
       mock_systemlist(function(cmd)
+        if cmd[4] == 'rev-parse' then
+          return { 'commit' }
+        end
+        if cmd[4] == 'merge-base' then
+          return { 'merge-base-commit' }
+        end
         if
           contains_cmd_arg(cmd, '--name-status')
           or contains_cmd_arg(cmd, '--numstat')
@@ -1697,14 +1707,20 @@ describe('commands', function()
     end)
 
     it('normalizes default base inside the resolved repo', function()
-      local captured_cmd
+      local captured_cmds = {}
       mock_repo_root(function(path)
         assert.are.equal('/tmp/repo/.', path)
         return '/tmp/repo'
       end)
       mock_systemlist(function(cmd)
-        captured_cmd = cmd
-        return { 'refs/remotes/origin/main' }
+        captured_cmds[#captured_cmds + 1] = cmd
+        if cmd[4] == 'symbolic-ref' then
+          return { 'refs/remotes/origin/main' }
+        end
+        if cmd[4] == 'rev-parse' then
+          return { 'commit' }
+        end
+        return {}
       end)
 
       local review = commands._test.normalize_greview({ repo = '/tmp/repo' })
@@ -1714,7 +1730,11 @@ describe('commands', function()
       assert.are.equal('origin/main', review.display)
       assert.are.same(
         { 'git', '-C', '/tmp/repo', 'symbolic-ref', 'refs/remotes/origin/HEAD' },
-        captured_cmd
+        captured_cmds[1]
+      )
+      assert.are.same(
+        { 'git', '-C', '/tmp/repo', 'rev-parse', '--verify', '--quiet', 'origin/main^{commit}' },
+        captured_cmds[2]
       )
     end)
 
@@ -1759,6 +1779,114 @@ describe('commands', function()
   end)
 
   describe('greview', function()
+    it('reports a missing base ref before rendering', function()
+      local called_diff = false
+      local notifications = capture_notifications()
+      mock_repo_root(function(path)
+        assert.are.equal('/tmp/repo/.', path)
+        return '/tmp/repo'
+      end)
+      mock_systemlist(function(cmd)
+        if cmd[4] == 'diff' then
+          called_diff = true
+        end
+        if cmd[4] == 'rev-parse' then
+          return {}, 1
+        end
+        return {}
+      end)
+
+      local bufnr = commands.greview({
+        base = 'missing/ref',
+        repo = '/tmp/repo',
+      })
+
+      assert.is_nil(bufnr)
+      assert.is_false(called_diff)
+      assert.are.equal(vim.log.levels.ERROR, notifications[#notifications].level)
+      assert.is_true(
+        notifications[#notifications].message:find(
+          'Greview base ref not found: missing/ref (spec: missing/ref)',
+          1,
+          true
+        ) ~= nil
+      )
+    end)
+
+    it('reports a missing target ref before rendering', function()
+      local called_diff = false
+      local called_merge_base = false
+      local notifications = capture_notifications()
+      mock_repo_root(function(path)
+        assert.are.equal('/tmp/repo/.', path)
+        return '/tmp/repo'
+      end)
+      mock_systemlist(function(cmd)
+        if cmd[4] == 'diff' then
+          called_diff = true
+        elseif cmd[4] == 'merge-base' then
+          called_merge_base = true
+        elseif cmd[4] == 'rev-parse' and cmd[7] == 'missing/target^{commit}' then
+          return {}, 1
+        end
+        return {}
+      end)
+
+      local bufnr = commands.greview({
+        base = 'HEAD',
+        target = 'missing/target',
+        mode = 'merge-base',
+        repo = '/tmp/repo',
+      })
+
+      assert.is_nil(bufnr)
+      assert.is_false(called_diff)
+      assert.is_false(called_merge_base)
+      assert.are.equal(vim.log.levels.ERROR, notifications[#notifications].level)
+      assert.is_true(
+        notifications[#notifications].message:find(
+          'Greview target ref not found: missing/target (spec: HEAD...missing/target)',
+          1,
+          true
+        ) ~= nil
+      )
+    end)
+
+    it('reports a missing merge base before rendering merge-base reviews', function()
+      local called_diff = false
+      local notifications = capture_notifications()
+      mock_repo_root(function(path)
+        assert.are.equal('/tmp/repo/.', path)
+        return '/tmp/repo'
+      end)
+      mock_systemlist(function(cmd)
+        if cmd[4] == 'diff' then
+          called_diff = true
+        elseif cmd[4] == 'merge-base' then
+          return {}, 1
+        end
+        return {}
+      end)
+
+      local bufnr = commands.greview({
+        base = 'HEAD',
+        target = 'other',
+        mode = 'merge-base',
+        repo = '/tmp/repo',
+      })
+
+      assert.is_nil(bufnr)
+      assert.is_false(called_diff)
+      assert.are.equal(vim.log.levels.ERROR, notifications[#notifications].level)
+      assert.is_true(
+        notifications[#notifications].message:find(
+          'Greview merge base not found for spec: HEAD...other',
+          1,
+          true
+        ) ~= nil
+      )
+    end)
+
     it('opens a review buffer for an explicit merge-base target', function()
       local captured_cmd
       mock_repo_root(function(path)
@@ -1766,6 +1894,15 @@ describe('commands', function()
         return '/tmp/repo'
       end)
       mock_systemlist(function(cmd)
+        if cmd[4] == 'rev-parse' then
+          return { 'commit' }
+        end
+        if cmd[4] == 'merge-base' then
+          return { 'merge-base-commit' }
+        end
+        if cmd[4] ~= 'diff' then
+          return {}
+        end
         captured_cmd = cmd
         return {
           'diff --git a/file.lua b/file.lua',
