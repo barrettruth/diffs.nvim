@@ -2,19 +2,29 @@ local M = {}
 
 local diffspec = require('diffs.spec')
 local hunk_model = require('diffs.hunks')
+local lists = require('diffs.lists')
 local log = require('diffs.log')
 local render = require('diffs.render')
 
 local notify = log.notify
+local schedule = vim.schedule
 
 ---@type table<integer, boolean>
 local closing_buffers = {}
 ---@type table<integer, integer>
 local cleanup_autocmds = {}
 ---@type table<integer, integer>
+local cursor_sync_autocmds = {}
+---@type table<integer, integer>
 local peer_buffers = {}
 ---@type table<integer, table<string, any>>
 local pair_window_options = {}
+local syncing_cursor = false
+
+---@type fun(bufnr: integer)
+local clear_cursor_sync
+---@type fun(bufnr: integer)
+local ensure_cursor_sync
 
 ---@class diffs.SplitOpenOpts
 ---@field spec diffs.DiffSpec
@@ -352,6 +362,9 @@ local function clear_split_state(bufnr)
   pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_split_peer')
   pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_split_hunks')
   pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_split_side')
+  if clear_cursor_sync then
+    clear_cursor_sync(bufnr)
+  end
   clear_owned_split_keymaps(bufnr)
 end
 
@@ -504,6 +517,85 @@ local function move_pair_to_hunk(bufnr, hunk)
   if vim.api.nvim_win_is_valid(current_win) then
     vim.api.nvim_set_current_win(current_win)
   end
+end
+
+---@param hunks diffs.GdiffHunk[]
+---@param side "left"|"right"
+---@param lnum integer
+---@return diffs.GdiffHunk?
+local function hunk_at_target_lnum(hunks, side, lnum)
+  for _, hunk in ipairs(hunks) do
+    if hunk_target_lnum(hunk, side) == lnum then
+      return hunk
+    end
+  end
+  return nil
+end
+
+---@param bufnr integer
+local function sync_cursor_to_hunk(bufnr)
+  if syncing_cursor then
+    return
+  end
+
+  local source = buffer_source(bufnr)
+  local hunks = buffer_split_hunks(bufnr)
+  if not source or #hunks == 0 then
+    return
+  end
+
+  local win = current_or_first_window_for_buffer(bufnr)
+  if not win then
+    return
+  end
+  local hunk = hunk_at_target_lnum(hunks, source.side, vim.api.nvim_win_get_cursor(win)[1])
+  if not hunk then
+    return
+  end
+
+  syncing_cursor = true
+  move_pair_to_hunk(bufnr, hunk)
+  syncing_cursor = false
+end
+
+clear_cursor_sync = function(bufnr)
+  if cursor_sync_autocmds[bufnr] then
+    pcall(vim.api.nvim_del_autocmd, cursor_sync_autocmds[bufnr])
+    cursor_sync_autocmds[bufnr] = nil
+  end
+end
+
+ensure_cursor_sync = function(bufnr)
+  if cursor_sync_autocmds[bufnr] then
+    return
+  end
+
+  local target_buf = bufnr
+  cursor_sync_autocmds[bufnr] = vim.api.nvim_create_autocmd(
+    { 'BufEnter', 'CursorMoved', 'WinEnter' },
+    {
+      callback = function(args)
+        if not vim.api.nvim_buf_is_valid(target_buf) then
+          clear_cursor_sync(target_buf)
+          return
+        end
+        if vim.api.nvim_get_current_buf() ~= target_buf then
+          return
+        end
+        if args.event == 'BufEnter' then
+          vim.defer_fn(function()
+            schedule(function()
+              if vim.api.nvim_buf_is_valid(target_buf) then
+                sync_cursor_to_hunk(target_buf)
+              end
+            end)
+          end, 0)
+          return
+        end
+        sync_cursor_to_hunk(target_buf)
+      end,
+    }
+  )
 end
 
 ---@param bufnr integer
@@ -714,6 +806,8 @@ function M.open(opts)
   vim.api.nvim_win_set_buf(left_win, left_buf)
   vim.api.nvim_win_set_buf(right_win, right_buf)
   set_peers(left_buf, right_buf)
+  ensure_cursor_sync(left_buf)
+  ensure_cursor_sync(right_buf)
 
   enable_diff(left_win)
   enable_diff(right_win)
@@ -721,6 +815,14 @@ function M.open(opts)
   vim.cmd.diffupdate()
   set_pair_window_options(left_win)
   set_pair_window_options(right_win)
+  lists.set_for_split_pair({
+    title = 'diff: ' .. diffspec.label(spec),
+    left_buf = left_buf,
+    right_buf = right_buf,
+    left_win = left_win,
+    right_win = right_win,
+    hunks = split_hunks,
+  })
 
   log.dbg('opened split diff buffers %d/%d for %s', left_buf, right_buf, diffspec.label(spec))
   return {
@@ -795,7 +897,15 @@ function M.read_buffer(bufnr, source)
     else
       set_peers(peer, bufnr)
     end
+    ensure_cursor_sync(bufnr)
+    ensure_cursor_sync(peer)
     refresh_visible_pair_options(bufnr)
+    lists.set_for_split_pair({
+      title = 'diff: ' .. diffspec.label(source.spec),
+      left_buf = source.side == 'left' and bufnr or peer,
+      right_buf = source.side == 'right' and bufnr or peer,
+      hunks = split_hunks,
+    })
   end
   return true, nil
 end
@@ -938,6 +1048,8 @@ function M.goto_prev(bufnr)
   end
   move_pair_to_hunk(bufnr, hunk)
 end
+
+M.sync_cursor_to_hunk = sync_cursor_to_hunk
 
 M._test = {
   buffer_name = buffer_name,
