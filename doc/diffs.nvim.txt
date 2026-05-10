@@ -438,6 +438,10 @@ replace their layout unless the user invoked a generated diffs.nvim view.
     code language, plus diff header highlighting for `diff --git`, `---`,
     `+++`, and `@@` lines.
 
+    Generated `diffs://` unified buffers include old and new line-number rails
+    before the unified diff text. A blank rail cell means that line does not
+    exist on that side of the diff.
+
     In the default unified layout, if a `diffs://` window already exists in the
     current tabpage, the new diff replaces its buffer instead of creating
     another split.

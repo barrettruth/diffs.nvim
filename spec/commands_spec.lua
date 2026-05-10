@@ -3,6 +3,7 @@ local helpers = require('spec.helpers')
 local commands = require('diffs.commands')
 local diffspec = require('diffs.spec')
 local git = require('diffs.git')
+local rails = require('diffs.rails')
 local runtime = require('diffs.runtime')
 
 local saved_git = {}
@@ -118,8 +119,17 @@ local function write_binary_file(path, text)
   assert.are.equal(0, vim.v.shell_error)
 end
 
+local function buffer_lines(bufnr)
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local ok, rail_width = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_rail_width')
+  if ok then
+    return rails.strip_lines(lines, rail_width)
+  end
+  return lines
+end
+
 local function buffer_text(bufnr)
-  return table.concat(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), '\n')
+  return table.concat(buffer_lines(bufnr), '\n')
 end
 
 local function has_buf_var(bufnr, name)
@@ -370,7 +380,7 @@ describe('commands', function()
 
       local diff_buf = vim.api.nvim_get_current_buf()
       table.insert(test_buffers, diff_buf)
-      local lines = vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false)
+      local lines = buffer_lines(diff_buf)
 
       assert.is_true(called_index)
       assert.is_false(called_head)
@@ -394,6 +404,11 @@ describe('commands', function()
       assert.is_true(helpers.has_keymap(diff_buf, 'dp'))
       assert.are.equal('diff --git a/lua/foo.lua b/lua/foo.lua', lines[1])
       assert.is_true(table.concat(lines, '\n'):find('+local x = 1', 1, true) ~= nil)
+
+      local display_lines = vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false)
+      assert.are.equal(6, vim.api.nvim_buf_get_var(diff_buf, 'diffs_rail_width'))
+      assert.are.equal('    | diff --git a/lua/foo.lua b/lua/foo.lua', display_lines[1])
+      assert.is_true(table.concat(display_lines, '\n'):find('  2 | +local x = 1', 1, true) ~= nil)
     end)
 
     it('opens default :Gdiff for untracked files as index to worktree additions', function()
@@ -424,7 +439,7 @@ describe('commands', function()
 
       local diff_buf = vim.api.nvim_get_current_buf()
       table.insert(test_buffers, diff_buf)
-      local lines = vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false)
+      local lines = buffer_lines(diff_buf)
 
       assert.are.equal('diffs://unstaged:lua/new.lua', vim.api.nvim_buf_get_name(diff_buf))
       assert.are.same(
@@ -563,7 +578,7 @@ describe('commands', function()
 
       local diff_buf = vim.api.nvim_get_current_buf()
       table.insert(test_buffers, diff_buf)
-      local lines = vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false)
+      local lines = buffer_lines(diff_buf)
 
       assert.are.equal('HEAD~3', captured_revision)
       assert.are.equal('diffs://HEAD~3:lua/foo.lua', vim.api.nvim_buf_get_name(diff_buf))
@@ -672,7 +687,7 @@ describe('commands', function()
 
       local diff_buf = vim.api.nvim_get_current_buf()
       table.insert(test_buffers, diff_buf)
-      local text = table.concat(vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false), '\n')
+      local text = buffer_text(diff_buf)
       assert.is_true(text:find('-line 2', 1, true) ~= nil)
       assert.is_true(text:find('+line 2', 1, true) ~= nil)
       assert.is_true(text:find('\\ No newline at end of file', 1, true) ~= nil)
@@ -873,7 +888,7 @@ describe('commands', function()
       table.insert(test_buffers, diff_buf)
 
       local function assert_unmerged_view(bufnr)
-        local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+        local lines = buffer_lines(bufnr)
         local text = table.concat(lines, '\n')
 
         assert.are.equal('diffs://unmerged:file.txt', vim.api.nvim_buf_get_name(bufnr))
@@ -1056,7 +1071,7 @@ describe('commands', function()
         diffspec.index_to_worktree('lua/new.lua'),
         vim.api.nvim_buf_get_var(diff_buf, 'diffs_spec')
       )
-      local text = table.concat(vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false), '\n')
+      local text = buffer_text(diff_buf)
       assert.is_true(text:find('new file mode 100644', 1, true) ~= nil)
       assert.is_true(text:find('--- /dev/null', 1, true) ~= nil)
       local diff_hunks = vim.api.nvim_buf_get_var(diff_buf, 'diffs_hunks')
@@ -1101,7 +1116,7 @@ describe('commands', function()
         diffspec.head_to_index('lua/new.lua'),
         vim.api.nvim_buf_get_var(diff_buf, 'diffs_spec')
       )
-      local text = table.concat(vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false), '\n')
+      local text = buffer_text(diff_buf)
       assert.is_true(text:find('new file mode 100644', 1, true) ~= nil)
       assert.is_true(text:find('--- /dev/null', 1, true) ~= nil)
       local diff_hunks = vim.api.nvim_buf_get_var(diff_buf, 'diffs_hunks')
@@ -1146,7 +1161,7 @@ describe('commands', function()
         diffspec.head_to_index('lua/deleted.lua'),
         vim.api.nvim_buf_get_var(diff_buf, 'diffs_spec')
       )
-      local text = table.concat(vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false), '\n')
+      local text = buffer_text(diff_buf)
       assert.is_true(text:find('deleted file mode 100644', 1, true) ~= nil)
       assert.is_true(text:find('+++ /dev/null', 1, true) ~= nil)
       local diff_hunks = vim.api.nvim_buf_get_var(diff_buf, 'diffs_hunks')
@@ -1326,7 +1341,7 @@ describe('commands', function()
         assert_no_hunk_maps(bufnr)
       end
 
-      local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+      local lines = buffer_lines(bufnr)
       assert.are.equal(case.first_line, lines[1])
       assert.is_false(vim.tbl_contains(lines, 'stale lifecycle content'))
     end

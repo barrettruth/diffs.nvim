@@ -3,6 +3,7 @@ local helpers = require('spec.helpers')
 local commands = require('diffs.commands')
 local diffspec = require('diffs.spec')
 local git = require('diffs.git')
+local rails = require('diffs.rails')
 local runtime = require('diffs.runtime')
 
 local saved_git = {}
@@ -84,6 +85,11 @@ local function cleanup_buffers()
     end
   end
   test_buffers = {}
+end
+
+local function buffer_lines(bufnr)
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  return rails.strip_lines(lines, rails.width_for_buffer(bufnr))
 end
 
 describe('read_buffer', function()
@@ -575,7 +581,7 @@ describe('read_buffer', function()
       assert.are.equal('/home/test/repo', captured_cmd[3])
       assert.are.equal('diff', captured_cmd[4])
 
-      local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+      local lines = buffer_lines(bufnr)
       assert.are.equal('diff --git a/file.lua b/file.lua', lines[1])
     end)
 
@@ -619,7 +625,7 @@ describe('read_buffer', function()
       assert.are.equal('diff', captured_cmd[4])
       assert.are.equal('origin/main', captured_cmd[#captured_cmd])
 
-      local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+      local lines = buffer_lines(bufnr)
       assert.are.equal('diff --git a/file.lua b/file.lua', lines[1])
     end)
 
@@ -706,7 +712,7 @@ describe('read_buffer', function()
       })
       commands.read_buffer(bufnr)
 
-      local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+      local lines = buffer_lines(bufnr)
       assert.are.equal('diff --git a/lua/diffs/init.lua b/lua/diffs/init.lua', lines[1])
       assert.are.equal('--- a/lua/diffs/init.lua', lines[2])
       assert.are.equal('+++ b/lua/diffs/init.lua', lines[3])
@@ -729,7 +735,7 @@ describe('read_buffer', function()
       })
       commands.read_buffer(bufnr)
 
-      local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+      local lines = buffer_lines(bufnr)
       assert.are.equal('diff --git a/old_name.lua b/new_name.lua', lines[1])
       assert.are.equal('--- a/old_name.lua', lines[2])
       assert.are.equal('+++ b/new_name.lua', lines[3])
@@ -771,7 +777,7 @@ describe('read_buffer', function()
 
       commands.read_buffer(bufnr)
 
-      local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+      local lines = buffer_lines(bufnr)
       assert.are.equal('diff --git a/replace_test.lua b/replace_test.lua', lines[1])
       for _, line in ipairs(lines) do
         assert.is_not_equal('stale', line)

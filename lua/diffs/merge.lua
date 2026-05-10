@@ -3,6 +3,7 @@ local M = {}
 local conflict = require('diffs.conflict')
 local keymaps = require('diffs.keymaps')
 local notify = require('diffs.log').notify
+local rails = require('diffs.rails')
 
 local ns = vim.api.nvim_create_namespace('diffs-merge')
 
@@ -23,10 +24,12 @@ local buffer_keymaps = {}
 ---@return diffs.MergeHunkInfo[]
 function M.parse_hunks(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local rail_width = rails.width_for_buffer(bufnr)
   local hunks = {}
   local current = nil
 
   for i, line in ipairs(lines) do
+    line = rails.strip(line, rail_width)
     local idx = i - 1
     if line:match('^@@') then
       if current then

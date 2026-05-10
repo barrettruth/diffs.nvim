@@ -14,6 +14,7 @@
 ---@field file_new_count integer?
 ---@field prefix_width integer
 ---@field quote_width integer
+---@field rail_width integer?
 ---@field repo_root string?
 ---@field context_before string[]?
 ---@field context_after string[]?
@@ -23,6 +24,7 @@
 local M = {}
 
 local dbg = require('diffs.log').dbg
+local rails = require('diffs.rails')
 
 ---@type table<string, {ft: string?, lang: string?}>
 local ft_lang_cache = {}
@@ -151,11 +153,13 @@ end
 function M.parse_buffer(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local repo_root = get_repo_root(bufnr)
+  local rail_width = rails.width_for_buffer(bufnr)
 
   local quote_prefix = nil
   local quote_width = 0
   for _, l in ipairs(lines) do
-    local qp = l:match('^(>+ )diff %-%-') or l:match('^(>+ )@@ %-')
+    local logical = rails.strip(l, rail_width)
+    local qp = logical:match('^(>+ )diff %-%-') or logical:match('^(>+ )@@ %-')
     if qp then
       quote_prefix = qp
       quote_width = #qp
@@ -219,6 +223,7 @@ function M.parse_buffer(bufnr)
         file_new_start = file_new_start,
         file_new_count = file_new_count,
         repo_root = repo_root,
+        rail_width = rail_width > 0 and rail_width or nil,
       }
       if hunk_count == 1 and header_start and #header_lines > 0 then
         hunk.header_start_line = header_start
@@ -239,11 +244,12 @@ function M.parse_buffer(bufnr)
   end
 
   for i, line in ipairs(lines) do
-    local logical = line
+    local without_rails = rails.strip(line, rail_width)
+    local logical = without_rails
     if quote_prefix then
-      if line:sub(1, quote_width) == quote_prefix then
-        logical = line:sub(quote_width + 1)
-      elseif line:match('^>+$') then
+      if without_rails:sub(1, quote_width) == quote_prefix then
+        logical = without_rails:sub(quote_width + 1)
+      elseif without_rails:match('^>+$') then
         logical = ''
       end
     end
@@ -268,7 +274,7 @@ function M.parse_buffer(bufnr)
     if filename then
       flush_hunk()
       current_filename = filename
-      current_quote_width = (logical ~= line) and quote_width or 0
+      current_quote_width = rail_width + ((logical ~= without_rails) and quote_width or 0)
       local cache_key = (repo_root or '') .. '\0' .. filename
       local cached = ft_lang_cache[cache_key]
       if cached then

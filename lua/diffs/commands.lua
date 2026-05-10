@@ -7,6 +7,7 @@ local gdiff_parser = require('diffs.gdiff')
 local git = require('diffs.git')
 local hunk_model = require('diffs.hunks')
 local log = require('diffs.log')
+local rails = require('diffs.rails')
 local render = require('diffs.render')
 local review = require('diffs.review')
 local runtime = require('diffs.runtime')
@@ -253,6 +254,16 @@ local function set_diff_hunks_var(bufnr, diff_lines, diff_spec)
 end
 
 ---@param bufnr integer
+---@param info diffs.RailInfo?
+local function set_diff_rails_var(bufnr, info)
+  if info then
+    vim.api.nvim_buf_set_var(bufnr, 'diffs_rail_width', info.prefix_width)
+  else
+    pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_rail_width')
+  end
+end
+
+---@param bufnr integer
 local function clear_diff_hunks_var(bufnr)
   pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_hunks')
 end
@@ -382,9 +393,11 @@ end
 ---@return integer
 local function create_generated_diff_buffer(opts)
   local bufnr = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, opts.lines)
+  local display_lines, rail_info = rails.annotate(opts.lines)
+  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, display_lines)
   set_generated_diff_buffer_options(bufnr)
   vim.api.nvim_buf_set_name(bufnr, opts.name)
+  set_diff_rails_var(bufnr, rail_info)
 
   if opts.diff_spec then
     set_diff_spec_var(bufnr, opts.diff_spec)
@@ -422,9 +435,11 @@ end
 ---@param diff_lines string[]
 ---@param diff_spec? diffs.DiffSpec
 local function replace_generated_diff_buffer_lines(bufnr, diff_lines, diff_spec)
+  local display_lines, rail_info = rails.annotate(diff_lines)
   vim.api.nvim_set_option_value('modifiable', true, { buf = bufnr })
-  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, diff_lines)
+  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, display_lines)
   set_generated_diff_buffer_options(bufnr)
+  set_diff_rails_var(bufnr, rail_info)
 
   if diff_spec then
     set_diff_hunks_var(bufnr, diff_lines, diff_spec)
