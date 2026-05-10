@@ -1,5 +1,6 @@
 require('spec.helpers')
 local parser = require('diffs.parser')
+local rails = require('diffs.rails')
 
 describe('parser', function()
   describe('parse_buffer', function()
@@ -52,6 +53,34 @@ describe('parser', function()
       assert.are.equal('lua', hunks[1].lang)
       assert.are.equal(3, hunks[1].start_line)
       assert.are.equal(3, #hunks[1].lines)
+      delete_buffer(bufnr)
+    end)
+
+    it('strips generated line-number rails before parsing hunks', function()
+      local annotated, info = rails.annotate({
+        'diff --git a/lua/test.lua b/lua/test.lua',
+        '--- a/lua/test.lua',
+        '+++ b/lua/test.lua',
+        '@@ -1,2 +1,3 @@',
+        ' local M = {}',
+        '+local new = true',
+        ' return M',
+      })
+      local bufnr = create_buffer(annotated)
+      vim.api.nvim_buf_set_var(bufnr, 'diffs_rail_width', info.prefix_width)
+
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('lua/test.lua', hunks[1].filename)
+      assert.are.equal(info.prefix_width, hunks[1].quote_width)
+      assert.are.equal(info.prefix_width, hunks[1].rail_width)
+      assert.are.equal(4, hunks[1].start_line)
+      assert.are.same({
+        ' local M = {}',
+        '+local new = true',
+        ' return M',
+      }, hunks[1].lines)
       delete_buffer(bufnr)
     end)
 
