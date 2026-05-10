@@ -6,6 +6,7 @@ local diffspec = require('diffs.spec')
 local gdiff_parser = require('diffs.gdiff')
 local git = require('diffs.git')
 local hunk_model = require('diffs.hunks')
+local lists = require('diffs.lists')
 local log = require('diffs.log')
 local rails = require('diffs.rails')
 local render = require('diffs.render')
@@ -682,6 +683,9 @@ function M.gdiff(args, vertical)
     },
   })
   show_generated_diff_buffer(diff_buf, vertical)
+  lists.set_for_unified_buffer(diff_buf, diff_lines, {
+    title = 'diff: ' .. diffspec.label(diff_spec),
+  })
   attach_generated_diff_buffer(diff_buf)
   dbg('opened diff buffer %d for %s (%s)', diff_buf, diff_path, diffspec.label(diff_spec))
 end
@@ -825,6 +829,11 @@ function M.gdiff_file(filepath, opts)
     end
   end
 
+  lists.set_for_unified_buffer(diff_buf, diff_lines, {
+    title = 'diff: ' .. diff_label .. ':' .. rel_path,
+    diff_spec = diff_spec,
+  })
+
   attach_generated_diff_buffer(diff_buf)
 
   if diff_label == 'unmerged' then
@@ -877,6 +886,9 @@ function M.gdiff_section(repo_root, opts)
     },
   })
   show_generated_diff_buffer(diff_buf, opts.vertical)
+  lists.set_for_unified_buffer(diff_buf, result, {
+    title = 'diff: ' .. diff_label .. ':all',
+  })
   attach_generated_diff_buffer(diff_buf)
   dbg('opened section diff buffer %d (%s)', diff_buf, diff_label)
 end
@@ -992,6 +1004,10 @@ function M.read_buffer(bufnr)
 
   replace_generated_diff_buffer_lines(bufnr, diff_lines, stored_spec)
   M.setup_diff_buf(bufnr)
+  lists.set_for_unified_buffer(bufnr, diff_lines, {
+    title = 'diff: ' .. (debug_label or name:gsub('^diffs://', '')),
+    diff_spec = stored_spec,
+  })
 
   dbg('reloaded diff buffer %d (%s)', bufnr, debug_label)
 

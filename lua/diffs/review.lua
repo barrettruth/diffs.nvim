@@ -1,6 +1,7 @@
 local M = {}
 
 local git = require('diffs.git')
+local lists = require('diffs.lists')
 local log = require('diffs.log')
 
 local dbg = log.dbg
@@ -315,121 +316,6 @@ function M.run(review, deps)
   return deps.replace_combined_diffs(result, review.repo_root), nil
 end
 
--- selene: allow(global_usage)
-function _G._diffs_qftf(info)
-  local items = info.quickfix == 1 and vim.fn.getqflist({ id = info.id, items = 0 }).items
-    or vim.fn.getloclist(0, { id = info.id, items = 0 }).items
-  local max_lnum = 0
-  for i = info.start_idx, info.end_idx do
-    local e = items[i]
-    if e.lnum > 0 then
-      max_lnum = math.max(max_lnum, #tostring(e.lnum))
-    end
-  end
-  local lnum_fmt = '%' .. math.max(max_lnum, 1) .. 'd'
-  local lines = {}
-  for i = info.start_idx, info.end_idx do
-    local e = items[i]
-    local text = e.text or ''
-    if max_lnum > 0 and e.lnum > 0 then
-      table.insert(lines, ('%s  %s'):format(lnum_fmt:format(e.lnum), text))
-    else
-      table.insert(lines, text)
-    end
-  end
-  return lines
-end
-
----@param diff_buf integer
----@param result string[]
----@return table[], table[]
-function M.list_items(diff_buf, result)
-  local qf_items = {}
-  local loc_items = {}
-  local current_file = nil
-  local file_adds, file_dels = {}, {}
-  local file_hunk_count = {}
-
-  for i, line in ipairs(result) do
-    local file = line:match('^diff %-%-git a/.+ b/(.+)$')
-    if file then
-      current_file = file
-      file_adds[file] = 0
-      file_dels[file] = 0
-      file_hunk_count[file] = 0
-      table.insert(qf_items, {
-        bufnr = diff_buf,
-        lnum = i,
-        text = file,
-      })
-    elseif current_file and line:match('^@@') then
-      file_hunk_count[current_file] = file_hunk_count[current_file] + 1
-      table.insert(loc_items, {
-        bufnr = diff_buf,
-        lnum = i,
-        text = current_file,
-        _hunk = file_hunk_count[current_file],
-        _header = line:match('^(@@.-@@)') or '',
-      })
-    elseif current_file then
-      local ch = line:sub(1, 1)
-      if ch == '+' and not line:match('^%+%+%+') then
-        file_adds[current_file] = file_adds[current_file] + 1
-      elseif ch == '-' and not line:match('^%-%-%-') then
-        file_dels[current_file] = file_dels[current_file] + 1
-      end
-    end
-  end
-
-  local max_fname = 0
-  local max_add, max_del = 0, 0
-  for _, item in ipairs(qf_items) do
-    max_fname = math.max(max_fname, #item.text)
-    local a = file_adds[item.text] or 0
-    local d = file_dels[item.text] or 0
-    if a > 0 then
-      max_add = math.max(max_add, #tostring(a) + 1)
-    end
-    if d > 0 then
-      max_del = math.max(max_del, #tostring(d) + 1)
-    end
-  end
-
-  for _, item in ipairs(qf_items) do
-    local file = item.text
-    local a = file_adds[file] or 0
-    local d = file_dels[file] or 0
-    local padded = file .. string.rep(' ', max_fname - #file)
-    local parts = { padded }
-    if max_add > 0 then
-      parts[#parts + 1] = a > 0 and string.format('%' .. max_add .. 's', '+' .. a)
-        or string.rep(' ', max_add)
-    end
-    if max_del > 0 then
-      parts[#parts + 1] = d > 0 and string.format('%' .. max_del .. 's', '-' .. d)
-        or string.rep(' ', max_del)
-    end
-    item.text = table.concat(parts, '  '):gsub('%s+$', '')
-  end
-
-  local max_loc_fname = 0
-  for _, item in ipairs(loc_items) do
-    max_loc_fname = math.max(max_loc_fname, #item.text)
-  end
-  for _, item in ipairs(loc_items) do
-    item.text = item.text
-      .. string.rep(' ', max_loc_fname - #item.text)
-      .. '  (hunk '
-      .. item._hunk
-      .. ') '
-      .. item._header
-    item._hunk = nil
-    item._header = nil
-  end
-
-  return qf_items, loc_items
-end
-
 ---@param spec? diffs.GreviewSpec
 ---@param deps diffs.ReviewDeps
 ---@return integer?
@@ -477,19 +363,10 @@ function M.greview(spec, deps)
     },
   })
 
-  local qf_items, loc_items = M.list_items(diff_buf, result)
-  vim.fn.setqflist({}, ' ', {
-    title = 'review: ' .. review.display,
-    items = qf_items,
-    quickfixtextfunc = 'v:lua._diffs_qftf',
-  })
-
   deps.show_generated_diff_buffer(diff_buf, review.vertical)
-
-  vim.fn.setloclist(0, {}, ' ', {
-    title = 'review hunks: ' .. review.display,
-    items = loc_items,
-    quickfixtextfunc = 'v:lua._diffs_qftf',
+  lists.set_for_unified_buffer(diff_buf, result, {
+    title = 'review: ' .. review.display,
+    loclist_title = 'review hunks: ' .. review.display,
   })
 
   deps.attach_generated_diff_buffer(diff_buf)
