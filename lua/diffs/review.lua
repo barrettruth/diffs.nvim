@@ -68,6 +68,53 @@ local function default_branch(repo_root)
   return ref[1]:gsub('^refs/remotes/', '')
 end
 
+---@param repo_root string
+---@param args string[]
+---@return boolean
+local function git_exits_zero(repo_root, args)
+  local cmd = { 'git', '-C', repo_root }
+  vim.list_extend(cmd, args)
+  vim.fn.systemlist(cmd)
+  return vim.v.shell_error == 0
+end
+
+---@param repo_root string
+---@param ref string
+---@return boolean
+local function ref_exists(repo_root, ref)
+  return git_exits_zero(repo_root, { 'rev-parse', '--verify', '--quiet', ref .. '^{commit}' })
+end
+
+---@param repo_root string
+---@param base string
+---@param target string
+---@return boolean
+local function merge_base_exists(repo_root, base, target)
+  return git_exits_zero(repo_root, { 'merge-base', base, target })
+end
+
+---@param repo_root string
+---@param base string
+---@param target string?
+---@param mode string?
+---@param display string
+---@return string?
+local function validate_refs(repo_root, base, target, mode, display)
+  if not ref_exists(repo_root, base) then
+    return ('Greview base ref not found: %s (spec: %s)'):format(base, display)
+  end
+
+  if target and not ref_exists(repo_root, target) then
+    return ('Greview target ref not found: %s (spec: %s)'):format(target, display)
+  end
+
+  if target and mode == 'merge-base' and not merge_base_exists(repo_root, base, target) then
+    return 'Greview merge base not found for spec: ' .. display
+  end
+
+  return nil
+end
+
 ---@param arg? string
 ---@return diffs.GreviewSpec?, string?
 function M.parse_arg(arg)
@@ -157,6 +204,11 @@ function M.normalize(spec, repo_root_override)
       display = base .. '..' .. target
       exec_args = { base, target }
     end
+  end
+
+  local ref_err = validate_refs(repo_root, base, target, mode, display)
+  if ref_err then
+    return nil, ref_err
   end
 
   return {
@@ -258,7 +310,7 @@ end
 function M.run(review, deps)
   local result = vim.fn.systemlist(M.build_cmd(review))
   if vim.v.shell_error ~= 0 then
-    return nil, 'git diff failed'
+    return nil, 'git diff failed for Greview spec: ' .. review.display
   end
   return deps.replace_combined_diffs(result, review.repo_root), nil
 end
@@ -460,24 +512,31 @@ function M.file_at_line(buf, lnum)
   return nil
 end
 
----@param source diffs.GeneratedBufferSource
+---@param review_spec diffs.GreviewSpec?
+---@param repo_root string
 ---@param deps diffs.ReviewDeps
----@return string[]
-function M.reload_source(source, deps)
-  local normalized = select(1, M.normalize(source.review, source.repo_root))
-  if normalized then
-    local result = select(1, M.run(normalized, deps))
-    return result or {}
+---@return string[]?, string?
+local function reload_spec(review_spec, repo_root, deps)
+  local normalized, normalize_err = M.normalize(review_spec, repo_root)
+  if not normalized then
+    return nil, normalize_err
   end
 
-  return {}
+  return M.run(normalized, deps)
+end
+
+---@param source diffs.GeneratedBufferSource
+---@param deps diffs.ReviewDeps
+---@return string[]?, string?
+function M.reload_source(source, deps)
+  return reload_spec(source.review, source.repo_root, deps)
 end
 
 ---@param bufnr integer
 ---@param repo_root string
 ---@param path string
 ---@param deps diffs.ReviewDeps
----@return string[]
+---@return string[]?, string?
 function M.reload(bufnr, repo_root, path, deps)
   local stored_base = get_buf_var(bufnr, 'diffs_review_base')
   local stored_target = get_buf_var(bufnr, 'diffs_review_target')
@@ -491,18 +550,14 @@ function M.reload(bufnr, repo_root, path, deps)
       mode = stored_mode,
     }
   else
-    review_spec = select(1, M.parse_arg(path))
-  end
-
-  if review_spec then
-    local normalized = select(1, M.normalize(review_spec, repo_root))
-    if normalized then
-      local result = select(1, M.run(normalized, deps))
-      return result or {}
+    local parse_err
+    review_spec, parse_err = M.parse_arg(path)
+    if not review_spec then
+      return nil, parse_err
     end
   end
 
-  return {}
+  return reload_spec(review_spec, repo_root, deps)
 end
 
 return M

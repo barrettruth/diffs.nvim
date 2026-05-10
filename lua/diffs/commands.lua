@@ -548,7 +548,11 @@ local function render_source(source)
   end
 
   if source.kind == 'review' then
-    return review.reload_source(source, review_deps()), nil, 'review'
+    local review_lines, review_err = review.reload_source(source, review_deps())
+    if not review_lines then
+      return nil, nil, review_err
+    end
+    return review_lines, nil, 'review'
   end
 
   local abs_path = source.repo_root .. '/' .. source.path
@@ -945,7 +949,12 @@ function M.read_buffer(bufnr)
     if not stored_spec and path == 'all' then
       diff_lines = render_section_source(repo_root, label)
     elseif not stored_spec and label == 'review' then
-      diff_lines = review.reload(bufnr, repo_root, path, review_deps())
+      local review_err
+      diff_lines, review_err = review.reload(bufnr, repo_root, path, review_deps())
+      if not diff_lines then
+        notify(review_err or 'cannot reload review buffer', vim.log.levels.WARN)
+        return
+      end
     elseif not stored_spec then
       local abs_path = repo_root .. '/' .. path
 
