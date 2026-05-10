@@ -137,6 +137,15 @@ local function buffer_text(bufnr)
   return table.concat(buffer_lines(bufnr), '\n')
 end
 
+local function quickfix_items()
+  return vim.fn.getqflist({ items = 0 }).items
+end
+
+local function loclist_items(win)
+  local nr = win and vim.fn.win_id2win(win) or 0
+  return vim.fn.getloclist(nr, { items = 0 }).items
+end
+
 local function has_buf_var(bufnr, name)
   local ok = pcall(vim.api.nvim_buf_get_var, bufnr, name)
   return ok
@@ -421,6 +430,18 @@ describe('commands', function()
       assert.are.equal(6, vim.api.nvim_buf_get_var(diff_buf, 'diffs_rail_width'))
       assert.are.equal('    | diff --git a/lua/foo.lua b/lua/foo.lua', display_lines[1])
       assert.is_true(table.concat(display_lines, '\n'):find('  2 | +local x = 1', 1, true) ~= nil)
+
+      local qf = quickfix_items()
+      assert.are.equal(1, #qf)
+      assert.are.equal(diff_buf, qf[1].bufnr)
+      assert.are.equal(1, qf[1].lnum)
+      assert.is_true(qf[1].text:find('lua/foo.lua', 1, true) ~= nil)
+
+      local loc = loclist_items()
+      assert.are.equal(1, #loc)
+      assert.are.equal(diff_buf, loc[1].bufnr)
+      assert.are.equal(diff_hunks[1].buffer_range.start, loc[1].lnum)
+      assert.is_true(loc[1].text:find('lua/foo.lua', 1, true) ~= nil)
     end)
 
     it('opens default :Gdiff for untracked files as index to worktree additions', function()
@@ -529,6 +550,19 @@ describe('commands', function()
       assert.is_true(helpers.has_keymap(right_buf, '[c'))
       assert.is_false(helpers.has_keymap(right_buf, 'dp'))
       assert.is_false(helpers.has_keymap(right_buf, 'do'))
+
+      local qf = quickfix_items()
+      assert.are.equal(1, #qf)
+      assert.are.equal(right_buf, qf[1].bufnr)
+      assert.are.equal(1, qf[1].lnum)
+      assert.is_true(qf[1].text:find('lua/foo.lua', 1, true) ~= nil)
+
+      local left_loc = loclist_items(left_win)
+      local right_loc = loclist_items(right_win)
+      assert.are.equal(1, #left_loc)
+      assert.are.equal(1, #right_loc)
+      assert.are.equal(left_buf, left_loc[1].bufnr)
+      assert.are.equal(right_buf, right_loc[1].bufnr)
     end)
 
     it('moves split hunk navigation through both endpoint windows', function()
@@ -572,6 +606,11 @@ describe('commands', function()
       local hunks = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_hunks')
 
       assert.are.equal(2, #hunks)
+      local right_loc = loclist_items(right_win)
+      assert.are.equal(2, #right_loc)
+      assert.are.equal(right_buf, right_loc[2].bufnr)
+      assert.are.equal(hunks[2].new_range.start, right_loc[2].lnum)
+
       vim.api.nvim_set_current_win(right_win)
       vim.api.nvim_win_set_cursor(right_win, { hunks[1].new_range.start, 0 })
 
@@ -584,6 +623,78 @@ describe('commands', function()
 
       assert.are.same({ hunks[1].old_range.start, 0 }, vim.api.nvim_win_get_cursor(left_win))
       assert.are.same({ hunks[1].new_range.start, 0 }, vim.api.nvim_win_get_cursor(right_win))
+
+      vim.api.nvim_set_current_win(right_win)
+      vim.cmd('lopen')
+      local found_qf = false
+      for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+        local buf = vim.api.nvim_win_get_buf(win)
+        if vim.api.nvim_get_option_value('buftype', { buf = buf }) == 'quickfix' then
+          vim.api.nvim_set_current_win(win)
+          found_qf = true
+          break
+        end
+      end
+      assert.is_true(found_qf)
+      vim.api.nvim_win_set_cursor(0, { 2, 0 })
+      vim.cmd('normal \r')
+      vim.wait(100, function()
+        return vim.api.nvim_win_get_cursor(left_win)[1] == hunks[2].old_range.start
+      end)
+
+      assert.are.same({ hunks[2].old_range.start, 0 }, vim.api.nvim_win_get_cursor(left_win))
+      assert.are.same({ hunks[2].new_range.start, 0 }, vim.api.nvim_win_get_cursor(right_win))
+    end)
+
+    it('targets the old endpoint for split deleted hunks in qf and loclist', function()
+      create_split_source({
+        index_lines = {
+          'line 1',
+          'line 2',
+          'line 3',
+        },
+        worktree_lines = {},
+      })
+      commands.gdiff('++layout=split', false)
+
+      local right_buf = vim.api.nvim_get_current_buf()
+      local left_buf = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer')
+      table.insert(test_buffers, left_buf)
+      table.insert(test_buffers, right_buf)
+      local left_win, right_win = find_split_windows(left_buf, right_buf)
+      local hunks = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_hunks')
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal(0, hunks[1].new_range.count)
+
+      local qf = quickfix_items()
+      assert.are.equal(1, #qf)
+      assert.are.equal(left_buf, qf[1].bufnr)
+      assert.are.equal(hunks[1].old_range.start, qf[1].lnum)
+
+      local right_loc = loclist_items(right_win)
+      assert.are.equal(1, #right_loc)
+      assert.are.equal(left_buf, right_loc[1].bufnr)
+      assert.are.equal(hunks[1].old_range.start, right_loc[1].lnum)
+
+      vim.api.nvim_set_current_win(right_win)
+      vim.cmd('lopen')
+      for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+        local buf = vim.api.nvim_win_get_buf(win)
+        if vim.api.nvim_get_option_value('buftype', { buf = buf }) == 'quickfix' then
+          vim.api.nvim_set_current_win(win)
+          break
+        end
+      end
+      vim.api.nvim_win_set_cursor(0, { 1, 0 })
+      vim.cmd('normal \r')
+      vim.wait(100, function()
+        return vim.api.nvim_get_current_buf() == left_buf
+          and vim.api.nvim_win_get_cursor(left_win)[1] == hunks[1].old_range.start
+      end)
+
+      assert.are.equal(left_buf, vim.api.nvim_get_current_buf())
+      assert.are.same({ hunks[1].old_range.start, 0 }, vim.api.nvim_win_get_cursor(left_win))
     end)
 
     it('opens the worktree split endpoint in an existing source window', function()
@@ -1029,6 +1140,18 @@ describe('commands', function()
         path = 'renamed.txt',
         old_path = 'file.txt',
       }, vim.api.nvim_buf_get_var(diff_buf, 'diffs_source'))
+
+      local qf = quickfix_items()
+      assert.are.equal(1, #qf)
+      assert.are.equal(diff_buf, qf[1].bufnr)
+      assert.are.equal(1, qf[1].lnum)
+      assert.is_true(qf[1].text:find('renamed.txt', 1, true) ~= nil)
+
+      local loc = loclist_items()
+      assert.are.equal(1, #loc)
+      assert.are.equal(diff_buf, loc[1].bufnr)
+      assert.is_true(loc[1].lnum > 1)
+      assert.is_true(loc[1].text:find('renamed.txt', 1, true) ~= nil)
     end)
 
     it('opens staged and unstaged section headers as explicit section buffers', function()
@@ -1545,6 +1668,16 @@ describe('commands', function()
       local lines = buffer_lines(bufnr)
       assert.are.equal(case.first_line, lines[1])
       assert.is_false(vim.tbl_contains(lines, 'stale lifecycle content'))
+
+      local qf = quickfix_items()
+      assert.is_true(#qf >= 1, case.label)
+      assert.are.equal(bufnr, qf[1].bufnr, case.label)
+      assert.are.equal(1, qf[1].lnum, case.label)
+
+      local loc = loclist_items()
+      assert.is_true(#loc >= 1, case.label)
+      assert.are.equal(bufnr, loc[1].bufnr, case.label)
+      assert.is_true(loc[1].lnum > 1, case.label)
     end
 
     it('preserves generated buffer metadata and action keymaps across reloads', function()
@@ -1941,6 +2074,134 @@ describe('commands', function()
       assert.are.equal('origin/main', vim.api.nvim_buf_get_var(bufnr, 'diffs_review_base'))
       assert.are.equal('refs/forge/pr/42', vim.api.nvim_buf_get_var(bufnr, 'diffs_review_target'))
       assert.are.equal('merge-base', vim.api.nvim_buf_get_var(bufnr, 'diffs_review_mode'))
+    end)
+
+    it(
+      'uses quickfix as the review file index and loclist as the active file hunk index',
+      function()
+        mock_repo_root(function(path)
+          assert.are.equal('/tmp/repo/.', path)
+          return '/tmp/repo'
+        end)
+        mock_systemlist(function(cmd)
+          if cmd[4] == 'rev-parse' then
+            return { 'commit' }
+          end
+          if cmd[4] == 'merge-base' then
+            return { 'merge-base-commit' }
+          end
+          if cmd[4] ~= 'diff' then
+            return {}
+          end
+          return {
+            'diff --git a/lua/one.lua b/lua/one.lua',
+            '--- a/lua/one.lua',
+            '+++ b/lua/one.lua',
+            '@@ -1 +1 @@',
+            '-old one',
+            '+new one',
+            'diff --git a/lua/two.lua b/lua/two.lua',
+            '--- a/lua/two.lua',
+            '+++ b/lua/two.lua',
+            '@@ -1 +1 @@',
+            '-old two',
+            '+new two',
+            '@@ -5 +5 @@',
+            '-older two',
+            '+newer two',
+          }
+        end)
+        mock_runtime_attach(function() end)
+
+        local bufnr = commands.greview({
+          base = 'origin/main',
+          target = 'refs/forge/pr/42',
+          mode = 'merge-base',
+          repo = '/tmp/repo',
+        })
+        table.insert(test_buffers, bufnr)
+
+        local qf = quickfix_items()
+        assert.are.equal(2, #qf)
+        assert.are.equal(bufnr, qf[1].bufnr)
+        assert.are.equal(1, qf[1].lnum)
+        assert.is_true(qf[1].text:find('lua/one.lua', 1, true) ~= nil)
+        assert.are.equal(bufnr, qf[2].bufnr)
+        assert.are.equal(7, qf[2].lnum)
+        assert.is_true(qf[2].text:find('lua/two.lua', 1, true) ~= nil)
+
+        local loc = loclist_items()
+        assert.are.equal(1, #loc)
+        assert.are.equal(4, loc[1].lnum)
+        assert.is_true(loc[1].text:find('lua/one.lua', 1, true) ~= nil)
+
+        vim.api.nvim_win_set_cursor(0, { 7, 0 })
+        vim.api.nvim_exec_autocmds('CursorMoved', { buffer = bufnr })
+
+        loc = loclist_items()
+        assert.are.equal(2, #loc)
+        assert.are.equal(10, loc[1].lnum)
+        assert.are.equal(13, loc[2].lnum)
+        assert.is_true(loc[1].text:find('lua/two.lua', 1, true) ~= nil)
+        assert.is_true(loc[2].text:find('lua/two.lua', 1, true) ~= nil)
+      end
+    )
+
+    it('keeps no-hunk review file records in quickfix with an empty active loclist', function()
+      mock_repo_root(function(path)
+        assert.are.equal('/tmp/repo/.', path)
+        return '/tmp/repo'
+      end)
+      mock_systemlist(function(cmd)
+        if cmd[4] == 'rev-parse' then
+          return { 'commit' }
+        end
+        if cmd[4] == 'merge-base' then
+          return { 'merge-base-commit' }
+        end
+        if cmd[4] ~= 'diff' then
+          return {}
+        end
+        return {
+          'diff --git a/lua/mode.lua b/lua/mode.lua',
+          'old mode 100644',
+          'new mode 100755',
+          'diff --git a/lua/changed.lua b/lua/changed.lua',
+          '--- a/lua/changed.lua',
+          '+++ b/lua/changed.lua',
+          '@@ -1 +1 @@',
+          '-old',
+          '+new',
+        }
+      end)
+      mock_runtime_attach(function() end)
+
+      local bufnr = commands.greview({
+        base = 'origin/main',
+        target = 'refs/forge/pr/42',
+        mode = 'merge-base',
+        repo = '/tmp/repo',
+      })
+      table.insert(test_buffers, bufnr)
+
+      local qf = quickfix_items()
+      assert.are.equal(2, #qf)
+      assert.are.equal(bufnr, qf[1].bufnr)
+      assert.are.equal(1, qf[1].lnum)
+      assert.is_true(qf[1].text:find('lua/mode.lua', 1, true) ~= nil)
+      assert.are.equal(bufnr, qf[2].bufnr)
+      assert.are.equal(4, qf[2].lnum)
+      assert.is_true(qf[2].text:find('lua/changed.lua', 1, true) ~= nil)
+
+      assert.are.equal(0, #loclist_items())
+
+      vim.api.nvim_win_set_cursor(0, { 4, 0 })
+      vim.api.nvim_exec_autocmds('CursorMoved', { buffer = bufnr })
+
+      local loc = loclist_items()
+      assert.are.equal(1, #loc)
+      assert.are.equal(7, loc[1].lnum)
+      assert.is_true(loc[1].text:find('lua/changed.lua', 1, true) ~= nil)
     end)
   end)
 
