@@ -32,6 +32,8 @@ local ensure_cursor_sync
 ---@field filetype? string
 ---@field worktree_lines? diffs.ContentLines|string[]
 ---@field diff_lines? string[]
+---@field hunk_index? integer
+---@field quickfix? boolean
 
 ---@class diffs.SplitEndpointSource
 ---@field version integer
@@ -41,6 +43,7 @@ local ensure_cursor_sync
 ---@field side "left"|"right"
 ---@field path string
 ---@field filetype? string
+---@field quickfix? boolean
 
 ---@param repo_root string
 ---@param path string
@@ -776,6 +779,7 @@ function M.open(opts)
     spec = spec,
     path = path,
     filetype = filetype,
+    quickfix = opts.quickfix,
   }
 
   local left_source = vim.tbl_extend('force', base_source, { side = 'left' })
@@ -822,7 +826,12 @@ function M.open(opts)
     left_win = left_win,
     right_win = right_win,
     hunks = split_hunks,
+    quickfix = opts.quickfix,
   })
+
+  if opts.hunk_index and split_hunks[opts.hunk_index] then
+    move_pair_to_hunk(right_buf, split_hunks[opts.hunk_index])
+  end
 
   log.dbg('opened split diff buffers %d/%d for %s', left_buf, right_buf, diffspec.label(spec))
   return {
@@ -845,6 +854,7 @@ function normalize_source(source)
     side = source.side,
     path = source.path,
     filetype = source.filetype,
+    quickfix = source.quickfix,
   }
 end
 
@@ -905,6 +915,7 @@ function M.read_buffer(bufnr, source)
       left_buf = source.side == 'left' and bufnr or peer,
       right_buf = source.side == 'right' and bufnr or peer,
       hunks = split_hunks,
+      quickfix = source.quickfix,
     })
   end
   return true, nil
