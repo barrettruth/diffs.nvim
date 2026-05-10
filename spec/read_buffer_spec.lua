@@ -327,6 +327,42 @@ describe('read_buffer', function()
       assert.is_true(diff_hunks[1].actionable)
     end)
 
+    it('reloads split endpoint buffers from source metadata', function()
+      local called_index = false
+      mock_git({
+        get_index_content = function(filepath)
+          called_index = true
+          assert.are.equal('/tmp/repo/lua/foo.lua', filepath)
+          return { 'local M = {}', 'return M' }
+        end,
+      })
+
+      local bufnr = create_diffs_buffer('diffs://split:left:index:lua/foo.lua', {
+        diffs_source = {
+          version = 1,
+          kind = 'split_endpoint',
+          repo_root = '/tmp/repo',
+          spec = diffspec.index_to_worktree('lua/foo.lua'),
+          side = 'left',
+          path = 'lua/foo.lua',
+          filetype = 'lua',
+        },
+      })
+
+      commands.read_buffer(bufnr)
+
+      assert.is_true(called_index)
+      assert.are.same(
+        { 'local M = {}', 'return M' },
+        vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+      )
+      assert.are.equal('lua', vim.api.nvim_get_option_value('filetype', { buf = bufnr }))
+      assert.is_false(vim.api.nvim_get_option_value('modifiable', { buf = bufnr }))
+      assert.are.equal('left', vim.api.nvim_buf_get_var(bufnr, 'diffs_split_side'))
+      assert.is_true(helpers.has_keymap(bufnr, 'q'))
+      assert.is_true(helpers.has_keymap(bufnr, '<CR>'))
+    end)
+
     it('reloads untracked DiffSpec buffers with empty index content and hunk metadata', function()
       mock_git({
         get_index_content = function(filepath)

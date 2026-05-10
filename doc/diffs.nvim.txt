@@ -438,13 +438,16 @@ replace their layout unless the user invoked a generated diffs.nvim view.
     code language, plus diff header highlighting for `diff --git`, `---`,
     `+++`, and `@@` lines.
 
-    If a `diffs://` window already exists in the current tabpage, the new
-    diff replaces its buffer instead of creating another split.
+    In the default unified layout, if a `diffs://` window already exists in the
+    current tabpage, the new diff replaces its buffer instead of creating
+    another split.
 
-    This is a generated unified diff workspace, not Fugitive `:Gdiffsplit`
-    parity. diffs.nvim owns the `diffs://` buffer, hunk metadata, and plugin
-    actions. It does not enter native Vim `&diff` mode, open writable Fugitive
-    object buffers, or emulate `:Gdiffsplit` window lifecycle.
+    This is a generated diff workspace, not Fugitive `:Gdiffsplit` parity.
+    diffs.nvim owns the `diffs://` buffers, hunk metadata, and plugin actions.
+    The default unified layout does not enter native Vim `&diff` mode, open
+    writable Fugitive object buffers, or emulate `:Gdiffsplit` window lifecycle.
+    The experimental `++layout=split` variant uses native `&diff` alignment for
+    generated old/new endpoint windows, but disables diff folds as layout.
 
     Plain direct |:Gdiff| from a worktree file compares the index to the
     worktree and shows only unstaged changes. Staged-only changes report no
@@ -459,6 +462,8 @@ replace their layout unless the user invoked a generated diffs.nvim view.
     Parameters: ~
         ++novertical (optional) Force a horizontal split. Useful with |:Gvdiff|
                     or command wrappers.
+        ++layout=split (optional) Open the current single-file comparison as
+                    experimental paired old/new generated endpoint windows.
         {object}    (string, optional) Fugitive-style object to diff against.
                     Defaults to the current file in the index.
 

@@ -287,6 +287,53 @@ describe('commands', function()
   end)
 
   describe('Gdiff DiffSpec rendering', function()
+    local function create_split_source()
+      local source_buf = vim.api.nvim_create_buf(false, true)
+      table.insert(test_buffers, source_buf)
+      vim.api.nvim_buf_set_name(source_buf, '/tmp/repo/lua/foo.lua')
+      vim.api.nvim_buf_set_lines(source_buf, 0, -1, false, {
+        'local M = {}',
+        'local x = 1',
+        'return M',
+      })
+      vim.api.nvim_set_option_value('filetype', 'lua', { buf = source_buf })
+      vim.api.nvim_set_current_buf(source_buf)
+
+      mock_git_method('get_relative_path', function(filepath)
+        assert.are.equal('/tmp/repo/lua/foo.lua', filepath)
+        return 'lua/foo.lua'
+      end)
+      mock_git_method('get_index_content', function(filepath)
+        assert.are.equal('/tmp/repo/lua/foo.lua', filepath)
+        return { 'local M = {}', 'return M' }
+      end)
+      mock_repo_root(function(filepath)
+        assert.are.equal('/tmp/repo/lua/foo.lua', filepath)
+        return '/tmp/repo'
+      end)
+
+      return source_buf
+    end
+
+    local function find_split_windows(left_buf, right_buf)
+      local left_win
+      local right_win
+      local left_index
+      local right_index
+      for i, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+        local win_buf = vim.api.nvim_win_get_buf(win)
+        if win_buf == left_buf then
+          left_win = win
+          left_index = i
+        elseif win_buf == right_buf then
+          right_win = win
+          right_index = i
+        end
+      end
+
+      return left_win, right_win, left_index, right_index
+    end
+
     it('opens default :Gdiff as an unstaged index to worktree diff', function()
       local source_buf = vim.api.nvim_create_buf(false, true)
       table.insert(test_buffers, source_buf)
@@ -388,6 +435,101 @@ describe('commands', function()
       assert.is_true(text:find('new file mode 100644', 1, true) ~= nil)
       assert.is_true(text:find('--- /dev/null', 1, true) ~= nil)
       assert.is_true(text:find('+local M = {}', 1, true) ~= nil)
+    end)
+
+    it('opens opt-in split :Gdiff as paired endpoint windows', function()
+      local saved_splitright = vim.o.splitright
+      vim.o.splitright = false
+      local ok, err = pcall(function()
+        create_split_source()
+        commands.gdiff('++layout=split', false)
+      end)
+      vim.o.splitright = saved_splitright
+      assert.is_true(ok, err)
+
+      local right_buf = vim.api.nvim_get_current_buf()
+      local left_buf = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer')
+      table.insert(test_buffers, left_buf)
+      table.insert(test_buffers, right_buf)
+      local left_win, right_win, left_index, right_index = find_split_windows(left_buf, right_buf)
+
+      assert.is_not_nil(left_win)
+      assert.is_not_nil(right_win)
+      assert.is_true(left_index < right_index)
+      assert.are.equal('diffs://split:left:index:lua/foo.lua', vim.api.nvim_buf_get_name(left_buf))
+      assert.are.equal(
+        'diffs://split:right:worktree:lua/foo.lua',
+        vim.api.nvim_buf_get_name(right_buf)
+      )
+      assert.are.same(
+        { 'local M = {}', 'return M' },
+        vim.api.nvim_buf_get_lines(left_buf, 0, -1, false)
+      )
+      assert.are.same(
+        { 'local M = {}', 'local x = 1', 'return M' },
+        vim.api.nvim_buf_get_lines(right_buf, 0, -1, false)
+      )
+      assert.are.same(
+        diffspec.index_to_worktree('lua/foo.lua'),
+        vim.api.nvim_buf_get_var(left_buf, 'diffs_spec')
+      )
+      assert.are.equal('left', vim.api.nvim_buf_get_var(left_buf, 'diffs_split_side'))
+      assert.are.equal('right', vim.api.nvim_buf_get_var(right_buf, 'diffs_split_side'))
+      assert.are.equal('lua', vim.api.nvim_get_option_value('filetype', { buf = left_buf }))
+      assert.are.equal('lua', vim.api.nvim_get_option_value('filetype', { buf = right_buf }))
+      assert.is_false(vim.api.nvim_get_option_value('modifiable', { buf = left_buf }))
+      assert.is_false(vim.api.nvim_get_option_value('modifiable', { buf = right_buf }))
+      assert.is_true(vim.api.nvim_get_option_value('diff', { win = left_win }))
+      assert.is_true(vim.api.nvim_get_option_value('diff', { win = right_win }))
+      assert.are.equal('manual', vim.api.nvim_get_option_value('foldmethod', { win = left_win }))
+      assert.are.equal('manual', vim.api.nvim_get_option_value('foldmethod', { win = right_win }))
+      assert.is_false(vim.api.nvim_get_option_value('foldenable', { win = left_win }))
+      assert.is_false(vim.api.nvim_get_option_value('foldenable', { win = right_win }))
+      assert.are.equal('0', vim.api.nvim_get_option_value('foldcolumn', { win = left_win }))
+      assert.are.equal('0', vim.api.nvim_get_option_value('foldcolumn', { win = right_win }))
+      assert.is_true(helpers.has_keymap(left_buf, 'q'))
+      assert.is_true(helpers.has_keymap(right_buf, 'q'))
+      assert.is_true(helpers.has_keymap(left_buf, '<CR>'))
+      assert.is_true(helpers.has_keymap(right_buf, '<CR>'))
+      assert.is_false(helpers.has_keymap(right_buf, 'dp'))
+      assert.is_false(helpers.has_keymap(right_buf, 'do'))
+    end)
+
+    it('closes paired split endpoint buffers with q and can reopen the same split', function()
+      local source_buf = create_split_source()
+
+      commands.gdiff('++layout=split', false)
+
+      local right_buf = vim.api.nvim_get_current_buf()
+      local left_buf = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer')
+      table.insert(test_buffers, left_buf)
+      table.insert(test_buffers, right_buf)
+      local _, right_win = find_split_windows(left_buf, right_buf)
+
+      vim.api.nvim_set_current_win(right_win)
+      vim.cmd('normal q')
+
+      assert.is_false(vim.api.nvim_buf_is_valid(left_buf))
+      assert.is_false(vim.api.nvim_buf_is_valid(right_buf))
+
+      vim.api.nvim_set_current_buf(source_buf)
+      assert.has_no.errors(function()
+        commands.gdiff('++layout=split', false)
+      end)
+
+      local reopened_right_buf = vim.api.nvim_get_current_buf()
+      local reopened_left_buf = vim.api.nvim_buf_get_var(reopened_right_buf, 'diffs_split_peer')
+      table.insert(test_buffers, reopened_left_buf)
+      table.insert(test_buffers, reopened_right_buf)
+
+      assert.are.equal(
+        'diffs://split:left:index:lua/foo.lua',
+        vim.api.nvim_buf_get_name(reopened_left_buf)
+      )
+      assert.are.equal(
+        'diffs://split:right:worktree:lua/foo.lua',
+        vim.api.nvim_buf_get_name(reopened_right_buf)
+      )
     end)
 
     it('preserves the explicit revision generated buffer surface', function()

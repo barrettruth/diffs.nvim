@@ -9,6 +9,7 @@ local diffspec = require('diffs.spec')
 ---@class diffs.GdiffParseResult
 ---@field spec diffs.DiffSpec
 ---@field novertical boolean
+---@field layout "unified"|"split"
 
 local function normalize_rev(rev)
   if rev == '@' then
@@ -91,10 +92,18 @@ function M.parse(args, context)
   local current = context.current and diffspec.endpoint(context.current) or diffspec.worktree()
   local tokens = split_args(args)
   local novertical = false
+  local layout = 'unified'
 
   while tokens[1] and tokens[1]:match('^%+%+') do
     if tokens[1] == '++novertical' then
       novertical = true
+      table.remove(tokens, 1)
+    elseif tokens[1]:match('^%+%+layout=') then
+      local value = tokens[1]:match('^%+%+layout=(.+)$')
+      if value ~= 'unified' and value ~= 'split' then
+        return nil, 'unsupported layout ' .. tostring(value)
+      end
+      layout = value
       table.remove(tokens, 1)
     else
       return nil, 'unknown option ' .. tokens[1]
@@ -113,7 +122,9 @@ function M.parse(args, context)
     return {
       spec = default_spec(current, path),
       novertical = novertical,
-    }, nil
+      layout = layout,
+    },
+      nil
   end
 
   local endpoint, err = parse_object_endpoint(tokens[1])
@@ -124,7 +135,9 @@ function M.parse(args, context)
   return {
     spec = diffspec.file(endpoint, current, path),
     novertical = novertical,
-  }, nil
+    layout = layout,
+  },
+    nil
 end
 
 M._test = {

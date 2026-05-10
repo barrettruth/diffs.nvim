@@ -20,6 +20,7 @@ describe('diffs.gdiff', function()
 
     assert.are.same(diffspec.index_to_worktree(path), result.spec)
     assert.is_false(result.novertical)
+    assert.are.equal('unified', result.layout)
   end)
 
   it('maps explicit revisions to revision -> worktree', function()
@@ -65,6 +66,29 @@ describe('diffs.gdiff', function()
 
     assert.are.same(diffspec.rev_to_worktree('HEAD', path), result.spec)
     assert.is_true(result.novertical)
+    assert.are.equal('unified', result.layout)
+  end)
+
+  it('parses opt-in split layout separately from endpoint parsing', function()
+    local result = parse('++layout=split HEAD')
+
+    assert.are.same(diffspec.rev_to_worktree('HEAD', path), result.spec)
+    assert.is_false(result.novertical)
+    assert.are.equal('split', result.layout)
+  end)
+
+  it('allows explicit unified layout', function()
+    local result = parse('++layout=unified HEAD')
+
+    assert.are.same(diffspec.rev_to_worktree('HEAD', path), result.spec)
+    assert.are.equal('unified', result.layout)
+  end)
+
+  it('rejects unsupported layouts', function()
+    local result, err = gdiff.parse('++layout=tiled HEAD', { path = path })
+
+    assert.is_nil(result)
+    assert.are.equal('unsupported layout tiled', err)
   end)
 
   it('rejects unknown ++ options', function()
