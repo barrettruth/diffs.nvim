@@ -112,6 +112,112 @@ local function create_conflicted_repo()
   return repo_root, filepath
 end
 
+local function write_repo_file(repo_root, path, lines)
+  local filepath = repo_root .. '/' .. path
+  vim.fn.mkdir(vim.fn.fnamemodify(filepath, ':h'), 'p')
+  vim.fn.writefile(lines, filepath)
+  return filepath
+end
+
+local function create_review_repo(opts)
+  opts = opts or {}
+  local repo_root = vim.fn.tempname()
+  vim.fn.mkdir(repo_root, 'p')
+  test_repos[#test_repos + 1] = repo_root
+
+  vim.fn.systemlist({ 'git', 'init', '-q', repo_root })
+  assert.are.equal(0, vim.v.shell_error)
+  git_cmd(repo_root, { 'config', 'user.email', 'test@example.com' })
+  git_cmd(repo_root, { 'config', 'user.name', 'Test' })
+
+  write_repo_file(repo_root, 'lua/one.lua', { 'old one' })
+  write_repo_file(repo_root, 'lua/two.lua', {
+    'line 1',
+    'line 2',
+    'line 3',
+    'line 4',
+    'line 5',
+    'line 6',
+    'line 7',
+    'line 8',
+    'line 9',
+    'line 10',
+    'line 11',
+    'line 12',
+  })
+  git_cmd(repo_root, { 'add', 'lua' })
+  git_cmd(repo_root, { 'commit', '-qm', 'base' })
+  local base_sha = git_cmd(repo_root, { 'rev-parse', 'HEAD' })[1]
+
+  local base_ref = base_sha
+  local target_ref
+  if opts.named_refs then
+    git_cmd(repo_root, { 'branch', 'review-base' })
+    git_cmd(repo_root, { 'checkout', '-qb', 'review-topic' })
+    base_ref = 'review-base'
+    target_ref = 'review-topic'
+  end
+
+  write_repo_file(repo_root, 'lua/one.lua', { 'new one' })
+  write_repo_file(repo_root, 'lua/two.lua', {
+    'line 1',
+    'line 2 changed',
+    'line 3',
+    'line 4',
+    'line 5',
+    'line 6',
+    'line 7',
+    'line 8',
+    'line 9',
+    'line 10',
+    'line 11 changed',
+    'line 12',
+  })
+
+  local target_sha
+  if opts.commit_target ~= false then
+    git_cmd(repo_root, { 'add', 'lua' })
+    git_cmd(repo_root, { 'commit', '-qm', 'target' })
+    target_sha = git_cmd(repo_root, { 'rev-parse', 'HEAD' })[1]
+    target_ref = target_ref or target_sha
+  end
+
+  return {
+    repo_root = repo_root,
+    base = base_ref,
+    target = target_ref,
+    base_sha = base_sha,
+    target_sha = target_sha,
+  }
+end
+
+local function create_mode_only_review_repo()
+  local repo_root = vim.fn.tempname()
+  vim.fn.mkdir(repo_root, 'p')
+  test_repos[#test_repos + 1] = repo_root
+
+  vim.fn.systemlist({ 'git', 'init', '-q', repo_root })
+  assert.are.equal(0, vim.v.shell_error)
+  git_cmd(repo_root, { 'config', 'user.email', 'test@example.com' })
+  git_cmd(repo_root, { 'config', 'user.name', 'Test' })
+  git_cmd(repo_root, { 'config', 'core.filemode', 'true' })
+
+  write_repo_file(repo_root, 'scripts/tool.sh', { '#!/bin/sh', 'echo tool' })
+  git_cmd(repo_root, { 'add', 'scripts/tool.sh' })
+  git_cmd(repo_root, { 'commit', '-qm', 'base' })
+  git_cmd(repo_root, { 'branch', 'mode-base' })
+
+  git_cmd(repo_root, { 'checkout', '-qb', 'mode-topic' })
+  git_cmd(repo_root, { 'update-index', '--chmod=+x', 'scripts/tool.sh' })
+  git_cmd(repo_root, { 'commit', '-qm', 'mode' })
+
+  return {
+    repo_root = repo_root,
+    base = 'mode-base',
+    target = 'mode-topic',
+  }
+end
+
 local function edit_file(path)
   vim.cmd('edit ' .. vim.fn.fnameescape(path))
   local bufnr = vim.api.nvim_get_current_buf()
@@ -144,6 +250,34 @@ end
 local function loclist_items(win)
   local nr = win and vim.fn.win_id2win(win) or 0
   return vim.fn.getloclist(nr, { items = 0 }).items
+end
+
+local function find_window_for_buffer(bufnr)
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if vim.api.nvim_win_get_buf(win) == bufnr then
+      return win
+    end
+  end
+  return nil
+end
+
+local function find_quickfix_window()
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    local buf = vim.api.nvim_win_get_buf(win)
+    if vim.api.nvim_get_option_value('buftype', { buf = buf }) == 'quickfix' then
+      return win
+    end
+  end
+  return nil
+end
+
+local function find_buffer_line(bufnr, text)
+  for lnum, line in ipairs(buffer_lines(bufnr)) do
+    if line:find(text, 1, true) then
+      return lnum
+    end
+  end
+  return nil
 end
 
 local function has_buf_var(bufnr, name)
@@ -2146,6 +2280,262 @@ describe('commands', function()
         assert.is_true(loc[2].text:find('lua/two.lua', 1, true) ~= nil)
       end
     )
+
+    it(
+      'opens the cursor-selected review file in a split pair without replacing the review map',
+      function()
+        local repo = create_review_repo()
+        mock_runtime_attach(function() end)
+
+        local bufnr = commands.greview({
+          base = repo.base,
+          target = repo.target,
+          mode = 'direct',
+          repo = repo.repo_root,
+        })
+        assert.is_not_nil(bufnr)
+        table.insert(test_buffers, bufnr)
+
+        local review_win = vim.api.nvim_get_current_win()
+        local second_hunk_line = find_buffer_line(bufnr, '+line 11 changed')
+        assert.is_not_nil(second_hunk_line)
+        vim.api.nvim_win_set_cursor(review_win, { second_hunk_line, 0 })
+
+        local opened = commands.greview_split({ bufnr = bufnr })
+        assert.is_not_nil(opened)
+        table.insert(test_buffers, opened.left_buf)
+        table.insert(test_buffers, opened.right_buf)
+
+        assert.are.equal(bufnr, vim.api.nvim_win_get_buf(review_win))
+        assert.is_not_nil(find_window_for_buffer(bufnr))
+        assert.are.equal(
+          'diffs://review:' .. repo.base .. '..' .. repo.target,
+          vim.api.nvim_buf_get_name(bufnr)
+        )
+        assert.are.equal(
+          'diffs://split:left:' .. repo.base .. ':lua/two.lua',
+          vim.api.nvim_buf_get_name(opened.left_buf)
+        )
+        assert.are.equal(
+          'diffs://split:right:' .. repo.target .. ':lua/two.lua',
+          vim.api.nvim_buf_get_name(opened.right_buf)
+        )
+        assert.are.same(
+          diffspec.rev_to_rev(repo.base, repo.target, 'lua/two.lua'),
+          vim.api.nvim_buf_get_var(opened.right_buf, 'diffs_spec')
+        )
+        assert.are.equal(
+          'lua',
+          vim.api.nvim_get_option_value('filetype', { buf = opened.left_buf })
+        )
+        assert.are.equal(
+          'lua',
+          vim.api.nvim_get_option_value('filetype', { buf = opened.right_buf })
+        )
+
+        local split_hunks = vim.api.nvim_buf_get_var(opened.right_buf, 'diffs_split_hunks')
+        assert.are.equal(2, #split_hunks)
+        assert.are.same(
+          { split_hunks[2].new_range.start, 0 },
+          vim.api.nvim_win_get_cursor(opened.right_win)
+        )
+
+        local qf = quickfix_items()
+        assert.are.equal(2, #qf)
+        assert.are.equal(bufnr, qf[1].bufnr)
+        assert.are.equal(bufnr, qf[2].bufnr)
+      end
+    )
+
+    it('opens the quickfix-selected review file independent of review cursor position', function()
+      local repo = create_review_repo()
+      mock_runtime_attach(function() end)
+
+      local bufnr = commands.greview({
+        base = repo.base,
+        target = repo.target,
+        mode = 'direct',
+        repo = repo.repo_root,
+      })
+      assert.is_not_nil(bufnr)
+      table.insert(test_buffers, bufnr)
+
+      local first_file_line = find_buffer_line(bufnr, '+new one')
+      assert.is_not_nil(first_file_line)
+      vim.api.nvim_win_set_cursor(0, { first_file_line, 0 })
+
+      vim.cmd('copen')
+      local qf_win = find_quickfix_window()
+      assert.is_not_nil(qf_win)
+      vim.api.nvim_set_current_win(qf_win)
+      vim.api.nvim_win_set_cursor(qf_win, { 2, 0 })
+
+      local opened = commands.greview_split()
+      assert.is_not_nil(opened)
+      table.insert(test_buffers, opened.left_buf)
+      table.insert(test_buffers, opened.right_buf)
+
+      assert.are.same(
+        diffspec.rev_to_rev(repo.base, repo.target, 'lua/two.lua'),
+        vim.api.nvim_buf_get_var(opened.right_buf, 'diffs_spec')
+      )
+      assert.is_not_nil(find_window_for_buffer(bufnr))
+    end)
+
+    it('preserves the review quickfix when reloading an auxiliary review split pair', function()
+      local repo = create_review_repo()
+      mock_runtime_attach(function() end)
+
+      local bufnr = commands.greview({
+        base = repo.base,
+        target = repo.target,
+        mode = 'direct',
+        repo = repo.repo_root,
+      })
+      assert.is_not_nil(bufnr)
+      table.insert(test_buffers, bufnr)
+
+      local two_line = find_buffer_line(bufnr, '+line 2 changed')
+      assert.is_not_nil(two_line)
+      vim.api.nvim_win_set_cursor(0, { two_line, 0 })
+
+      local opened = commands.greview_split({ bufnr = bufnr })
+      assert.is_not_nil(opened)
+      table.insert(test_buffers, opened.left_buf)
+      table.insert(test_buffers, opened.right_buf)
+
+      local qf = quickfix_items()
+      assert.are.equal(2, #qf)
+      assert.are.equal(bufnr, qf[1].bufnr)
+      assert.are.equal(bufnr, qf[2].bufnr)
+
+      commands.read_buffer(opened.right_buf)
+
+      qf = quickfix_items()
+      assert.are.equal(2, #qf)
+      assert.are.equal(bufnr, qf[1].bufnr)
+      assert.are.equal(bufnr, qf[2].bufnr)
+    end)
+
+    it('replaces the previous review split pair when another review file is selected', function()
+      local repo = create_review_repo()
+      mock_runtime_attach(function() end)
+
+      local bufnr = commands.greview({
+        base = repo.base,
+        target = repo.target,
+        mode = 'direct',
+        repo = repo.repo_root,
+      })
+      assert.is_not_nil(bufnr)
+      table.insert(test_buffers, bufnr)
+      local review_win = vim.api.nvim_get_current_win()
+
+      local two_line = find_buffer_line(bufnr, '+line 2 changed')
+      assert.is_not_nil(two_line)
+      vim.api.nvim_win_set_cursor(review_win, { two_line, 0 })
+      local first_opened = commands.greview_split({ bufnr = bufnr })
+      assert.is_not_nil(first_opened)
+      table.insert(test_buffers, first_opened.left_buf)
+      table.insert(test_buffers, first_opened.right_buf)
+
+      vim.api.nvim_set_current_win(review_win)
+      local one_line = find_buffer_line(bufnr, '+new one')
+      assert.is_not_nil(one_line)
+      vim.api.nvim_win_set_cursor(review_win, { one_line, 0 })
+      local second_opened = commands.greview_split({ bufnr = bufnr })
+      assert.is_not_nil(second_opened)
+      table.insert(test_buffers, second_opened.left_buf)
+      table.insert(test_buffers, second_opened.right_buf)
+
+      assert.is_false(vim.api.nvim_buf_is_valid(first_opened.left_buf))
+      assert.is_false(vim.api.nvim_buf_is_valid(first_opened.right_buf))
+      assert.are.same(
+        diffspec.rev_to_rev(repo.base, repo.target, 'lua/one.lua'),
+        vim.api.nvim_buf_get_var(second_opened.right_buf, 'diffs_spec')
+      )
+    end)
+
+    it('opens a base-only review file as base tree to worktree', function()
+      local repo = create_review_repo({ commit_target = false })
+      mock_runtime_attach(function() end)
+
+      local bufnr = commands.greview({
+        base = repo.base,
+        repo = repo.repo_root,
+      })
+      assert.is_not_nil(bufnr)
+      table.insert(test_buffers, bufnr)
+
+      local two_line = find_buffer_line(bufnr, '+line 2 changed')
+      assert.is_not_nil(two_line)
+      vim.api.nvim_win_set_cursor(0, { two_line, 0 })
+
+      local opened = commands.greview_split({ bufnr = bufnr })
+      assert.is_not_nil(opened)
+      table.insert(test_buffers, opened.left_buf)
+      table.insert(test_buffers, opened.right_buf)
+
+      assert.are.same(
+        diffspec.rev_to_worktree(repo.base, 'lua/two.lua'),
+        vim.api.nvim_buf_get_var(opened.right_buf, 'diffs_spec')
+      )
+    end)
+
+    it('opens a merge-base review file from the resolved merge base to the target tree', function()
+      local repo = create_review_repo({ named_refs = true })
+      mock_runtime_attach(function() end)
+
+      local bufnr = commands.greview({
+        base = repo.base,
+        target = repo.target,
+        mode = 'merge-base',
+        repo = repo.repo_root,
+      })
+      assert.is_not_nil(bufnr)
+      table.insert(test_buffers, bufnr)
+
+      local two_line = find_buffer_line(bufnr, '+line 2 changed')
+      assert.is_not_nil(two_line)
+      vim.api.nvim_win_set_cursor(0, { two_line, 0 })
+
+      local opened = commands.greview_split({ bufnr = bufnr })
+      assert.is_not_nil(opened)
+      table.insert(test_buffers, opened.left_buf)
+      table.insert(test_buffers, opened.right_buf)
+
+      assert.are.same(
+        diffspec.rev_to_rev(repo.base_sha, repo.target, 'lua/two.lua'),
+        vim.api.nvim_buf_get_var(opened.right_buf, 'diffs_spec')
+      )
+    end)
+
+    it('reports unsupported selected review files without opening a split pair', function()
+      local repo = create_mode_only_review_repo()
+      local notifications = capture_notifications()
+      mock_runtime_attach(function() end)
+
+      local bufnr = commands.greview({
+        base = repo.base,
+        target = repo.target,
+        mode = 'direct',
+        repo = repo.repo_root,
+      })
+      assert.is_not_nil(bufnr)
+      table.insert(test_buffers, bufnr)
+
+      local mode_line = find_buffer_line(bufnr, 'diff --git a/scripts/tool.sh b/scripts/tool.sh')
+      assert.is_not_nil(mode_line)
+      vim.api.nvim_win_set_cursor(0, { mode_line, 0 })
+
+      local opened = commands.greview_split({ bufnr = bufnr })
+
+      assert.is_nil(opened)
+      assert.is_true(
+        notifications[#notifications].message:find('mode-only changes', 1, true) ~= nil
+      )
+      assert.is_false(has_buf_var(bufnr, 'diffs_review_split_buf'))
+    end)
 
     it('keeps no-hunk review file records in quickfix with an empty active loclist', function()
       mock_repo_root(function(path)

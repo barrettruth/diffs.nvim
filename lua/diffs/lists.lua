@@ -231,6 +231,94 @@ local function loclist_items(bufnr, hunks, file)
   return items
 end
 
+---@param hunks diffs.GdiffHunk[]
+---@param lnum integer
+---@return diffs.GdiffHunk?
+local function hunk_at_lnum(hunks, lnum)
+  for _, hunk in ipairs(hunks) do
+    if lnum >= hunk.buffer_range.start and lnum <= hunk.buffer_range.finish then
+      return hunk
+    end
+  end
+  return nil
+end
+
+---@param hunks diffs.GdiffHunk[]
+---@param index integer?
+---@return diffs.GdiffHunk?
+local function hunk_by_index(hunks, index)
+  if type(index) ~= 'number' then
+    return nil
+  end
+  for _, hunk in ipairs(hunks) do
+    if hunk.index == index then
+      return hunk
+    end
+  end
+  return nil
+end
+
+---@param hunks diffs.GdiffHunk[]
+---@param target diffs.GdiffHunk?
+---@return integer?
+local function file_hunk_index(hunks, target)
+  if not target then
+    return nil
+  end
+
+  local count = 0
+  local file = hunk_file(target)
+  for _, hunk in ipairs(hunks) do
+    if hunk_file(hunk) == file then
+      count = count + 1
+    end
+    if hunk == target then
+      return count
+    end
+  end
+  return nil
+end
+
+---@param item table?
+---@return table?
+local function item_diffs_data(item)
+  if type(item) ~= 'table' or type(item.user_data) ~= 'table' then
+    return nil
+  end
+
+  local diffs = item.user_data.diffs
+  if type(diffs) == 'table' then
+    return diffs
+  end
+  return nil
+end
+
+---@param item table?
+---@return table?, string?
+local function selection_from_item(item)
+  local data = item_diffs_data(item)
+  if not data or (data.kind ~= 'file' and data.kind ~= 'hunk') then
+    return nil, 'quickfix item is not a generated diff file'
+  end
+  if type(item.bufnr) ~= 'number' or item.bufnr <= 0 then
+    return nil, 'quickfix item is missing a generated buffer'
+  end
+  if type(data.file) ~= 'string' or data.file == '' then
+    return nil, 'quickfix item is missing a generated diff file'
+  end
+
+  local state = generated_list_state[item.bufnr]
+  local hunk = state and hunk_by_index(state.hunks, data.hunk) or nil
+  return {
+    bufnr = item.bufnr,
+    file = data.file,
+    lnum = item.lnum,
+    hunk = hunk,
+    hunk_index = state and file_hunk_index(state.hunks, hunk) or nil,
+  },
+    nil
+end
+
 ---@param title string
 ---@param items table[]
 local function set_quickfix(title, items)
@@ -351,12 +439,83 @@ local function current_quickfix_item()
   return items[row], is_loclist
 end
 
+---@param bufnr integer
+---@param explicit_lnum integer?
+---@return integer
+local function selection_lnum(bufnr, explicit_lnum)
+  if type(explicit_lnum) == 'number' then
+    return explicit_lnum
+  end
+
+  if vim.api.nvim_get_current_buf() == bufnr then
+    return vim.api.nvim_win_get_cursor(0)[1]
+  end
+
+  local win = windows_for_buffer(bufnr)[1]
+  if win then
+    return vim.api.nvim_win_get_cursor(win)[1]
+  end
+
+  return 1
+end
+
 local function jump_current_quickfix_item()
   local item, is_loclist = current_quickfix_item()
   local row = vim.api.nvim_win_get_cursor(0)[1]
   local command = is_loclist and 'll' or 'cc'
   vim.cmd(command .. ' ' .. row)
   sync_split_item(item)
+end
+
+---@class diffs.GeneratedFileSelectionOpts
+---@field bufnr? integer
+---@field lnum? integer
+---@field item? table
+
+---@class diffs.GeneratedFileSelection
+---@field bufnr integer
+---@field file string
+---@field lnum integer?
+---@field hunk? diffs.GdiffHunk
+---@field hunk_index? integer
+
+---@param opts? diffs.GeneratedFileSelectionOpts
+---@return diffs.GeneratedFileSelection?, string?
+function M.selected_generated_file(opts)
+  opts = opts or {}
+
+  if opts.item then
+    return selection_from_item(opts.item)
+  end
+
+  if not opts.bufnr and not opts.lnum then
+    local item = current_quickfix_item()
+    if item then
+      return selection_from_item(item)
+    end
+  end
+
+  local bufnr = opts.bufnr or vim.api.nvim_get_current_buf()
+  local state = generated_list_state[bufnr]
+  if not state then
+    return nil, 'current buffer has no generated diff file index'
+  end
+
+  local lnum = selection_lnum(bufnr, opts.lnum)
+  local file = file_at_lnum(state.hunks, state.entries, lnum)
+  if not file then
+    return nil, 'no generated diff file selected'
+  end
+
+  local hunk = hunk_at_lnum(state.hunks, lnum)
+  return {
+    bufnr = bufnr,
+    file = file,
+    lnum = lnum,
+    hunk = hunk,
+    hunk_index = file_hunk_index(state.hunks, hunk),
+  },
+    nil
 end
 
 ---@param bufnr integer
@@ -516,12 +675,14 @@ local function split_quickfix_items(opts)
   return items
 end
 
----@param opts { title: string, loclist_title?: string, left_buf: integer, right_buf: integer, left_win?: integer, right_win?: integer, hunks: diffs.GdiffHunk[] }
+---@param opts { title: string, loclist_title?: string, left_buf: integer, right_buf: integer, left_win?: integer, right_win?: integer, hunks: diffs.GdiffHunk[], quickfix?: boolean }
 function M.set_for_split_pair(opts)
   local title = opts.title
   local loclist_title = opts.loclist_title or (title .. ' hunks')
 
-  set_quickfix(title, split_quickfix_items(opts))
+  if opts.quickfix ~= false then
+    set_quickfix(title, split_quickfix_items(opts))
+  end
   for _, win in ipairs(opts.left_win and { opts.left_win } or windows_for_buffer(opts.left_buf)) do
     set_loclist(
       win,
@@ -541,8 +702,10 @@ end
 M._test = {
   file_at_lnum = file_at_lnum,
   file_entries = file_entries,
+  hunk_at_lnum = hunk_at_lnum,
   loclist_items = loclist_items,
   quickfix_items = quickfix_items,
+  selected_generated_file = M.selected_generated_file,
 }
 
 return M

@@ -1,5 +1,6 @@
 local M = {}
 
+local diffspec = require('diffs.spec')
 local git = require('diffs.git')
 local lists = require('diffs.lists')
 local log = require('diffs.log')
@@ -92,6 +93,18 @@ end
 ---@return boolean
 local function merge_base_exists(repo_root, base, target)
   return git_exits_zero(repo_root, { 'merge-base', base, target })
+end
+
+---@param repo_root string
+---@param base string
+---@param target string
+---@return string?, string?
+local function merge_base(repo_root, base, target)
+  local result = vim.fn.systemlist({ 'git', '-C', repo_root, 'merge-base', base, target })
+  if vim.v.shell_error ~= 0 or not result[1] or result[1] == '' then
+    return nil, 'Greview merge base not found for spec: ' .. base .. '...' .. target
+  end
+  return result[1], nil
 end
 
 ---@param repo_root string
@@ -230,6 +243,35 @@ function M.build_cmd(review)
   local cmd = { 'git', '-C', review.repo_root, 'diff', '--no-ext-diff', '--no-color' }
   vim.list_extend(cmd, review.exec_args)
   return cmd
+end
+
+---@param review_spec diffs.GreviewSpec?
+---@param repo_root string
+---@param path string
+---@return diffs.DiffSpec?, diffs.NormalizedGreview?, string?
+function M.diff_spec_for_file(review_spec, repo_root, path)
+  if type(path) ~= 'string' or path == '' then
+    return nil, nil, 'missing review file path'
+  end
+
+  local normalized, normalize_err = M.normalize(review_spec, repo_root)
+  if not normalized then
+    return nil, nil, normalize_err
+  end
+
+  if not normalized.target then
+    return diffspec.rev_to_worktree(normalized.base, path), normalized, nil
+  end
+
+  if normalized.mode == 'merge-base' then
+    local base_rev, merge_err = merge_base(normalized.repo_root, normalized.base, normalized.target)
+    if not base_rev then
+      return nil, normalized, merge_err
+    end
+    return diffspec.rev_to_rev(base_rev, normalized.target, path), normalized, nil
+  end
+
+  return diffspec.rev_to_rev(normalized.base, normalized.target, path), normalized, nil
 end
 
 ---@param review diffs.NormalizedGreview
