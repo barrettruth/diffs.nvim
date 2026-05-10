@@ -470,23 +470,53 @@ local function set_window_lnum(win, lnum)
   vim.api.nvim_win_set_cursor(win, { clamp_lnum(bufnr, lnum), 0 })
 end
 
+---@param callback function
+local function with_cursor_sync_suppressed(callback)
+  local was_syncing = syncing_cursor
+  syncing_cursor = true
+  local ok, err = pcall(callback)
+  syncing_cursor = was_syncing
+  if not ok then
+    error(err, 0)
+  end
+end
+
 ---@param wins integer[]
 ---@param callback function
-local function without_cursorbind(wins, callback)
+local function with_window_bindings_disabled(wins, callback)
   local saved = {}
+  local ordered = {}
   for _, win in ipairs(wins) do
-    if vim.api.nvim_win_is_valid(win) then
-      saved[win] = vim.api.nvim_get_option_value('cursorbind', { win = win })
+    if not saved[win] and vim.api.nvim_win_is_valid(win) then
+      ordered[#ordered + 1] = win
+      saved[win] = {
+        cursorbind = vim.api.nvim_get_option_value('cursorbind', { win = win }),
+        scrollbind = vim.api.nvim_get_option_value('scrollbind', { win = win }),
+      }
       vim.api.nvim_set_option_value('cursorbind', false, { win = win })
+      vim.api.nvim_set_option_value('scrollbind', false, { win = win })
     end
   end
 
-  callback()
+  local ok, err = pcall(callback)
 
-  for win, value in pairs(saved) do
-    if vim.api.nvim_win_is_valid(win) then
-      vim.api.nvim_set_option_value('cursorbind', value, { win = win })
+  local current_win = vim.api.nvim_get_current_win()
+  if saved[current_win] and vim.api.nvim_win_is_valid(current_win) then
+    local value = saved[current_win]
+    vim.api.nvim_set_option_value('scrollbind', value.scrollbind, { win = current_win })
+    vim.api.nvim_set_option_value('cursorbind', value.cursorbind, { win = current_win })
+  end
+
+  for _, win in ipairs(ordered) do
+    local value = saved[win]
+    if win ~= current_win and vim.api.nvim_win_is_valid(win) then
+      vim.api.nvim_set_option_value('scrollbind', value.scrollbind, { win = win })
+      vim.api.nvim_set_option_value('cursorbind', value.cursorbind, { win = win })
     end
+  end
+
+  if not ok then
+    error(err, 0)
   end
 end
 
@@ -505,16 +535,18 @@ local function move_pair_to_hunk(bufnr, hunk)
   local peer_wins = peer and windows_for_buffer(peer) or {}
   local all_wins = vim.list_extend(vim.deepcopy(own_wins), peer_wins)
 
-  without_cursorbind(all_wins, function()
-    for _, win in ipairs(own_wins) do
-      set_window_lnum(win, hunk_target_lnum(hunk, source.side))
-    end
-
-    if peer and peer_source then
-      for _, win in ipairs(peer_wins) do
-        set_window_lnum(win, hunk_target_lnum(hunk, peer_source.side))
+  with_cursor_sync_suppressed(function()
+    with_window_bindings_disabled(all_wins, function()
+      for _, win in ipairs(own_wins) do
+        set_window_lnum(win, hunk_target_lnum(hunk, source.side))
       end
-    end
+
+      if peer and peer_source then
+        for _, win in ipairs(peer_wins) do
+          set_window_lnum(win, hunk_target_lnum(hunk, peer_source.side))
+        end
+      end
+    end)
   end)
 
   if vim.api.nvim_win_is_valid(current_win) then
@@ -556,9 +588,7 @@ local function sync_cursor_to_hunk(bufnr)
     return
   end
 
-  syncing_cursor = true
   move_pair_to_hunk(bufnr, hunk)
-  syncing_cursor = false
 end
 
 clear_cursor_sync = function(bufnr)
@@ -973,6 +1003,17 @@ function M.close_pair(bufnr)
   return true
 end
 
+---@param win integer
+---@return boolean
+function M.release_pair_window_options(win)
+  if not vim.api.nvim_win_is_valid(win) or not pair_window_options[win] then
+    return false
+  end
+
+  clear_pair_window_options(win)
+  return true
+end
+
 ---@param bufnr integer
 ---@return boolean
 function M.open_source(bufnr)
@@ -1058,6 +1099,24 @@ function M.goto_prev(bufnr)
     notify('wrapped to last hunk', vim.log.levels.INFO)
   end
   move_pair_to_hunk(bufnr, hunk)
+end
+
+---@param bufnr integer
+---@param hunk_index integer?
+---@return boolean
+function M.move_pair_to_hunk_index(bufnr, hunk_index)
+  if type(hunk_index) ~= 'number' then
+    return false
+  end
+
+  local hunks = buffer_split_hunks(bufnr)
+  local hunk = hunks[hunk_index]
+  if not hunk then
+    return false
+  end
+
+  move_pair_to_hunk(bufnr, hunk)
+  return true
 end
 
 M.sync_cursor_to_hunk = sync_cursor_to_hunk

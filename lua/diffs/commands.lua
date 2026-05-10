@@ -16,6 +16,7 @@ local split = require('diffs.split')
 
 local dbg = log.dbg
 local notify = log.notify
+local greview_follow_group = vim.api.nvim_create_augroup('diffs_greview_follow', { clear = false })
 
 ---@class diffs.HunkKeymap
 ---@field mode string
@@ -26,6 +27,18 @@ local notify = log.notify
 local hunk_keymaps = {}
 ---@type table<integer, integer>
 local hunk_keymap_autocmds = {}
+
+---@class diffs.GreviewFollowState
+---@field left_buf integer
+---@field right_buf integer
+---@field file string
+---@field hunk_index? integer
+---@field autocmds integer[]
+---@field pending? boolean
+---@field pending_item? table
+
+---@type table<integer, diffs.GreviewFollowState>
+local greview_follow_states = {}
 
 ---@param bufnr integer
 ---@param mode string
@@ -393,6 +406,16 @@ local function set_generated_diff_buffer_options(bufnr)
   vim.api.nvim_set_option_value('filetype', 'diff', { buf = bufnr })
 end
 
+---@param win integer
+local function clear_generated_diff_window_bindings(win)
+  if not vim.api.nvim_win_is_valid(win) then
+    return
+  end
+
+  vim.api.nvim_set_option_value('scrollbind', false, { win = win })
+  vim.api.nvim_set_option_value('cursorbind', false, { win = win })
+end
+
 ---@class diffs.GeneratedDiffBufferOpts
 ---@field name string
 ---@field lines string[]
@@ -436,9 +459,12 @@ local function show_generated_diff_buffer(bufnr, vertical)
   local existing_win = M.find_diffs_window()
   if existing_win then
     vim.api.nvim_set_current_win(existing_win)
+    split.release_pair_window_options(existing_win)
+    clear_generated_diff_window_bindings(existing_win)
     vim.api.nvim_win_set_buf(existing_win, bufnr)
   else
     vim.cmd(vertical and 'vsplit' or 'split')
+    clear_generated_diff_window_bindings(vim.api.nvim_get_current_win())
     vim.api.nvim_win_set_buf(0, bufnr)
   end
 end
@@ -616,14 +642,81 @@ local function filetype_for_path(repo_root, path)
   return nil
 end
 
+---@param win integer?
+local function restore_window(win)
+  if type(win) == 'number' and vim.api.nvim_win_is_valid(win) then
+    vim.api.nvim_set_current_win(win)
+  end
+end
+
+---@param review_buf integer
+local function stop_greview_follow(review_buf)
+  local state = greview_follow_states[review_buf]
+  if state then
+    for _, id in ipairs(state.autocmds or {}) do
+      pcall(vim.api.nvim_del_autocmd, id)
+    end
+  end
+  greview_follow_states[review_buf] = nil
+  if vim.api.nvim_buf_is_valid(review_buf) then
+    pcall(vim.api.nvim_buf_del_var, review_buf, 'diffs_review_split_buf')
+  end
+end
+
+---@param review_buf integer
+---@return integer?
+local function stored_greview_pair_buf(review_buf)
+  local state = greview_follow_states[review_buf]
+  if state then
+    return state.right_buf
+  end
+
+  local previous = get_buf_var(review_buf, 'diffs_review_split_buf')
+  if type(previous) == 'number' then
+    return previous
+  end
+  return nil
+end
+
+---@param review_buf integer
+local function close_owned_greview_pair(review_buf)
+  local previous = stored_greview_pair_buf(review_buf)
+  stop_greview_follow(review_buf)
+  if type(previous) == 'number' and vim.api.nvim_buf_is_valid(previous) then
+    split.close_pair(previous)
+  end
+end
+
+---@param state diffs.GreviewFollowState?
+---@return boolean
+local function greview_pair_valid(state)
+  if
+    not state
+    or not vim.api.nvim_buf_is_valid(state.left_buf)
+    or not vim.api.nvim_buf_is_valid(state.right_buf)
+  then
+    return false
+  end
+
+  return get_buf_var(state.left_buf, 'diffs_split_peer') == state.right_buf
+    and get_buf_var(state.right_buf, 'diffs_split_peer') == state.left_buf
+end
+
 ---@class diffs.GreviewSplitOpts
 ---@field bufnr? integer
 ---@field lnum? integer
 ---@field item? table
 
+---@class diffs.GreviewSplitContext
+---@field review_buf integer
+---@field selected diffs.GeneratedFileSelection
+---@field diff_spec diffs.DiffSpec
+---@field repo_root string
+---@field diff_lines string[]
+
 ---@param opts? diffs.GreviewSplitOpts
----@return { left_buf: integer, right_buf: integer, left_win: integer, right_win: integer }?
-function M.greview_split(opts)
+---@return diffs.GreviewSplitContext?, string?, integer?, integer?
+local function greview_split_context(opts)
   opts = opts or {}
 
   ---@type diffs.GeneratedFileSelectionOpts
@@ -634,88 +727,264 @@ function M.greview_split(opts)
   }
   local selected, select_err = lists.selected_generated_file(selection_opts)
   if not selected then
-    notify(select_err or 'no Greview file selected', vim.log.levels.WARN)
-    return nil
+    return nil, select_err or 'no Greview file selected', vim.log.levels.WARN, nil
   end
 
   local review_buf = selected.bufnr
   if not vim.api.nvim_buf_is_valid(review_buf) then
-    notify('selected Greview buffer is no longer valid', vim.log.levels.WARN)
-    return nil
+    return nil, 'selected Greview buffer is no longer valid', vim.log.levels.WARN, review_buf
   end
 
   local source, source_err = get_source_var(review_buf)
   if source_err then
-    notify('invalid diffs_source metadata: ' .. tostring(source_err), vim.log.levels.WARN)
-    return nil
+    return nil,
+      'invalid diffs_source metadata: ' .. tostring(source_err),
+      vim.log.levels.WARN,
+      review_buf
   end
   if not source or source.kind ~= 'review' then
-    notify('selected file is not from a Greview buffer', vim.log.levels.WARN)
-    return nil
+    return nil, 'selected file is not from a Greview buffer', vim.log.levels.WARN, nil
   end
 
   local diff_spec, normalized, spec_err =
     review.diff_spec_for_file(source.review, source.repo_root, selected.file)
   if not diff_spec then
-    notify(spec_err or 'cannot build Greview split diff spec', vim.log.levels.ERROR)
-    return nil
+    return nil, spec_err or 'cannot build Greview split diff spec', vim.log.levels.ERROR, review_buf
   end
 
   local repo_root = normalized and normalized.repo_root or source.repo_root
   local diff_lines, render_err = render.file(diff_spec, repo_root)
   if not diff_lines then
-    notify(render_err or 'cannot render Greview split file', vim.log.levels.ERROR)
-    return nil
+    return nil, render_err or 'cannot render Greview split file', vim.log.levels.ERROR, review_buf
   end
   if #diff_lines == 0 then
-    notify('no changes for ' .. diffspec.label(diff_spec), vim.log.levels.INFO)
-    return nil
+    return nil, 'no changes for ' .. diffspec.label(diff_spec), vim.log.levels.INFO, review_buf
   end
 
+  return {
+    review_buf = review_buf,
+    selected = selected,
+    diff_spec = diff_spec,
+    repo_root = repo_root,
+    diff_lines = diff_lines,
+  },
+    nil,
+    nil,
+    review_buf
+end
+
+---@type fun(review_buf: integer, item?: table)
+local schedule_greview_follow
+
+local function refresh_greview_jump_callback()
+  lists.set_generated_jump_callback(function(item)
+    if type(item) == 'table' and type(item.bufnr) == 'number' then
+      schedule_greview_follow(item.bufnr, item)
+    end
+  end)
+end
+
+---@param review_buf integer
+---@param opened { left_buf: integer, right_buf: integer, left_win: integer, right_win: integer }
+---@param selected diffs.GeneratedFileSelection
+local function start_greview_follow(review_buf, opened, selected)
+  refresh_greview_jump_callback()
+  stop_greview_follow(review_buf)
+
+  ---@type diffs.GreviewFollowState
+  local state = {
+    left_buf = opened.left_buf,
+    right_buf = opened.right_buf,
+    file = selected.file,
+    hunk_index = selected.hunk_index,
+    autocmds = {},
+  }
+  greview_follow_states[review_buf] = state
+  vim.api.nvim_buf_set_var(review_buf, 'diffs_review_split_buf', opened.right_buf)
+
+  state.autocmds[#state.autocmds + 1] = vim.api.nvim_create_autocmd({ 'BufEnter', 'CursorMoved' }, {
+    group = greview_follow_group,
+    buffer = review_buf,
+    callback = function(args)
+      schedule_greview_follow(args.buf)
+    end,
+  })
+  state.autocmds[#state.autocmds + 1] = vim.api.nvim_create_autocmd('BufWipeout', {
+    group = greview_follow_group,
+    buffer = review_buf,
+    once = true,
+    callback = function(args)
+      stop_greview_follow(args.buf)
+    end,
+  })
+
+  local function stop_if_owned_pair(args)
+    local current = greview_follow_states[review_buf]
+    if current and (args.buf == current.left_buf or args.buf == current.right_buf) then
+      stop_greview_follow(review_buf)
+    end
+  end
+
+  state.autocmds[#state.autocmds + 1] = vim.api.nvim_create_autocmd('BufWipeout', {
+    group = greview_follow_group,
+    buffer = opened.left_buf,
+    once = true,
+    callback = stop_if_owned_pair,
+  })
+  state.autocmds[#state.autocmds + 1] = vim.api.nvim_create_autocmd('BufWipeout', {
+    group = greview_follow_group,
+    buffer = opened.right_buf,
+    once = true,
+    callback = stop_if_owned_pair,
+  })
+end
+
+---@param context diffs.GreviewSplitContext
+---@param opts? { restore_focus?: boolean, restore_win?: integer }
+---@return { left_buf: integer, right_buf: integer, left_win: integer, right_win: integer }?, string?, integer?
+local function open_greview_split_pair(context, opts)
+  opts = opts or {}
+
+  local review_buf = context.review_buf
   local review_win = first_window_for_buffer(review_buf)
   if not review_win then
-    notify('cannot open Greview split without a visible review buffer', vim.log.levels.WARN)
-    return nil
+    return nil, 'cannot open Greview split without a visible review buffer', vim.log.levels.WARN
   end
+  split.release_pair_window_options(review_win)
+  clear_generated_diff_window_bindings(review_win)
 
-  local previous = get_buf_var(review_buf, 'diffs_review_split_buf')
+  local previous = stored_greview_pair_buf(review_buf)
+  stop_greview_follow(review_buf)
   if type(previous) == 'number' and vim.api.nvim_buf_is_valid(previous) then
     split.close_pair(previous)
   end
 
   review_win = first_window_for_buffer(review_buf)
   if not review_win then
-    notify('cannot open Greview split without a visible review buffer', vim.log.levels.WARN)
-    return nil
+    return nil, 'cannot open Greview split without a visible review buffer', vim.log.levels.WARN
   end
 
-  local restore_win = vim.api.nvim_get_current_win()
+  local restore_win = opts.restore_win or vim.api.nvim_get_current_win()
   vim.api.nvim_set_current_win(review_win)
   vim.cmd('belowright split')
   local launcher_win = vim.api.nvim_get_current_win()
 
   local opened, split_err = split.open({
-    spec = diff_spec,
-    repo_root = repo_root,
-    filetype = filetype_for_path(repo_root, selected.file),
-    diff_lines = diff_lines,
-    hunk_index = selected.hunk_index,
+    spec = context.diff_spec,
+    repo_root = context.repo_root,
+    filetype = filetype_for_path(context.repo_root, context.selected.file),
+    diff_lines = context.diff_lines,
+    hunk_index = context.selected.hunk_index,
     quickfix = false,
   })
   if not opened then
     if vim.api.nvim_win_is_valid(launcher_win) then
       pcall(vim.api.nvim_win_close, launcher_win, true)
     end
-    if vim.api.nvim_win_is_valid(restore_win) then
-      vim.api.nvim_set_current_win(restore_win)
-    elseif vim.api.nvim_win_is_valid(review_win) then
-      vim.api.nvim_set_current_win(review_win)
+    restore_window(restore_win)
+    return nil, split_err or 'cannot open Greview split', vim.log.levels.ERROR
+  end
+
+  start_greview_follow(review_buf, opened, context.selected)
+  if opts.restore_focus then
+    restore_window(restore_win)
+  end
+  return opened, nil, nil
+end
+
+---@param review_buf integer
+---@param item? table
+local function follow_greview_selection(review_buf, item)
+  local state = greview_follow_states[review_buf]
+  if not state then
+    return
+  end
+
+  if not vim.api.nvim_buf_is_valid(review_buf) or not greview_pair_valid(state) then
+    stop_greview_follow(review_buf)
+    return
+  end
+
+  local restore_win = vim.api.nvim_get_current_win()
+  local context = greview_split_context({ bufnr = review_buf, item = item })
+  if not context then
+    close_owned_greview_pair(review_buf)
+    restore_window(restore_win)
+    return
+  end
+
+  local selected = context.selected
+  if selected.file == state.file then
+    if selected.hunk_index then
+      if split.move_pair_to_hunk_index(state.right_buf, selected.hunk_index) then
+        state.hunk_index = selected.hunk_index
+      end
+    elseif selected.hunk_index ~= state.hunk_index then
+      state.hunk_index = nil
     end
-    notify(split_err or 'cannot open Greview split', vim.log.levels.ERROR)
+    restore_window(restore_win)
+    return
+  end
+
+  local opened = open_greview_split_pair(context, {
+    restore_focus = true,
+    restore_win = restore_win,
+  })
+  if not opened then
+    close_owned_greview_pair(review_buf)
+  end
+  restore_window(restore_win)
+end
+
+schedule_greview_follow = function(review_buf, item)
+  local state = greview_follow_states[review_buf]
+  if not state then
+    return
+  end
+  state.pending_item = item or state.pending_item
+  if state.pending then
+    return
+  end
+
+  state.pending = true
+  vim.schedule(function()
+    local current = greview_follow_states[review_buf]
+    if not current then
+      return
+    end
+    local pending_item = current.pending_item
+    current.pending = false
+    current.pending_item = nil
+    follow_greview_selection(review_buf, pending_item)
+  end)
+end
+
+refresh_greview_jump_callback()
+
+---@param opts? diffs.GreviewSplitOpts
+---@return { left_buf: integer, right_buf: integer, left_win: integer, right_win: integer }?
+function M.greview_split(opts)
+  local restore_win = vim.api.nvim_get_current_win()
+  local context, err, level, review_buf = greview_split_context(opts)
+  if not context then
+    if review_buf then
+      close_owned_greview_pair(review_buf)
+      restore_window(restore_win)
+    end
+    notify(err or 'cannot open Greview split', level or vim.log.levels.WARN)
     return nil
   end
 
-  vim.api.nvim_buf_set_var(review_buf, 'diffs_review_split_buf', opened.right_buf)
+  local opened, split_err, split_level = open_greview_split_pair(context, {
+    restore_focus = true,
+    restore_win = restore_win,
+  })
+  if not opened then
+    restore_window(restore_win)
+    notify(split_err or 'cannot open Greview split', split_level or vim.log.levels.ERROR)
+    return nil
+  end
+
   return opened
 end
 
