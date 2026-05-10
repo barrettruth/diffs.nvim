@@ -34,8 +34,12 @@ end
 local function mock_systemlist(fn)
   saved_systemlist = vim.fn.systemlist
   vim.fn.systemlist = function(cmd)
-    local result = fn(cmd)
-    saved_systemlist({ 'true' })
+    local result, shell_error = fn(cmd)
+    if shell_error and shell_error ~= 0 then
+      saved_systemlist({ 'false' })
+    else
+      saved_systemlist({ 'true' })
+    end
     return result
   end
 end
@@ -90,6 +94,17 @@ end
 local function buffer_lines(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   return rails.strip_lines(lines, rails.width_for_buffer(bufnr))
+end
+
+local function review_diff_lines()
+  return {
+    'diff --git a/file.lua b/file.lua',
+    '--- a/file.lua',
+    '+++ b/file.lua',
+    '@@ -1 +1 @@',
+    '-old',
+    '+new',
+  }
 end
 
 local function has_buf_var(bufnr, name)
@@ -687,15 +702,14 @@ describe('read_buffer', function()
     it('runs git diff with base ref for review label', function()
       local captured_cmd
       mock_systemlist(function(cmd)
+        if cmd[4] == 'rev-parse' then
+          return { 'commit' }
+        end
+        if cmd[4] ~= 'diff' then
+          return {}
+        end
         captured_cmd = cmd
-        return {
-          'diff --git a/file.lua b/file.lua',
-          '--- a/file.lua',
-          '+++ b/file.lua',
-          '@@ -1 +1 @@',
-          '-old',
-          '+new',
-        }
+        return review_diff_lines()
       end)
 
       local bufnr = create_diffs_buffer('diffs://review:origin/main', {
@@ -716,15 +730,17 @@ describe('read_buffer', function()
     it('runs merge-base review reload from stored review vars', function()
       local captured_cmd
       mock_systemlist(function(cmd)
+        if cmd[4] == 'rev-parse' then
+          return { 'commit' }
+        end
+        if cmd[4] == 'merge-base' then
+          return { 'merge-base-commit' }
+        end
+        if cmd[4] ~= 'diff' then
+          return {}
+        end
         captured_cmd = cmd
-        return {
-          'diff --git a/file.lua b/file.lua',
-          '--- a/file.lua',
-          '+++ b/file.lua',
-          '@@ -1 +1 @@',
-          '-old',
-          '+new',
-        }
+        return review_diff_lines()
       end)
 
       local bufnr = create_diffs_buffer('diffs://review:origin/main...refs/forge/pr/42', {
@@ -751,15 +767,14 @@ describe('read_buffer', function()
     it('parses direct review specs from the buffer name when vars are absent', function()
       local captured_cmd
       mock_systemlist(function(cmd)
+        if cmd[4] == 'rev-parse' then
+          return { 'commit' }
+        end
+        if cmd[4] ~= 'diff' then
+          return {}
+        end
         captured_cmd = cmd
-        return {
-          'diff --git a/file.lua b/file.lua',
-          '--- a/file.lua',
-          '+++ b/file.lua',
-          '@@ -1 +1 @@',
-          '-old',
-          '+new',
-        }
+        return review_diff_lines()
       end)
 
       local bufnr = create_diffs_buffer('diffs://review:origin/main..feature/topic', {
@@ -777,6 +792,87 @@ describe('read_buffer', function()
         'origin/main',
         'feature/topic',
       }, captured_cmd)
+    end)
+
+    it('reports missing review refs on reload without replacing buffer lines', function()
+      local called_diff = false
+      local notification
+      mock_notify(function(message, level)
+        notification = { message = message, level = level }
+      end)
+      mock_systemlist(function(cmd)
+        if cmd[4] == 'diff' then
+          called_diff = true
+        elseif cmd[4] == 'rev-parse' then
+          return {}, 1
+        end
+        return {}
+      end)
+
+      local bufnr = create_diffs_buffer('diffs://review:missing/ref', {
+        diffs_repo_root = '/home/test/repo',
+      })
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'stale review' })
+
+      commands.read_buffer(bufnr)
+
+      assert.is_false(called_diff)
+      assert.are.same({ 'stale review' }, vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
+      assert.is_not_nil(notification)
+      assert.are.equal(vim.log.levels.WARN, notification.level)
+      assert.is_true(
+        notification.message:find(
+          'Greview base ref not found: missing/ref (spec: missing/ref)',
+          1,
+          true
+        ) ~= nil
+      )
+    end)
+
+    it('reports missing review refs from source metadata without replacing buffer lines', function()
+      local called_diff = false
+      local notification
+      local validation_repo
+      mock_notify(function(message, level)
+        notification = { message = message, level = level }
+      end)
+      mock_systemlist(function(cmd)
+        if cmd[4] == 'diff' then
+          called_diff = true
+        elseif cmd[4] == 'rev-parse' then
+          validation_repo = cmd[3]
+          return {}, 1
+        end
+        return {}
+      end)
+
+      local bufnr = create_diffs_buffer('diffs://review:missing/ref', {
+        diffs_repo_root = '/wrong/repo',
+        diffs_source = {
+          version = 1,
+          kind = 'review',
+          repo_root = '/home/test/repo',
+          review = {
+            base = 'missing/ref',
+          },
+        },
+      })
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'stale review' })
+
+      commands.read_buffer(bufnr)
+
+      assert.is_false(called_diff)
+      assert.are.equal('/home/test/repo', validation_repo)
+      assert.are.same({ 'stale review' }, vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
+      assert.is_not_nil(notification)
+      assert.are.equal(vim.log.levels.WARN, notification.level)
+      assert.is_true(
+        notification.message:find(
+          'Greview base ref not found: missing/ref (spec: missing/ref)',
+          1,
+          true
+        ) ~= nil
+      )
     end)
   end)
 
