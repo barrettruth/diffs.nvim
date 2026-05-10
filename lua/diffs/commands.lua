@@ -10,6 +10,7 @@ local log = require('diffs.log')
 local render = require('diffs.render')
 local review = require('diffs.review')
 local runtime = require('diffs.runtime')
+local split = require('diffs.split')
 
 local dbg = log.dbg
 local notify = log.notify
@@ -274,7 +275,7 @@ end
 
 ---@class diffs.GeneratedBufferSource
 ---@field version integer
----@field kind "file"|"file_pair"|"section"|"review"|"unmerged"
+---@field kind "file"|"file_pair"|"section"|"review"|"unmerged"|"split_endpoint"
 ---@field repo_root string
 ---@field spec? diffs.DiffSpec
 ---@field edge? "staged"|"unstaged"
@@ -283,6 +284,8 @@ end
 ---@field section? "staged"|"unstaged"
 ---@field review? diffs.GreviewSpec
 ---@field working_path? string
+---@field side? "left"|"right"
+---@field filetype? string
 
 ---@param source table
 ---@return diffs.GeneratedBufferSource?
@@ -302,6 +305,17 @@ local function normalize_source(source)
       error('expected file spec')
     end
     source.spec = diffspec.new(source.spec)
+  elseif source.kind == 'split_endpoint' then
+    if source.spec == nil then
+      error('expected split endpoint spec')
+    end
+    source.spec = diffspec.new(source.spec)
+    if source.side ~= 'left' and source.side ~= 'right' then
+      error('expected split endpoint side')
+    end
+    if type(source.path) ~= 'string' or source.path == '' then
+      error('expected split endpoint path')
+    end
   elseif source.kind == 'file_pair' then
     if source.edge ~= 'staged' and source.edge ~= 'unstaged' then
       error('expected file_pair edge')
@@ -597,6 +611,10 @@ function M.gdiff(args, vertical)
     and diff_path == rel_path
     and git.is_unmerged(filepath)
   then
+    if parsed.layout == 'split' then
+      notify('split Gdiff does not support unmerged files yet', vim.log.levels.ERROR)
+      return
+    end
     M.gdiff_file(filepath, {
       vertical = vertical,
       unmerged = true,
@@ -604,8 +622,9 @@ function M.gdiff(args, vertical)
     return
   end
 
+  local worktree_lines = content.from_buffer(bufnr)
   local diff_lines, render_err = render.file(diff_spec, repo_root, {
-    worktree_lines = content.from_buffer(bufnr),
+    worktree_lines = worktree_lines,
   })
   if not diff_lines then
     notify(render_err or 'unknown error', vim.log.levels.ERROR)
@@ -614,6 +633,19 @@ function M.gdiff(args, vertical)
 
   if #diff_lines == 0 then
     notify('no changes for ' .. diffspec.label(diff_spec), vim.log.levels.INFO)
+    return
+  end
+
+  if parsed.layout == 'split' then
+    local opened, split_err = split.open({
+      spec = diff_spec,
+      repo_root = repo_root,
+      filetype = vim.api.nvim_get_option_value('filetype', { buf = bufnr }),
+      worktree_lines = worktree_lines,
+    })
+    if not opened then
+      notify(split_err or 'cannot open split Gdiff', vim.log.levels.ERROR)
+    end
     return
   end
 
@@ -846,6 +878,14 @@ function M.read_buffer(bufnr)
   local repo_root = source and source.repo_root or get_buf_var(bufnr, 'diffs_repo_root')
   if not repo_root then
     notify('cannot reload diffs:// buffer without diffs_repo_root', vim.log.levels.WARN)
+    return
+  end
+
+  if source and source.kind == 'split_endpoint' then
+    local ok, err = split.read_buffer(bufnr, source)
+    if not ok then
+      notify(err or 'cannot reload split diffs:// buffer', vim.log.levels.WARN)
+    end
     return
   end
 
