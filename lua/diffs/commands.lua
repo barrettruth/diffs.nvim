@@ -657,6 +657,7 @@ function M.gdiff(args, vertical)
       repo_root = repo_root,
       filetype = vim.api.nvim_get_option_value('filetype', { buf = bufnr }),
       worktree_lines = worktree_lines,
+      diff_lines = diff_lines,
     })
     if not opened then
       notify(split_err or 'cannot open split Gdiff', vim.log.levels.ERROR)

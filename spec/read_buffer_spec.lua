@@ -92,6 +92,11 @@ local function buffer_lines(bufnr)
   return rails.strip_lines(lines, rails.width_for_buffer(bufnr))
 end
 
+local function has_buf_var(bufnr, name)
+  local ok = pcall(vim.api.nvim_buf_get_var, bufnr, name)
+  return ok
+end
+
 describe('read_buffer', function()
   after_each(function()
     restore_mocks()
@@ -333,12 +338,15 @@ describe('read_buffer', function()
       assert.is_true(diff_hunks[1].actionable)
     end)
 
-    it('reloads split endpoint buffers from source metadata', function()
+    it('rejects standalone split endpoint reloads without adding pair actions', function()
       local called_index = false
+      local notification
+      mock_notify(function(message, level)
+        notification = { message = message, level = level }
+      end)
       mock_git({
-        get_index_content = function(filepath)
+        get_index_content = function()
           called_index = true
-          assert.are.equal('/tmp/repo/lua/foo.lua', filepath)
           return { 'local M = {}', 'return M' }
         end,
       })
@@ -357,16 +365,92 @@ describe('read_buffer', function()
 
       commands.read_buffer(bufnr)
 
-      assert.is_true(called_index)
+      assert.is_false(called_index)
+      assert.are.same({ '' }, vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
+      assert.is_false(has_buf_var(bufnr, 'diffs_split_side'))
+      assert.is_false(has_buf_var(bufnr, 'diffs_split_peer'))
+      assert.is_false(has_buf_var(bufnr, 'diffs_split_hunks'))
+      assert.is_false(helpers.has_keymap(bufnr, 'q'))
+      assert.is_false(helpers.has_keymap(bufnr, '<CR>'))
+      assert.is_false(helpers.has_keymap(bufnr, ']c'))
+      assert.is_false(helpers.has_keymap(bufnr, '[c'))
+      assert.is_not_nil(notification)
+      assert.are.equal(vim.log.levels.WARN, notification.level)
+      assert.is_true(notification.message:find('without a valid peer', 1, true) ~= nil)
+    end)
+
+    it('reloads both split endpoints from paired source metadata', function()
+      mock_git()
+
+      local source = {
+        version = 1,
+        kind = 'split_endpoint',
+        repo_root = '/tmp/repo',
+        spec = diffspec.index_to_worktree('lua/foo.lua'),
+        path = 'lua/foo.lua',
+        filetype = 'lua',
+      }
+      local left_buf = create_diffs_buffer('diffs://split:left:index:lua/foo.lua', {
+        diffs_source = vim.tbl_extend('force', source, { side = 'left' }),
+      })
+      local right_buf = create_diffs_buffer('diffs://split:right:worktree:lua/foo.lua', {
+        diffs_source = vim.tbl_extend('force', source, { side = 'right' }),
+      })
+      vim.api.nvim_buf_set_var(left_buf, 'diffs_split_peer', right_buf)
+      vim.api.nvim_buf_set_var(right_buf, 'diffs_split_peer', left_buf)
+      vim.api.nvim_buf_set_lines(left_buf, 0, -1, false, { 'stale left' })
+      vim.api.nvim_buf_set_lines(right_buf, 0, -1, false, { 'stale right' })
+
+      commands.read_buffer(left_buf)
+
       assert.are.same(
         { 'local M = {}', 'return M' },
-        vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+        vim.api.nvim_buf_get_lines(left_buf, 0, -1, false)
       )
-      assert.are.equal('lua', vim.api.nvim_get_option_value('filetype', { buf = bufnr }))
-      assert.is_false(vim.api.nvim_get_option_value('modifiable', { buf = bufnr }))
-      assert.are.equal('left', vim.api.nvim_buf_get_var(bufnr, 'diffs_split_side'))
-      assert.is_true(helpers.has_keymap(bufnr, 'q'))
-      assert.is_true(helpers.has_keymap(bufnr, '<CR>'))
+      assert.are.same(
+        { 'local M = {}', 'local x = 1', 'return M' },
+        vim.api.nvim_buf_get_lines(right_buf, 0, -1, false)
+      )
+      assert.are.equal(right_buf, vim.api.nvim_buf_get_var(left_buf, 'diffs_split_peer'))
+      assert.are.equal(left_buf, vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer'))
+      assert.are.equal(1, #vim.api.nvim_buf_get_var(left_buf, 'diffs_split_hunks'))
+      assert.are.equal(1, #vim.api.nvim_buf_get_var(right_buf, 'diffs_split_hunks'))
+    end)
+
+    it('does not partially reload paired split endpoints when the peer read fails', function()
+      mock_notify(function() end)
+      mock_git({
+        get_index_content = function()
+          return { 'new left' }
+        end,
+        get_working_content = function()
+          return nil, 'read failed'
+        end,
+      })
+
+      local source = {
+        version = 1,
+        kind = 'split_endpoint',
+        repo_root = '/tmp/repo',
+        spec = diffspec.index_to_worktree('lua/foo.lua'),
+        path = 'lua/foo.lua',
+        filetype = 'lua',
+      }
+      local left_buf = create_diffs_buffer('diffs://split:left:index:lua/foo.lua', {
+        diffs_source = vim.tbl_extend('force', source, { side = 'left' }),
+      })
+      local right_buf = create_diffs_buffer('diffs://split:right:worktree:lua/foo.lua', {
+        diffs_source = vim.tbl_extend('force', source, { side = 'right' }),
+      })
+      vim.api.nvim_buf_set_var(left_buf, 'diffs_split_peer', right_buf)
+      vim.api.nvim_buf_set_var(right_buf, 'diffs_split_peer', left_buf)
+      vim.api.nvim_buf_set_lines(left_buf, 0, -1, false, { 'stale left' })
+      vim.api.nvim_buf_set_lines(right_buf, 0, -1, false, { 'stale right' })
+
+      commands.read_buffer(left_buf)
+
+      assert.are.same({ 'stale left' }, vim.api.nvim_buf_get_lines(left_buf, 0, -1, false))
+      assert.are.same({ 'stale right' }, vim.api.nvim_buf_get_lines(right_buf, 0, -1, false))
     end)
 
     it('reloads untracked DiffSpec buffers with empty index content and hunk metadata', function()
