@@ -114,6 +114,17 @@ function M.find_diffs_window()
 end
 
 ---@param bufnr integer
+---@return integer?
+local function first_window_for_buffer(bufnr)
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == bufnr then
+      return win
+    end
+  end
+  return nil
+end
+
+---@param bufnr integer
 function M.setup_diff_buf(bufnr)
   vim.diagnostic.enable(false, { bufnr = bufnr })
   if not get_buffer_keymap(bufnr, 'n', 'q') then
@@ -583,6 +594,129 @@ end
 ---@return string?
 function M.review_file_at_line(buf, lnum)
   return review.file_at_line(buf, lnum)
+end
+
+---@param repo_root string
+---@param path string
+---@return string?
+local function filetype_for_path(repo_root, path)
+  local filepath = repo_root .. '/' .. path
+  local existing_buf = vim.fn.bufnr(filepath)
+  if existing_buf ~= -1 then
+    local ft = vim.api.nvim_get_option_value('filetype', { buf = existing_buf })
+    if ft and ft ~= '' then
+      return ft
+    end
+  end
+
+  local ft = vim.filetype.match({ filename = path })
+  if ft and ft ~= '' then
+    return ft
+  end
+  return nil
+end
+
+---@class diffs.GreviewSplitOpts
+---@field bufnr? integer
+---@field lnum? integer
+---@field item? table
+
+---@param opts? diffs.GreviewSplitOpts
+---@return { left_buf: integer, right_buf: integer, left_win: integer, right_win: integer }?
+function M.greview_split(opts)
+  opts = opts or {}
+
+  ---@type diffs.GeneratedFileSelectionOpts
+  local selection_opts = {
+    bufnr = opts.bufnr,
+    lnum = opts.lnum,
+    item = opts.item,
+  }
+  local selected, select_err = lists.selected_generated_file(selection_opts)
+  if not selected then
+    notify(select_err or 'no Greview file selected', vim.log.levels.WARN)
+    return nil
+  end
+
+  local review_buf = selected.bufnr
+  if not vim.api.nvim_buf_is_valid(review_buf) then
+    notify('selected Greview buffer is no longer valid', vim.log.levels.WARN)
+    return nil
+  end
+
+  local source, source_err = get_source_var(review_buf)
+  if source_err then
+    notify('invalid diffs_source metadata: ' .. tostring(source_err), vim.log.levels.WARN)
+    return nil
+  end
+  if not source or source.kind ~= 'review' then
+    notify('selected file is not from a Greview buffer', vim.log.levels.WARN)
+    return nil
+  end
+
+  local diff_spec, normalized, spec_err =
+    review.diff_spec_for_file(source.review, source.repo_root, selected.file)
+  if not diff_spec then
+    notify(spec_err or 'cannot build Greview split diff spec', vim.log.levels.ERROR)
+    return nil
+  end
+
+  local repo_root = normalized and normalized.repo_root or source.repo_root
+  local diff_lines, render_err = render.file(diff_spec, repo_root)
+  if not diff_lines then
+    notify(render_err or 'cannot render Greview split file', vim.log.levels.ERROR)
+    return nil
+  end
+  if #diff_lines == 0 then
+    notify('no changes for ' .. diffspec.label(diff_spec), vim.log.levels.INFO)
+    return nil
+  end
+
+  local review_win = first_window_for_buffer(review_buf)
+  if not review_win then
+    notify('cannot open Greview split without a visible review buffer', vim.log.levels.WARN)
+    return nil
+  end
+
+  local previous = get_buf_var(review_buf, 'diffs_review_split_buf')
+  if type(previous) == 'number' and vim.api.nvim_buf_is_valid(previous) then
+    split.close_pair(previous)
+  end
+
+  review_win = first_window_for_buffer(review_buf)
+  if not review_win then
+    notify('cannot open Greview split without a visible review buffer', vim.log.levels.WARN)
+    return nil
+  end
+
+  local restore_win = vim.api.nvim_get_current_win()
+  vim.api.nvim_set_current_win(review_win)
+  vim.cmd('belowright split')
+  local launcher_win = vim.api.nvim_get_current_win()
+
+  local opened, split_err = split.open({
+    spec = diff_spec,
+    repo_root = repo_root,
+    filetype = filetype_for_path(repo_root, selected.file),
+    diff_lines = diff_lines,
+    hunk_index = selected.hunk_index,
+    quickfix = false,
+  })
+  if not opened then
+    if vim.api.nvim_win_is_valid(launcher_win) then
+      pcall(vim.api.nvim_win_close, launcher_win, true)
+    end
+    if vim.api.nvim_win_is_valid(restore_win) then
+      vim.api.nvim_set_current_win(restore_win)
+    elseif vim.api.nvim_win_is_valid(review_win) then
+      vim.api.nvim_set_current_win(review_win)
+    end
+    notify(split_err or 'cannot open Greview split', vim.log.levels.ERROR)
+    return nil
+  end
+
+  vim.api.nvim_buf_set_var(review_buf, 'diffs_review_split_buf', opened.right_buf)
+  return opened
 end
 
 ---@param args? string
