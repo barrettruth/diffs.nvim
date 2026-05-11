@@ -28,6 +28,9 @@ local notify = require('diffs.log').notify
 ---@field file_header_range diffs.GdiffHunkRange?
 ---@field file_header_lines string[]
 ---@field header string
+---@field generated_key string?
+---@field section string?
+---@field section_label string?
 ---@field diff_spec diffs.DiffSpec?
 ---@field edge { left: diffs.Endpoint, right: diffs.Endpoint, mutation_target: "index"|"worktree"|nil }?
 ---@field can_put boolean
@@ -107,6 +110,15 @@ local function parse_new_path(line)
   return normalize_path(line:match('^%+%+%+ (.+)$'), true)
 end
 
+---@param line string
+---@return boolean
+local function is_review_section_header(line)
+  return line:match('^# Branch:') ~= nil
+    or line:match('^# Staged:') ~= nil
+    or line:match('^# Unstaged:') ~= nil
+    or line:match('^# Untracked:') ~= nil
+end
+
 ---@param diff_spec diffs.DiffSpec?
 ---@return diffs.DiffSpec?, "index"|"worktree"|nil, boolean, boolean
 local function normalize_spec(diff_spec)
@@ -178,7 +190,18 @@ function M.parse(diff_lines, diff_spec)
   end
 
   for lnum, line in ipairs(diff_lines) do
-    if line:match('^diff %-%-git ') then
+    if is_review_section_header(line) then
+      finish_hunk(lnum - 1)
+      current_old_path = spec and spec.scope.kind == diffspec.scope_kind.file and spec.scope.path
+        or nil
+      current_new_path = current_old_path
+      current_file = current_new_path or current_old_path
+      current_hunk = nil
+      current_file_header_start = nil
+      current_file_header_lines = {}
+      old_lnum = 0
+      new_lnum = 0
+    elseif line:match('^diff %-%-git ') then
       finish_hunk(lnum - 1)
       current_old_path, current_new_path = parse_diff_git_paths(line)
       current_file = current_new_path or current_old_path

@@ -191,6 +191,44 @@ local function create_review_repo(opts)
   }
 end
 
+local function create_current_state_review_repo()
+  local repo_root = vim.fn.tempname()
+  vim.fn.mkdir(repo_root, 'p')
+  test_repos[#test_repos + 1] = repo_root
+
+  vim.fn.systemlist({ 'git', 'init', '-q', repo_root })
+  assert.are.equal(0, vim.v.shell_error)
+  git_cmd(repo_root, { 'config', 'user.email', 'test@example.com' })
+  git_cmd(repo_root, { 'config', 'user.name', 'Test' })
+
+  write_repo_file(repo_root, 'lua/branch.lua', { 'branch base' })
+  write_repo_file(repo_root, 'lua/dup.lua', { 'dup base' })
+  write_repo_file(repo_root, 'lua/staged.lua', { 'staged base' })
+  write_repo_file(repo_root, 'lua/unstaged.lua', { 'unstaged base' })
+  git_cmd(repo_root, { 'add', 'lua' })
+  git_cmd(repo_root, { 'commit', '-qm', 'base' })
+  local base = git_cmd(repo_root, { 'rev-parse', 'HEAD' })[1]
+
+  git_cmd(repo_root, { 'checkout', '-qb', 'topic' })
+  write_repo_file(repo_root, 'lua/branch.lua', { 'branch head' })
+  write_repo_file(repo_root, 'lua/dup.lua', { 'dup head' })
+  git_cmd(repo_root, { 'add', 'lua/branch.lua', 'lua/dup.lua' })
+  git_cmd(repo_root, { 'commit', '-qm', 'branch changes' })
+
+  write_repo_file(repo_root, 'lua/dup.lua', { 'dup staged' })
+  write_repo_file(repo_root, 'lua/staged.lua', { 'staged changed' })
+  git_cmd(repo_root, { 'add', 'lua/dup.lua', 'lua/staged.lua' })
+
+  write_repo_file(repo_root, 'lua/dup.lua', { 'dup unstaged' })
+  write_repo_file(repo_root, 'lua/unstaged.lua', { 'unstaged changed' })
+  write_repo_file(repo_root, 'lua/new.lua', { 'new file' })
+
+  return {
+    repo_root = repo_root,
+    base = base,
+  }
+end
+
 local function create_mode_only_review_repo()
   local repo_root = vim.fn.tempname()
   vim.fn.mkdir(repo_root, 'p')
@@ -323,6 +361,18 @@ end
 local function find_buffer_line(bufnr, text)
   for lnum, line in ipairs(buffer_lines(bufnr)) do
     if line:find(text, 1, true) then
+      return lnum
+    end
+  end
+  return nil
+end
+
+local function find_buffer_line_after(bufnr, after_text, text)
+  local start = find_buffer_line(bufnr, after_text)
+  assert.is_not_nil(start)
+  local lines = buffer_lines(bufnr)
+  for lnum = start + 1, #lines do
+    if lines[lnum]:find(text, 1, true) then
       return lnum
     end
   end
@@ -2259,6 +2309,213 @@ describe('commands', function()
       assert.are.equal('merge-base', vim.api.nvim_buf_get_var(bufnr, 'diffs_review_mode'))
     end)
 
+    it('renders current-state reviews as stacked sections', function()
+      local repo = create_current_state_review_repo()
+      mock_runtime_attach(function() end)
+
+      local bufnr = commands.greview({
+        base = repo.base,
+        repo = repo.repo_root,
+      })
+      assert.is_not_nil(bufnr)
+      table.insert(test_buffers, bufnr)
+
+      local text = buffer_text(bufnr)
+      assert.is_true(text:find('# Branch:', 1, true) ~= nil)
+      assert.is_true(text:find('# Staged:', 1, true) ~= nil)
+      assert.is_true(text:find('# Unstaged:', 1, true) ~= nil)
+      assert.is_true(text:find('# Untracked:', 1, true) ~= nil)
+      assert.is_true(text:find('+branch head', 1, true) ~= nil)
+      assert.is_true(text:find('+dup staged', 1, true) ~= nil)
+      assert.is_true(text:find('+dup unstaged', 1, true) ~= nil)
+      assert.is_true(text:find('+new file', 1, true) ~= nil)
+
+      local qf = quickfix_items()
+      assert.are.equal(7, #qf)
+      assert.is_true(qf[1].text:find('[Branch] lua/branch.lua', 1, true) ~= nil)
+      assert.is_true(qf[2].text:find('[Branch] lua/dup.lua', 1, true) ~= nil)
+      assert.is_true(qf[3].text:find('[Staged] lua/dup.lua', 1, true) ~= nil)
+      assert.is_true(qf[4].text:find('[Staged] lua/staged.lua', 1, true) ~= nil)
+      assert.is_true(qf[5].text:find('[Unstaged] lua/dup.lua', 1, true) ~= nil)
+      assert.is_true(qf[6].text:find('[Unstaged] lua/unstaged.lua', 1, true) ~= nil)
+      assert.is_true(qf[7].text:find('[Untracked] lua/new.lua', 1, true) ~= nil)
+
+      assert.are.equal('branch:lua/dup.lua', qf[2].user_data.diffs.key)
+      assert.are.equal('staged:lua/dup.lua', qf[3].user_data.diffs.key)
+      assert.are.equal('unstaged:lua/dup.lua', qf[5].user_data.diffs.key)
+    end)
+
+    it('routes duplicate current-state review paths by section for split projection', function()
+      local repo = create_current_state_review_repo()
+      mock_runtime_attach(function() end)
+
+      local bufnr = commands.greview({
+        base = repo.base,
+        repo = repo.repo_root,
+      })
+      assert.is_not_nil(bufnr)
+      table.insert(test_buffers, bufnr)
+      local review_win = vim.api.nvim_get_current_win()
+
+      local branch_line =
+        find_buffer_line_after(bufnr, '# Branch:', 'diff --git a/lua/dup.lua b/lua/dup.lua')
+      assert.is_not_nil(branch_line)
+      vim.api.nvim_win_set_cursor(review_win, { branch_line, 0 })
+      local branch_opened = commands.greview_split({ bufnr = bufnr })
+      assert.is_not_nil(branch_opened)
+      table.insert(test_buffers, branch_opened.left_buf)
+      table.insert(test_buffers, branch_opened.right_buf)
+      assert.are.same(
+        diffspec.rev_to_rev(repo.base, 'HEAD', 'lua/dup.lua'),
+        vim.api.nvim_buf_get_var(branch_opened.right_buf, 'diffs_spec')
+      )
+
+      vim.api.nvim_set_current_win(review_win)
+      local staged_line =
+        find_buffer_line_after(bufnr, '# Staged:', 'diff --git a/lua/dup.lua b/lua/dup.lua')
+      assert.is_not_nil(staged_line)
+      vim.api.nvim_win_set_cursor(review_win, { staged_line, 0 })
+      local staged_opened = commands.greview_split({ bufnr = bufnr })
+      assert.is_not_nil(staged_opened)
+      table.insert(test_buffers, staged_opened.left_buf)
+      table.insert(test_buffers, staged_opened.right_buf)
+      assert.are.same(
+        diffspec.head_to_index('lua/dup.lua'),
+        vim.api.nvim_buf_get_var(staged_opened.right_buf, 'diffs_spec')
+      )
+
+      vim.api.nvim_set_current_win(review_win)
+      local unstaged_line =
+        find_buffer_line_after(bufnr, '# Unstaged:', 'diff --git a/lua/dup.lua b/lua/dup.lua')
+      assert.is_not_nil(unstaged_line)
+      vim.api.nvim_win_set_cursor(review_win, { unstaged_line, 0 })
+      local unstaged_opened = commands.greview_split({ bufnr = bufnr })
+      assert.is_not_nil(unstaged_opened)
+      table.insert(test_buffers, unstaged_opened.left_buf)
+      table.insert(test_buffers, unstaged_opened.right_buf)
+      assert.are.same(
+        diffspec.index_to_worktree('lua/dup.lua'),
+        vim.api.nvim_buf_get_var(unstaged_opened.right_buf, 'diffs_spec')
+      )
+    end)
+
+    it('follows duplicate current-state review paths by section identity', function()
+      local repo = create_current_state_review_repo()
+      mock_runtime_attach(function() end)
+
+      local bufnr = commands.greview({
+        base = repo.base,
+        repo = repo.repo_root,
+      })
+      assert.is_not_nil(bufnr)
+      table.insert(test_buffers, bufnr)
+      local review_win = vim.api.nvim_get_current_win()
+
+      local branch_line =
+        find_buffer_line_after(bufnr, '# Branch:', 'diff --git a/lua/dup.lua b/lua/dup.lua')
+      assert.is_not_nil(branch_line)
+      vim.api.nvim_win_set_cursor(review_win, { branch_line, 0 })
+      local opened = commands.greview_split({ bufnr = bufnr })
+      assert.is_not_nil(opened)
+      table.insert(test_buffers, opened.left_buf)
+      table.insert(test_buffers, opened.right_buf)
+
+      local staged_line =
+        find_buffer_line_after(bufnr, '# Staged:', 'diff --git a/lua/dup.lua b/lua/dup.lua')
+      assert.is_not_nil(staged_line)
+      vim.api.nvim_set_current_win(review_win)
+      vim.api.nvim_win_set_cursor(review_win, { staged_line, 0 })
+      vim.api.nvim_exec_autocmds('CursorMoved', { buffer = bufnr })
+
+      local followed_right
+      vim.wait(100, function()
+        local ok, right = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_review_split_buf')
+        if not ok or right == opened.right_buf or not vim.api.nvim_buf_is_valid(right) then
+          return false
+        end
+        local spec = vim.api.nvim_buf_get_var(right, 'diffs_spec')
+        if spec.left and spec.left.kind == 'tree' and spec.left.rev == 'HEAD' then
+          followed_right = right
+          return true
+        end
+        return false
+      end)
+
+      assert.is_not_nil(followed_right)
+      table.insert(test_buffers, followed_right)
+      table.insert(test_buffers, vim.api.nvim_buf_get_var(followed_right, 'diffs_split_peer'))
+      assert.are.same(
+        diffspec.head_to_index('lua/dup.lua'),
+        vim.api.nvim_buf_get_var(followed_right, 'diffs_spec')
+      )
+    end)
+
+    it('skips binary untracked files in current-state reviews', function()
+      local repo_root = create_repo()
+      write_repo_file(repo_root, 'lua/new.lua', { 'new text' })
+      write_binary_file(repo_root .. '/bin.dat', 'binary\\000new')
+      mock_runtime_attach(function() end)
+
+      local bufnr = commands.greview({
+        base = 'HEAD',
+        repo = repo_root,
+      })
+      assert.is_not_nil(bufnr)
+      table.insert(test_buffers, bufnr)
+
+      local text = buffer_text(bufnr)
+      assert.is_true(text:find('# Untracked:', 1, true) ~= nil)
+      assert.is_true(text:find('diff --git a/lua/new.lua b/lua/new.lua', 1, true) ~= nil)
+      assert.is_true(text:find('+new text', 1, true) ~= nil)
+      assert.is_false(text:find('bin.dat', 1, true) ~= nil)
+
+      local qf = quickfix_items()
+      assert.are.equal(1, #qf)
+      assert.is_true(qf[1].text:find('[Untracked] lua/new.lua', 1, true) ~= nil)
+    end)
+
+    it('routes current-state conflict reviews to read-only unmerged stage specs', function()
+      local repo_root = create_conflicted_repo()
+      mock_runtime_attach(function() end)
+
+      local bufnr = commands.greview({
+        base = 'HEAD',
+        repo = repo_root,
+      })
+      assert.is_not_nil(bufnr)
+      table.insert(test_buffers, bufnr)
+
+      local text = buffer_text(bufnr)
+      assert.is_false(text:find('# Staged:', 1, true) ~= nil)
+      assert.is_false(text:find('* Unmerged path', 1, true) ~= nil)
+      assert.is_true(text:find('# Unstaged:', 1, true) ~= nil)
+      assert.is_true(text:find('diff --git a/file.txt b/file.txt', 1, true) ~= nil)
+      assert.is_true(text:find('-line 2 theirs', 1, true) ~= nil)
+      assert.is_true(text:find('+line 2 ours', 1, true) ~= nil)
+      assert.is_false(helpers.has_keymap(bufnr, 'do'))
+      assert.is_false(helpers.has_keymap(bufnr, 'dp'))
+
+      local qf = quickfix_items()
+      assert.are.equal(1, #qf)
+      assert.is_true(qf[1].text:find('[Unstaged] file.txt', 1, true) ~= nil)
+      assert.are.equal('unstaged', qf[1].user_data.diffs.section)
+      assert.are.same(diffspec.rev_to_rev(':2', ':3', 'file.txt'), qf[1].user_data.diffs.diff_spec)
+
+      local header_line = find_buffer_line(bufnr, '# Unstaged:')
+      assert.is_not_nil(header_line)
+      vim.api.nvim_win_set_cursor(0, { header_line, 0 })
+      local opened = commands.greview_split({ bufnr = bufnr })
+      assert.is_not_nil(opened)
+      table.insert(test_buffers, opened.left_buf)
+      table.insert(test_buffers, opened.right_buf)
+      assert.are.same(
+        diffspec.rev_to_rev(':2', ':3', 'file.txt'),
+        vim.api.nvim_buf_get_var(opened.right_buf, 'diffs_spec')
+      )
+      assert.is_true(buffer_text(opened.left_buf):find('line 2 theirs', 1, true) ~= nil)
+      assert.is_true(buffer_text(opened.right_buf):find('line 2 ours', 1, true) ~= nil)
+    end)
+
     it(
       'uses quickfix as the review file index and loclist as the active file hunk index',
       function()
@@ -2801,7 +3058,7 @@ describe('commands', function()
       )
     end)
 
-    it('opens a base-only review file as base tree to worktree', function()
+    it('opens a base-only current-state review file as the selected section edge', function()
       local repo = create_review_repo({ commit_target = false })
       mock_runtime_attach(function() end)
 
@@ -2822,7 +3079,7 @@ describe('commands', function()
       table.insert(test_buffers, opened.right_buf)
 
       assert.are.same(
-        diffspec.rev_to_worktree(repo.base, 'lua/two.lua'),
+        diffspec.index_to_worktree('lua/two.lua'),
         vim.api.nvim_buf_get_var(opened.right_buf, 'diffs_spec')
       )
     end)

@@ -1,5 +1,6 @@
 local M = {}
 
+local diffspec = require('diffs.spec')
 local hunk_model = require('diffs.hunks')
 
 local generated_list_autocmds = {}
@@ -10,6 +11,14 @@ local generated_jump_callback
 local quickfix_enter_desc = 'Open quickfix item'
 
 local group = vim.api.nvim_create_augroup('diffs_generated_lists', { clear = false })
+
+---@class diffs.GeneratedListOptions
+---@field title? string
+---@field loclist_title? string
+---@field diff_spec? diffs.DiffSpec
+---@field metadata_for_line? fun(lnum: integer, file: string): table?
+---@field sections? table[]
+---@field store_hunks? boolean
 
 ---@param bufnr integer
 ---@param name string
@@ -88,46 +97,101 @@ end
 ---@param by_file table<string, table>
 ---@param file string
 ---@param lnum integer
+---@param meta? table
 ---@return table
-local function ensure_file_entry(entries, by_file, file, lnum)
-  local entry = by_file[file]
+local function ensure_file_entry(entries, by_file, file, lnum, meta)
+  meta = meta or {}
+  local key = meta.key or file
+  local entry = by_file[key]
   if entry then
     entry.lnum = math.min(entry.lnum, lnum)
     return entry
   end
 
   entry = {
+    key = key,
     file = file,
     lnum = lnum,
     adds = 0,
     dels = 0,
     hunks = {},
+    section = meta.section,
+    section_label = meta.section_label,
+    diff_spec = meta.diff_spec,
   }
-  by_file[file] = entry
+  by_file[key] = entry
   entries[#entries + 1] = entry
   return entry
 end
 
+---@param opts? table
+---@param lnum integer
+---@param file string
+---@return table
+local function metadata_for_line(opts, lnum, file)
+  local fn = opts and opts.metadata_for_line
+  if type(fn) ~= 'function' then
+    return {}
+  end
+
+  local meta = fn(lnum, file)
+  if type(meta) == 'table' then
+    return meta
+  end
+  return {}
+end
+
+---@param entry table
+---@return string
+local function entry_display_file(entry)
+  if type(entry.section_label) == 'string' and entry.section_label ~= '' then
+    return ('[%s] %s'):format(entry.section_label, entry.file)
+  end
+  return entry.file
+end
+
+---@param hunk diffs.GdiffHunk?
+---@return string?
+local function hunk_key(hunk)
+  if type(hunk) ~= 'table' then
+    return nil
+  end
+  return hunk.generated_key
+end
+
 ---@param hunks diffs.GdiffHunk[]
 ---@param diff_lines? string[]
+---@param opts? table
 ---@return table[]
-local function file_entries(hunks, diff_lines)
+local function file_entries(hunks, diff_lines, opts)
   local by_file = {}
   local entries = {}
   for lnum, line in ipairs(diff_lines or {}) do
     local file = diff_file(line)
     if file then
-      ensure_file_entry(entries, by_file, file, lnum)
+      ensure_file_entry(entries, by_file, file, lnum, metadata_for_line(opts, lnum, file))
     end
   end
 
   for _, hunk in ipairs(hunks) do
     local file = hunk_file(hunk)
-    local entry = ensure_file_entry(entries, by_file, file, file_lnum(hunk))
+    local meta = metadata_for_line(opts, hunk.buffer_range.start, file)
+    local entry = ensure_file_entry(entries, by_file, file, file_lnum(hunk), meta)
     local adds, dels = hunk_stats(hunk)
     entry.adds = entry.adds + adds
     entry.dels = entry.dels + dels
     entry.hunks[#entry.hunks + 1] = hunk
+    hunk.generated_key = entry.key
+    hunk.section = entry.section
+    hunk.section_label = entry.section_label
+    if not hunk.diff_spec and entry.diff_spec then
+      hunk.diff_spec = entry.diff_spec
+      local actions = diffspec.patch_actions(entry.diff_spec)
+      hunk.can_put = actions.can_put
+      hunk.can_obtain = actions.can_obtain
+      hunk.actionable = actions.can_put or actions.can_obtain
+      hunk.mutation_target = diffspec.mutation_target(entry.diff_spec)
+    end
   end
   return entries
 end
@@ -137,7 +201,8 @@ local function format_file_text(entries)
   local max_fname = 0
   local max_add, max_del = 0, 0
   for _, entry in ipairs(entries) do
-    max_fname = math.max(max_fname, #entry.file)
+    entry.display_file = entry_display_file(entry)
+    max_fname = math.max(max_fname, #entry.display_file)
     if entry.adds > 0 then
       max_add = math.max(max_add, #tostring(entry.adds) + 1)
     end
@@ -147,7 +212,7 @@ local function format_file_text(entries)
   end
 
   for _, entry in ipairs(entries) do
-    local padded = entry.file .. string.rep(' ', max_fname - #entry.file)
+    local padded = entry.display_file .. string.rep(' ', max_fname - #entry.display_file)
     local parts = { padded }
     if max_add > 0 then
       parts[#parts + 1] = entry.adds > 0 and string.format('%' .. max_add .. 's', '+' .. entry.adds)
@@ -177,6 +242,10 @@ local function quickfix_items(bufnr, entries)
         diffs = {
           kind = 'file',
           file = entry.file,
+          key = entry.key,
+          section = entry.section,
+          section_label = entry.section_label,
+          diff_spec = entry.diff_spec,
         },
       },
     }
@@ -184,47 +253,87 @@ local function quickfix_items(bufnr, entries)
   return items
 end
 
+---@param entries table[]
+---@param lnum integer
+---@param sections? table[]
+---@return table?
+local function entry_at_lnum(entries, lnum, sections)
+  if #entries == 0 then
+    return nil
+  end
+
+  local section = nil
+  for _, candidate in ipairs(sections or {}) do
+    if lnum >= candidate.start and lnum <= candidate.finish then
+      section = candidate
+      break
+    end
+  end
+
+  local selected = nil
+  for _, entry in ipairs(entries) do
+    if section and entry.section ~= section.id then
+      goto continue
+    end
+    if lnum >= entry.lnum then
+      selected = entry
+    else
+      break
+    end
+    ::continue::
+  end
+  if selected then
+    return selected
+  end
+
+  if section then
+    for _, entry in ipairs(entries) do
+      if entry.section == section.id then
+        return entry
+      end
+    end
+  end
+  return entries[1]
+end
+
 ---@param hunks diffs.GdiffHunk[]
 ---@param entries table[]
 ---@param lnum integer
 ---@return string?
 local function file_at_lnum(hunks, entries, lnum)
-  entries = entries or file_entries(hunks)
-  if #entries == 0 then
-    return nil
-  end
-
-  local selected = entries[1].file
-  for _, entry in ipairs(entries) do
-    if lnum >= entry.lnum then
-      selected = entry.file
-    else
-      break
-    end
-  end
-  return selected
+  local entry = entry_at_lnum(entries or file_entries(hunks), lnum)
+  return entry and entry.file or nil
 end
 
 ---@param bufnr integer
 ---@param hunks diffs.GdiffHunk[]
----@param file string?
+---@param entry table?
 ---@return table[]
-local function loclist_items(bufnr, hunks, file)
+local function loclist_items(bufnr, hunks, entry)
   local file_hunk_count = {}
+  local key = entry and entry.key or nil
+  local file = entry and entry.file or nil
   local items = {}
   for _, hunk in ipairs(hunks) do
     local hfile = hunk_file(hunk)
-    if not file or hfile == file then
-      file_hunk_count[hfile] = (file_hunk_count[hfile] or 0) + 1
+    local hkey = hunk_key(hunk)
+    if (key and hkey == key) or (not key and (not file or hfile == file)) then
+      local count_key = hkey or hfile
+      file_hunk_count[count_key] = (file_hunk_count[count_key] or 0) + 1
+      local display = hunk.section_label and ('[' .. hunk.section_label .. '] ' .. hfile) or hfile
       items[#items + 1] = {
         bufnr = bufnr,
         lnum = hunk.buffer_range.start,
         col = 1,
-        text = ('%s (hunk %d) %s'):format(hfile, file_hunk_count[hfile], hunk.header),
+        text = ('%s (hunk %d) %s'):format(display, file_hunk_count[count_key], hunk.header),
         user_data = {
           diffs = {
             kind = 'hunk',
             file = hfile,
+            key = hkey,
+            section = hunk.section,
+            section_label = hunk.section_label,
+            diff_spec = hunk.diff_spec,
             hunk = hunk.index,
           },
         },
@@ -271,8 +380,9 @@ local function file_hunk_index(hunks, target)
 
   local count = 0
   local file = hunk_file(target)
+  local key = hunk_key(target)
   for _, hunk in ipairs(hunks) do
-    if hunk_file(hunk) == file then
+    if (key and hunk_key(hunk) == key) or (not key and hunk_file(hunk) == file) then
       count = count + 1
     end
     if hunk == target then
@@ -312,9 +422,14 @@ local function selection_from_item(item)
 
   local state = generated_list_state[item.bufnr]
   local hunk = state and hunk_by_index(state.hunks, data.hunk) or nil
+  local key = data.key or hunk_key(hunk) or data.file
   return {
     bufnr = item.bufnr,
     file = data.file,
+    key = key,
+    section = data.section,
+    section_label = data.section_label,
+    diff_spec = data.diff_spec,
     lnum = item.lnum,
     hunk = hunk,
     hunk_index = state and file_hunk_index(state.hunks, hunk) or nil,
@@ -362,15 +477,16 @@ local function refresh_loclist_for_window(bufnr, win, force)
   end
 
   local cursor = vim.api.nvim_win_get_cursor(win)[1]
-  local file = file_at_lnum(state.hunks, state.entries, cursor)
+  local entry = entry_at_lnum(state.entries, cursor, state.sections)
+  local key = entry and entry.key or nil
   local cache = state.win_files or {}
   state.win_files = cache
-  if not force and cache[win] == file then
+  if not force and cache[win] == key then
     return
   end
-  cache[win] = file
+  cache[win] = key
 
-  set_loclist(win, state.loclist_title, loclist_items(bufnr, state.hunks, file))
+  set_loclist(win, state.loclist_title, loclist_items(bufnr, state.hunks, entry))
 end
 
 ---@param bufnr integer
@@ -506,6 +622,10 @@ end
 ---@class diffs.GeneratedFileSelection
 ---@field bufnr integer
 ---@field file string
+---@field key? string
+---@field section? string
+---@field section_label? string
+---@field diff_spec? diffs.DiffSpec
 ---@field lnum integer?
 ---@field hunk? diffs.GdiffHunk
 ---@field hunk_index? integer
@@ -533,15 +653,19 @@ function M.selected_generated_file(opts)
   end
 
   local lnum = selection_lnum(bufnr, opts.lnum)
-  local file = file_at_lnum(state.hunks, state.entries, lnum)
-  if not file then
+  local entry = entry_at_lnum(state.entries, lnum, state.sections)
+  if not entry then
     return nil, 'no generated diff file selected'
   end
 
   local hunk = hunk_at_lnum(state.hunks, lnum)
   return {
     bufnr = bufnr,
-    file = file,
+    file = entry.file,
+    key = (hunk and hunk_key(hunk)) or entry.key,
+    section = (hunk and hunk.section) or entry.section,
+    section_label = (hunk and hunk.section_label) or entry.section_label,
+    diff_spec = (hunk and hunk.diff_spec) or entry.diff_spec,
     lnum = lnum,
     hunk = hunk,
     hunk_index = file_hunk_index(state.hunks, hunk),
@@ -621,18 +745,23 @@ end
 
 ---@param bufnr integer
 ---@param diff_lines string[]
----@param opts? { title?: string, loclist_title?: string, diff_spec?: diffs.DiffSpec }
+---@param opts? diffs.GeneratedListOptions
 function M.set_for_unified_buffer(bufnr, diff_lines, opts)
   opts = opts or {}
   local diff_spec = opts.diff_spec or buffer_diff_spec(bufnr)
   local hunks = hunk_model.parse(diff_lines, diff_spec)
-  local entries = file_entries(hunks, diff_lines)
+  local entries = file_entries(hunks, diff_lines, opts)
   local title = opts.title or 'diffs'
   local loclist_title = opts.loclist_title or (title .. ' hunks')
+
+  if opts.store_hunks then
+    vim.api.nvim_buf_set_var(bufnr, 'diffs_hunks', hunks)
+  end
 
   generated_list_state[bufnr] = {
     hunks = hunks,
     entries = entries,
+    sections = opts.sections,
     loclist_title = loclist_title,
     win_files = {},
   }
