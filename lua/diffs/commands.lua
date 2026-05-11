@@ -32,6 +32,7 @@ local hunk_keymap_autocmds = {}
 ---@field left_buf integer
 ---@field right_buf integer
 ---@field file string
+---@field key string
 ---@field hunk_index? integer
 ---@field autocmds integer[]
 ---@field pending? boolean
@@ -550,16 +551,16 @@ local function render_section_source(repo_root, section)
 end
 
 ---@param source diffs.GeneratedBufferSource
----@return string[]?, diffs.DiffSpec?, string?
+---@return string[]?, diffs.DiffSpec?, string?, table?
 local function render_source(source)
   if source.kind == 'file' then
     local diff_lines, read_err = render.file(source.spec, source.repo_root, {
       empty_on_missing = true,
     })
     if not diff_lines then
-      return nil, nil, read_err
+      return nil, nil, read_err, nil
     end
-    return diff_lines, source.spec, diffspec.label(source.spec)
+    return diff_lines, source.spec, diffspec.label(source.spec), nil
   end
 
   if source.kind == 'file_pair' then
@@ -578,19 +579,23 @@ local function render_source(source)
     end
     return render.unified_lines(old_lines, new_lines, source.old_path, source.path),
       nil,
-      source.edge .. ':' .. source.path
+      source.edge .. ':' .. source.path,
+      nil
   end
 
   if source.kind == 'section' then
-    return render_section_source(source.repo_root, source.section), nil, source.section .. ':all'
+    return render_section_source(source.repo_root, source.section),
+      nil,
+      source.section .. ':all',
+      nil
   end
 
   if source.kind == 'review' then
-    local review_lines, review_err = review.reload_source(source, review_deps())
+    local review_lines, review_err, list_opts = review.reload_source(source, review_deps())
     if not review_lines then
-      return nil, nil, review_err
+      return nil, nil, review_err, nil
     end
-    return review_lines, nil, 'review'
+    return review_lines, nil, 'review', list_opts
   end
 
   local abs_path = source.repo_root .. '/' .. source.path
@@ -598,7 +603,8 @@ local function render_source(source)
   local new_lines = git.get_file_content(':3', abs_path) or {}
   return render.unified_lines(old_lines, new_lines, source.path, source.path),
     nil,
-    'unmerged:' .. source.path
+    'unmerged:' .. source.path,
+    nil
 end
 
 ---@param diff_label string
@@ -747,7 +753,7 @@ local function greview_split_context(opts)
   end
 
   local diff_spec, normalized, spec_err =
-    review.diff_spec_for_file(source.review, source.repo_root, selected.file)
+    review.diff_spec_for_file(source.review, source.repo_root, selected.file, selected)
   if not diff_spec then
     return nil, spec_err or 'cannot build Greview split diff spec', vim.log.levels.ERROR, review_buf
   end
@@ -796,6 +802,7 @@ local function start_greview_follow(review_buf, opened, selected)
     left_buf = opened.left_buf,
     right_buf = opened.right_buf,
     file = selected.file,
+    key = selected.key or selected.file,
     hunk_index = selected.hunk_index,
     autocmds = {},
   }
@@ -917,7 +924,7 @@ local function follow_greview_selection(review_buf, item)
   end
 
   local selected = context.selected
-  if selected.file == state.file then
+  if (selected.key or selected.file) == (state.key or state.file) then
     if selected.hunk_index then
       if split.move_pair_to_hunk_index(state.right_buf, selected.hunk_index) then
         state.hunk_index = selected.hunk_index
@@ -1328,11 +1335,12 @@ function M.read_buffer(bufnr)
   local diff_lines
   local stored_spec
   local debug_label
+  local list_opts
   local label, path
 
   if source then
     local render_err
-    diff_lines, stored_spec, render_err = render_source(source)
+    diff_lines, stored_spec, render_err, list_opts = render_source(source)
     if not diff_lines then
       notify(render_err or 'cannot reload diffs:// buffer', vim.log.levels.WARN)
       return
@@ -1366,7 +1374,7 @@ function M.read_buffer(bufnr)
       diff_lines = render_section_source(repo_root, label)
     elseif not stored_spec and label == 'review' then
       local review_err
-      diff_lines, review_err = review.reload(bufnr, repo_root, path, review_deps())
+      diff_lines, review_err, list_opts = review.reload(bufnr, repo_root, path, review_deps())
       if not diff_lines then
         notify(review_err or 'cannot reload review buffer', vim.log.levels.WARN)
         return
@@ -1407,11 +1415,14 @@ function M.read_buffer(bufnr)
   end
 
   replace_generated_diff_buffer_lines(bufnr, diff_lines, stored_spec)
-  M.setup_diff_buf(bufnr)
   lists.set_for_unified_buffer(bufnr, diff_lines, {
     title = 'diff: ' .. (debug_label or name:gsub('^diffs://', '')),
     diff_spec = stored_spec,
+    metadata_for_line = list_opts and list_opts.metadata_for_line,
+    sections = list_opts and list_opts.sections,
+    store_hunks = list_opts and list_opts.store_hunks,
   })
+  M.setup_diff_buf(bufnr)
 
   dbg('reloaded diff buffer %d (%s)', bufnr, debug_label)
 
