@@ -806,6 +806,9 @@ local function start_greview_follow(review_buf, opened, selected)
     group = greview_follow_group,
     buffer = review_buf,
     callback = function(args)
+      if get_buf_var(args.buf, 'diffs_generated_jump_in_progress') then
+        return
+      end
       schedule_greview_follow(args.buf)
     end,
   })
@@ -958,8 +961,6 @@ schedule_greview_follow = function(review_buf, item)
     follow_greview_selection(review_buf, pending_item)
   end)
 end
-
-refresh_greview_jump_callback()
 
 ---@param opts? diffs.GreviewSplitOpts
 ---@return { left_buf: integer, right_buf: integer, left_win: integer, right_win: integer }?
