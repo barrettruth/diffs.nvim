@@ -417,21 +417,21 @@ syntax highlighting warning.
 ==============================================================================
 COMMANDS                                                 *diffs.nvim-commands*
 
-Generated workspace boundaries: ~
+diffs.nvim view boundaries: ~
 
 diffs.nvim only replaces layout for buffers it creates and can model as
-explicit endpoints. Today that means generated |:Gdiff| buffers, |:Greview|
+explicit endpoints. Today that means `diffs://` |:Gdiff| buffers, |:Greview|
 buffers, experimental split views, and plugin-owned launches from integrations
-such as Fugitive status maps. Generated commit views and any other future layout
+such as Fugitive status maps. Commit views and any other future layout
 replacements must follow the same rule: first model the source endpoints, then
 own the layout.
 
 Ordinary `git`, `gitcommit`, `diff`, `extra_filetypes`, picker previews, and
 third-party integration buffers remain highlight-only. diffs.nvim may attach
 syntax, backgrounds, and intra-line highlights to those buffers, but it must not
-replace their layout unless the user invoked a generated diffs.nvim view.
+replace their layout unless the user invoked a diffs.nvim-owned view.
 
-:Gdiff [object]                                                       *:Gdiff*
+:Gdiff [++layout=unified|split] [object]                             *:Gdiff*
     Open a unified diff of the current file against a Fugitive-style object.
     Displays in a horizontal split below the current window.
 
@@ -439,20 +439,20 @@ replace their layout unless the user invoked a generated diffs.nvim view.
     code language, plus diff header highlighting for `diff --git`, `---`,
     `+++`, and `@@` lines.
 
-    Generated `diffs://` unified buffers include old and new line-number rails
-    before the unified diff text. A blank rail cell means that line does not
-    exist on that side of the diff.
+    `diffs://` unified buffers include old and new line-number columns before
+    the unified diff text. A blank cell means that line does not exist on that
+    side of the diff.
 
     In the default unified layout, if a `diffs://` window already exists in the
     current tabpage, the new diff replaces its buffer instead of creating
     another split.
 
-    This is a generated diff workspace, not Fugitive `:Gdiffsplit` parity.
+    This is a diffs.nvim-owned view, not Fugitive `:Gdiffsplit` parity.
     diffs.nvim owns the `diffs://` buffers, hunk metadata, and plugin actions.
     The default unified layout does not enter native Vim `&diff` mode, open
     writable Fugitive object buffers, or emulate `:Gdiffsplit` window lifecycle.
     The experimental `++layout=split` variant uses native `&diff` alignment for
-    generated old/new endpoint windows, but disables diff folds as layout.
+    old/new endpoint windows, but disables diff folds as layout.
 
     Plain direct |:Gdiff| from a worktree file compares the index to the
     worktree and shows only unstaged changes. Staged-only changes report no
@@ -465,10 +465,11 @@ replace their layout unless the user invoked a generated diffs.nvim view.
     object argument and through Fugitive status-row context.
 
     Parameters: ~
+        ++layout=unified (optional) Open the default unified `diffs://` view.
+        ++layout=split (optional) Open the current single-file comparison as
+                    experimental paired old/new endpoint windows.
         ++novertical (optional) Force a horizontal split. Useful with |:Gvdiff|
                     or command wrappers.
-        ++layout=split (optional) Open the current single-file comparison as
-                    experimental paired old/new generated endpoint windows.
         {object}    (string, optional) Fugitive-style object to diff against.
                     Defaults to the current file in the index.
 
@@ -509,7 +510,7 @@ replace their layout unless the user invoked a generated diffs.nvim view.
                                                  explicit warning.
     Unmerged file     :2: (ours) -> :3:          Plain |:Gdiff|, or an
                       (theirs)                   explicit index object, opens
-                                                 a generated merge diff. Native
+                                                 a merge diff view. Native
                                                  3-way `:Gdiffsplit!` windows
                                                  are not emulated.
     Merge-stage       :1:/:2:/:3: object         Not supported by |:Gdiff|
@@ -520,40 +521,40 @@ replace their layout unless the user invoked a generated diffs.nvim view.
     applying a partial mutation. Mutation maps are capability-scoped: `dp`
     appears only for supported index -> worktree hunks/ranges, and `do`
     appears only for supported tree -> index hunks/ranges. Read-only and
-    unsupported generated buffers do not expose mutation maps.
+    unsupported `diffs://` buffers do not expose mutation maps.
 
-    Native expectations outside this generated-buffer contract, such as
+    Native expectations outside this diffs.nvim-owned buffer contract, such as
     `:Gdiffsplit!`, 3-way `&diff` windows, writable Fugitive object buffers,
     and `dq`, are not emulated.
 
-Generated paired-window contract: ~             *diffs.nvim-paired-windows*
+Paired-window contract: ~                       *diffs.nvim-paired-windows*
 
-    The `++layout=split` view is the generated split rendering of a single
+    The `++layout=split` view is the split rendering of a single
     |:Gdiff| file comparison. It is not a parser for arbitrary diff text and it
     must only apply when diffs.nvim owns explicit endpoint metadata.
 
-    The contract below describes the target behavior for generated paired
+    The contract below describes the target behavior for paired
     windows. It is an implementation target for the experimental split view, not
     a claim that every current release implements each item.
 
     Model: ~
         - The left window displays the old endpoint and the right window
           displays the new endpoint.
-        - Both buffers are generated `diffs://` endpoint buffers with stored
+        - Both buffers are `diffs://` endpoint buffers with stored
           repo root, DiffSpec, endpoint side, and source path metadata.
         - Both endpoint buffers are read-only views. Edits happen in real source
-          buffers opened from the generated view.
+          buffers opened from the diffs.nvim view.
         - Native `&diff` alignment may provide filler rows, but diff folds are
-          not the layout mechanism and should be disabled for generated split
+          not the layout mechanism and should be disabled for split
           windows.
         - Window-local user settings such as statusline, statuscolumn, number,
-          and cursorline should be preserved unless the generated view
+          and cursorline should be preserved unless the diffs.nvim view
           explicitly owns and documents a local display choice.
 
     Lifecycle: ~
         - Opening a split view creates or reuses a coherent pair. It must not
           leave stale endpoint buffers with duplicate `diffs://` names.
-        - `q` closes the pair, not just the current endpoint. Both generated
+        - `q` closes the pair, not just the current endpoint. Both
           endpoint buffers should be deleted.
         - Manually closing, wiping, or deleting either endpoint should not leave
           an actionable half-pair. The remaining side should be closed or
@@ -575,7 +576,7 @@ Generated paired-window contract: ~             *diffs.nvim-paired-windows*
         - Moving to a hunk should keep the paired windows aligned. If an
           endpoint has no real line for that side of the hunk, land on the
           nearest aligned row rather than inventing buffer text.
-        - Wrapping behavior should match unified generated |:Gdiff| hunk
+        - Wrapping behavior should match unified |:Gdiff| hunk
           navigation.
 
     Source opening: ~
@@ -590,7 +591,7 @@ Generated paired-window contract: ~             *diffs.nvim-paired-windows*
         - The paired windows should act as one comparison while still allowing
           the cursor to live on either side.
         - Cursor and scroll sync may be best-effort around native diff filler
-          rows, but it must not mutate generated buffers from decoration or
+          rows, but it must not mutate `diffs://` buffers from decoration or
           redraw callbacks.
         - Sync should not require global options or leave unrelated windows
           scroll-bound after the pair closes.
@@ -599,8 +600,8 @@ Generated paired-window contract: ~             *diffs.nvim-paired-windows*
         - Quickfix and location-list targets for split rows are not settled.
           Until that is decided, split |:Gdiff| should not add new qf/loclist
           behavior beyond existing |:Greview| lists.
-        - Direct editing of the right-side generated worktree endpoint is not
-          part of the contract. Generated endpoint buffers remain read-only
+        - Direct editing of the right-side worktree endpoint is not
+          part of the contract. Endpoint buffers remain read-only
           unless a later API explicitly changes that ownership model.
 
 
@@ -610,7 +611,7 @@ Generated paired-window contract: ~             *diffs.nvim-paired-windows*
 :Ghdiff [object]                                                     *:Ghdiff*
     Like |:Gdiff| but explicitly opens in a horizontal split.
 
-:Greview [review-spec]                                              *:Greview*
+:Greview [++layout=unified|split] [review-spec]                    *:Greview*
     Open a unified review of the repository in a horizontal split.
 
     With no arguments, reviews the current repository state against the
@@ -636,7 +637,15 @@ Generated paired-window contract: ~             *diffs.nvim-paired-windows*
     If a `diffs://` window already exists in the current tabpage, the new
     diff replaces its buffer instead of creating another split.
 
+    With `++layout=split`, |:Greview| still opens the full review buffer and
+    quickfix/location-list indexes. It also opens the first changed file in a
+    paired old/new split view. That pair follows later review-buffer, quickfix,
+    and location-list selection until the pair is closed.
+
     Parameters: ~
+        ++layout=unified (optional) Open the default unified review buffer.
+        ++layout=split (optional) Also open a paired old/new split view for
+                       the first changed review file.
         {review-spec}  (string, optional) One of:
                        - empty: review current repo state against the repo
                          default branch
@@ -648,7 +657,9 @@ Generated paired-window contract: ~             *diffs.nvim-paired-windows*
 
     Examples: >vim
         :Greview
+        :Greview ++layout=split
         :Greview origin/main
+        :Greview ++layout=split origin/main
         :Greview origin/main...refs/forge/pr/42
         :Greview origin/main..feature/topic
 <
@@ -687,11 +698,11 @@ Generated paired-window contract: ~             *diffs.nvim-paired-windows*
 
     Utilities: ~
         `require('diffs.commands').greview_split()` opens the currently
-        selected |:Greview| file in a generated split pair. It uses the review
+        selected |:Greview| file in a paired split view. It uses the review
         buffer cursor, quickfix item, or loclist item as the file selection.
-        Once opened, that Greview-owned pair follows review-map file and hunk
+        Once opened, that Greview-owned pair follows review-buffer file and hunk
         selection until the pair is closed. The review quickfix list remains
-        the authoritative file map.
+        the authoritative file list.
 
         `require('diffs.commands').review_file_at_line(bufnr, lnum)` returns
         the filename at a given line in a review buffer by walking backwards
@@ -710,8 +721,8 @@ MAPPINGS                                                 *diffs.nvim-mappings*
 
                                                 *<Plug>(diffs-gdiff-open-source)*
 <Plug>(diffs-gdiff-open-source)
-                        Open the real worktree file at the current generated
-                        |:Gdiff| hunk location. Generated buffers map this to
+                        Open the real worktree file at the current |:Gdiff|
+                        hunk location. `diffs://` buffers map this to
                         <CR> by default. Map this plug key yourself if you want
                         another alias: >lua
                             vim.keymap.set('n', 'go',
@@ -721,9 +732,9 @@ MAPPINGS                                                 *diffs.nvim-mappings*
                                              *<Plug>(diffs-greview-open-split)*
 <Plug>(diffs-greview-open-split)
                         Open the currently selected |:Greview| file in a
-                        generated split pair. The review buffer remains the
+                        paired split view. The review buffer remains the
                         full-repo map; this action opens one file pair for
-                        focused inspection and follows later review-map
+                        focused inspection and follows later review-buffer
                         selections until that pair is closed.
 
 Example configuration: >lua
@@ -796,12 +807,12 @@ Diff buffer mappings: ~
                                                                 *diffs.nvim-q*
     q               Close the diff window. Available in all `diffs://`
                     buffers created by |:Gdiff|, |:Gvdiff|, |:Ghdiff|,
-                    or the fugitive status keymaps. In generated paired split
+                    or the fugitive status keymaps. In paired split
                     views, close the pair; see |diffs.nvim-paired-windows|.
-    ]c              Jump to the next hunk boundary in unified generated |:Gdiff|
+    ]c              Jump to the next hunk boundary in unified |:Gdiff|
                     buffers.
-    [c              Jump to the previous hunk boundary in unified generated
-                    |:Gdiff| buffers.
+    [c              Jump to the previous hunk boundary in unified |:Gdiff|
+                    buffers.
     <CR>            Open the real worktree file at the current |:Gdiff| hunk
                     location when the current endpoint row is worktree-backed.
     dp              In Normal mode, stage the current whole hunk when the
@@ -849,7 +860,7 @@ and intra-line diffs. |:Gdiff| opens a unified diff against any revision (see
 Fugitive status keymaps: ~
 
 When inside a `:Git` status buffer, diffs.nvim provides keymaps to open
-generated unified diffs for files or entire sections. These keymaps reuse
+unified `diffs://` views for files or entire sections. These keymaps reuse
 Fugitive status context for endpoint selection; they do not call
 `:Gdiffsplit` or open native Vim diff windows.
 
@@ -881,8 +892,8 @@ no changes. Untracked section headers show a warning since there is no
 meaningful diff.
 
 This status-row behavior is intentionally narrower than Fugitive `:Gdiffsplit`.
-It preserves the useful edge selection model while keeping generated
-`diffs://` buffers read-only, explicit, and owned by diffs.nvim.
+It preserves the useful edge selection model while keeping `diffs://` buffers
+read-only, explicit, and owned by diffs.nvim.
 
 Configuration: ~
                                                    *diffs.nvim.FugitiveConfig*

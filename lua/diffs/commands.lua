@@ -628,6 +628,174 @@ function M.review_file_at_line(buf, lnum)
   return review.file_at_line(buf, lnum)
 end
 
+local layout_options = {
+  '++layout=unified',
+  '++layout=split',
+}
+
+local gdiff_objects = {
+  ':',
+  ':%',
+  ':0:%',
+  '@:%',
+}
+
+local command_names = {
+  Gdiff = true,
+  Gvdiff = true,
+  Ghdiff = true,
+  Greview = true,
+}
+
+---@param value string
+---@param prefix string
+---@return boolean
+local function starts_with(value, prefix)
+  return value:find(prefix, 1, true) == 1
+end
+
+---@param candidates string[]
+---@param arglead string
+---@return string[]
+local function prefix_matches(candidates, arglead)
+  local matches = {}
+  for _, candidate in ipairs(candidates) do
+    if starts_with(candidate, arglead) then
+      matches[#matches + 1] = candidate
+    end
+  end
+  return matches
+end
+
+---@param arglead string
+---@return string[]
+local function complete_gdiff_object(arglead)
+  local matches = prefix_matches(gdiff_objects, arglead)
+  for _, ref in ipairs(review.complete(arglead)) do
+    if not ref:find('..', 1, true) then
+      matches[#matches + 1] = ref
+    end
+  end
+  return matches
+end
+
+---@param arglead string
+---@param cmdline? string
+---@param cursorpos? integer
+---@return { has_layout: boolean, has_value: boolean }
+local function completion_context(arglead, cmdline, cursorpos)
+  local before = cmdline or ''
+  if type(cursorpos) == 'number' and cursorpos > 0 then
+    before = before:sub(1, cursorpos)
+  end
+  if arglead ~= '' and before:sub(-#arglead) == arglead then
+    before = before:sub(1, #before - #arglead)
+  end
+
+  local tokens = vim.split(vim.trim(before), '%s+', { trimempty = true })
+  local command_index = 0
+  for i = #tokens, 1, -1 do
+    if command_names[tokens[i]] then
+      command_index = i
+      break
+    end
+  end
+  if command_index == 0 and #tokens > 0 then
+    command_index = 1
+  end
+
+  local has_layout = false
+  local has_value = false
+  for i = command_index + 1, #tokens do
+    local token = tokens[i]
+    if token:match('^%+%+layout=') then
+      has_layout = true
+    elseif not token:match('^%+%+') then
+      has_value = true
+    end
+  end
+  return {
+    has_layout = has_layout,
+    has_value = has_value,
+  }
+end
+
+---@param arglead string
+---@param cmdline? string
+---@param cursorpos? integer
+---@return string[]
+local function complete_gdiff_command(arglead, cmdline, cursorpos)
+  local context = completion_context(arglead, cmdline, cursorpos)
+  if context.has_value then
+    return {}
+  end
+  if arglead:match('^%+%+') then
+    if context.has_layout then
+      return {}
+    end
+    return prefix_matches(layout_options, arglead)
+  end
+  local matches = {}
+  if arglead == '' and not context.has_layout then
+    vim.list_extend(matches, layout_options)
+  end
+  vim.list_extend(matches, complete_gdiff_object(arglead))
+  return matches
+end
+
+---@param arglead string
+---@param cmdline? string
+---@param cursorpos? integer
+---@return string[]
+local function complete_gdiff_split_command(arglead, cmdline, cursorpos)
+  local context = completion_context(arglead, cmdline, cursorpos)
+  if context.has_value or arglead:match('^%+%+') then
+    return {}
+  end
+  return complete_gdiff_object(arglead)
+end
+
+---@param arglead string
+---@param cmdline? string
+---@param cursorpos? integer
+---@return string[]
+local function complete_greview_command(arglead, cmdline, cursorpos)
+  local context = completion_context(arglead, cmdline, cursorpos)
+  if context.has_value then
+    return {}
+  end
+  if arglead:match('^%+%+') then
+    local matches = {}
+    if not context.has_layout then
+      vim.list_extend(matches, prefix_matches(layout_options, arglead))
+    end
+    vim.list_extend(matches, review.complete(arglead))
+    return matches
+  end
+  local matches = {}
+  if arglead == '' and not context.has_layout then
+    vim.list_extend(matches, layout_options)
+  end
+  vim.list_extend(matches, review.complete(arglead))
+  return matches
+end
+
+---@param args? string
+---@return integer?
+function M.greview_command(args)
+  local parsed, err = review.parse_command_args(args)
+  if not parsed then
+    notify(err, vim.log.levels.ERROR)
+    return nil
+  end
+
+  local bufnr = M.greview(parsed.spec)
+  if bufnr and parsed.layout == 'split' then
+    M.greview_split({ bufnr = bufnr, lnum = 1 })
+  end
+  return bufnr
+end
+
 ---@param repo_root string
 ---@param path string
 ---@return string?
@@ -1434,6 +1602,7 @@ function M.setup()
     M.gdiff(opts.args ~= '' and opts.args or nil, false)
   end, {
     nargs = '*',
+    complete = complete_gdiff_command,
     desc = 'Show unified diff against a Fugitive object',
   })
 
@@ -1441,6 +1610,7 @@ function M.setup()
     M.gdiff(opts.args ~= '' and opts.args or nil, true)
   end, {
     nargs = '*',
+    complete = complete_gdiff_split_command,
     desc = 'Show unified diff against a Fugitive object in vertical split',
   })
 
@@ -1448,27 +1618,28 @@ function M.setup()
     M.gdiff(opts.args ~= '' and opts.args or nil, false)
   end, {
     nargs = '*',
+    complete = complete_gdiff_split_command,
     desc = 'Show unified diff against a Fugitive object in horizontal split',
   })
 
   vim.api.nvim_create_user_command('Greview', function(opts)
-    local spec, err = review.parse_arg(opts.args ~= '' and opts.args or nil)
-    if not spec then
-      notify(err, vim.log.levels.ERROR)
-      return
-    end
-    M.greview(spec)
+    M.greview_command(opts.args ~= '' and opts.args or nil)
   end, {
-    nargs = '?',
-    complete = review.complete,
+    nargs = '*',
+    complete = complete_greview_command,
     desc = 'Review the repo against the default branch or a git review spec',
   })
 end
 
 M._test = {
+  complete_gdiff = complete_gdiff_command,
+  complete_gdiff_object = complete_gdiff_object,
+  complete_gdiff_split = complete_gdiff_split_command,
   complete_greview = review.complete,
+  complete_greview_command = complete_greview_command,
   gdiff_buffer_label = gdiff_buffer_label,
   normalize_greview = review.normalize,
+  parse_greview_command = review.parse_command_args,
   parse_review_arg = review.parse_arg,
 }
 
