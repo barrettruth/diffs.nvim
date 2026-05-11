@@ -444,6 +444,63 @@ describe('commands', function()
     end)
   end)
 
+  describe('command completion', function()
+    it('completes Gdiff layout options and Fugitive-style objects', function()
+      mock_repo_root(function()
+        return '/tmp/repo'
+      end)
+      mock_systemlist(function(cmd)
+        assert.are.same({
+          'git',
+          '-C',
+          '/tmp/repo',
+          'for-each-ref',
+          '--format=%(refname:short)',
+          'refs/heads/',
+          'refs/remotes/',
+          'refs/tags/',
+        }, cmd)
+        return { 'origin/main', 'feature/topic' }
+      end)
+
+      assert.are.same({
+        '++layout=unified',
+        '++layout=split',
+      }, commands._test.complete_gdiff('++l'))
+      assert.are.same({
+        '++layout=unified',
+        '++layout=split',
+        ':',
+        ':%',
+        ':0:%',
+        '@:%',
+        'origin/main',
+        'feature/topic',
+      }, commands._test.complete_gdiff('', 'Gdiff ', #'Gdiff '))
+      assert.are.same({
+        ':',
+        ':%',
+        ':0:%',
+        '@:%',
+        'origin/main',
+        'feature/topic',
+      }, commands._test.complete_gdiff('', 'Gdiff ++layout=split ', #'Gdiff ++layout=split '))
+      assert.are.same({}, commands._test.complete_gdiff('', 'Gdiff HEAD ', #'Gdiff HEAD '))
+      assert.are.same({ ':', ':%', ':0:%' }, commands._test.complete_gdiff(':'))
+      assert.are.same({ ':0:%' }, commands._test.complete_gdiff(':0', 'Gdiff :0', #'Gdiff :0'))
+      assert.are.same(
+        { ':0:%' },
+        commands._test.complete_gdiff(':0', 'vertical Gdiff :0', #'vertical Gdiff :0')
+      )
+      assert.are.same({ '@:%' }, commands._test.complete_gdiff('@'))
+      assert.are.same({ 'origin/main' }, commands._test.complete_gdiff('origin/'))
+    end)
+
+    it('keeps Gvdiff and Ghdiff completion focused on objects', function()
+      assert.are.same({}, commands._test.complete_gdiff_split('++l'))
+    end)
+  end)
+
   describe('unified diff generation', function()
     local old_lines = { 'local M = {}', 'return M' }
     local new_lines = { 'local M = {}', 'local x = 1', 'return M' }
@@ -2072,6 +2129,44 @@ describe('commands', function()
       }, spec)
     end)
 
+    it('parses Greview command layout options', function()
+      local parsed =
+        commands._test.parse_greview_command('++layout=split origin/main...refs/pull/42/head')
+
+      assert.are.same({
+        layout = 'split',
+        spec = {
+          base = 'origin/main',
+          target = 'refs/pull/42/head',
+          mode = 'merge-base',
+        },
+      }, parsed)
+    end)
+
+    it('rejects unsupported Greview command layout options', function()
+      local parsed, err = commands._test.parse_greview_command('++layout=tiled origin/main')
+
+      assert.is_nil(parsed)
+      assert.are.equal('unsupported layout tiled', err)
+    end)
+
+    it('treats non-layout plus-prefixed Greview args as review specs', function()
+      local parsed, err = commands._test.parse_greview_command('++topic')
+
+      assert.is_nil(err)
+      assert.are.same({
+        layout = 'unified',
+        spec = { base = '++topic' },
+      }, parsed)
+    end)
+
+    it('rejects multiple Greview command specs', function()
+      local parsed, err = commands._test.parse_greview_command('origin/main feature/topic')
+
+      assert.is_nil(parsed)
+      assert.are.equal('expected at most one review spec', err)
+    end)
+
     it('normalizes default base inside the resolved repo', function()
       local captured_cmds = {}
       mock_repo_root(function(path)
@@ -2141,6 +2236,73 @@ describe('commands', function()
       local matches = commands._test.complete_greview('origin/main..feature/')
 
       assert.are.same({ 'origin/main..feature/a', 'origin/main..feature/b' }, matches)
+    end)
+
+    it('completes Greview command layout options', function()
+      local matches = commands._test.complete_greview_command('++l')
+
+      assert.are.same({
+        '++layout=unified',
+        '++layout=split',
+      }, matches)
+    end)
+
+    it('completes Greview layout options only before a review spec', function()
+      mock_repo_root(function()
+        return '/tmp/repo'
+      end)
+      mock_systemlist(function()
+        return { 'origin/main', 'feature/topic', '++topic' }
+      end)
+
+      assert.are.same({
+        '++layout=unified',
+        '++layout=split',
+        'origin/main',
+        'feature/topic',
+        '++topic',
+      }, commands._test.complete_greview_command('', 'Greview ', #'Greview '))
+      assert.are.same(
+        {
+          'origin/main',
+          'feature/topic',
+          '++topic',
+        },
+        commands._test.complete_greview_command(
+          '',
+          'Greview ++layout=split ',
+          #'Greview ++layout=split '
+        )
+      )
+      assert.are.same(
+        {},
+        commands._test.complete_greview_command('', 'Greview origin/main ', #'Greview origin/main ')
+      )
+      assert.are.same(
+        { 'origin/main' },
+        commands._test.complete_greview_command('origin/', 'Greview origin/', #'Greview origin/')
+      )
+      assert.are.same(
+        { 'origin/main' },
+        commands._test.complete_greview_command(
+          'origin/',
+          'belowright Greview origin/',
+          #'belowright Greview origin/'
+        )
+      )
+      assert.are.same({
+        '++layout=unified',
+        '++layout=split',
+        '++topic',
+      }, commands._test.complete_greview_command('++', 'Greview ++', #'Greview ++'))
+      assert.are.same(
+        { '++topic' },
+        commands._test.complete_greview_command(
+          '++',
+          'Greview ++layout=split ++',
+          #'Greview ++layout=split ++'
+        )
+      )
     end)
   end)
 
@@ -2343,6 +2505,28 @@ describe('commands', function()
       assert.are.equal('branch:lua/dup.lua', qf[2].user_data.diffs.key)
       assert.are.equal('staged:lua/dup.lua', qf[3].user_data.diffs.key)
       assert.are.equal('unstaged:lua/dup.lua', qf[5].user_data.diffs.key)
+    end)
+
+    it('opens the first review file in a split pair for Greview layout split', function()
+      local repo_root = create_repo()
+      vim.fn.writefile({ 'line 1', 'line 2 changed' }, repo_root .. '/file.txt')
+      vim.cmd.edit(vim.fn.fnameescape(repo_root .. '/file.txt'))
+      mock_runtime_attach(function() end)
+
+      local bufnr = commands.greview_command('++layout=split HEAD')
+
+      assert.is_not_nil(bufnr)
+      table.insert(test_buffers, bufnr)
+      local right_buf = vim.api.nvim_buf_get_var(bufnr, 'diffs_review_split_buf')
+      assert.is_true(vim.api.nvim_buf_is_valid(right_buf))
+      local left_buf = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer')
+      assert.is_true(vim.api.nvim_buf_is_valid(left_buf))
+      table.insert(test_buffers, right_buf)
+      table.insert(test_buffers, left_buf)
+      assert.are.same(
+        diffspec.index_to_worktree('file.txt'),
+        vim.api.nvim_buf_get_var(right_buf, 'diffs_spec')
+      )
     end)
 
     it('routes duplicate current-state review paths by section for split projection', function()

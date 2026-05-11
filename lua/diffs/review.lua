@@ -16,6 +16,10 @@ local notify = log.notify
 ---@field mode? string
 ---@field vertical? boolean
 
+---@class diffs.GreviewCommandParseResult
+---@field spec diffs.GreviewSpec
+---@field layout "unified"|"split"
+
 ---@class diffs.NormalizedGreview
 ---@field base string
 ---@field target string?
@@ -40,6 +44,16 @@ local function get_buf_var(bufnr, name)
     return value
   end
   return nil
+end
+
+---@param args? string
+---@return string[]
+local function split_args(args)
+  args = vim.trim(args or '')
+  if args == '' then
+    return {}
+  end
+  return vim.split(args, '%s+', { trimempty = true })
 end
 
 ---@param repo? string
@@ -154,6 +168,36 @@ function M.parse_arg(arg)
   end
 
   return { base = arg }, nil
+end
+
+---@param args? string
+---@return diffs.GreviewCommandParseResult?, string?
+function M.parse_command_args(args)
+  local tokens = split_args(args)
+  local layout = 'unified'
+
+  while tokens[1] and tokens[1]:match('^%+%+layout=') do
+    local value = tokens[1]:match('^%+%+layout=(.+)$')
+    if value ~= 'unified' and value ~= 'split' then
+      return nil, 'unsupported layout ' .. tostring(value)
+    end
+    layout = value
+    table.remove(tokens, 1)
+  end
+
+  if #tokens > 1 then
+    return nil, 'expected at most one review spec'
+  end
+
+  local spec, err = M.parse_arg(tokens[1])
+  if not spec then
+    return nil, err
+  end
+
+  return {
+    spec = spec,
+    layout = layout,
+  }, nil
 end
 
 ---@param spec? diffs.GreviewSpec
