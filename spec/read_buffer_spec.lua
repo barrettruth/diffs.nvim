@@ -699,17 +699,23 @@ describe('read_buffer', function()
       assert.is_truthy(vim.tbl_contains(captured_cmd, '--cached'))
     end)
 
-    it('runs git diff with base ref for review label', function()
-      local captured_cmd
+    it('reloads base-only review labels as current-state stacked sections', function()
+      local captured_cmds = {}
       mock_systemlist(function(cmd)
         if cmd[4] == 'rev-parse' then
           return { 'commit' }
         end
+        if cmd[4] == 'merge-base' then
+          return { 'base-sha' }
+        end
         if cmd[4] ~= 'diff' then
           return {}
         end
-        captured_cmd = cmd
-        return review_diff_lines()
+        captured_cmds[#captured_cmds + 1] = cmd
+        if cmd[7] == 'base-sha' then
+          return review_diff_lines()
+        end
+        return {}
       end)
 
       local bufnr = create_diffs_buffer('diffs://review:origin/main', {
@@ -717,14 +723,21 @@ describe('read_buffer', function()
       })
       commands.read_buffer(bufnr)
 
-      assert.is_not_nil(captured_cmd)
-      assert.are.equal('git', captured_cmd[1])
-      assert.are.equal('/home/test/repo', captured_cmd[3])
-      assert.are.equal('diff', captured_cmd[4])
-      assert.are.equal('origin/main', captured_cmd[#captured_cmd])
+      assert.are.equal(3, #captured_cmds)
+      assert.are.same({
+        'git',
+        '-C',
+        '/home/test/repo',
+        'diff',
+        '--no-ext-diff',
+        '--no-color',
+        'base-sha',
+        'HEAD',
+      }, captured_cmds[1])
 
       local lines = buffer_lines(bufnr)
-      assert.are.equal('diff --git a/file.lua b/file.lua', lines[1])
+      assert.are.equal('# Branch: origin/main...HEAD', lines[1])
+      assert.are.equal('diff --git a/file.lua b/file.lua', lines[2])
     end)
 
     it('runs merge-base review reload from stored review vars', function()

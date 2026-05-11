@@ -4,6 +4,7 @@ local diffspec = require('diffs.spec')
 local git = require('diffs.git')
 local lists = require('diffs.lists')
 local log = require('diffs.log')
+local render = require('diffs.render')
 
 local dbg = log.dbg
 local notify = log.notify
@@ -245,11 +246,320 @@ function M.build_cmd(review)
   return cmd
 end
 
+---@param repo_root string
+---@param args string[]
+---@return string[]?, string?
+local function git_lines(repo_root, args)
+  local cmd = { 'git', '-C', repo_root }
+  vim.list_extend(cmd, args)
+  local result = vim.fn.systemlist(cmd)
+  if vim.v.shell_error ~= 0 then
+    return nil, table.concat(result or {}, '\n')
+  end
+  return result, nil
+end
+
+---@param line string
+---@return string?
+local function diff_line_file(line)
+  local old_path, new_path = line:match('^diff %-%-git a/(.-) b/(.+)$')
+  return new_path or old_path
+end
+
+---@param diff_lines string[]
+---@return table<string, boolean>
+local function combined_diff_files(diff_lines)
+  local files = {}
+  for _, line in ipairs(diff_lines) do
+    local file = line:match('^diff %-%-cc (.+)$') or line:match('^diff %-%-combined (.+)$')
+    if file then
+      files[file] = true
+    end
+  end
+  return files
+end
+
+---@param diff_lines string[]
+---@return table[]
+local function file_records(diff_lines)
+  local records = {}
+  local current = nil
+  for lnum, line in ipairs(diff_lines) do
+    local file = diff_line_file(line)
+    if file then
+      if current then
+        current.finish = lnum - 1
+      end
+      current = {
+        file = file,
+        start = lnum,
+        finish = #diff_lines,
+      }
+      records[#records + 1] = current
+    end
+  end
+  return records
+end
+
+---@param path string
+---@return diffs.DiffSpec
+local function unmerged_stage_spec(path)
+  return diffspec.rev_to_rev(':2', ':3', path)
+end
+
+---@param diff_lines string[]
+---@param spec_for_file fun(file: string): diffs.DiffSpec
+---@return table<string, diffs.DiffSpec>
+local function section_specs(diff_lines, spec_for_file)
+  local specs = {}
+  for _, record in ipairs(file_records(diff_lines)) do
+    specs[record.file] = spec_for_file(record.file)
+  end
+  return specs
+end
+
+---@param review diffs.NormalizedGreview
+---@param base_rev string
+---@return string[]?, string?
+local function branch_lines(review, base_rev)
+  return git_lines(review.repo_root, {
+    'diff',
+    '--no-ext-diff',
+    '--no-color',
+    base_rev,
+    'HEAD',
+  })
+end
+
+---@param review diffs.NormalizedGreview
+---@param cached boolean
+---@return string[]?, string?
+local function worktree_edge_lines(review, cached)
+  local args = { 'diff', '--no-ext-diff', '--no-color' }
+  if cached then
+    args[#args + 1] = '--cached'
+  end
+  return git_lines(review.repo_root, args)
+end
+
+---@param review diffs.NormalizedGreview
+---@return string[]?, string?
+local function untracked_paths(review)
+  local paths = vim.fn.systemlist({
+    'git',
+    '-C',
+    review.repo_root,
+    'ls-files',
+    '--others',
+    '--exclude-standard',
+  })
+  if vim.v.shell_error ~= 0 then
+    return nil, table.concat(paths or {}, '\n')
+  end
+
+  table.sort(paths)
+  return paths, nil
+end
+
+---@param repo_root string
+---@param path string
+---@return boolean
+local function is_untracked_binary(repo_root, path)
+  local result = vim.fn.systemlist({
+    'git',
+    '-C',
+    repo_root,
+    'diff',
+    '--no-ext-diff',
+    '--no-color',
+    '--no-index',
+    '--numstat',
+    '--',
+    '/dev/null',
+    path,
+  })
+  if vim.v.shell_error ~= 0 and vim.v.shell_error ~= 1 then
+    return false
+  end
+
+  for _, line in ipairs(result or {}) do
+    if line:match('^%-%s+%-%s+') then
+      return true
+    end
+  end
+  return false
+end
+
+---@param lines string[]
+---@param section table
+---@param specs table<string, diffs.DiffSpec>
+---@param state table
+local function append_section(lines, section, specs, state)
+  local records = file_records(section.lines)
+  if #records == 0 then
+    return
+  end
+
+  local header_lnum = #lines + 1
+  lines[#lines + 1] = ('# %s: %s'):format(section.label, section.description)
+  local section_start = header_lnum
+  for _, line in ipairs(section.lines) do
+    lines[#lines + 1] = line
+  end
+
+  local section_info = {
+    id = section.id,
+    label = section.label,
+    start = section_start,
+    finish = #lines,
+  }
+  state.sections[#state.sections + 1] = section_info
+
+  for _, record in ipairs(records) do
+    local key = section.id .. ':' .. record.file
+    state.records[#state.records + 1] = {
+      key = key,
+      file = record.file,
+      section = section.id,
+      section_label = section.label,
+      diff_spec = specs[record.file],
+      start = section_start + record.start,
+      finish = section_start + record.finish,
+    }
+  end
+end
+
+---@param records table[]
+---@param lnum integer
+---@param file string
+---@return table?
+local function record_for_line(records, lnum, file)
+  for _, record in ipairs(records or {}) do
+    if record.file == file and lnum >= record.start and lnum <= record.finish then
+      return record
+    end
+  end
+  return nil
+end
+
+---@param records table[]
+---@return fun(lnum: integer, file: string): table?
+local function metadata_for_records(records)
+  return function(lnum, file)
+    return record_for_line(records, lnum, file)
+  end
+end
+
+---@param review diffs.NormalizedGreview
+---@param deps diffs.ReviewDeps
+---@return string[]?, string?, table?
+local function run_current_state(review, deps)
+  local base_rev, merge_err = merge_base(review.repo_root, review.base, 'HEAD')
+  if not base_rev then
+    return nil, merge_err, nil
+  end
+
+  local lines = {}
+  local state = {
+    records = {},
+    sections = {},
+  }
+
+  local branch, branch_err = branch_lines(review, base_rev)
+  if not branch then
+    return nil, branch_err ~= '' and branch_err or 'git diff failed for Greview Branch section', nil
+  end
+  local branch_rendered = deps.replace_combined_diffs(branch, review.repo_root)
+  local branch_specs = section_specs(branch_rendered, function(file)
+    return diffspec.rev_to_rev(base_rev, 'HEAD', file)
+  end)
+  append_section(lines, {
+    id = 'branch',
+    label = 'Branch',
+    description = review.base .. '...' .. 'HEAD',
+    lines = branch_rendered,
+  }, branch_specs, state)
+
+  local staged, staged_err = worktree_edge_lines(review, true)
+  if not staged then
+    return nil, staged_err ~= '' and staged_err or 'git diff failed for Greview Staged section', nil
+  end
+  local staged_rendered = deps.replace_combined_diffs(staged, review.repo_root)
+  local staged_unmerged = combined_diff_files(staged)
+  local staged_specs = section_specs(staged_rendered, function(file)
+    return staged_unmerged[file] and unmerged_stage_spec(file) or diffspec.head_to_index(file)
+  end)
+  append_section(lines, {
+    id = 'staged',
+    label = 'Staged',
+    description = 'HEAD -> index',
+    lines = staged_rendered,
+  }, staged_specs, state)
+
+  local unstaged, unstaged_err = worktree_edge_lines(review, false)
+  if not unstaged then
+    return nil,
+      unstaged_err ~= '' and unstaged_err or 'git diff failed for Greview Unstaged section',
+      nil
+  end
+  local unstaged_rendered = deps.replace_combined_diffs(unstaged, review.repo_root)
+  local unstaged_unmerged = combined_diff_files(unstaged)
+  local unstaged_specs = section_specs(unstaged_rendered, function(file)
+    return unstaged_unmerged[file] and unmerged_stage_spec(file) or diffspec.index_to_worktree(file)
+  end)
+  append_section(lines, {
+    id = 'unstaged',
+    label = 'Unstaged',
+    description = 'index -> worktree',
+    lines = unstaged_rendered,
+  }, unstaged_specs, state)
+
+  local untracked, untracked_err = untracked_paths(review)
+  if not untracked then
+    return nil,
+      untracked_err ~= '' and untracked_err or 'git ls-files failed for Greview Untracked section',
+      nil
+  end
+  local untracked_lines = {}
+  local untracked_specs = {}
+  for _, path in ipairs(untracked) do
+    if is_untracked_binary(review.repo_root, path) then
+      dbg('skipping binary untracked %s', path)
+    else
+      local spec = diffspec.index_to_worktree(path)
+      local rendered, render_err = render.file(spec, review.repo_root)
+      if rendered then
+        for _, line in ipairs(rendered) do
+          untracked_lines[#untracked_lines + 1] = line
+        end
+        untracked_specs[path] = spec
+      elseif render_err then
+        dbg('skipping untracked %s: %s', path, render_err)
+      end
+    end
+  end
+  append_section(lines, {
+    id = 'untracked',
+    label = 'Untracked',
+    description = 'empty -> worktree',
+    lines = untracked_lines,
+  }, untracked_specs, state)
+
+  return lines,
+    nil,
+    {
+      metadata_for_line = metadata_for_records(state.records),
+      sections = state.sections,
+      store_hunks = true,
+    }
+end
+
 ---@param review_spec diffs.GreviewSpec?
 ---@param repo_root string
 ---@param path string
+---@param selection? diffs.GeneratedFileSelection
 ---@return diffs.DiffSpec?, diffs.NormalizedGreview?, string?
-function M.diff_spec_for_file(review_spec, repo_root, path)
+function M.diff_spec_for_file(review_spec, repo_root, path, selection)
   if type(path) ~= 'string' or path == '' then
     return nil, nil, 'missing review file path'
   end
@@ -257,6 +567,10 @@ function M.diff_spec_for_file(review_spec, repo_root, path)
   local normalized, normalize_err = M.normalize(review_spec, repo_root)
   if not normalized then
     return nil, nil, normalize_err
+  end
+
+  if selection and selection.diff_spec then
+    return diffspec.new(selection.diff_spec), normalized, nil
   end
 
   if not normalized.target then
@@ -358,6 +672,18 @@ function M.run(review, deps)
   return deps.replace_combined_diffs(result, review.repo_root), nil
 end
 
+---@param review diffs.NormalizedGreview
+---@param deps diffs.ReviewDeps
+---@return string[]?, string?, table?
+function M.render(review, deps)
+  if not review.target then
+    return run_current_state(review, deps)
+  end
+
+  local result, err = M.run(review, deps)
+  return result, err, nil
+end
+
 ---@param spec? diffs.GreviewSpec
 ---@param deps diffs.ReviewDeps
 ---@return integer?
@@ -374,7 +700,7 @@ function M.greview(spec, deps)
     pcall(vim.api.nvim_buf_delete, existing_buf, { force = true })
   end
 
-  local result, diff_err = M.run(review, deps)
+  local result, diff_err, list_opts = M.render(review, deps)
   if not result then
     notify(diff_err, vim.log.levels.ERROR)
     return nil
@@ -409,6 +735,9 @@ function M.greview(spec, deps)
   lists.set_for_unified_buffer(diff_buf, result, {
     title = 'review: ' .. review.display,
     loclist_title = 'review hunks: ' .. review.display,
+    metadata_for_line = list_opts and list_opts.metadata_for_line,
+    sections = list_opts and list_opts.sections,
+    store_hunks = list_opts and list_opts.store_hunks,
   })
 
   deps.attach_generated_diff_buffer(diff_buf)
@@ -434,19 +763,19 @@ end
 ---@param review_spec diffs.GreviewSpec?
 ---@param repo_root string
 ---@param deps diffs.ReviewDeps
----@return string[]?, string?
+---@return string[]?, string?, table?
 local function reload_spec(review_spec, repo_root, deps)
   local normalized, normalize_err = M.normalize(review_spec, repo_root)
   if not normalized then
-    return nil, normalize_err
+    return nil, normalize_err, nil
   end
 
-  return M.run(normalized, deps)
+  return M.render(normalized, deps)
 end
 
 ---@param source diffs.GeneratedBufferSource
 ---@param deps diffs.ReviewDeps
----@return string[]?, string?
+---@return string[]?, string?, table?
 function M.reload_source(source, deps)
   return reload_spec(source.review, source.repo_root, deps)
 end
@@ -455,7 +784,7 @@ end
 ---@param repo_root string
 ---@param path string
 ---@param deps diffs.ReviewDeps
----@return string[]?, string?
+---@return string[]?, string?, table?
 function M.reload(bufnr, repo_root, path, deps)
   local stored_base = get_buf_var(bufnr, 'diffs_review_base')
   local stored_target = get_buf_var(bufnr, 'diffs_review_target')
