@@ -470,13 +470,17 @@ local function jump_current_quickfix_item()
   if type(item) == 'table' and type(item.bufnr) == 'number' then
     local item_win = windows_for_buffer(item.bufnr)[1]
     if item_win then
-      if generated_jump_callback then
-        generated_jump_callback(item)
-      end
       local lnum = math.max(1, math.min(item.lnum or 1, vim.api.nvim_buf_line_count(item.bufnr)))
       local col = math.max(0, (item.col or 1) - 1)
-      vim.api.nvim_set_current_win(item_win)
-      vim.api.nvim_win_set_cursor(item_win, { lnum, col })
+      vim.api.nvim_buf_set_var(item.bufnr, 'diffs_generated_jump_in_progress', true)
+      local ok, err = pcall(function()
+        vim.api.nvim_win_set_cursor(item_win, { lnum, col })
+        vim.api.nvim_set_current_win(item_win)
+      end)
+      pcall(vim.api.nvim_buf_del_var, item.bufnr, 'diffs_generated_jump_in_progress')
+      if not ok then
+        error(err, 0)
+      end
       jumped = true
     end
   end
