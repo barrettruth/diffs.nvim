@@ -4,6 +4,7 @@ local hunk_model = require('diffs.hunks')
 
 local bar_slot = '  '
 local separator = ' ┃ '
+local compact_separator = separator:gsub('%s+$', '')
 
 ---@class diffs.RailInfo
 ---@field width integer
@@ -43,6 +44,31 @@ local function new_lnum(line)
   return nil
 end
 
+---@param line diffs.GdiffHunkLine?
+---@param text string
+---@return boolean
+local function is_empty_context_line(line, text)
+  return line ~= nil and line.kind == 'context' and text == ' '
+end
+
+---@param line string
+---@param start_col integer
+---@param end_col integer
+---@return boolean
+local function has_number(line, start_col, end_col)
+  return line:sub(start_col + 1, end_col):find('%d') ~= nil
+end
+
+---@param line string
+---@param prefix_width integer
+---@return boolean
+local function has_context_rails(line, prefix_width)
+  local ranges = M.ranges(prefix_width)
+  return ranges ~= nil
+    and has_number(line, ranges.old_start, ranges.old_end)
+    and has_number(line, ranges.new_start, ranges.new_end)
+end
+
 ---@param lines string[]
 ---@return table<integer, diffs.GdiffHunkLine>, integer
 local function collect_lines(lines)
@@ -73,12 +99,14 @@ function M.annotate(lines)
 
   for lnum, text in ipairs(lines) do
     local line = by_lnum[lnum]
+    local line_separator = is_empty_context_line(line, text) and compact_separator or separator
+    local display_text = is_empty_context_line(line, text) and '' or text
     annotated[lnum] = bar_slot
       .. format_lnum(old_lnum(line), width)
       .. ' '
       .. format_lnum(new_lnum(line), width)
-      .. separator
-      .. text
+      .. line_separator
+      .. display_text
   end
 
   return annotated, {
@@ -94,7 +122,11 @@ function M.strip(line, prefix_width)
   if type(prefix_width) ~= 'number' or prefix_width <= 0 then
     return line
   end
-  return line:sub(prefix_width + 1)
+  local stripped = line:sub(prefix_width + 1)
+  if stripped == '' and has_context_rails(line, prefix_width) then
+    return ' '
+  end
+  return stripped
 end
 
 ---@param lines string[]

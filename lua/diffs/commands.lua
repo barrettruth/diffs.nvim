@@ -16,7 +16,8 @@ local split = require('diffs.split')
 
 local dbg = log.dbg
 local notify = log.notify
-local greview_follow_group = vim.api.nvim_create_augroup('diffs_greview_follow', { clear = false })
+local greview_workspace_group =
+  vim.api.nvim_create_augroup('diffs_greview_workspace', { clear = false })
 
 ---@class diffs.HunkKeymap
 ---@field mode string
@@ -28,18 +29,25 @@ local hunk_keymaps = {}
 ---@type table<integer, integer>
 local hunk_keymap_autocmds = {}
 
----@class diffs.GreviewFollowState
----@field left_buf integer
----@field right_buf integer
----@field file string
----@field key string
----@field hunk_index? integer
+---@class diffs.GreviewWorkspaceState
+---@field diff_buf integer
+---@field diff_win integer?
+---@field target_buf integer?
+---@field target_win integer?
+---@field target_scratch boolean
+---@field review diffs.GreviewSpec
+---@field display string
+---@field repo_root string
+---@field review_lines string[]
+---@field list_opts table?
+---@field selected_key string?
+---@field selected_file string?
+---@field selected_diff_spec diffs.DiffSpec?
+---@field selected_hunk_index integer?
 ---@field autocmds integer[]
----@field pending? boolean
----@field pending_item? table
 
----@type table<integer, diffs.GreviewFollowState>
-local greview_follow_states = {}
+---@type table<integer, diffs.GreviewWorkspaceState>
+local greview_workspaces = {}
 
 ---@param bufnr integer
 ---@param mode string
@@ -312,7 +320,7 @@ end
 
 ---@class diffs.GeneratedBufferSource
 ---@field version integer
----@field kind "file"|"file_pair"|"section"|"review"|"unmerged"|"split_endpoint"
+---@field kind "file"|"file_pair"|"section"|"review"|"review_file"|"unmerged"|"split_endpoint"
 ---@field repo_root string
 ---@field spec? diffs.DiffSpec
 ---@field edge? "staged"|"unstaged"
@@ -320,6 +328,9 @@ end
 ---@field old_path? string
 ---@field section? "staged"|"unstaged"
 ---@field review? diffs.GreviewSpec
+---@field review_display? string
+---@field selected_key? string
+---@field selected_file? string
 ---@field working_path? string
 ---@field side? "left"|"right"
 ---@field filetype? string
@@ -370,6 +381,17 @@ local function normalize_source(source)
   elseif source.kind == 'review' then
     if type(source.review) ~= 'table' then
       error('expected review spec')
+    end
+  elseif source.kind == 'review_file' then
+    if type(source.review) ~= 'table' then
+      error('expected review file spec')
+    end
+    if source.spec == nil then
+      error('expected review file diff spec')
+    end
+    source.spec = diffspec.new(source.spec)
+    if type(source.path) ~= 'string' or source.path == '' then
+      error('expected review file path')
     end
   elseif source.kind == 'unmerged' then
     if type(source.path) ~= 'string' or source.path == '' then
@@ -493,6 +515,7 @@ local function replace_generated_diff_buffer_lines(bufnr, diff_lines, diff_spec)
 
   set_generated_diff_buffer_options(bufnr)
   set_generated_diff_buffer_filetype(bufnr)
+  runtime.refresh(bufnr)
 end
 
 ---@param bufnr integer
@@ -604,6 +627,16 @@ local function render_source(source)
       return nil, nil, review_err, nil
     end
     return review_lines, nil, 'review', list_opts
+  end
+
+  if source.kind == 'review_file' then
+    local diff_lines, read_err = render.file(source.spec, source.repo_root, {
+      empty_on_missing = true,
+    })
+    if not diff_lines then
+      return nil, nil, read_err, nil
+    end
+    return diff_lines, source.spec, 'review:' .. (source.selected_key or source.path), nil
   end
 
   local abs_path = source.repo_root .. '/' .. source.path
@@ -788,6 +821,9 @@ local function complete_greview_command(arglead, cmdline, cursorpos)
   return matches
 end
 
+---@type fun(spec?: diffs.GreviewSpec, opts?: { selection?: diffs.GeneratedFileSelection, replace_win?: integer }): integer?
+local open_greview_workspace
+
 ---@param args? string
 ---@return integer?
 function M.greview_command(args)
@@ -797,10 +833,11 @@ function M.greview_command(args)
     return nil
   end
 
-  local bufnr = M.greview(parsed.spec)
-  if bufnr and parsed.layout == 'split' then
-    M.greview_split({ bufnr = bufnr, lnum = 1 })
+  if parsed.layout == 'split' then
+    return open_greview_workspace(parsed.spec)
   end
+
+  local bufnr = M.greview(parsed.spec)
   return bufnr
 end
 
@@ -831,59 +868,6 @@ local function restore_window(win)
   end
 end
 
----@param review_buf integer
-local function stop_greview_follow(review_buf)
-  local state = greview_follow_states[review_buf]
-  if state then
-    for _, id in ipairs(state.autocmds or {}) do
-      pcall(vim.api.nvim_del_autocmd, id)
-    end
-  end
-  greview_follow_states[review_buf] = nil
-  if vim.api.nvim_buf_is_valid(review_buf) then
-    pcall(vim.api.nvim_buf_del_var, review_buf, 'diffs_review_split_buf')
-  end
-end
-
----@param review_buf integer
----@return integer?
-local function stored_greview_pair_buf(review_buf)
-  local state = greview_follow_states[review_buf]
-  if state then
-    return state.right_buf
-  end
-
-  local previous = get_buf_var(review_buf, 'diffs_review_split_buf')
-  if type(previous) == 'number' then
-    return previous
-  end
-  return nil
-end
-
----@param review_buf integer
-local function close_owned_greview_pair(review_buf)
-  local previous = stored_greview_pair_buf(review_buf)
-  stop_greview_follow(review_buf)
-  if type(previous) == 'number' and vim.api.nvim_buf_is_valid(previous) then
-    split.close_pair(previous)
-  end
-end
-
----@param state diffs.GreviewFollowState?
----@return boolean
-local function greview_pair_valid(state)
-  if
-    not state
-    or not vim.api.nvim_buf_is_valid(state.left_buf)
-    or not vim.api.nvim_buf_is_valid(state.right_buf)
-  then
-    return false
-  end
-
-  return get_buf_var(state.left_buf, 'diffs_split_peer') == state.right_buf
-    and get_buf_var(state.right_buf, 'diffs_split_peer') == state.left_buf
-end
-
 ---@class diffs.GreviewSplitOpts
 ---@field bufnr? integer
 ---@field lnum? integer
@@ -891,10 +875,9 @@ end
 
 ---@class diffs.GreviewSplitContext
 ---@field review_buf integer
+---@field replace_win integer
 ---@field selected diffs.GeneratedFileSelection
----@field diff_spec diffs.DiffSpec
 ---@field repo_root string
----@field diff_lines string[]
 
 ---@param opts? diffs.GreviewSplitOpts
 ---@return diffs.GreviewSplitContext?, string?, integer?, integer?
@@ -928,248 +911,762 @@ local function greview_split_context(opts)
     return nil, 'selected file is not from a Greview buffer', vim.log.levels.WARN, nil
   end
 
-  local diff_spec, normalized, spec_err =
-    review.diff_spec_for_file(source.review, source.repo_root, selected.file, selected)
-  if not diff_spec then
-    return nil, spec_err or 'cannot build Greview split diff spec', vim.log.levels.ERROR, review_buf
-  end
-
-  local repo_root = normalized and normalized.repo_root or source.repo_root
-  local diff_lines, render_err = render.file(diff_spec, repo_root)
-  if not diff_lines then
-    return nil, render_err or 'cannot render Greview split file', vim.log.levels.ERROR, review_buf
-  end
-  if #diff_lines == 0 then
-    return nil, 'no changes for ' .. diffspec.label(diff_spec), vim.log.levels.INFO, review_buf
+  local review_win = first_window_for_buffer(review_buf)
+  if not review_win then
+    return nil,
+      'selected Greview buffer is not visible; open the review buffer before splitting it',
+      vim.log.levels.WARN,
+      review_buf
   end
 
   return {
     review_buf = review_buf,
+    replace_win = review_win,
     selected = selected,
-    diff_spec = diff_spec,
-    repo_root = repo_root,
-    diff_lines = diff_lines,
+    repo_root = source.repo_root,
   },
     nil,
     nil,
     review_buf
 end
 
----@type fun(review_buf: integer, item?: table)
-local schedule_greview_follow
+---@param normalized diffs.NormalizedGreview
+---@return diffs.GreviewSpec
+local function stored_review_spec(normalized)
+  return {
+    base = normalized.base,
+    target = normalized.target,
+    mode = normalized.mode,
+  }
+end
+
+---@param review_spec diffs.GreviewSpec
+---@param repo_root string
+---@param selected diffs.GeneratedFileSelection
+---@return diffs.DiffSpec?, diffs.NormalizedGreview?, string?
+local function selected_review_diff_spec(review_spec, repo_root, selected)
+  return review.diff_spec_for_file(review_spec, repo_root, selected.file, selected)
+end
+
+---@param state diffs.GreviewWorkspaceState
+local function clear_greview_workspace_autocmds(state)
+  for _, id in ipairs(state.autocmds or {}) do
+    pcall(vim.api.nvim_del_autocmd, id)
+  end
+  state.autocmds = {}
+end
+
+---@param bufnr integer
+local function close_greview_workspace(bufnr)
+  local state = greview_workspaces[bufnr]
+  if not state then
+    pcall(vim.api.nvim_win_close, 0, true)
+    return
+  end
+
+  clear_greview_workspace_autocmds(state)
+  greview_workspaces[bufnr] = nil
+
+  local focus_win
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if vim.api.nvim_win_is_valid(win) then
+      local buf = vim.api.nvim_win_get_buf(win)
+      if buf ~= state.diff_buf and buf ~= state.target_buf then
+        focus_win = win
+        break
+      end
+    end
+  end
+
+  for _, win in ipairs({ state.target_win, state.diff_win }) do
+    if type(win) == 'number' and vim.api.nvim_win_is_valid(win) then
+      pcall(vim.api.nvim_win_close, win, true)
+    end
+  end
+
+  if
+    state.target_scratch
+    and type(state.target_buf) == 'number'
+    and vim.api.nvim_buf_is_valid(state.target_buf)
+  then
+    pcall(vim.api.nvim_buf_delete, state.target_buf, { force = true })
+  end
+  if vim.api.nvim_buf_is_valid(state.diff_buf) then
+    pcall(vim.api.nvim_buf_delete, state.diff_buf, { force = true })
+  end
+
+  if focus_win and vim.api.nvim_win_is_valid(focus_win) then
+    vim.api.nvim_set_current_win(focus_win)
+  elseif #vim.api.nvim_list_wins() > 0 then
+    pcall(vim.cmd.enew)
+  end
+end
+
+---@param state diffs.GreviewWorkspaceState
+---@param wins table<integer, boolean>
+---@return boolean
+local function greview_workspace_visible_in_wins(state, wins)
+  for _, win in ipairs({ state.diff_win, state.target_win }) do
+    if type(win) == 'number' and wins[win] then
+      return true
+    end
+  end
+
+  for win in pairs(wins) do
+    if vim.api.nvim_win_is_valid(win) then
+      local buf = vim.api.nvim_win_get_buf(win)
+      if buf == state.diff_buf or buf == state.target_buf then
+        return true
+      end
+    end
+  end
+  return false
+end
+
+---@param display string
+local function close_existing_greview_workspace(display)
+  local current_wins = {}
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    current_wins[win] = true
+  end
+
+  local to_close = {}
+  for bufnr, state in pairs(greview_workspaces) do
+    if greview_workspace_visible_in_wins(state, current_wins) then
+      to_close[#to_close + 1] = bufnr
+    end
+  end
+  for _, bufnr in ipairs(to_close) do
+    close_greview_workspace(bufnr)
+  end
+
+  local existing_buf = vim.fn.bufnr('diffs://review-split:' .. display)
+  if existing_buf ~= -1 and vim.api.nvim_buf_is_valid(existing_buf) then
+    pcall(vim.api.nvim_buf_delete, existing_buf, { force = true })
+  end
+end
+
+---@param win integer
+---@param lnum integer
+local function set_window_lnum(win, lnum)
+  if not vim.api.nvim_win_is_valid(win) then
+    return
+  end
+  local bufnr = vim.api.nvim_win_get_buf(win)
+  local line_count = vim.api.nvim_buf_line_count(bufnr)
+  vim.api.nvim_win_set_cursor(win, { math.max(1, math.min(lnum, line_count)), 0 })
+end
+
+---@param hunk diffs.GdiffHunk
+---@return integer
+local function hunk_right_lnum(hunk)
+  local range = hunk.new_range
+  return math.max(1, range and range.start or 1)
+end
+
+---@param state diffs.GreviewWorkspaceState
+---@return diffs.GdiffHunk[]
+local function greview_workspace_hunks(state)
+  local hunks = get_buf_var(state.diff_buf, 'diffs_hunks')
+  return type(hunks) == 'table' and hunks or {}
+end
+
+---@param state diffs.GreviewWorkspaceState
+---@param hunk_index integer?
+---@return diffs.GdiffHunk?
+local function greview_workspace_hunk(state, hunk_index)
+  local hunks = greview_workspace_hunks(state)
+  return hunks[hunk_index or 1]
+end
+
+---@param state diffs.GreviewWorkspaceState
+---@param hunk diffs.GdiffHunk?
+local function move_greview_workspace_to_hunk(state, hunk)
+  if not hunk then
+    return
+  end
+
+  local diff_win = type(state.diff_win) == 'number'
+      and vim.api.nvim_win_is_valid(state.diff_win)
+      and state.diff_win
+    or first_window_for_buffer(state.diff_buf)
+  if diff_win then
+    set_window_lnum(diff_win, hunk.buffer_range.start)
+  end
+  if type(state.target_win) == 'number' and vim.api.nvim_win_is_valid(state.target_win) then
+    set_window_lnum(state.target_win, hunk_right_lnum(hunk))
+  end
+  state.selected_hunk_index = hunk.index
+end
+
+---@param bufnr integer
+---@param direction "next"|"prev"
+local function greview_workspace_goto_hunk(bufnr, direction)
+  local state = greview_workspaces[bufnr]
+  if not state then
+    return
+  end
+
+  local hunks = greview_workspace_hunks(state)
+  if #hunks == 0 then
+    return
+  end
+
+  local diff_win = type(state.diff_win) == 'number'
+      and vim.api.nvim_win_is_valid(state.diff_win)
+      and state.diff_win
+    or first_window_for_buffer(state.diff_buf)
+  local cursor_line = diff_win and vim.api.nvim_win_get_cursor(diff_win)[1] or 1
+  local hunk
+  if direction == 'next' then
+    hunk = hunk_model.next_hunk(hunks, cursor_line) or hunks[1]
+    if hunk == hunks[1] and hunk.buffer_range.start <= cursor_line then
+      notify('wrapped to first hunk', vim.log.levels.INFO)
+    end
+  else
+    hunk = hunk_model.prev_hunk(hunks, cursor_line) or hunks[#hunks]
+    if hunk == hunks[#hunks] and hunk.buffer_range.start >= cursor_line then
+      notify('wrapped to last hunk', vim.log.levels.INFO)
+    end
+  end
+
+  move_greview_workspace_to_hunk(state, hunk)
+end
+
+---@param bufnr integer
+local function set_greview_workspace_keymaps(bufnr)
+  vim.keymap.set('n', 'q', function()
+    close_greview_workspace(bufnr)
+  end, { buffer = bufnr, desc = 'Close Greview split workspace' })
+  vim.keymap.set('n', ']c', function()
+    greview_workspace_goto_hunk(bufnr, 'next')
+  end, { buffer = bufnr, desc = 'Next diff hunk' })
+  vim.keymap.set('n', '[c', function()
+    greview_workspace_goto_hunk(bufnr, 'prev')
+  end, { buffer = bufnr, desc = 'Previous diff hunk' })
+end
+
+---@param state diffs.GreviewWorkspaceState
+---@param selected diffs.GeneratedFileSelection
+---@param diff_spec diffs.DiffSpec
+---@return diffs.GeneratedBufferSource
+local function review_file_source(state, selected, diff_spec)
+  return {
+    version = 1,
+    kind = 'review_file',
+    repo_root = state.repo_root,
+    review = state.review,
+    review_display = state.display,
+    selected_key = selected.key,
+    selected_file = selected.file,
+    path = selected.file,
+    spec = diff_spec,
+  }
+end
+
+---@param bufnr integer
+---@param state diffs.GreviewWorkspaceState
+---@param selected diffs.GeneratedFileSelection
+---@param diff_spec diffs.DiffSpec
+---@param diff_lines string[]
+local function replace_review_file_buffer(bufnr, state, selected, diff_spec, diff_lines)
+  set_diff_spec_var(bufnr, diff_spec)
+  vim.api.nvim_buf_set_var(bufnr, 'diffs_repo_root', state.repo_root)
+  vim.api.nvim_buf_set_var(bufnr, 'diffs_source', review_file_source(state, selected, diff_spec))
+  replace_generated_diff_buffer_lines(bufnr, diff_lines, diff_spec)
+  lists.set_for_unified_buffer(bufnr, diff_lines, {
+    title = 'review: ' .. (selected.key or selected.file),
+    loclist_title = 'review hunks: ' .. (selected.key or selected.file),
+    diff_spec = diff_spec,
+    quickfix = false,
+  })
+  M.setup_diff_buf(bufnr)
+  set_greview_workspace_keymaps(bufnr)
+  runtime.attach(bufnr)
+end
+
+---@param repo_root string
+---@param path string
+---@return string
+local function worktree_path(repo_root, path)
+  return repo_root .. '/' .. path
+end
+
+---@param endpoint diffs.Endpoint
+---@return string
+local function endpoint_name(endpoint)
+  endpoint = diffspec.endpoint(endpoint)
+  if endpoint.kind == diffspec.endpoint_kind.tree then
+    return endpoint.rev
+  end
+  return endpoint.kind
+end
+
+---@param lines diffs.ContentLines|string[]
+---@return string[]
+local function plain_lines(lines)
+  local result = {}
+  for i, line in ipairs(lines or {}) do
+    result[i] = line
+  end
+  return result
+end
+
+---@param state diffs.GreviewWorkspaceState
+---@return integer
+local function ensure_target_window(state)
+  if type(state.target_win) == 'number' and vim.api.nvim_win_is_valid(state.target_win) then
+    return state.target_win
+  end
+
+  local diff_win = type(state.diff_win) == 'number'
+      and vim.api.nvim_win_is_valid(state.diff_win)
+      and state.diff_win
+    or first_window_for_buffer(state.diff_buf)
+  if diff_win then
+    vim.api.nvim_set_current_win(diff_win)
+  end
+  vim.cmd('rightbelow vsplit')
+  state.target_win = vim.api.nvim_get_current_win()
+  return state.target_win
+end
+
+---@param state diffs.GreviewWorkspaceState
+---@param diff_spec diffs.DiffSpec
+---@param selected diffs.GeneratedFileSelection
+---@return boolean
+local function open_workspace_target(state, diff_spec, selected)
+  local target_win = ensure_target_window(state)
+  local previous_win = vim.api.nvim_get_current_win()
+  vim.api.nvim_set_current_win(target_win)
+  pcall(vim.api.nvim_set_option_value, 'diff', false, { win = target_win })
+
+  local target = diffspec.endpoint(diff_spec.right)
+  local path = worktree_path(state.repo_root, selected.file)
+  local previous_target_buf = state.target_buf
+  local previous_target_scratch = state.target_scratch
+
+  if target.kind == diffspec.endpoint_kind.worktree and vim.fn.filereadable(path) == 1 then
+    vim.cmd.edit(vim.fn.fnameescape(path))
+    state.target_buf = vim.api.nvim_get_current_buf()
+    state.target_scratch = false
+    if
+      previous_target_scratch
+      and type(previous_target_buf) == 'number'
+      and previous_target_buf ~= state.target_buf
+      and vim.api.nvim_buf_is_valid(previous_target_buf)
+    then
+      pcall(vim.api.nvim_buf_delete, previous_target_buf, { force = true })
+    end
+  else
+    local lines, err = render.read_endpoint(target, path, { empty_on_missing = true })
+    if not lines then
+      notify(err or 'cannot read review target', vim.log.levels.WARN)
+      restore_window(previous_win)
+      return false
+    end
+    local target_buf = previous_target_scratch and previous_target_buf or nil
+    if type(target_buf) ~= 'number' or not vim.api.nvim_buf_is_valid(target_buf) then
+      target_buf = vim.api.nvim_create_buf(false, true)
+    end
+    local target_name = 'diffs://review-target:' .. endpoint_name(target) .. ':' .. selected.file
+    local existing = vim.fn.bufnr(target_name)
+    if existing ~= -1 and existing ~= target_buf and vim.api.nvim_buf_is_valid(existing) then
+      pcall(vim.api.nvim_buf_delete, existing, { force = true })
+    end
+    vim.api.nvim_set_option_value('modifiable', true, { buf = target_buf })
+    vim.api.nvim_buf_set_lines(target_buf, 0, -1, false, plain_lines(lines))
+    vim.api.nvim_buf_set_name(target_buf, target_name)
+    vim.api.nvim_set_option_value('buftype', 'nowrite', { buf = target_buf })
+    vim.api.nvim_set_option_value('bufhidden', 'delete', { buf = target_buf })
+    vim.api.nvim_set_option_value('swapfile', false, { buf = target_buf })
+    vim.api.nvim_set_option_value('modifiable', false, { buf = target_buf })
+    local ft = filetype_for_path(state.repo_root, selected.file)
+    if ft then
+      vim.api.nvim_set_option_value('filetype', ft, { buf = target_buf })
+    end
+    vim.api.nvim_win_set_buf(target_win, target_buf)
+    state.target_buf = target_buf
+    state.target_scratch = true
+  end
+
+  restore_window(previous_win)
+  return true
+end
+
+---@param review_spec diffs.GreviewSpec
+---@param repo_root string
+---@param selected diffs.GeneratedFileSelection
+---@return diffs.DiffSpec?, string[]?, string?, integer?
+local function render_review_file_selection(review_spec, repo_root, selected)
+  local diff_spec, _, spec_err = selected_review_diff_spec(review_spec, repo_root, selected)
+  if not diff_spec then
+    return nil, nil, spec_err or 'cannot build Greview split diff spec', vim.log.levels.ERROR
+  end
+
+  local diff_lines, render_err = render.file(diff_spec, repo_root, { empty_on_missing = true })
+  if not diff_lines then
+    return nil, nil, render_err or 'cannot render Greview split file', vim.log.levels.ERROR
+  end
+  if #diff_lines == 0 then
+    return nil, nil, 'no changes for ' .. diffspec.label(diff_spec), vim.log.levels.INFO
+  end
+  return diff_spec, diff_lines, nil, nil
+end
+
+---@param list_opts table?
+---@return diffs.GeneratedListOptions
+local function review_generated_list_opts(list_opts)
+  return {
+    metadata_for_line = list_opts and list_opts.metadata_for_line,
+    sections = list_opts and list_opts.sections,
+    store_hunks = list_opts and list_opts.store_hunks,
+  }
+end
+
+---@param review_spec diffs.GreviewSpec
+---@param repo_root string
+---@param review_lines string[]
+---@param list_opts table?
+---@return diffs.GeneratedFileSelection?, diffs.DiffSpec?, string[]?, string?, integer?
+local function first_renderable_review_file(review_spec, repo_root, review_lines, list_opts)
+  local last_err
+  local last_level
+  for _, selected in
+    ipairs(lists.generated_files(review_lines, review_generated_list_opts(list_opts)))
+  do
+    local diff_spec, diff_lines, err, level =
+      render_review_file_selection(review_spec, repo_root, selected)
+    if diff_spec and diff_lines then
+      return selected, diff_spec, diff_lines, nil, nil
+    end
+    last_err = err
+    last_level = level
+  end
+
+  return nil,
+    nil,
+    nil,
+    last_err or 'no renderable Greview file selected',
+    last_level or vim.log.levels.INFO
+end
+
+---@param item table?
+---@return diffs.GeneratedFileSelection?
+local function review_selection_from_item(item)
+  if type(item) ~= 'table' or type(item.user_data) ~= 'table' then
+    return nil
+  end
+  local data = item.user_data.diffs
+  if type(data) ~= 'table' or type(data.file) ~= 'string' or data.file == '' then
+    return nil
+  end
+  return {
+    bufnr = item.bufnr,
+    file = data.file,
+    key = data.key or data.file,
+    section = data.section,
+    section_label = data.section_label,
+    diff_spec = data.diff_spec,
+    lnum = item.lnum,
+    hunk_index = data.hunk,
+  }
+end
+
+local attach_greview_workspace_autocmds
+local refresh_greview_workspace_after_write
+
+---@param state diffs.GreviewWorkspaceState
+---@param selected diffs.GeneratedFileSelection
+---@param opts? { restore_focus?: boolean, restore_win?: integer, refresh_index?: boolean }
+---@return boolean
+local function show_greview_workspace_selection(state, selected, opts)
+  opts = opts or {}
+  local restore_win = opts.restore_win or vim.api.nvim_get_current_win()
+  local diff_spec, _, spec_err = selected_review_diff_spec(state.review, state.repo_root, selected)
+  if not diff_spec then
+    notify(spec_err or 'cannot build Greview split diff spec', vim.log.levels.ERROR)
+    return false
+  end
+
+  local diff_lines, render_err =
+    render.file(diff_spec, state.repo_root, { empty_on_missing = true })
+  if not diff_lines then
+    notify(render_err or 'cannot render Greview split file', vim.log.levels.ERROR)
+    return false
+  end
+
+  replace_review_file_buffer(state.diff_buf, state, selected, diff_spec, diff_lines)
+  if opts.refresh_index then
+    lists.set_review_workspace_quickfix(state.diff_buf, state.review_lines, {
+      title = 'review: ' .. state.display,
+      loclist_title = 'review hunks: ' .. state.display,
+      metadata_for_line = state.list_opts and state.list_opts.metadata_for_line,
+      sections = state.list_opts and state.list_opts.sections,
+      store_hunks = state.list_opts and state.list_opts.store_hunks,
+    })
+  end
+
+  local hunk = greview_workspace_hunk(state, selected.hunk_index)
+  if not open_workspace_target(state, diff_spec, selected) then
+    return false
+  end
+  state.selected_key = selected.key or selected.file
+  state.selected_file = selected.file
+  state.selected_diff_spec = diff_spec
+  state.selected_hunk_index = selected.hunk_index
+  move_greview_workspace_to_hunk(state, hunk)
+  attach_greview_workspace_autocmds(state)
+
+  if opts.restore_focus then
+    restore_window(restore_win)
+  elseif type(state.diff_win) == 'number' and vim.api.nvim_win_is_valid(state.diff_win) then
+    vim.api.nvim_set_current_win(state.diff_win)
+  end
+  return true
+end
+
+---@param state diffs.GreviewWorkspaceState
+local function refresh_greview_workspace_index(state)
+  local normalized, normalize_err = review.normalize(state.review, state.repo_root)
+  if not normalized then
+    notify(normalize_err or 'cannot normalize Greview split', vim.log.levels.WARN)
+    return
+  end
+  local review_lines, render_err, list_opts = review.render(normalized, review_deps())
+  if not review_lines then
+    notify(render_err or 'cannot refresh Greview split', vim.log.levels.WARN)
+    return
+  end
+  state.review_lines = review_lines
+  state.list_opts = list_opts
+  lists.set_review_workspace_quickfix(state.diff_buf, review_lines, {
+    title = 'review: ' .. state.display,
+    loclist_title = 'review hunks: ' .. state.display,
+    metadata_for_line = list_opts and list_opts.metadata_for_line,
+    sections = list_opts and list_opts.sections,
+    store_hunks = list_opts and list_opts.store_hunks,
+  })
+end
+
+---@param state diffs.GreviewWorkspaceState
+attach_greview_workspace_autocmds = function(state)
+  clear_greview_workspace_autocmds(state)
+  state.autocmds[#state.autocmds + 1] = vim.api.nvim_create_autocmd('BufWipeout', {
+    group = greview_workspace_group,
+    buffer = state.diff_buf,
+    once = true,
+    callback = function(args)
+      local current = greview_workspaces[args.buf]
+      if current then
+        clear_greview_workspace_autocmds(current)
+        greview_workspaces[args.buf] = nil
+      end
+    end,
+  })
+  if
+    type(state.target_buf) == 'number'
+    and vim.api.nvim_buf_is_valid(state.target_buf)
+    and not state.target_scratch
+  then
+    local diff_buf = state.diff_buf
+    state.autocmds[#state.autocmds + 1] = vim.api.nvim_create_autocmd('BufWritePost', {
+      group = greview_workspace_group,
+      buffer = state.target_buf,
+      callback = function()
+        refresh_greview_workspace_after_write(diff_buf)
+      end,
+    })
+  end
+end
+
+refresh_greview_workspace_after_write = function(diff_buf)
+  local state = greview_workspaces[diff_buf]
+  if not state or not state.selected_file then
+    return
+  end
+  refresh_greview_workspace_index(state)
+  show_greview_workspace_selection(state, {
+    bufnr = state.diff_buf,
+    file = state.selected_file,
+    key = state.selected_key,
+    diff_spec = state.selected_diff_spec,
+    hunk_index = state.selected_hunk_index,
+  }, { restore_focus = true, refresh_index = false })
+end
 
 local function refresh_greview_jump_callback()
   lists.set_generated_jump_callback(function(item)
-    if type(item) == 'table' and type(item.bufnr) == 'number' then
-      schedule_greview_follow(item.bufnr, item)
+    local selected = review_selection_from_item(item)
+    if not selected or type(selected.bufnr) ~= 'number' then
+      return
     end
+    local state = greview_workspaces[selected.bufnr]
+    if not state then
+      return
+    end
+    vim.schedule(function()
+      show_greview_workspace_selection(state, selected, {
+        restore_focus = true,
+        restore_win = vim.api.nvim_get_current_win(),
+      })
+    end)
   end)
 end
 
----@param review_buf integer
----@param opened { left_buf: integer, right_buf: integer, left_win: integer, right_win: integer }
----@param selected diffs.GeneratedFileSelection
-local function start_greview_follow(review_buf, opened, selected)
-  refresh_greview_jump_callback()
-  stop_greview_follow(review_buf)
-
-  ---@type diffs.GreviewFollowState
-  local state = {
-    left_buf = opened.left_buf,
-    right_buf = opened.right_buf,
-    file = selected.file,
-    key = selected.key or selected.file,
-    hunk_index = selected.hunk_index,
-    autocmds = {},
-  }
-  greview_follow_states[review_buf] = state
-  vim.api.nvim_buf_set_var(review_buf, 'diffs_review_split_buf', opened.right_buf)
-
-  state.autocmds[#state.autocmds + 1] = vim.api.nvim_create_autocmd({ 'BufEnter', 'CursorMoved' }, {
-    group = greview_follow_group,
-    buffer = review_buf,
-    callback = function(args)
-      if get_buf_var(args.buf, 'diffs_generated_jump_in_progress') then
-        return
-      end
-      schedule_greview_follow(args.buf)
-    end,
-  })
-  state.autocmds[#state.autocmds + 1] = vim.api.nvim_create_autocmd('BufWipeout', {
-    group = greview_follow_group,
-    buffer = review_buf,
-    once = true,
-    callback = function(args)
-      stop_greview_follow(args.buf)
-    end,
-  })
-
-  local function stop_if_owned_pair(args)
-    local current = greview_follow_states[review_buf]
-    if current and (args.buf == current.left_buf or args.buf == current.right_buf) then
-      stop_greview_follow(review_buf)
-    end
-  end
-
-  state.autocmds[#state.autocmds + 1] = vim.api.nvim_create_autocmd('BufWipeout', {
-    group = greview_follow_group,
-    buffer = opened.left_buf,
-    once = true,
-    callback = stop_if_owned_pair,
-  })
-  state.autocmds[#state.autocmds + 1] = vim.api.nvim_create_autocmd('BufWipeout', {
-    group = greview_follow_group,
-    buffer = opened.right_buf,
-    once = true,
-    callback = stop_if_owned_pair,
-  })
-end
-
----@param context diffs.GreviewSplitContext
----@param opts? { restore_focus?: boolean, restore_win?: integer }
----@return { left_buf: integer, right_buf: integer, left_win: integer, right_win: integer }?, string?, integer?
-local function open_greview_split_pair(context, opts)
+open_greview_workspace = function(spec, opts)
   opts = opts or {}
-
-  local review_buf = context.review_buf
-  local review_win = first_window_for_buffer(review_buf)
-  if not review_win then
-    return nil, 'cannot open Greview split without a visible review buffer', vim.log.levels.WARN
+  local normalized, normalize_err = review.normalize(spec)
+  if not normalized then
+    notify(normalize_err, vim.log.levels.ERROR)
+    return nil
   end
-  split.release_pair_window_options(review_win)
-  clear_generated_diff_window_bindings(review_win)
-
-  local previous = stored_greview_pair_buf(review_buf)
-  stop_greview_follow(review_buf)
-  if type(previous) == 'number' and vim.api.nvim_buf_is_valid(previous) then
-    split.close_pair(previous)
+  local review_lines, render_err, list_opts = review.render(normalized, review_deps())
+  if not review_lines then
+    notify(render_err, vim.log.levels.ERROR)
+    return nil
   end
-
-  review_win = first_window_for_buffer(review_buf)
-  if not review_win then
-    return nil, 'cannot open Greview split without a visible review buffer', vim.log.levels.WARN
+  if #review_lines == 0 then
+    notify('no diff against ' .. normalized.display, vim.log.levels.INFO)
+    return nil
   end
 
-  local restore_win = opts.restore_win or vim.api.nvim_get_current_win()
-  vim.api.nvim_set_current_win(review_win)
-  vim.cmd('belowright split')
-  local launcher_win = vim.api.nvim_get_current_win()
-
-  local opened, split_err = split.open({
-    spec = context.diff_spec,
-    repo_root = context.repo_root,
-    filetype = filetype_for_path(context.repo_root, context.selected.file),
-    diff_lines = context.diff_lines,
-    hunk_index = context.selected.hunk_index,
-    quickfix = false,
-  })
-  if not opened then
-    if vim.api.nvim_win_is_valid(launcher_win) then
-      pcall(vim.api.nvim_win_close, launcher_win, true)
+  local review_spec = stored_review_spec(normalized)
+  local first = opts.selection
+  local diff_spec
+  local diff_lines
+  if first then
+    local err, level
+    diff_spec, diff_lines, err, level =
+      render_review_file_selection(review_spec, normalized.repo_root, first)
+    if not diff_spec or not diff_lines then
+      notify(err or 'cannot render Greview split file', level or vim.log.levels.ERROR)
+      return nil
     end
-    restore_window(restore_win)
-    return nil, split_err or 'cannot open Greview split', vim.log.levels.ERROR
+  else
+    local err, level
+    first, diff_spec, diff_lines, err, level =
+      first_renderable_review_file(review_spec, normalized.repo_root, review_lines, list_opts)
+    if not first or not diff_spec or not diff_lines then
+      notify(err or 'no Greview file selected', level or vim.log.levels.INFO)
+      return nil
+    end
   end
-
-  start_greview_follow(review_buf, opened, context.selected)
-  if opts.restore_focus then
-    restore_window(restore_win)
-  end
-  return opened, nil, nil
-end
-
----@param review_buf integer
----@param item? table
-local function follow_greview_selection(review_buf, item)
-  local state = greview_follow_states[review_buf]
-  if not state then
-    return
-  end
-
-  if not vim.api.nvim_buf_is_valid(review_buf) or not greview_pair_valid(state) then
-    stop_greview_follow(review_buf)
-    return
+  if not first then
+    notify('no Greview file selected', vim.log.levels.INFO)
+    return nil
   end
 
   local restore_win = vim.api.nvim_get_current_win()
-  local context = greview_split_context({ bufnr = review_buf, item = item })
-  if not context then
-    close_owned_greview_pair(review_buf)
-    restore_window(restore_win)
-    return
-  end
-
-  local selected = context.selected
-  if (selected.key or selected.file) == (state.key or state.file) then
-    if selected.hunk_index then
-      if split.move_pair_to_hunk_index(state.right_buf, selected.hunk_index) then
-        state.hunk_index = selected.hunk_index
-      end
-    elseif selected.hunk_index ~= state.hunk_index then
-      state.hunk_index = nil
+  close_existing_greview_workspace(normalized.display)
+  local replace_win = opts.replace_win
+  if type(replace_win) == 'number' then
+    if not vim.api.nvim_win_is_valid(replace_win) then
+      notify('Greview split replacement window is no longer valid', vim.log.levels.WARN)
+      return nil
     end
+    vim.api.nvim_set_current_win(replace_win)
+  else
     restore_window(restore_win)
-    return
   end
 
-  local opened = open_greview_split_pair(context, {
-    restore_focus = true,
-    restore_win = restore_win,
+  local diff_buf = create_generated_diff_buffer({
+    name = 'diffs://review-split:' .. normalized.display,
+    lines = diff_lines,
+    repo_root = normalized.repo_root,
+    diff_spec = diff_spec,
+    source = {
+      version = 1,
+      kind = 'review_file',
+      repo_root = normalized.repo_root,
+      review = review_spec,
+      review_display = normalized.display,
+      selected_key = first.key,
+      selected_file = first.file,
+      path = first.file,
+      spec = diff_spec,
+    },
   })
-  if not opened then
-    close_owned_greview_pair(review_buf)
-  end
-  restore_window(restore_win)
-end
 
-schedule_greview_follow = function(review_buf, item)
-  local state = greview_follow_states[review_buf]
-  if not state then
-    return
+  local diff_win = vim.api.nvim_get_current_win()
+  clear_generated_diff_window_bindings(diff_win)
+  pcall(vim.api.nvim_set_option_value, 'diff', false, { win = diff_win })
+  vim.api.nvim_win_set_buf(diff_win, diff_buf)
+  local state = {
+    diff_buf = diff_buf,
+    diff_win = diff_win,
+    review = review_spec,
+    display = normalized.display,
+    repo_root = normalized.repo_root,
+    review_lines = review_lines,
+    list_opts = list_opts,
+    selected_key = first.key or first.file,
+    selected_file = first.file,
+    selected_diff_spec = diff_spec,
+    selected_hunk_index = first.hunk_index,
+    target_scratch = false,
+    autocmds = {},
+  }
+  greview_workspaces[diff_buf] = state
+
+  lists.set_review_workspace_quickfix(diff_buf, review_lines, {
+    title = 'review: ' .. normalized.display,
+    loclist_title = 'review hunks: ' .. normalized.display,
+    metadata_for_line = list_opts and list_opts.metadata_for_line,
+    sections = list_opts and list_opts.sections,
+    store_hunks = list_opts and list_opts.store_hunks,
+  })
+  lists.set_for_unified_buffer(diff_buf, diff_lines, {
+    title = 'review: ' .. (first.key or first.file),
+    loclist_title = 'review hunks: ' .. (first.key or first.file),
+    diff_spec = diff_spec,
+    quickfix = false,
+  })
+  attach_generated_diff_buffer(diff_buf)
+  set_greview_workspace_keymaps(diff_buf)
+  refresh_greview_jump_callback()
+  if not open_workspace_target(state, diff_spec, first) then
+    close_greview_workspace(diff_buf)
+    return nil
   end
-  state.pending_item = item or state.pending_item
-  if state.pending then
-    return
+  move_greview_workspace_to_hunk(state, greview_workspace_hunk(state, first.hunk_index))
+  attach_greview_workspace_autocmds(state)
+
+  if diff_win and vim.api.nvim_win_is_valid(diff_win) then
+    vim.api.nvim_set_current_win(diff_win)
   end
 
-  state.pending = true
-  vim.schedule(function()
-    local current = greview_follow_states[review_buf]
-    if not current then
-      return
-    end
-    local pending_item = current.pending_item
-    current.pending = false
-    current.pending_item = nil
-    follow_greview_selection(review_buf, pending_item)
-  end)
+  return diff_buf
 end
 
 ---@param opts? diffs.GreviewSplitOpts
----@return { left_buf: integer, right_buf: integer, left_win: integer, right_win: integer }?
+---@return integer?
 function M.greview_split(opts)
   local restore_win = vim.api.nvim_get_current_win()
-  local context, err, level, review_buf = greview_split_context(opts)
+  local context, err, level = greview_split_context(opts)
   if not context then
-    if review_buf then
-      close_owned_greview_pair(review_buf)
-      restore_window(restore_win)
-    end
+    restore_window(restore_win)
     notify(err or 'cannot open Greview split', level or vim.log.levels.WARN)
     return nil
   end
 
-  local opened, split_err, split_level = open_greview_split_pair(context, {
-    restore_focus = true,
-    restore_win = restore_win,
-  })
-  if not opened then
+  local source, source_err = get_source_var(context.review_buf)
+  if source_err or not source or source.kind ~= 'review' then
     restore_window(restore_win)
-    notify(split_err or 'cannot open Greview split', split_level or vim.log.levels.ERROR)
+    notify(
+      source_err and ('invalid diffs_source metadata: ' .. tostring(source_err))
+        or 'selected file is not from a Greview buffer',
+      vim.log.levels.WARN
+    )
     return nil
   end
 
-  return opened
+  local review_spec = vim.deepcopy(source.review)
+  review_spec.repo = context.repo_root
+  return open_greview_workspace(review_spec, {
+    selection = context.selected,
+    replace_win = context.replace_win,
+  })
 end
 
 ---@param args? string
@@ -1590,6 +2087,40 @@ function M.read_buffer(bufnr)
     debug_label = debug_label or ((label or '?') .. ':' .. (path or '?'))
   end
 
+  if source and source.kind == 'review_file' then
+    local state = greview_workspaces[bufnr]
+    if state then
+      local selected_file = source.selected_file or source.path
+      if not selected_file then
+        notify('cannot reload Greview split buffer without selected file', vim.log.levels.WARN)
+        return
+      end
+      refresh_greview_workspace_index(state)
+      show_greview_workspace_selection(state, {
+        bufnr = bufnr,
+        file = selected_file,
+        key = source.selected_key or selected_file,
+        diff_spec = state.selected_diff_spec or source.spec,
+        hunk_index = state.selected_hunk_index,
+      }, { restore_focus = true, refresh_index = false })
+      dbg('reloaded Greview split buffer %d (%s)', bufnr, debug_label)
+      return
+    end
+
+    replace_generated_diff_buffer_lines(bufnr, diff_lines, stored_spec)
+    lists.set_for_unified_buffer(bufnr, diff_lines, {
+      title = 'review: ' .. (source.selected_key or source.path),
+      loclist_title = 'review hunks: ' .. (source.selected_key or source.path),
+      diff_spec = stored_spec,
+      quickfix = false,
+    })
+    M.setup_diff_buf(bufnr)
+    set_greview_workspace_keymaps(bufnr)
+    dbg('reloaded Greview split buffer %d (%s)', bufnr, debug_label)
+    runtime.attach(bufnr)
+    return
+  end
+
   replace_generated_diff_buffer_lines(bufnr, diff_lines, stored_spec)
   lists.set_for_unified_buffer(bufnr, diff_lines, {
     title = 'diff: ' .. (debug_label or name:gsub('^diffs://', '')),
@@ -1646,6 +2177,10 @@ M._test = {
   complete_greview = review.complete,
   complete_greview_command = complete_greview_command,
   gdiff_buffer_label = gdiff_buffer_label,
+  close_greview_workspace = close_greview_workspace,
+  greview_workspace_state = function(bufnr)
+    return greview_workspaces[bufnr]
+  end,
   normalize_greview = review.normalize,
   parse_greview_command = review.parse_command_args,
   parse_review_arg = review.parse_arg,
