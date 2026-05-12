@@ -93,16 +93,21 @@ function M.parse(args, context)
   local tokens = split_args(args)
   local novertical = false
   local layout = 'unified'
+  local has_layout = false
 
   while tokens[1] and tokens[1]:match('^%+%+') do
     if tokens[1] == '++novertical' then
       novertical = true
       table.remove(tokens, 1)
     elseif tokens[1]:match('^%+%+layout=') then
+      if has_layout then
+        return nil, 'repeated ++layout option'
+      end
       local value = tokens[1]:match('^%+%+layout=(.+)$')
       if value ~= 'unified' and value ~= 'split' then
         return nil, 'unsupported layout ' .. tostring(value)
       end
+      has_layout = true
       layout = value
       table.remove(tokens, 1)
     else

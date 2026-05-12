@@ -84,6 +84,13 @@ describe('diffs.gdiff', function()
     assert.are.equal('unified', result.layout)
   end)
 
+  it('rejects repeated layout options', function()
+    local result, err = gdiff.parse('++layout=split ++layout=unified HEAD', { path = path })
+
+    assert.is_nil(result)
+    assert.are.equal('repeated ++layout option', err)
+  end)
+
   it('rejects unsupported layouts', function()
     local result, err = gdiff.parse('++layout=tiled HEAD', { path = path })
 
