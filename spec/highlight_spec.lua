@@ -637,7 +637,6 @@ describe('highlight', function()
           hide_prefix = true,
           highlights = {
             background = true,
-            gutter = true,
             treesitter = { enabled = false },
           },
         })
@@ -686,7 +685,6 @@ describe('highlight', function()
           hide_prefix = true,
           highlights = {
             background = true,
-            gutter = true,
             treesitter = { enabled = false },
           },
         })
@@ -761,7 +759,6 @@ describe('highlight', function()
           hide_prefix = true,
           highlights = {
             background = true,
-            gutter = true,
             treesitter = { enabled = false },
           },
         })
