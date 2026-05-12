@@ -616,7 +616,7 @@ Paired-window contract: ~                       *diffs.nvim-paired-windows*
     Like |:Gdiff| but explicitly opens in a horizontal split.
 
 :Greview [++layout=unified|split] [review-spec]                    *:Greview*
-    Open a unified review of the repository in a horizontal split.
+    Open a repository review.
 
     With no arguments, reviews the current repository state against the
     remote default branch (detected via `git -C <repo> symbolic-ref
@@ -628,11 +628,11 @@ Paired-window contract: ~                       *diffs.nvim-paired-windows*
     using merge-base semantics. With `A..B`, reviews explicit target `B`
     against base `A` as a direct two-endpoint comparison.
 
-    Populates the quickfix list with file entries (one per changed file,
-    with `+N`/`-M` stats) and the location list with hunk entries (one per
-    `@@` header, with filename and hunk number). All entries point into the
-    diff buffer, so ` :cnext`/` :cprev` navigate between files and
-    ` :lnext`/` :lprev` navigate between hunks within the buffer.
+    Without `++layout=split`, populates the quickfix list with file entries
+    (one per changed file, with `+N`/`-M` stats) and the location list with hunk
+    entries (one per `@@` header, with filename and hunk number). All entries
+    point into the diff buffer, so ` :cnext`/` :cprev` navigate between files
+    and ` :lnext`/` :lprev` navigate between hunks within the buffer.
 
     The buffer is named `diffs://review:{review-spec}` where
     `{review-spec}` is the normalized review specification. Reloading with
@@ -641,15 +641,28 @@ Paired-window contract: ~                       *diffs.nvim-paired-windows*
     If a `diffs://` window already exists in the current tabpage, the new
     diff replaces its buffer instead of creating another split.
 
-    With `++layout=split`, |:Greview| still opens the full review buffer and
-    quickfix/location-list indexes. It also opens the first changed file in a
-    paired old/new split view. That pair follows later review-buffer, quickfix,
-    and location-list selection until the pair is closed.
+    With `++layout=split`, |:Greview| opens a two-surface review workspace
+    instead of the full review map. The left window is a read-only generated
+    `diffs://review-split:{review-spec}` buffer for one review file. It keeps
+    unified generated-diff behavior such as `]c`, `[c`, `do`, `dp`, Visual
+    `do`/`dp`, and `:edit` refresh. The right window is the real editable
+    worktree file when the selected edge has an existing worktree target;
+    otherwise it is a read-only `diffs://review-target:{endpoint}:{file}` view
+    of the tree or index target.
+
+    In split layout, the quickfix list remains the repo-wide review file index
+    and the location list is the active file's hunk index. Selecting quickfix
+    or location-list entries with the |diffs.nvim| mapped <CR> updates the
+    existing workspace instead of opening a third review buffer. Native
+    `:cnext`/`:cprev` and `:lnext`/`:lprev` movement is not the split workspace
+    update path. Saving the right-side worktree buffer refreshes the generated
+    diff on the left. Native Vim `&diff` mode is not used for |:Greview| split
+    workspaces.
 
     Parameters: ~
         ++layout=unified (optional) Open the default unified review buffer.
-        ++layout=split (optional) Also open a paired old/new split view for
-                       the first changed review file.
+        ++layout=split (optional) Open the two-surface split workspace for the
+                       first renderable changed review file.
         {review-spec}  (string, optional) One of:
                        - empty: review current repo state against the repo
                          default branch
@@ -702,11 +715,10 @@ Paired-window contract: ~                       *diffs.nvim-paired-windows*
 
     Utilities: ~
         `require('diffs.commands').greview_split()` opens the currently
-        selected |:Greview| file in a paired split view. It uses the review
-        buffer cursor, quickfix item, or loclist item as the file selection.
-        Once opened, that Greview-owned pair follows review-buffer file and hunk
-        selection until the pair is closed. The review quickfix list remains
-        the authoritative file list.
+        selected |:Greview| file in the same two-surface split workspace used
+        by `:Greview ++layout=split`. It uses the review buffer cursor,
+        quickfix item, or loclist item as the file selection, and the review
+        quickfix list remains the authoritative file list.
 
         `require('diffs.commands').review_file_at_line(bufnr, lnum)` returns
         the filename at a given line in a review buffer by walking backwards
@@ -736,10 +748,9 @@ MAPPINGS                                                 *diffs.nvim-mappings*
                                              *<Plug>(diffs-greview-open-split)*
 <Plug>(diffs-greview-open-split)
                         Open the currently selected |:Greview| file in a
-                        paired split view. The review buffer remains the
-                        full-repo map; this action opens one file pair for
-                        focused inspection and follows later review-buffer
-                        selections until that pair is closed.
+                        two-surface split workspace: generated per-file diff on
+                        the left, editable worktree or read-only target view on
+                        the right.
 
 Example configuration: >lua
     vim.keymap.set('n', '<leader>gd', '<Plug>(diffs-gdiff)')

@@ -19,6 +19,7 @@ local group = vim.api.nvim_create_augroup('diffs_generated_lists', { clear = fal
 ---@field metadata_for_line? fun(lnum: integer, file: string): table?
 ---@field sections? table[]
 ---@field store_hunks? boolean
+---@field quickfix? boolean
 
 ---@param bufnr integer
 ---@param name string
@@ -392,6 +393,24 @@ local function file_hunk_index(hunks, target)
   return nil
 end
 
+---@param state table
+---@param entry table
+---@return diffs.GeneratedFileSelection
+local function selection_from_entry(state, entry)
+  local hunk = entry.hunks[1]
+  return {
+    bufnr = 0,
+    file = entry.file,
+    key = (hunk and hunk_key(hunk)) or entry.key,
+    section = (hunk and hunk.section) or entry.section,
+    section_label = (hunk and hunk.section_label) or entry.section_label,
+    diff_spec = (hunk and hunk.diff_spec) or entry.diff_spec,
+    lnum = entry.lnum,
+    hunk = hunk,
+    hunk_index = file_hunk_index(state.hunks, hunk),
+  }
+end
+
 ---@param item table?
 ---@return table?
 local function item_diffs_data(item)
@@ -462,6 +481,23 @@ local function set_loclist(win, title, items)
     items = items,
     quickfixtextfunc = 'v:lua._diffs_qftf',
   })
+end
+
+---@param diff_lines string[]
+---@param opts? diffs.GeneratedListOptions
+---@return { hunks: diffs.GdiffHunk[], entries: table[], sections: table[]?, loclist_title: string }
+local function list_state(diff_lines, opts)
+  opts = opts or {}
+  local diff_spec = opts.diff_spec
+  local hunks = hunk_model.parse(diff_lines, diff_spec)
+  local entries = file_entries(hunks, diff_lines, opts)
+  local title = opts.title or 'diffs'
+  return {
+    hunks = hunks,
+    entries = entries,
+    sections = opts.sections,
+    loclist_title = opts.loclist_title or (title .. ' hunks'),
+  }
 end
 
 ---@param bufnr integer
@@ -748,28 +784,79 @@ end
 ---@param opts? diffs.GeneratedListOptions
 function M.set_for_unified_buffer(bufnr, diff_lines, opts)
   opts = opts or {}
-  local diff_spec = opts.diff_spec or buffer_diff_spec(bufnr)
-  local hunks = hunk_model.parse(diff_lines, diff_spec)
-  local entries = file_entries(hunks, diff_lines, opts)
   local title = opts.title or 'diffs'
-  local loclist_title = opts.loclist_title or (title .. ' hunks')
+  opts.diff_spec = opts.diff_spec or buffer_diff_spec(bufnr)
+  local state = list_state(diff_lines, opts)
 
   if opts.store_hunks then
-    vim.api.nvim_buf_set_var(bufnr, 'diffs_hunks', hunks)
+    vim.api.nvim_buf_set_var(bufnr, 'diffs_hunks', state.hunks)
   end
 
   generated_list_state[bufnr] = {
-    hunks = hunks,
-    entries = entries,
-    sections = opts.sections,
-    loclist_title = loclist_title,
+    hunks = state.hunks,
+    entries = state.entries,
+    sections = state.sections,
+    loclist_title = state.loclist_title,
     win_files = {},
   }
   ensure_generated_autocmds(bufnr)
 
-  set_quickfix(title, quickfix_items(bufnr, entries))
+  if opts.quickfix ~= false then
+    set_quickfix(title, quickfix_items(bufnr, state.entries))
+  end
   for _, win in ipairs(windows_for_buffer(bufnr)) do
     refresh_loclist_for_window(bufnr, win, true)
+  end
+end
+
+---@param diff_lines string[]
+---@param opts? diffs.GeneratedListOptions
+---@return diffs.GeneratedFileSelection?
+function M.first_generated_file(diff_lines, opts)
+  local state = list_state(diff_lines, opts)
+  local entry = state.entries[1]
+  if not entry then
+    return nil
+  end
+  return selection_from_entry(state, entry)
+end
+
+---@param diff_lines string[]
+---@param opts? diffs.GeneratedListOptions
+---@return diffs.GeneratedFileSelection[]
+function M.generated_files(diff_lines, opts)
+  local state = list_state(diff_lines, opts)
+  local files = {}
+  for _, entry in ipairs(state.entries) do
+    files[#files + 1] = selection_from_entry(state, entry)
+  end
+  return files
+end
+
+---@param bufnr integer
+---@param diff_lines string[]
+---@param opts? diffs.GeneratedListOptions
+function M.set_review_workspace_quickfix(bufnr, diff_lines, opts)
+  opts = opts or {}
+  local title = opts.title or 'review'
+  local state = list_state(diff_lines, opts)
+  set_quickfix(title, quickfix_items(bufnr, state.entries))
+end
+
+---@param bufnr integer
+---@param diff_lines string[]
+---@param opts? diffs.GeneratedListOptions
+function M.set_loclist_for_buffer(bufnr, diff_lines, opts)
+  opts = opts or {}
+  local state = list_state(diff_lines, {
+    diff_spec = opts.diff_spec or buffer_diff_spec(bufnr),
+    title = opts.title,
+    loclist_title = opts.loclist_title,
+  })
+  local title = state.loclist_title
+  local entry = state.entries[1]
+  for _, win in ipairs(windows_for_buffer(bufnr)) do
+    set_loclist(win, title, loclist_items(bufnr, state.hunks, entry))
   end
 end
 
