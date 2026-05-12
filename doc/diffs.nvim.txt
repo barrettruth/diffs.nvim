@@ -550,6 +550,10 @@ Paired-window contract: ~                       *diffs.nvim-paired-windows*
         - Window-local user settings such as statusline, statuscolumn, number,
           and cursorline should be preserved unless the diffs.nvim view
           explicitly owns and documents a local display choice.
+        - Split endpoint windows set a one-column local 'signcolumn' while
+          open so changed lines can show the same left-edge change bar used by
+          generated unified views. The previous value is restored when the pair
+          is released.
 
     Lifecycle: ~
         - Opening a split view creates or reuses a coherent pair. It must not
@@ -1264,6 +1268,38 @@ Fugitive unified diff highlights: ~
                                                                *DiffsDeleteNr*
     DiffsDeleteNr       Line number for `-` lines. Foreground from
                         `DiffsDeleteText`, background from `DiffsDelete`.
+
+                                                                 *DiffsRail*
+    DiffsRail           Generated old/new line-number rail and separator.
+                        Foreground follows the plain diff rail text; does not
+                        combine with source syntax captures.
+
+                                                                *DiffsRailNr*
+    DiffsRailNr         Generated old/new line numbers on context lines.
+                        Foreground follows `LineNr`; does not combine with
+                        source syntax captures.
+
+                                                            *DiffsAddRailNr*
+    DiffsAddRailNr      Generated number rail on `+` lines, including the
+                        missing old-side number slot.
+                        Foreground matches `DiffsAddBar` background; does
+                        not combine with source syntax captures.
+
+                                                         *DiffsDeleteRailNr*
+    DiffsDeleteRailNr   Generated number rail on `-` lines, including the
+                        missing new-side number slot.
+                        Foreground matches `DiffsDeleteBar` background; does
+                        not combine with source syntax captures.
+
+                                                                 *DiffsAddBar*
+    DiffsAddBar         Change bar for `+` lines in diffs.nvim-owned views.
+                        Background uses the same color as `DiffsAddNr`
+                        foreground.
+
+                                                              *DiffsDeleteBar*
+    DiffsDeleteBar      Change bar for `-` lines in diffs.nvim-owned views.
+                        Background uses the same color as `DiffsDeleteNr`
+                        foreground.
 
                                                                 *DiffsAddText*
     DiffsAddText        Character-level background for changed characters
