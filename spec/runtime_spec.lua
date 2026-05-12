@@ -573,10 +573,35 @@ describe('diffs.runtime', function()
         if opts.name == 'Normal' then
           return { fg = 0xebdbb2, bg = 0x282828 }
         end
+        if opts.name == 'LineNr' then
+          return { fg = 0x665c54 }
+        end
+        if opts.name == 'diffAdded' then
+          return { fg = 0x80c080 }
+        end
+        if opts.name == 'diffRemoved' then
+          return { fg = 0xc08080 }
+        end
         return saved_get_hl(ns, opts)
       end
       runtime._test.compute_highlight_groups()
       assert.are.equal(0x282828, set_calls.DiffsClear.bg)
+      assert.are.equal(0xebdbb2, set_calls.DiffsRail.fg)
+      assert.are.equal(0x282828, set_calls.DiffsRail.bg)
+      assert.is_true(set_calls.DiffsRail.nocombine)
+      assert.are.equal(0x665c54, set_calls.DiffsRailNr.fg)
+      assert.are.equal(0x282828, set_calls.DiffsRailNr.bg)
+      assert.is_true(set_calls.DiffsRailNr.nocombine)
+      assert.are.equal(0x80c080, set_calls.DiffsAddRailNr.fg)
+      assert.is_number(set_calls.DiffsAddRailNr.bg)
+      assert.is_true(set_calls.DiffsAddRailNr.nocombine)
+      assert.are.equal(0xc08080, set_calls.DiffsDeleteRailNr.fg)
+      assert.is_number(set_calls.DiffsDeleteRailNr.bg)
+      assert.is_true(set_calls.DiffsDeleteRailNr.nocombine)
+      assert.are.equal(0x80c080, set_calls.DiffsAddBar.fg)
+      assert.is_number(set_calls.DiffsAddBar.bg)
+      assert.are.equal(0xc08080, set_calls.DiffsDeleteBar.fg)
+      assert.is_number(set_calls.DiffsDeleteBar.bg)
     end)
 
     it('blend_alpha controls DiffsAdd.bg intensity', function()

@@ -19,16 +19,16 @@ describe('diffs.rails', function()
 
     assert.are.same({
       width = 2,
-      prefix_width = 8,
+      prefix_width = 12,
     }, info)
-    assert.are.equal('      | diff --git a/file.txt b/file.txt', annotated[1])
-    assert.are.equal('      | @@ -9,3 +10,4 @@', annotated[4])
-    assert.are.equal(' 9 10 |  alpha', annotated[5])
-    assert.are.equal('10    | -beta', annotated[6])
-    assert.are.equal('   11 | +beta changed', annotated[7])
-    assert.are.equal('11 12 |  gamma', annotated[8])
-    assert.are.equal('   13 | +delta', annotated[9])
-    assert.are.equal('      | \\ No newline at end of file', annotated[10])
+    assert.are.equal('        ┃ diff --git a/file.txt b/file.txt', annotated[1])
+    assert.are.equal('        ┃ @@ -9,3 +10,4 @@', annotated[4])
+    assert.are.equal('   9 10 ┃  alpha', annotated[5])
+    assert.are.equal('  10    ┃ -beta', annotated[6])
+    assert.are.equal('     11 ┃ +beta changed', annotated[7])
+    assert.are.equal('  11 12 ┃  gamma', annotated[8])
+    assert.are.equal('     13 ┃ +delta', annotated[9])
+    assert.are.equal('        ┃ \\ No newline at end of file', annotated[10])
   end)
 
   it('leaves non-diff content unchanged', function()
@@ -37,5 +37,14 @@ describe('diffs.rails', function()
 
     assert.are.equal(lines, annotated)
     assert.is_nil(info)
+  end)
+
+  it('returns byte ranges for old and new rail number columns', function()
+    assert.are.same({
+      old_start = 2,
+      old_end = 4,
+      new_start = 5,
+      new_end = 7,
+    }, rails.ranges(12))
   end)
 end)

@@ -612,6 +612,208 @@ describe('highlight', function()
       delete_buffer(bufnr)
     end)
 
+    it('draws generated rail change bars before line-number columns', function()
+      local bufnr = create_buffer({
+        '      ┃ @@ -1,1 +1,1 @@',
+        '  1   ┃ -old',
+        '    1 ┃ +new',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { '-old', '+new' },
+        prefix_width = 1,
+        quote_width = 10,
+        rail_width = 10,
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({
+          hide_prefix = true,
+          highlights = {
+            background = true,
+            gutter = true,
+            treesitter = { enabled = false },
+          },
+        })
+      )
+
+      local bars = {}
+      for _, mark in ipairs(get_extmarks(bufnr)) do
+        local d = mark[4]
+        if d and d.virt_text and d.virt_text[1] then
+          local group = d.virt_text[1][2]
+          if group == 'DiffsAddBar' or group == 'DiffsDeleteBar' then
+            bars[mark[2]] = group
+            assert.are.equal('▏', d.virt_text[1][1])
+            assert.are.equal(0, mark[3])
+          end
+        end
+      end
+
+      assert.are.equal('DiffsDeleteBar', bars[1])
+      assert.are.equal('DiffsAddBar', bars[2])
+      delete_buffer(bufnr)
+    end)
+
+    it('keeps hide_prefix overlay off generated line-number rails', function()
+      local bufnr = create_buffer({
+        '      ┃ @@ -1,1 +1,1 @@',
+        '  1   ┃ -old',
+        '    1 ┃ +new',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { '-old', '+new' },
+        prefix_width = 1,
+        quote_width = 10,
+        rail_width = 10,
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({
+          hide_prefix = true,
+          highlights = {
+            background = true,
+            gutter = true,
+            treesitter = { enabled = false },
+          },
+        })
+      )
+
+      local overlays = {}
+      local rails = {}
+      local base_rail_numbers = {}
+      local rail_numbers = {}
+      for _, mark in ipairs(get_extmarks(bufnr)) do
+        local d = mark[4]
+        if d and d.virt_text and d.virt_text[1] then
+          local text, group = d.virt_text[1][1], d.virt_text[1][2]
+          if group == 'DiffsAdd' or group == 'DiffsDelete' then
+            overlays[#overlays + 1] = { row = mark[2], col = mark[3], text = text, group = group }
+          end
+        end
+        if d and d.hl_group == 'DiffsRail' then
+          rails[#rails + 1] = { row = mark[2], col = mark[3], end_col = d.end_col }
+        end
+        if d and d.hl_group == 'DiffsRailNr' then
+          base_rail_numbers[#base_rail_numbers + 1] =
+            { row = mark[2], col = mark[3], end_col = d.end_col }
+        end
+        if d and (d.hl_group == 'DiffsAddRailNr' or d.hl_group == 'DiffsDeleteRailNr') then
+          rail_numbers[#rail_numbers + 1] =
+            { row = mark[2], col = mark[3], end_col = d.end_col, group = d.hl_group }
+        end
+      end
+
+      assert.are.same({
+        { row = 1, col = 10, text = ' ', group = 'DiffsDelete' },
+        { row = 2, col = 10, text = ' ', group = 'DiffsAdd' },
+      }, overlays)
+      assert.are.same({
+        { row = 1, col = 0, end_col = 10 },
+        { row = 2, col = 0, end_col = 10 },
+      }, rails)
+      assert.are.same({
+        { row = 1, col = 2, end_col = 3 },
+        { row = 1, col = 4, end_col = 5 },
+        { row = 2, col = 2, end_col = 3 },
+        { row = 2, col = 4, end_col = 5 },
+      }, base_rail_numbers)
+      assert.are.same({
+        { row = 1, col = 2, end_col = 5, group = 'DiffsDeleteRailNr' },
+        { row = 2, col = 2, end_col = 5, group = 'DiffsAddRailNr' },
+      }, rail_numbers)
+      delete_buffer(bufnr)
+    end)
+
+    it('leaves generated context prefix cells unpainted for cursorline', function()
+      local bufnr = create_buffer({
+        '  1 1 ┃  local M = {}',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 0,
+        lines = { ' local M = {}' },
+        prefix_width = 1,
+        quote_width = 10,
+        rail_width = 10,
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({
+          hide_prefix = true,
+          highlights = {
+            background = true,
+            gutter = true,
+            treesitter = { enabled = false },
+          },
+        })
+      )
+
+      for _, mark in ipairs(get_extmarks(bufnr)) do
+        local d = mark[4]
+        if d and d.virt_text_pos == 'overlay' then
+          error('unexpected hide_prefix overlay on generated context line')
+        end
+        if d and d.hl_group == 'DiffsClear' then
+          assert.are.equal(0, mark[3])
+          assert.are.equal(10, d.end_col)
+        end
+      end
+
+      delete_buffer(bufnr)
+    end)
+
+    it('does not apply DiffsClear over generated rail source content', function()
+      local bufnr = create_buffer({
+        '      ┃ @@ -0,0 +1,1 @@',
+        '    1 ┃ +local untracked = {}',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { '+local untracked = {}' },
+        prefix_width = 1,
+        quote_width = 10,
+        rail_width = 10,
+      }
+
+      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
+
+      local has_keyword = false
+      for _, mark in ipairs(get_extmarks(bufnr)) do
+        local d = mark[4]
+        if mark[2] == 1 and d and d.hl_group == '@keyword.lua' then
+          has_keyword = true
+        end
+        if mark[2] == 1 and d and d.hl_group == 'DiffsClear' then
+          assert.is_true(mark[3] < 11, 'DiffsClear starts on generated content at col ' .. mark[3])
+        end
+      end
+
+      assert.is_true(has_keyword, 'treesitter keyword highlight was applied')
+      delete_buffer(bufnr)
+    end)
+
     it('does not apply prefix extmark on context line', function()
       local bufnr = create_buffer({
         '@@ -1,2 +1,2 @@',
