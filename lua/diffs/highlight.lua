@@ -823,12 +823,7 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
         })
       end
 
-      if
-        hunk.rail_width
-        and is_diff_line
-        and opts.highlights.background
-        and opts.highlights.gutter
-      then
+      if hunk.rail_width and is_diff_line and opts.highlights.background then
         pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
           virt_text = { { generated_change_bar, bar_hl } },
           virt_text_pos = 'overlay',

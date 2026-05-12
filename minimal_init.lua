@@ -52,7 +52,6 @@ require('lazy').setup({
         },
         hide_prefix = false,
         highlights = {
-          gutter = true,
           intra = { enabled = true },
           overrides = {
             DiffsAdd = { bg = '#ff0000' },
