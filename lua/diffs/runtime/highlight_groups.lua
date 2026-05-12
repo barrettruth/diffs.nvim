@@ -41,6 +41,7 @@ function M.apply(config, is_default)
   local normal = vim.api.nvim_get_hl(0, { name = 'Normal' })
   local diff_add = vim.api.nvim_get_hl(0, { name = 'DiffAdd' })
   local diff_delete = vim.api.nvim_get_hl(0, { name = 'DiffDelete' })
+  local line_nr = vim.api.nvim_get_hl(0, { name = 'LineNr' })
   local diff_added = resolve_hl('diffAdded')
   local diff_removed = resolve_hl('diffRemoved')
 
@@ -54,6 +55,7 @@ function M.apply(config, is_default)
 
   local dflt = is_default or false
   local normal_fg = normal.fg or (dark and 0xcccccc or 0x333333)
+  local line_nr_fg = line_nr.fg or normal_fg
 
   local alpha = config.highlights.blend_alpha or 0.6
   local blended_add = blend_color(add_bg, bg, alpha)
@@ -65,11 +67,33 @@ function M.apply(config, is_default)
   if not transparent then
     clear_hl.bg = bg
   end
+  local rail_hl = { default = dflt, fg = normal_fg, nocombine = true }
+  if not transparent then
+    rail_hl.bg = bg
+  end
   vim.api.nvim_set_hl(0, 'DiffsClear', clear_hl)
   vim.api.nvim_set_hl(0, 'DiffsAdd', { default = dflt, bg = blended_add })
   vim.api.nvim_set_hl(0, 'DiffsDelete', { default = dflt, bg = blended_del })
   vim.api.nvim_set_hl(0, 'DiffsAddNr', { default = dflt, fg = add_fg, bg = blended_add })
   vim.api.nvim_set_hl(0, 'DiffsDeleteNr', { default = dflt, fg = del_fg, bg = blended_del })
+  vim.api.nvim_set_hl(0, 'DiffsRail', rail_hl)
+  vim.api.nvim_set_hl(
+    0,
+    'DiffsRailNr',
+    { default = dflt, fg = line_nr_fg, bg = bg, nocombine = true }
+  )
+  vim.api.nvim_set_hl(
+    0,
+    'DiffsAddRailNr',
+    { default = dflt, fg = add_fg, bg = blended_add, nocombine = true }
+  )
+  vim.api.nvim_set_hl(
+    0,
+    'DiffsDeleteRailNr',
+    { default = dflt, fg = del_fg, bg = blended_del, nocombine = true }
+  )
+  vim.api.nvim_set_hl(0, 'DiffsAddBar', { default = dflt, fg = add_fg, bg = blended_add })
+  vim.api.nvim_set_hl(0, 'DiffsDeleteBar', { default = dflt, fg = del_fg, bg = blended_del })
   vim.api.nvim_set_hl(0, 'DiffsAddText', { default = dflt, bg = blended_add_text })
   vim.api.nvim_set_hl(0, 'DiffsDeleteText', { default = dflt, bg = blended_del_text })
 

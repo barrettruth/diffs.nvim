@@ -2,9 +2,18 @@ local M = {}
 
 local hunk_model = require('diffs.hunks')
 
+local bar_slot = '  '
+local separator = ' ┃ '
+
 ---@class diffs.RailInfo
 ---@field width integer
 ---@field prefix_width integer
+
+---@class diffs.RailRanges
+---@field old_start integer
+---@field old_end integer
+---@field new_start integer
+---@field new_end integer
 
 ---@param value integer?
 ---@param width integer
@@ -59,15 +68,16 @@ function M.annotate(lines)
   end
 
   local width = math.max(1, #tostring(max_lnum))
-  local prefix_width = width + 1 + width + 3
+  local prefix_width = #bar_slot + width + 1 + width + #separator
   local annotated = {}
 
   for lnum, text in ipairs(lines) do
     local line = by_lnum[lnum]
-    annotated[lnum] = format_lnum(old_lnum(line), width)
+    annotated[lnum] = bar_slot
+      .. format_lnum(old_lnum(line), width)
       .. ' '
       .. format_lnum(new_lnum(line), width)
-      .. ' | '
+      .. separator
       .. text
   end
 
@@ -100,6 +110,31 @@ function M.strip_lines(lines, prefix_width)
     stripped[i] = M.strip(line, prefix_width)
   end
   return stripped
+end
+
+---@param prefix_width integer?
+---@return diffs.RailRanges?
+function M.ranges(prefix_width)
+  if type(prefix_width) ~= 'number' or prefix_width <= 0 then
+    return nil
+  end
+
+  local width = (prefix_width - #bar_slot - 1 - #separator) / 2
+  if width < 1 or width % 1 ~= 0 then
+    return nil
+  end
+
+  local old_start = #bar_slot
+  local old_end = old_start + width
+  local new_start = old_end + 1
+  local new_end = new_start + width
+
+  return {
+    old_start = old_start,
+    old_end = old_end,
+    new_start = new_start,
+    new_end = new_end,
+  }
 end
 
 ---@param bufnr integer

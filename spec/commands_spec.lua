@@ -717,9 +717,11 @@ describe('commands', function()
       assert.is_true(table.concat(lines, '\n'):find('+local x = 1', 1, true) ~= nil)
 
       local display_lines = vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false)
-      assert.are.equal(6, vim.api.nvim_buf_get_var(diff_buf, 'diffs_rail_width'))
-      assert.are.equal('    | diff --git a/lua/foo.lua b/lua/foo.lua', display_lines[1])
-      assert.is_true(table.concat(display_lines, '\n'):find('  2 | +local x = 1', 1, true) ~= nil)
+      assert.are.equal(10, vim.api.nvim_buf_get_var(diff_buf, 'diffs_rail_width'))
+      assert.are.equal('      ┃ diff --git a/lua/foo.lua b/lua/foo.lua', display_lines[1])
+      assert.is_true(
+        table.concat(display_lines, '\n'):find('    2 ┃ +local x = 1', 1, true) ~= nil
+      )
 
       local qf = quickfix_items()
       assert.are.equal(1, #qf)
@@ -819,6 +821,8 @@ describe('commands', function()
       assert.is_false(vim.api.nvim_get_option_value('modifiable', { buf = right_buf }))
       assert.is_true(vim.api.nvim_get_option_value('diff', { win = left_win }))
       assert.is_true(vim.api.nvim_get_option_value('diff', { win = right_win }))
+      assert.are.equal('yes:1', vim.api.nvim_get_option_value('signcolumn', { win = left_win }))
+      assert.are.equal('yes:1', vim.api.nvim_get_option_value('signcolumn', { win = right_win }))
       assert.are.equal('manual', vim.api.nvim_get_option_value('foldmethod', { win = left_win }))
       assert.are.equal('manual', vim.api.nvim_get_option_value('foldmethod', { win = right_win }))
       assert.is_false(vim.api.nvim_get_option_value('foldenable', { win = left_win }))
@@ -840,6 +844,23 @@ describe('commands', function()
       assert.is_true(helpers.has_keymap(right_buf, '[c'))
       assert.is_false(helpers.has_keymap(right_buf, 'dp'))
       assert.is_false(helpers.has_keymap(right_buf, 'do'))
+
+      local bar_ns = vim.api.nvim_get_namespaces().diffs_split_change_bar
+      local right_bars = vim.api.nvim_buf_get_extmarks(right_buf, bar_ns, 0, -1, {
+        details = true,
+      })
+      local has_added_line_bar = false
+      for _, mark in ipairs(right_bars) do
+        local details = mark[4]
+        if
+          mark[2] == 1
+          and details.sign_hl_group == 'DiffsAddBar'
+          and details.sign_text == '▏ '
+        then
+          has_added_line_bar = true
+        end
+      end
+      assert.is_true(has_added_line_bar)
 
       local qf = quickfix_items()
       assert.are.equal(1, #qf)
