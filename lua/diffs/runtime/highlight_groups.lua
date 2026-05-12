@@ -74,8 +74,6 @@ function M.apply(config, is_default)
   vim.api.nvim_set_hl(0, 'DiffsClear', clear_hl)
   vim.api.nvim_set_hl(0, 'DiffsAdd', { default = dflt, bg = blended_add })
   vim.api.nvim_set_hl(0, 'DiffsDelete', { default = dflt, bg = blended_del })
-  vim.api.nvim_set_hl(0, 'DiffsAddNr', { default = dflt, fg = add_fg, bg = blended_add })
-  vim.api.nvim_set_hl(0, 'DiffsDeleteNr', { default = dflt, fg = del_fg, bg = blended_del })
   vim.api.nvim_set_hl(0, 'DiffsRail', rail_hl)
   vim.api.nvim_set_hl(
     0,
@@ -103,12 +101,7 @@ function M.apply(config, is_default)
     add_bg,
     add_fg
   )
-  log.dbg(
-    'DiffsAdd.bg=#%06x DiffsAddText.bg=#%06x DiffsAddNr.fg=#%06x',
-    blended_add,
-    blended_add_text,
-    add_fg
-  )
+  log.dbg('DiffsAdd.bg=#%06x DiffsAddText.bg=#%06x', blended_add, blended_add_text)
   log.dbg('DiffsDelete.bg=#%06x DiffsDeleteText.bg=#%06x', blended_del, blended_del_text)
 
   local diff_change = resolve_hl('DiffChange')

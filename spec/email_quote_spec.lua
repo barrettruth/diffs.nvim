@@ -172,7 +172,6 @@ describe('email-quoted diffs', function()
         hide_prefix = false,
         highlights = {
           background = true,
-          gutter = false,
           context = { enabled = false, lines = 0 },
           treesitter = {
             enabled = true,

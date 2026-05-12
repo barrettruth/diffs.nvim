@@ -718,7 +718,7 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     local has_del = prefix:find('-', 1, true) ~= nil
     local is_diff_line = has_add or has_del
     local line_hl = is_diff_line and (has_add and 'DiffsAdd' or 'DiffsDelete') or nil
-    local number_hl = is_diff_line and (has_add and 'DiffsAddNr' or 'DiffsDeleteNr') or nil
+    local prefix_hl = is_diff_line and (has_add and '@diff.plus' or '@diff.minus') or nil
     local bar_hl = is_diff_line and (has_add and 'DiffsAddBar' or 'DiffsDeleteBar') or nil
 
     local is_marker = false
@@ -818,7 +818,7 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
       elseif opts.highlights.background and is_diff_line then
         pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
           end_col = 1,
-          hl_group = number_hl,
+          hl_group = prefix_hl,
           priority = p.syntax,
         })
       end
@@ -840,12 +840,6 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
           hl_eol = true,
           priority = p.line_bg,
         })
-        if opts.highlights.gutter then
-          pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
-            number_hl_group = number_hl,
-            priority = p.line_bg,
-          })
-        end
       end
 
       if is_marker and line_len > pw then
