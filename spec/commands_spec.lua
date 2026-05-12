@@ -2471,6 +2471,55 @@ describe('commands', function()
       assert.are.equal('merge-base', vim.api.nvim_buf_get_var(bufnr, 'diffs_review_mode'))
     end)
 
+    it('initializes generated review metadata before diff FileType attach', function()
+      local attach_records = {}
+      saved_schedule = vim.schedule
+      vim.schedule = function(callback)
+        callback()
+      end
+
+      local group = vim.api.nvim_create_augroup('DiffsGeneratedReviewFileTypeRegression', {
+        clear = true,
+      })
+      vim.api.nvim_create_autocmd('FileType', {
+        pattern = 'diff',
+        group = group,
+        callback = function(args)
+          runtime.attach(args.buf)
+          local rail_ok, rail_width = pcall(vim.api.nvim_buf_get_var, args.buf, 'diffs_rail_width')
+          local entry = runtime._test.hunk_cache[args.buf]
+          attach_records[#attach_records + 1] = {
+            name = vim.api.nvim_buf_get_name(args.buf),
+            rail_width = rail_ok and rail_width or nil,
+            hunk_count = entry and #entry.hunks or nil,
+          }
+        end,
+      })
+
+      local repo = create_review_repo({ named_refs = true })
+      local ok, bufnr = pcall(function()
+        return commands.greview({
+          base = repo.base,
+          target = repo.target,
+          mode = 'merge-base',
+          repo = repo.repo_root,
+        })
+      end)
+      pcall(vim.api.nvim_del_augroup_by_id, group)
+
+      assert.is_true(ok)
+      assert.is_not_nil(bufnr)
+      table.insert(test_buffers, bufnr)
+
+      local first_attach = attach_records[1]
+      assert.is_not_nil(first_attach)
+      assert.are.equal('diffs://review:review-base...review-topic', first_attach.name)
+      assert.is_number(first_attach.rail_width)
+      assert.is_true(first_attach.rail_width > 0)
+      assert.is_number(first_attach.hunk_count)
+      assert.is_true(first_attach.hunk_count > 0)
+    end)
+
     it('renders current-state reviews as stacked sections', function()
       local repo = create_current_state_review_repo()
       mock_runtime_attach(function() end)

@@ -404,6 +404,10 @@ local function set_generated_diff_buffer_options(bufnr)
   vim.api.nvim_set_option_value('bufhidden', 'delete', { buf = bufnr })
   vim.api.nvim_set_option_value('swapfile', false, { buf = bufnr })
   vim.api.nvim_set_option_value('modifiable', false, { buf = bufnr })
+end
+
+---@param bufnr integer
+local function set_generated_diff_buffer_filetype(bufnr)
   vim.api.nvim_set_option_value('filetype', 'diff', { buf = bufnr })
 end
 
@@ -431,7 +435,6 @@ local function create_generated_diff_buffer(opts)
   local bufnr = vim.api.nvim_create_buf(false, true)
   local display_lines, rail_info = rails.annotate(opts.lines)
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, display_lines)
-  set_generated_diff_buffer_options(bufnr)
   vim.api.nvim_buf_set_name(bufnr, opts.name)
   set_diff_rails_var(bufnr, rail_info)
 
@@ -450,6 +453,9 @@ local function create_generated_diff_buffer(opts)
       vim.api.nvim_buf_set_var(bufnr, name, value)
     end
   end
+
+  set_generated_diff_buffer_options(bufnr)
+  set_generated_diff_buffer_filetype(bufnr)
 
   return bufnr
 end
@@ -477,7 +483,6 @@ local function replace_generated_diff_buffer_lines(bufnr, diff_lines, diff_spec)
   local display_lines, rail_info = rails.annotate(diff_lines)
   vim.api.nvim_set_option_value('modifiable', true, { buf = bufnr })
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, display_lines)
-  set_generated_diff_buffer_options(bufnr)
   set_diff_rails_var(bufnr, rail_info)
 
   if diff_spec then
@@ -485,6 +490,9 @@ local function replace_generated_diff_buffer_lines(bufnr, diff_lines, diff_spec)
   else
     clear_diff_hunks_var(bufnr)
   end
+
+  set_generated_diff_buffer_options(bufnr)
+  set_generated_diff_buffer_filetype(bufnr)
 end
 
 ---@param bufnr integer
