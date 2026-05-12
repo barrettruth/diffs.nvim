@@ -42,7 +42,6 @@ describe('highlight', function()
         hide_prefix = false,
         highlights = {
           background = false,
-          gutter = false,
           context = { enabled = false, lines = 0 },
           treesitter = {
             enabled = true,
@@ -334,39 +333,6 @@ describe('highlight', function()
       delete_buffer(bufnr)
     end)
 
-    it('applies number_hl_group when gutter enabled', function()
-      local bufnr = create_buffer({
-        '@@ -1,1 +1,2 @@',
-        ' local x = 1',
-        '+local y = 2',
-      })
-
-      local hunk = {
-        filename = 'test.lua',
-        lang = 'lua',
-        start_line = 1,
-        lines = { ' local x = 1', '+local y = 2' },
-      }
-
-      highlight.highlight_hunk(
-        bufnr,
-        ns,
-        hunk,
-        default_opts({ highlights = { background = true, gutter = true } })
-      )
-
-      local extmarks = get_extmarks(bufnr)
-      local has_number_hl = false
-      for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].number_hl_group then
-          has_number_hl = true
-          break
-        end
-      end
-      assert.is_true(has_number_hl)
-      delete_buffer(bufnr)
-    end)
-
     it('line bg uses hl_group with hl_eol not line_hl_group', function()
       local bufnr = create_buffer({
         '@@ -1,1 +1,2 @@',
@@ -571,7 +537,7 @@ describe('highlight', function()
       delete_buffer(bufnr)
     end)
 
-    it('applies DiffsAddNr prefix extmark on + line for pw=1', function()
+    it('applies diff syntax prefix extmarks on changed lines for pw=1', function()
       local bufnr = create_buffer({
         '@@ -1,2 +1,2 @@',
         '-old',
@@ -599,16 +565,16 @@ describe('highlight', function()
       for _, mark in ipairs(extmarks) do
         local d = mark[4]
         if d and d.end_col == 1 and mark[3] == 0 then
-          if d.hl_group == 'DiffsAddNr' and mark[2] == 2 then
+          if d.hl_group == '@diff.plus' and mark[2] == 2 then
             add_prefix = true
           end
-          if d.hl_group == 'DiffsDeleteNr' and mark[2] == 1 then
+          if d.hl_group == '@diff.minus' and mark[2] == 1 then
             del_prefix = true
           end
         end
       end
-      assert.is_true(add_prefix, 'DiffsAddNr on + prefix')
-      assert.is_true(del_prefix, 'DiffsDeleteNr on - prefix')
+      assert.is_true(add_prefix, '@diff.plus on + prefix')
+      assert.is_true(del_prefix, '@diff.minus on - prefix')
       delete_buffer(bufnr)
     end)
 
@@ -838,7 +804,7 @@ describe('highlight', function()
       for _, mark in ipairs(extmarks) do
         local d = mark[4]
         if d and mark[2] == 1 and mark[3] == 0 and d.end_col == 1 then
-          if d.hl_group == 'DiffsAddNr' or d.hl_group == 'DiffsDeleteNr' then
+          if d.hl_group == '@diff.plus' or d.hl_group == '@diff.minus' then
             ctx_prefix = true
           end
         end
@@ -1109,41 +1075,6 @@ describe('highlight', function()
         end
       end
       assert.is_true(found)
-      delete_buffer(bufnr)
-    end)
-
-    it('number_hl_group does not bleed to adjacent lines', function()
-      local bufnr = create_buffer({
-        '@@ -1,3 +1,3 @@',
-        ' local a = 0',
-        '-local x = 1',
-        '+local y = 2',
-        ' local b = 3',
-      })
-
-      local hunk = {
-        filename = 'test.lua',
-        lang = 'lua',
-        start_line = 1,
-        lines = { ' local a = 0', '-local x = 1', '+local y = 2', ' local b = 3' },
-      }
-
-      highlight.highlight_hunk(
-        bufnr,
-        ns,
-        hunk,
-        default_opts({ highlights = { background = true, gutter = true } })
-      )
-
-      local extmarks = get_extmarks(bufnr)
-      for _, mark in ipairs(extmarks) do
-        local d = mark[4]
-        if d and d.number_hl_group then
-          local start_row = mark[2]
-          local end_row = d.end_row or start_row
-          assert.are.equal(start_row, end_row)
-        end
-      end
       delete_buffer(bufnr)
     end)
 
@@ -1549,20 +1480,16 @@ describe('highlight', function()
         bufnr,
         ns,
         hunk,
-        default_opts({ highlights = { background = true, gutter = true } })
+        default_opts({ highlights = { background = true } })
       )
 
       local extmarks = get_extmarks(bufnr)
       local line_bgs = {}
-      local gutter_hls = {}
       local marker_text = {}
       for _, mark in ipairs(extmarks) do
         local d = mark[4]
         if d and (d.hl_group == 'DiffsAdd' or d.hl_group == 'DiffsDelete') then
           line_bgs[mark[2]] = d.hl_group
-        end
-        if d and d.number_hl_group then
-          gutter_hls[mark[2]] = d.number_hl_group
         end
         if d and d.hl_group == 'DiffsConflictMarker' then
           marker_text[mark[2]] = true
@@ -1577,15 +1504,6 @@ describe('highlight', function()
       assert.are.equal('DiffsAdd', line_bgs[6])
       assert.are.equal('DiffsAdd', line_bgs[7])
       assert.is_nil(line_bgs[8])
-
-      assert.is_nil(gutter_hls[1])
-      assert.are.equal('DiffsAddNr', gutter_hls[2])
-      assert.are.equal('DiffsAddNr', gutter_hls[3])
-      assert.are.equal('DiffsAddNr', gutter_hls[4])
-      assert.are.equal('DiffsAddNr', gutter_hls[5])
-      assert.are.equal('DiffsAddNr', gutter_hls[6])
-      assert.are.equal('DiffsAddNr', gutter_hls[7])
-      assert.is_nil(gutter_hls[8])
 
       assert.is_true(marker_text[2] ~= nil)
       assert.is_nil(marker_text[3])
@@ -1656,8 +1574,6 @@ describe('highlight', function()
     it('two-pass rendering produces no duplicate extmarks', function()
       vim.api.nvim_set_hl(0, 'DiffsAddText', { bg = 0x00FF00 })
       vim.api.nvim_set_hl(0, 'DiffsDeleteText', { bg = 0xFF0000 })
-      vim.api.nvim_set_hl(0, 'DiffsAddNr', { fg = 0x80c080, bg = 0x2e4a3a })
-      vim.api.nvim_set_hl(0, 'DiffsDeleteNr', { fg = 0xc08080, bg = 0x4a2e3a })
 
       local bufnr = create_buffer({
         '@@ -1,2 +1,2 @@',
@@ -1676,7 +1592,6 @@ describe('highlight', function()
         highlights = {
           treesitter = { enabled = false },
           background = true,
-          gutter = true,
           intra = { enabled = true, algorithm = 'default', max_lines = 500 },
         },
       })
@@ -1685,7 +1600,6 @@ describe('highlight', function()
         highlights = {
           treesitter = { enabled = true },
           background = true,
-          gutter = true,
           intra = { enabled = true, algorithm = 'default', max_lines = 500 },
         },
       })
@@ -1697,7 +1611,6 @@ describe('highlight', function()
       local extmarks = get_extmarks(bufnr)
       for row = 1, 2 do
         local line_hl_count = 0
-        local number_hl_count = 0
         local intra_count = 0
         for _, mark in ipairs(extmarks) do
           if mark[2] == row then
@@ -1705,16 +1618,12 @@ describe('highlight', function()
             if d.hl_group and d.hl_eol then
               line_hl_count = line_hl_count + 1
             end
-            if d.number_hl_group then
-              number_hl_count = number_hl_count + 1
-            end
             if d.hl_group == 'DiffsAddText' or d.hl_group == 'DiffsDeleteText' then
               intra_count = intra_count + 1
             end
           end
         end
         assert.are.equal(1, line_hl_count, 'row ' .. row .. ' has duplicate line bg')
-        assert.are.equal(1, number_hl_count, 'row ' .. row .. ' has duplicate number_hl_group')
         assert.is_true(intra_count <= 1, 'row ' .. row .. ' has duplicate intra extmarks')
       end
       delete_buffer(bufnr)
@@ -1799,7 +1708,6 @@ describe('highlight', function()
         hide_prefix = false,
         highlights = {
           background = false,
-          gutter = false,
           context = { enabled = false, lines = 0 },
           treesitter = { enabled = true, max_lines = 500 },
           vim = { enabled = false, max_lines = 200 },
@@ -2384,7 +2292,6 @@ describe('highlight', function()
         hide_prefix = false,
         highlights = {
           background = false,
-          gutter = false,
           context = { enabled = false, lines = 0 },
           treesitter = { enabled = true, max_lines = 500 },
           vim = { enabled = false, max_lines = 200 },

@@ -310,7 +310,6 @@ describe('context', function()
         hide_prefix = false,
         highlights = {
           background = false,
-          gutter = false,
           context = { enabled = true, lines = 25 },
           treesitter = { enabled = true, max_lines = 500 },
           vim = { enabled = false, max_lines = 200 },

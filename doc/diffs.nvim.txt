@@ -1271,14 +1271,6 @@ Fugitive unified diff highlights: ~
     DiffsDelete         Background for `-` lines. Derived by blending
                         `DiffDelete` background with `Normal` at 40% alpha.
 
-                                                                  *DiffsAddNr*
-    DiffsAddNr          Line number for `+` lines. Foreground from
-                        `DiffsAddText`, background from `DiffsAdd`.
-
-                                                               *DiffsDeleteNr*
-    DiffsDeleteNr       Line number for `-` lines. Foreground from
-                        `DiffsDeleteText`, background from `DiffsDelete`.
-
                                                                  *DiffsRail*
     DiffsRail           Generated old/new line-number rail and separator.
                         Foreground follows the plain diff rail text; does not
@@ -1303,13 +1295,13 @@ Fugitive unified diff highlights: ~
 
                                                                  *DiffsAddBar*
     DiffsAddBar         Change bar for `+` lines in diffs.nvim-owned views.
-                        Background uses the same color as `DiffsAddNr`
-                        foreground.
+                        Foreground follows added diff text; background follows
+                        the changed-line background.
 
                                                               *DiffsDeleteBar*
     DiffsDeleteBar      Change bar for `-` lines in diffs.nvim-owned views.
-                        Background uses the same color as `DiffsDeleteNr`
-                        foreground.
+                        Foreground follows deleted diff text; background
+                        follows the changed-line background.
 
                                                                 *DiffsAddText*
     DiffsAddText        Character-level background for changed characters
