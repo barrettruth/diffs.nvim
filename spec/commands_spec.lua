@@ -407,6 +407,9 @@ describe('commands', function()
       assert.is_not_nil(cmds.Gdiff)
       assert.is_not_nil(cmds.Gvdiff)
       assert.is_not_nil(cmds.Ghdiff)
+      assert.is_true(cmds.Gdiff.bar)
+      assert.is_true(cmds.Gvdiff.bar)
+      assert.is_true(cmds.Ghdiff.bar)
     end)
   end)
 
@@ -2089,6 +2092,7 @@ describe('commands', function()
       commands.setup()
       local cmds = vim.api.nvim_get_commands({})
       assert.is_not_nil(cmds.Greview)
+      assert.is_true(cmds.Greview.bar)
     end)
   end)
 
@@ -2135,6 +2139,14 @@ describe('commands', function()
 
       assert.is_nil(parsed)
       assert.are.equal('unsupported layout tiled', err)
+    end)
+
+    it('rejects repeated Greview command layout options', function()
+      local parsed, err =
+        commands._test.parse_greview_command('++layout=split ++layout=unified origin/main')
+
+      assert.is_nil(parsed)
+      assert.are.equal('repeated ++layout option', err)
     end)
 
     it('treats non-layout plus-prefixed Greview args as review specs', function()

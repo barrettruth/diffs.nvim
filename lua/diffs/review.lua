@@ -175,12 +175,17 @@ end
 function M.parse_command_args(args)
   local tokens = split_args(args)
   local layout = 'unified'
+  local has_layout = false
 
   while tokens[1] and tokens[1]:match('^%+%+layout=') do
+    if has_layout then
+      return nil, 'repeated ++layout option'
+    end
     local value = tokens[1]:match('^%+%+layout=(.+)$')
     if value ~= 'unified' and value ~= 'split' then
       return nil, 'unsupported layout ' .. tostring(value)
     end
+    has_layout = true
     layout = value
     table.remove(tokens, 1)
   end

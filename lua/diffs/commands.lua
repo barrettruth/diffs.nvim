@@ -2141,14 +2141,16 @@ function M.setup()
     M.gdiff(opts.args ~= '' and opts.args or nil, false)
   end, {
     nargs = '*',
+    bar = true,
     complete = complete_gdiff_command,
-    desc = 'Show unified diff against a Fugitive object',
+    desc = 'Show current-file diff against a Fugitive object',
   })
 
   vim.api.nvim_create_user_command('Gvdiff', function(opts)
     M.gdiff(opts.args ~= '' and opts.args or nil, true)
   end, {
     nargs = '*',
+    bar = true,
     complete = complete_gdiff_split_command,
     desc = 'Show unified diff against a Fugitive object in vertical split',
   })
@@ -2157,6 +2159,7 @@ function M.setup()
     M.gdiff(opts.args ~= '' and opts.args or nil, false)
   end, {
     nargs = '*',
+    bar = true,
     complete = complete_gdiff_split_command,
     desc = 'Show unified diff against a Fugitive object in horizontal split',
   })
@@ -2165,6 +2168,7 @@ function M.setup()
     M.greview_command(opts.args ~= '' and opts.args or nil)
   end, {
     nargs = '*',
+    bar = true,
     complete = complete_greview_command,
     desc = 'Review the repo against the default branch or a git review spec',
   })
