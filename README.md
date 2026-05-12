@@ -71,6 +71,34 @@ fzf-lua is supported out-of-the-box.
 
 See the documentation for more information.
 
+**Q: How should the generated-view diff bar work with a custom
+`statuscolumn`?**
+
+The `:Gdiff` / `:Greview` bar belongs at the right edge of the gutter,
+immediately before diffs.nvim's generated old/new line-number rails. Neovim's
+`signcolumn` cannot place a marker there without reserving a wider sign lane,
+so the intended built-in bar uses the window-local `statuscolumn`.
+
+That comes with an important boundary: Neovim has one `statuscolumn` string per
+window. diffs.nvim can safely own that string for plugin-created `diffs://`
+views, but it should not try to merge into an arbitrary user format. If you use
+a custom `statuscolumn`, compose the helper yourself instead:
+
+```lua
+vim.o.statuscolumn = table.concat({
+  '%C',
+  '%s',
+  '%=',
+  '%l',
+  '%{%v:lua.require("diffs.view").statuscolumn_bar()%}',
+})
+```
+
+The helper is intended to return a one-cell bar fragment for the current drawn
+line. Added rows should use the same background as `DiffsAddNr`; deleted rows
+should use the same background as `DiffsDeleteNr`; unchanged rows should reserve
+the cell without drawing a colored bar.
+
 ## Known Limitations
 
 - **Incomplete syntax context**: Treesitter parses each diff hunk in isolation.

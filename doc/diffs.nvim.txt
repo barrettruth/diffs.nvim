@@ -48,10 +48,11 @@ CONTENTS                                                 *diffs.nvim-contents*
   9. Merge Diff Resolution ................................ |diffs.nvim-merge|
  10. API .................................................... |diffs.nvim-api|
  11. Implementation .............................. |diffs.nvim-implementation|
- 12. Known Limitations .............................. |diffs.nvim-limitations|
- 13. Highlight Groups ................................ |diffs.nvim-highlights|
- 14. Health Check ........................................ |diffs.nvim-health|
- 15. Acknowledgements .......................... |diffs.nvim-acknowledgements|
+ 12. FAQ .................................................... |diffs.nvim-faq|
+ 13. Known Limitations .............................. |diffs.nvim-limitations|
+ 14. Highlight Groups ................................ |diffs.nvim-highlights|
+ 15. Health Check ........................................ |diffs.nvim-health|
+ 16. Acknowledgements .......................... |diffs.nvim-acknowledgements|
 
 ==============================================================================
 REQUIREMENTS                                         *diffs.nvim-requirements*
@@ -1178,6 +1179,39 @@ Diff mode views: ~
    override that remaps `DiffAdd`/`DiffDelete`/`DiffChange`/`DiffText` to
    background-only variants, allowing existing treesitter highlighting to
    show through the diff colors
+
+==============================================================================
+FAQ                                                           *diffs.nvim-faq*
+
+Generated-view bars and 'statuscolumn' ~        *diffs.nvim-statuscolumn-bar*
+
+The `:Gdiff` / `:Greview` bar belongs at the right edge of the gutter,
+immediately before diffs.nvim's generated old/new line-number rails. Neovim's
+|'signcolumn'| cannot place a marker there without reserving a wider sign lane,
+so the intended built-in bar uses the window-local |'statuscolumn'|.
+
+This has one hard boundary: Neovim has one |'statuscolumn'| string per window.
+diffs.nvim can safely own that string for plugin-created `diffs://` views, but
+it should not try to merge into an arbitrary user format. Custom formats may
+include click handlers, alignment markers, folds, signs, relative numbers, and
+highlight resets that cannot be composed reliably.
+
+Users with a custom |'statuscolumn'| should compose the diffs.nvim helper
+themselves instead: >lua
+    vim.o.statuscolumn = table.concat({
+      '%C',
+      '%s',
+      '%=',
+      '%l',
+      '%{%v:lua.require("diffs.view").statuscolumn_bar()%}',
+    })
+<
+The helper is intended to return a one-cell statusline-format fragment for the
+current drawn line. Added rows should use the same background as |DiffsAddNr|;
+deleted rows should use the same background as |DiffsDeleteNr|; unchanged rows
+should reserve the cell without drawing a colored bar. This keeps custom
+|'statuscolumn'| users in control while allowing the built-in generated view to
+own the simple default case.
 
 ==============================================================================
 KNOWN LIMITATIONS                                     *diffs.nvim-limitations*
