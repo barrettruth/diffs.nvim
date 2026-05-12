@@ -27,7 +27,7 @@ local notify = require('diffs.log').notify
 
 ---@class diffs.Highlights
 ---@field background boolean
----@field gutter boolean
+---@field gutter? boolean deprecated: remove from config; no replacement
 ---@field blend_alpha? number
 ---@field overrides? table<string, table>
 ---@field warn_max_lines boolean
@@ -99,7 +99,6 @@ local DEFAULTS = {
   extra_filetypes = {},
   highlights = {
     background = true,
-    gutter = true,
     warn_max_lines = true,
     context = {
       enabled = true,
@@ -144,6 +143,13 @@ local DEFAULTS = {
 }
 
 local integration_keys = { 'fugitive', 'neogit', 'neojj', 'gitsigns', 'committia', 'telescope' }
+
+---@param opts table
+local function deprecate_highlights(opts)
+  if opts.highlights and opts.highlights.gutter ~= nil then
+    vim.deprecate('vim.g.diffs.highlights.gutter', nil, '0.4.0', 'diffs.nvim')
+  end
+end
 
 ---@param opts table
 ---@return string[]
@@ -444,6 +450,7 @@ end
 function M.new(opts)
   opts = opts or {}
   M.normalize_integrations(opts)
+  deprecate_highlights(opts)
   M.validate(opts)
   return vim.tbl_deep_extend('force', DEFAULTS, opts)
 end

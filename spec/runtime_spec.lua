@@ -28,7 +28,6 @@ describe('diffs.runtime', function()
         hide_prefix = false,
         highlights = {
           background = true,
-          gutter = true,
           treesitter = {
             enabled = true,
             max_lines = 1000,
@@ -51,6 +50,30 @@ describe('diffs.runtime', function()
       assert.has_no.errors(function()
         runtime.attach()
       end)
+    end)
+
+    it('leaves deprecated highlights.gutter unset by default', function()
+      local opts = config.new()
+      assert.is_nil(opts.highlights.gutter)
+    end)
+
+    it('warns when deprecated highlights.gutter is set', function()
+      local saved_notify = vim.notify
+      local notifications = {}
+      vim.notify = function(message, level)
+        notifications[#notifications + 1] = { message = message, level = level }
+      end
+
+      local ok, err = pcall(config.new, { highlights = { gutter = false } })
+      vim.notify = saved_notify
+
+      assert.is_true(ok, err)
+      assert.are.equal(vim.log.levels.WARN, notifications[1].level)
+      assert.are.equal(
+        'vim.g.diffs.highlights.gutter is deprecated.\n'
+          .. 'Feature will be removed in diffs.nvim 0.4.0',
+        notifications[1].message
+      )
     end)
   end)
 
