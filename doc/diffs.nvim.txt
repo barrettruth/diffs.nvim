@@ -175,6 +175,11 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                                    integrations = { fugitive = true },
                                  }
 <
+                             Passing a table is deprecated; use `true`
+                             instead. During the deprecation window, table
+                             presence still enables the integration. Table
+                             fields do not configure the fixed `du`/`dU`
+                             status keymaps.
 
             {neogit}         (boolean|table, default: false)
                              Enable Neogit integration. When active,
@@ -932,11 +937,12 @@ Configuration: ~
       },
     }
 <
-    Use `fugitive = false` to disable. Passing a table also enables the
-    integration. There is no `enabled` field; table presence is sufficient.
-    Status keymaps are fixed at `du` and `dU`.
+    Use `fugitive = false` to disable. Passing a table is deprecated; use
+    `fugitive = true` instead. During the deprecation window, table presence
+    still enables the integration. There is no table `enabled` field. Status
+    keymaps are fixed at `du` and `dU`.
 
-    Fields: ~
+    Deprecated table fields: ~
         {horizontal}         (string|false, deprecated)
                              Remove this key; the horizontal Fugitive status
                              keymap is fixed at `du`.
