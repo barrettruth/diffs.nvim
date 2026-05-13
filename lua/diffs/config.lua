@@ -38,7 +38,7 @@ local M = {}
 ---@field intra diffs.IntraConfig
 ---@field priorities diffs.PrioritiesConfig
 
----@class diffs.FugitiveConfig
+---@class diffs.FugitiveConfig deprecated: use integrations.fugitive = true
 ---@field horizontal? string|false deprecated: remove; status keymaps are fixed
 ---@field vertical? string|false deprecated: remove; status keymaps are fixed
 
@@ -72,7 +72,7 @@ local M = {}
 ---@field keymaps diffs.ConflictKeymaps|false
 
 ---@class diffs.IntegrationsConfig
----@field fugitive diffs.FugitiveConfig|false
+---@field fugitive boolean
 ---@field neogit boolean|diffs.NeogitConfig
 ---@field neojj boolean
 ---@field gitsigns boolean
@@ -176,6 +176,22 @@ local function deprecate_fugitive_keymaps(fugitive)
   )
   fugitive.horizontal = nil
   fugitive.vertical = nil
+end
+
+---@param integrations table
+local function migrate_fugitive(integrations)
+  local fugitive = integrations.fugitive
+  if type(fugitive) ~= 'table' then
+    return
+  end
+  deprecate_fugitive_keymaps(fugitive)
+  vim.deprecate(
+    'vim.g.diffs.integrations.fugitive = { ... }',
+    'vim.g.diffs.integrations.fugitive = true',
+    '0.4.0',
+    'diffs.nvim'
+  )
+  integrations.fugitive = true
 end
 
 ---@param integrations table
@@ -297,11 +313,7 @@ end
 ---@param opts table
 function M.normalize_integrations(opts)
   local intg = opts.integrations or {}
-  if intg.fugitive == true then
-    intg.fugitive = {}
-  elseif type(intg.fugitive) == 'table' then
-    deprecate_fugitive_keymaps(intg.fugitive)
-  end
+  migrate_fugitive(intg)
 
   migrate_neogit(intg)
 

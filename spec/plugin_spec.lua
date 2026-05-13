@@ -53,7 +53,7 @@ describe('plugin bootstrap', function()
       "print('after_attach_deprecations=' .. #deprecations())",
       'local runtime_config = runtime._test.get_config()',
       "print('runtime_view_prefix=' .. tostring(runtime_config.view.prefix))",
-      "print('runtime_fugitive_horizontal=' .. tostring(runtime_config.integrations.fugitive.horizontal))",
+      "print('runtime_fugitive=' .. tostring(runtime_config.integrations.fugitive))",
       "print('runtime_neogit=' .. tostring(runtime_config.integrations.neogit))",
       "print('runtime_neojj=' .. tostring(runtime_config.integrations.neojj))",
       "print('runtime_gitsigns=' .. tostring(runtime_config.integrations.gitsigns))",
@@ -82,7 +82,7 @@ describe('plugin bootstrap', function()
     local output = run_child(init_lines, after_lines)
 
     assert.matches('loaded=1', output, 1, true)
-    assert.matches('startup_deprecations=9', output, 1, true)
+    assert.matches('startup_deprecations=10', output, 1, true)
     assert.matches(
       'vim.g.diffs.hide_prefix is deprecated, use vim.g.diffs.view.prefix instead. | Feature will be removed in diffs.nvim 0.4.0',
       output,
@@ -91,6 +91,12 @@ describe('plugin bootstrap', function()
     )
     assert.matches(
       'vim.g.diffs.integrations.fugitive.{horizontal,vertical} is deprecated. | Feature will be removed in diffs.nvim 0.4.0',
+      output,
+      1,
+      true
+    )
+    assert.matches(
+      'vim.g.diffs.integrations.fugitive = { ... } is deprecated, use vim.g.diffs.integrations.fugitive = true instead. | Feature will be removed in diffs.nvim 0.4.0',
       output,
       1,
       true
@@ -137,9 +143,9 @@ describe('plugin bootstrap', function()
       1,
       true
     )
-    assert.matches('after_attach_deprecations=9', output, 1, true)
+    assert.matches('after_attach_deprecations=10', output, 1, true)
     assert.matches('runtime_view_prefix=false', output, 1, true)
-    assert.matches('runtime_fugitive_horizontal=nil', output, 1, true)
+    assert.matches('runtime_fugitive=true', output, 1, true)
     assert.matches('runtime_neogit=true', output, 1, true)
     assert.matches('runtime_neojj=true', output, 1, true)
     assert.matches('runtime_gitsigns=true', output, 1, true)

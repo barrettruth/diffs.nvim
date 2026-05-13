@@ -203,13 +203,53 @@ describe('diffs.runtime', function()
       assert.are.equal(0, #notifications)
     end)
 
-    it('normalizes integrations.fugitive = true to enabled table without keymap config', function()
-      local opts = config.new({ integrations = { fugitive = true } })
+    it('keeps integrations.fugitive = true as the supported enable path', function()
+      local saved_notify = vim.notify
+      local notifications = {}
+      vim.notify = function(message, level)
+        notifications[#notifications + 1] = { message = message, level = level }
+      end
 
-      assert.are.same({}, opts.integrations.fugitive)
+      local opts = config.new({ integrations = { fugitive = true } })
+      vim.notify = saved_notify
+
+      assert.is_true(opts.integrations.fugitive)
+      assert.are.equal(0, #notifications)
     end)
 
-    it('warns and drops deprecated fugitive keymap config', function()
+    it('warns and maps deprecated integrations.fugitive table form to true', function()
+      local saved_notify = vim.notify
+      local notifications = {}
+      vim.notify = function(message, level)
+        notifications[#notifications + 1] = { message = message, level = level }
+      end
+
+      local ok, opts = pcall(config.new, {
+        integrations = {
+          fugitive = {},
+        },
+      })
+      vim.notify = saved_notify
+
+      assert.is_true(ok)
+      assert.is_true(opts.integrations.fugitive)
+      assert.are.equal(2, #notifications)
+      assert.are.equal(vim.log.levels.WARN, notifications[1].level)
+      assert.are.equal(
+        'vim.g.diffs.integrations.fugitive = { ... } is deprecated, use vim.g.diffs.integrations.fugitive = true instead.\n'
+          .. 'Feature will be removed in diffs.nvim 0.4.0',
+        notifications[1].message
+      )
+      assert.are.equal(vim.log.levels.WARN, notifications[2].level)
+      assert.is_true(notifications[2].message:find('stack traceback:\n\t', 1, true) == 1)
+      assert.is_not_nil(notifications[2].message:find('lua/diffs/config.lua:', 1, true))
+      assert.is_not_nil(notifications[2].message:find("in function 'migrate_fugitive'", 1, true))
+      assert.is_not_nil(
+        notifications[2].message:find("in function 'normalize_integrations'", 1, true)
+      )
+    end)
+
+    it('warns and maps deprecated fugitive keymap config to true', function()
       local saved_notify = vim.notify
       local notifications = {}
       vim.notify = function(message, level)
@@ -227,12 +267,18 @@ describe('diffs.runtime', function()
       vim.notify = saved_notify
 
       assert.is_true(ok)
-      assert.are.same({}, opts.integrations.fugitive)
+      assert.is_true(opts.integrations.fugitive)
       assert.are.equal(vim.log.levels.WARN, notifications[1].level)
       assert.are.equal(
         'vim.g.diffs.integrations.fugitive.{horizontal,vertical} is deprecated.\n'
           .. 'Feature will be removed in diffs.nvim 0.4.0',
         notifications[1].message
+      )
+      assert.are.equal(vim.log.levels.WARN, notifications[2].level)
+      assert.is_true(notifications[2].message:find('stack traceback:\n\t', 1, true) == 1)
+      assert.is_not_nil(notifications[2].message:find('lua/diffs/config.lua:', 1, true))
+      assert.is_not_nil(
+        notifications[2].message:find("in function 'deprecate_fugitive_keymaps'", 1, true)
       )
     end)
 
@@ -755,7 +801,7 @@ describe('diffs.runtime', function()
       assert.is_true(vim.tbl_contains(fts, 'fugitive'))
     end)
 
-    it('includes fugitive when integrations.fugitive is a table', function()
+    it('includes fugitive during deprecated table-form window', function()
       local fts = compute({ integrations = { fugitive = {} } })
       assert.is_true(vim.tbl_contains(fts, 'fugitive'))
     end)
