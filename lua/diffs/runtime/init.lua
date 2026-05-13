@@ -151,7 +151,7 @@ function M.get_neojj_config()
   return config.integrations.neojj
 end
 
----@return diffs.CommittiaConfig|false
+---@return boolean
 function M.get_committia_config()
   init()
   return config.integrations.committia

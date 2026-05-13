@@ -214,6 +214,9 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              syntax and intra-line diffs. >lua
                                  integrations = { committia = true }
 <
+                             Passing a table is deprecated; use `true`
+                             instead. During the deprecation window, table
+                             presence still normalizes to `true`.
 
             {telescope}      (boolean|table, default: false)
                              Enable telescope.nvim preview highlighting.
