@@ -205,6 +205,30 @@ describe('conflict', function()
       helpers.delete_buffer(bufnr)
     end)
 
+    it('uses fixed extmark priority for conflict regions', function()
+      local bufnr = create_file_buffer({
+        '<<<<<<< HEAD',
+        'local x = 1',
+        '=======',
+        'local x = 2',
+        '>>>>>>> feature',
+      })
+
+      conflict.attach(bufnr, default_config({ priority = 999 }))
+
+      local checked = 0
+      for _, mark in ipairs(get_extmarks(bufnr)) do
+        local details = mark[4]
+        if details and (details.hl_group or details.number_hl_group) then
+          assert.are.equal(200, details.priority)
+          checked = checked + 1
+        end
+      end
+      assert.is_true(checked > 0)
+
+      helpers.delete_buffer(bufnr)
+    end)
+
     it('applies virtual text when enabled', function()
       local bufnr = create_file_buffer({
         '<<<<<<< HEAD',
