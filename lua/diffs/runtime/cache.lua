@@ -319,7 +319,7 @@ function Cache:run_deferred_syntax(bufnr, tick, changedtick, job_id, deferred_sy
   local config = self.get_config()
   local t1 = config.debug and vim.uv.hrtime() or nil
   local syntax_opts = {
-    hide_prefix = config.hide_prefix,
+    hide_prefix = not config.view.prefix,
     highlights = config.highlights,
     syntax_only = true,
   }

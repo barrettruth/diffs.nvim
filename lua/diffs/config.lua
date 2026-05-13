@@ -23,6 +23,9 @@ local M = {}
 ---@field line_bg integer
 ---@field char_bg integer
 
+---@class diffs.ViewConfig
+---@field prefix boolean
+
 ---@class diffs.Highlights
 ---@field background boolean
 ---@field gutter? boolean deprecated: remove from config; no replacement
@@ -78,7 +81,8 @@ local M = {}
 
 ---@class diffs.Config
 ---@field debug boolean|string
----@field hide_prefix boolean
+---@field hide_prefix? boolean deprecated: use view.prefix
+---@field view diffs.ViewConfig
 ---@field extra_filetypes string[]
 ---@field highlights diffs.Highlights
 ---@field integrations diffs.IntegrationsConfig
@@ -87,7 +91,9 @@ local M = {}
 ---@type diffs.Config
 local DEFAULTS = {
   debug = false,
-  hide_prefix = false,
+  view = {
+    prefix = true,
+  },
   extra_filetypes = {},
   highlights = {
     background = true,
@@ -135,6 +141,22 @@ local DEFAULTS = {
 }
 
 local integration_keys = { 'fugitive', 'neogit', 'neojj', 'gitsigns', 'committia', 'telescope' }
+
+---@param opts table
+local function migrate_view(opts)
+  if opts.hide_prefix == nil then
+    return
+  end
+  vim.validate('hide_prefix', opts.hide_prefix, 'boolean')
+  vim.deprecate('vim.g.diffs.hide_prefix', 'vim.g.diffs.view.prefix', '0.4.0', 'diffs.nvim')
+  if opts.view == nil then
+    opts.view = {}
+  end
+  if type(opts.view) == 'table' and opts.view.prefix == nil then
+    opts.view.prefix = not opts.hide_prefix
+  end
+  opts.hide_prefix = nil
+end
 
 ---@param opts table
 local function deprecate_highlights(opts)
@@ -207,7 +229,10 @@ function M.validate(opts)
   vim.validate('debug', opts.debug, function(v)
     return v == nil or type(v) == 'boolean' or type(v) == 'string'
   end, 'boolean or string (file path)')
-  vim.validate('hide_prefix', opts.hide_prefix, 'boolean', true)
+  vim.validate('view', opts.view, 'table', true)
+  if opts.view then
+    vim.validate('view.prefix', opts.view.prefix, 'boolean', true)
+  end
   vim.validate('integrations', opts.integrations, 'table', true)
   local integration_validator = function(v)
     return v == nil or v == false or type(v) == 'table'
@@ -389,6 +414,7 @@ end
 ---@return diffs.Config
 function M.new(opts)
   opts = opts or {}
+  migrate_view(opts)
   M.normalize_integrations(opts)
   deprecate_highlights(opts)
   M.validate(opts)

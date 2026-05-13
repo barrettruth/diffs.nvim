@@ -25,7 +25,9 @@ describe('diffs.runtime', function()
     it('accepts full config', function()
       vim.g.diffs = {
         debug = true,
-        hide_prefix = false,
+        view = {
+          prefix = true,
+        },
         highlights = {
           background = true,
           treesitter = {
@@ -45,11 +47,64 @@ describe('diffs.runtime', function()
 
     it('accepts partial config', function()
       vim.g.diffs = {
-        hide_prefix = true,
+        view = {
+          prefix = false,
+        },
       }
       assert.has_no.errors(function()
         runtime.attach()
       end)
+    end)
+
+    it('defaults view.prefix to true', function()
+      local opts = config.new()
+      assert.is_true(opts.view.prefix)
+      assert.is_nil(opts.hide_prefix)
+    end)
+
+    it('warns and maps deprecated hide_prefix = true to view.prefix = false', function()
+      local saved_notify = vim.notify
+      local notifications = {}
+      vim.notify = function(message, level)
+        notifications[#notifications + 1] = { message = message, level = level }
+      end
+
+      local ok, opts = pcall(config.new, { hide_prefix = true })
+      vim.notify = saved_notify
+
+      assert.is_true(ok)
+      assert.is_false(opts.view.prefix)
+      assert.is_nil(opts.hide_prefix)
+      assert.are.equal(vim.log.levels.WARN, notifications[1].level)
+      assert.are.equal(
+        'vim.g.diffs.hide_prefix is deprecated, use vim.g.diffs.view.prefix instead.\n'
+          .. 'Feature will be removed in diffs.nvim 0.4.0',
+        notifications[1].message
+      )
+    end)
+
+    it('warns and maps deprecated hide_prefix = false to view.prefix = true', function()
+      local saved_deprecate = vim.deprecate
+      vim.deprecate = function() end
+
+      local ok, opts = pcall(config.new, { hide_prefix = false })
+      vim.deprecate = saved_deprecate
+
+      assert.is_true(ok)
+      assert.is_true(opts.view.prefix)
+      assert.is_nil(opts.hide_prefix)
+    end)
+
+    it('keeps view.prefix when deprecated hide_prefix is also set', function()
+      local saved_deprecate = vim.deprecate
+      vim.deprecate = function() end
+
+      local ok, opts = pcall(config.new, { hide_prefix = true, view = { prefix = true } })
+      vim.deprecate = saved_deprecate
+
+      assert.is_true(ok)
+      assert.is_true(opts.view.prefix)
+      assert.is_nil(opts.hide_prefix)
     end)
 
     it('leaves deprecated highlights.gutter unset by default', function()

@@ -86,7 +86,9 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
 >lua
     vim.g.diffs = {
       debug = false,
-      hide_prefix = false,
+      view = {
+        prefix = true,
+      },
       integrations = {
         fugitive = false,
         neogit = false,
@@ -140,12 +142,22 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              Enable debug logging to ` :messages` with
                              `[diffs]` prefix.
 
-        {hide_prefix}        (boolean, default: false)
-                             Hide diff prefixes (`+`/`-`/` `) using virtual
-                             text overlay. Makes code appear without the
-                             leading diff character. When `highlights.background`
-                             is also enabled, the overlay inherits the line's
-                             background color.
+        {view}               (table, default: see below)
+                             Diff view display options.
+                             See |diffs.nvim.ViewConfig| for fields.
+
+                                                    *diffs.nvim.ViewConfig*
+    View table fields: ~
+        {prefix}             (boolean, default: true)
+                             Show diff prefixes (`+`/`-`/` `). Set to
+                             `false` to hide them with virtual text overlay.
+                             When `highlights.background` is also enabled,
+                             the overlay inherits the line's background color.
+
+        {hide_prefix}        (boolean, deprecated)
+                             Use `view.prefix` instead. The value is inverted:
+                             `hide_prefix = true` maps to
+                             `view.prefix = false`.
 
         {integrations}       (table, default: all false)
                              Integration toggles. Each key accepts `true`,
@@ -1176,7 +1188,7 @@ Summary / commit detail views: ~
    - Background extmarks (`DiffsAdd`/`DiffsDelete`) at priority 200
    - Character-level diff extmarks (`DiffsAddText`/`DiffsDeleteText`) at
      priority 201 overlay changed characters with an intense background
-   - Conceal extmarks hide diff prefixes when `hide_prefix` is enabled
+   - Conceal extmarks hide diff prefixes when `view.prefix` is disabled
    - All priorities are configurable via |diffs.nvim.PrioritiesConfig|
 4. A decoration provider re-highlights visible hunks on each redraw
 
