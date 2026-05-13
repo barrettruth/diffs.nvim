@@ -1,3 +1,4 @@
+local config_mod = require('diffs.config')
 local highlight = require('diffs.highlight')
 local log = require('diffs.log')
 local parser = require('diffs.parser')
@@ -320,7 +321,7 @@ function Cache:run_deferred_syntax(bufnr, tick, changedtick, job_id, deferred_sy
   local t1 = config.debug and vim.uv.hrtime() or nil
   local syntax_opts = {
     hide_prefix = not config.view.prefix,
-    highlights = config.highlights,
+    highlights = config_mod.with_internal_highlight_priorities(config.highlights),
     syntax_only = true,
   }
   for _, hunk in ipairs(hunks_to_hl) do

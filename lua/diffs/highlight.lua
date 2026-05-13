@@ -76,7 +76,7 @@ end
 ---@param text string
 ---@param lang string
 ---@param context_lines? string[]
----@param priorities diffs.PrioritiesConfig
+---@param priorities diffs.HighlightPriorities
 ---@param context_before? string[]
 ---@return integer
 local function highlight_text(
@@ -148,7 +148,7 @@ end
 
 ---@class diffs.HunkOpts
 ---@field hide_prefix boolean
----@field highlights diffs.Highlights
+---@field highlights diffs.HunkHighlights
 ---@field defer_vim_syntax? boolean
 ---@field syntax_only? boolean
 
@@ -163,7 +163,7 @@ end
 ---@param line_map table<integer, integer>
 ---@param col_offset integer
 ---@param covered_lines? table<integer, true>
----@param priorities diffs.PrioritiesConfig
+---@param priorities diffs.HighlightPriorities
 ---@param force_high_priority? boolean
 ---@param context? diffs.TSContext
 ---@return integer
@@ -376,7 +376,7 @@ end
 ---@param code_lines string[]
 ---@param covered_lines? table<integer, true>
 ---@param leading_offset? integer
----@param priorities diffs.PrioritiesConfig
+---@param priorities diffs.HighlightPriorities
 ---@return integer
 local function highlight_vim_syntax(
   bufnr,

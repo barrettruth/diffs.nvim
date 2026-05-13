@@ -44,13 +44,11 @@ require('lazy').setup({
     init = function()
       vim.g.diffs = {
         integrations = {
-          fugitive = {
-            enabled = true,
-            horizontal = false,
-            vertical = false,
-          },
+          fugitive = true,
         },
-        hide_prefix = false,
+        view = {
+          prefix = true,
+        },
         highlights = {
           intra = { enabled = true },
           overrides = {
