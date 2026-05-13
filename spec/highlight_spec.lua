@@ -28,7 +28,11 @@ describe('highlight', function()
       assert.is_false(opts.highlights.treesitter.enabled)
       assert.is_true(cfg.highlights.treesitter.enabled)
       assert.is_true(opts.defer_vim_syntax)
-      assert.are.same(cfg.highlights.priorities, opts.highlights.priorities)
+      assert.is_nil(cfg.highlights.priorities)
+      assert.are.same(
+        { clear = 198, syntax = 199, line_bg = 200, char_bg = 201 },
+        opts.highlights.priorities
+      )
     end)
   end)
 

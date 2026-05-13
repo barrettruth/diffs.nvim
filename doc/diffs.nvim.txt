@@ -148,20 +148,13 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              When `highlights.background` is also enabled,
                              the overlay inherits the line's background color.
 
-        {hide_prefix}        (boolean, deprecated)
-                             Use `view.prefix` instead. The value is inverted:
-                             `hide_prefix = true` maps to
-                             `view.prefix = false`.
-
         {integrations}       (table, default: all false)
                              Integration toggles. Each key accepts `true` or
-                             `false`; tables are accepted where documented for
-                             current or deprecated sub-options. See
-                             |diffs.nvim-integrations|.
+                             `false`. See |diffs.nvim-integrations|.
                                                *diffs.nvim.IntegrationsConfig*
                              Fields: ~
 
-            {fugitive}       (boolean|table, default: false)
+            {fugitive}       (boolean, default: false)
                              Enable vim-fugitive integration. When active,
                              the `fugitive` filetype is registered and fixed
                              status buffer keymaps are set. >lua
@@ -169,62 +162,42 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                                    integrations = { fugitive = true },
                                  }
 <
-                             Passing a table is deprecated; use `true`
-                             instead. During the deprecation window, table
-                             presence still enables the integration. Table
-                             fields do not configure the fixed `du`/`dU`
-                             status keymaps.
 
-            {neogit}         (boolean|table, default: false)
+            {neogit}         (boolean, default: false)
                              Enable Neogit integration. When active,
                              `NeogitStatus`, `NeogitCommitView`, and
                              `NeogitDiffView` filetypes are registered.
                              See |diffs.nvim-neogit|. >lua
                                  integrations = { neogit = true }
 <
-                             Passing a table is deprecated; use `true`
-                             instead. During the deprecation window, table
-                             presence still enables the integration.
 
-            {neojj}          (boolean|table, default: false)
+            {neojj}          (boolean, default: false)
                              Enable neojj integration. When active,
                              `NeojjStatus`, `NeojjCommitView`, and
                              `NeojjDiffView` filetypes are registered.
                              See |diffs.nvim-neojj|. >lua
                                  integrations = { neojj = true }
 <
-                             Passing a table is deprecated; use `true`
-                             instead. During the deprecation window, table
-                             presence still enables the integration.
 
-            {gitsigns}       (boolean|table, default: false)
+            {gitsigns}       (boolean, default: false)
                              Enable gitsigns.nvim popup integration for
                              blame hunk previews.
                              See |diffs.nvim-gitsigns|. >lua
                                  integrations = { gitsigns = true }
 <
-                             Passing a table is deprecated; use `true`
-                             instead. During the deprecation window, table
-                             presence still enables the integration.
 
-            {committia}      (boolean|table, default: false)
+            {committia}      (boolean, default: false)
                              Enable committia.vim integration. When active,
                              committia's diff pane receives treesitter
                              syntax and intra-line diffs. >lua
                                  integrations = { committia = true }
 <
-                             Passing a table is deprecated; use `true`
-                             instead. During the deprecation window, table
-                             presence still normalizes to `true`.
 
-            {telescope}      (boolean|table, default: false)
+            {telescope}      (boolean, default: false)
                              Enable telescope.nvim preview highlighting.
                              See |diffs.nvim-telescope|. >lua
                                  integrations = { telescope = true }
 <
-                             Passing a table is deprecated; use `true`
-                             instead. During the deprecation window, table
-                             presence still normalizes to `true`.
 
         {extra_filetypes}    (table, default: {})
                              Additional filetypes to attach to, beyond the
@@ -254,11 +227,6 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              Apply background highlighting to `+`/`-` lines
                              using `DiffsAdd`/`DiffsDelete` groups (derived
                              from `DiffAdd`/`DiffDelete` backgrounds).
-
-        {gutter}             (boolean, deprecated)
-                             Remove this key; it colored buffer line numbers
-                             rather than actual diff lines, so it did not
-                             model meaningful diff state.
 
         {blend_alpha}        (number, default: 0.6)
                              Alpha value for diff line background intensity.
@@ -290,11 +258,6 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              Character-level (intra-line) diff highlighting.
                              See |diffs.nvim.IntraConfig| for fields.
 
-        {priorities}         (table, deprecated)
-                             Remove this key. Custom priority values are
-                             ignored and layering is fixed internally.
-                             See |diffs.nvim.PrioritiesConfig| for fields.
-
         {overrides}          (table, default: {})
                              Map of highlight group names to highlight
                              definitions (see `nvim_set_hl()`). Applied
@@ -319,29 +282,6 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              Max context lines to read in each direction.
                              Files are read once per parse and cached across
                              hunks in the same file.
-
-                                                 *diffs.nvim.PrioritiesConfig*
-    Priorities config fields (deprecated): ~
-        This table remains documented for the 0.4.0 migration window only.
-        Custom values are validated for compatibility, then ignored and
-        removed; diffs.nvim uses the fixed internal layering below.
-
-        {clear}              (integer, default: 198, deprecated)
-                             Fixed priority for `DiffsClear` extmarks that
-                             reset underlying diff foreground colors.
-
-        {syntax}             (integer, default: 199, deprecated)
-                             Fixed priority for treesitter and vim syntax
-                             extmarks.
-
-        {line_bg}            (integer, default: 200, deprecated)
-                             Fixed priority for `DiffsAdd`/`DiffsDelete`
-                             line background extmarks.
-
-        {char_bg}            (integer, default: 201, deprecated)
-                             Fixed priority for
-                             `DiffsAddText`/`DiffsDeleteText`
-                             character-level background extmarks.
 
                                                  *diffs.nvim.TreesitterConfig*
     Treesitter config fields: ~
@@ -925,7 +865,6 @@ It preserves the useful edge selection model while keeping `diffs://` buffers
 read-only, explicit, and owned by diffs.nvim.
 
 Configuration: ~
-                                                   *diffs.nvim.FugitiveConfig*
 >lua
     vim.g.diffs = {
       integrations = {
@@ -933,19 +872,8 @@ Configuration: ~
       },
     }
 <
-    Use `fugitive = false` to disable. Passing a table is deprecated; use
-    `fugitive = true` instead. During the deprecation window, table presence
-    still enables the integration. There is no table `enabled` field. Status
-    keymaps are fixed at `du` and `dU`.
-
-    Deprecated table fields: ~
-        {horizontal}         (string|false, deprecated)
-                             Remove this key; the horizontal Fugitive status
-                             keymap is fixed at `du`.
-
-        {vertical}           (string|false, deprecated)
-                             Remove this key; the vertical Fugitive status
-                             keymap is fixed at `dU`.
+    Use `fugitive = false` to disable. Status keymaps are fixed at `du` and
+    `dU`.
 
 ------------------------------------------------------------------------------
 NEOGIT                                                     *diffs.nvim-neogit*
@@ -958,10 +886,7 @@ Expanding a diff in a Neogit buffer (e.g., TAB on a file in the status view)
 applies treesitter syntax highlighting and intra-line diffs to the hunk lines.
 
 Configuration: ~
-                                                     *diffs.nvim.NeogitConfig*
-    Use `neogit = false` to disable. Passing a table is deprecated; use
-    `neogit = true` instead. During the deprecation window, table presence still
-    enables the integration.
+    Use `neogit = false` to disable.
 
 ------------------------------------------------------------------------------
 NEOJJ                                                       *diffs.nvim-neojj*
@@ -974,10 +899,7 @@ Expanding a diff in a neojj buffer (e.g., TAB on a file in the status view)
 applies treesitter syntax highlighting and intra-line diffs to the hunk lines.
 
 Configuration: ~
-                                                       *diffs.nvim.NeojjConfig*
-    Use `neojj = false` to disable. Passing a table is deprecated; use
-    `neojj = true` instead. During the deprecation window, table presence still
-    enables the integration.
+    Use `neojj = false` to disable.
 
 ------------------------------------------------------------------------------
 GITSIGNS                                                 *diffs.nvim-gitsigns*
@@ -988,10 +910,7 @@ integration for blame hunk previews: >lua
 <
 
 Configuration: ~
-                                                   *diffs.nvim.GitsignsConfig*
-    Use `gitsigns = false` to disable. Passing a table is deprecated; use
-    `gitsigns = true` instead. During the deprecation window, table presence
-    still enables the integration.
+    Use `gitsigns = false` to disable.
 
 `:Gitsigns blame_line full=true` popups receive treesitter syntax, line
 backgrounds, and intra-line diffs.
@@ -1006,9 +925,6 @@ Enable telescope.nvim (https://github.com/nvim-telescope/telescope.nvim)
 preview highlighting: >lua
     vim.g.diffs = { integrations = { telescope = true } }
 <
-
-Passing a table is deprecated; use `true` instead. During the deprecation
-window, table presence still normalizes to `true`.
 
 Telescope does not set `filetype=diff` on preview buffers — it calls
 `vim.treesitter.start(bufnr, "diff")` directly, so diffs.nvim's `FileType`
@@ -1103,11 +1019,6 @@ Configuration: ~
                              keymaps. Renders as virtual lines using the
                              `DiffsConflictActions` highlight group. Only
                              configured keymaps appear.
-
-        {priority}           (integer, deprecated)
-                             Remove this key. Conflict extmark ordering is
-                             fixed internally; during the deprecation window,
-                             custom values are ignored.
 
         {keymaps}            (table|false, default: false)
                              Opt-in buffer-local keymaps for conflict
@@ -1217,8 +1128,7 @@ Summary / commit detail views: ~
    - Character-level diff extmarks (`DiffsAddText`/`DiffsDeleteText`) at
      priority 201 overlay changed characters with an intense background
    - Conceal extmarks hide diff prefixes when `view.prefix` is disabled
-   - Priority layering is fixed internally; deprecated custom priorities are
-     ignored
+   - Priority layering is fixed internally
 4. A decoration provider re-highlights visible hunks on each redraw
 
 Diff mode views: ~
