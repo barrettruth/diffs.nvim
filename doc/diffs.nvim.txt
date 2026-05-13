@@ -160,10 +160,10 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              `view.prefix = false`.
 
         {integrations}       (table, default: all false)
-                             Integration toggles. Each key accepts `true`,
-                             `false`, or a table with sub-options. Passing
-                             `true` or a table enables the integration;
-                             `false` disables it. See |diffs.nvim-integrations|.
+                             Integration toggles. Each key accepts `true` or
+                             `false`; tables are accepted where documented for
+                             current or deprecated sub-options. See
+                             |diffs.nvim-integrations|.
                                                *diffs.nvim.IntegrationsConfig*
                              Fields: ~
 
@@ -183,6 +183,9 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              See |diffs.nvim-neogit|. >lua
                                  integrations = { neogit = true }
 <
+                             Passing a table is deprecated; use `true`
+                             instead. During the deprecation window, table
+                             presence still enables the integration.
 
             {neojj}          (boolean|table, default: false)
                              Enable neojj integration. When active,
@@ -939,6 +942,12 @@ Enable Neogit (https://github.com/NeogitOrg/neogit) support: >lua
 
 Expanding a diff in a Neogit buffer (e.g., TAB on a file in the status view)
 applies treesitter syntax highlighting and intra-line diffs to the hunk lines.
+
+Configuration: ~
+                                                     *diffs.nvim.NeogitConfig*
+    Use `neogit = false` to disable. Passing a table is deprecated; use
+    `neogit = true` instead. During the deprecation window, table presence still
+    enables the integration.
 
 ------------------------------------------------------------------------------
 NEOJJ                                                       *diffs.nvim-neojj*
