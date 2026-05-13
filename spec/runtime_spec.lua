@@ -4,6 +4,19 @@ local runtime = require('diffs.runtime')
 
 describe('diffs.runtime', function()
   describe('vim.g.diffs config', function()
+    local default_priorities = { clear = 198, syntax = 199, line_bg = 200, char_bg = 201 }
+
+    local function capture_notifications(fn)
+      local saved_notify = vim.notify
+      local notifications = {}
+      vim.notify = function(message, level)
+        notifications[#notifications + 1] = { message = message, level = level }
+      end
+      local ok, result = pcall(fn)
+      vim.notify = saved_notify
+      return ok, result, notifications
+    end
+
     after_each(function()
       vim.g.diffs = nil
     end)
@@ -129,6 +142,112 @@ describe('diffs.runtime', function()
           .. 'Feature will be removed in diffs.nvim 0.4.0',
         notifications[1].message
       )
+    end)
+
+    it('warns and drops deprecated highlights.priorities values', function()
+      local ok, opts, notifications = capture_notifications(function()
+        return config.new({
+          highlights = {
+            priorities = { clear = 10, syntax = 20, line_bg = 30, char_bg = 40 },
+          },
+        })
+      end)
+
+      assert.is_true(ok)
+      assert.are.same(default_priorities, opts.highlights.priorities)
+      assert.are.equal(2, #notifications)
+      assert.are.equal(vim.log.levels.WARN, notifications[1].level)
+      assert.are.equal(
+        'vim.g.diffs.highlights.priorities.{clear,syntax,line_bg,char_bg} is deprecated.\n'
+          .. 'Feature will be removed in diffs.nvim 0.4.0',
+        notifications[1].message
+      )
+      assert.are.equal(vim.log.levels.WARN, notifications[2].level)
+      assert.is_true(notifications[2].message:find('stack traceback:\n\t', 1, true) == 1)
+      assert.is_not_nil(notifications[2].message:find('lua/diffs/config.lua:', 1, true))
+      assert.is_not_nil(
+        notifications[2].message:find("in function 'deprecate_highlight_priorities'", 1, true)
+      )
+    end)
+
+    it('warns and drops an empty deprecated highlights.priorities table', function()
+      local saved_deprecate = vim.deprecate
+      local calls = {}
+      vim.deprecate = function(name, alternative, version, plugin)
+        calls[#calls + 1] = { name, alternative, version, plugin }
+      end
+
+      local ok, opts = pcall(config.new, {
+        highlights = {
+          priorities = {},
+        },
+      })
+      vim.deprecate = saved_deprecate
+
+      assert.is_true(ok)
+      assert.are.same(default_priorities, opts.highlights.priorities)
+      assert.are.equal(1, #calls)
+      assert.are.equal(
+        'vim.g.diffs.highlights.priorities.{clear,syntax,line_bg,char_bg}',
+        calls[1][1]
+      )
+      assert.is_nil(calls[1][2])
+      assert.are.equal('0.4.0', calls[1][3])
+      assert.are.equal('diffs.nvim', calls[1][4])
+    end)
+
+    it('keeps supported highlights config without priorities quiet', function()
+      local ok, opts, notifications = capture_notifications(function()
+        return config.new({ highlights = { background = false, blend_alpha = 0.4 } })
+      end)
+
+      assert.is_true(ok)
+      assert.is_false(opts.highlights.background)
+      assert.are.equal(0.4, opts.highlights.blend_alpha)
+      assert.are.same(default_priorities, opts.highlights.priorities)
+      assert.are.equal(0, #notifications)
+    end)
+
+    it('validates deprecated highlights.priorities before warning', function()
+      for _, key in ipairs({ 'clear', 'syntax', 'line_bg', 'char_bg' }) do
+        local ok, err, notifications = capture_notifications(function()
+          return config.new({
+            highlights = {
+              priorities = { [key] = -1 },
+            },
+          })
+        end)
+
+        assert.is_false(ok)
+        assert.matches('diffs: highlights.priorities.' .. key .. ' must be >= 0', err, 1, true)
+        assert.are.equal(0, #notifications)
+      end
+    end)
+
+    it('type-checks deprecated highlights.priorities before warning', function()
+      local ok, err, notifications = capture_notifications(function()
+        return config.new({ highlights = { priorities = false } })
+      end)
+
+      assert.is_false(ok)
+      assert.matches('highlights.priorities', err, 1, true)
+      assert.matches('table', err, 1, true)
+      assert.are.equal(0, #notifications)
+
+      for _, key in ipairs({ 'clear', 'syntax', 'line_bg', 'char_bg' }) do
+        ok, err, notifications = capture_notifications(function()
+          return config.new({
+            highlights = {
+              priorities = { [key] = 'bad' },
+            },
+          })
+        end)
+
+        assert.is_false(ok)
+        assert.matches('highlights.priorities.' .. key, err, 1, true)
+        assert.matches('number', err, 1, true)
+        assert.are.equal(0, #notifications)
+      end
     end)
 
     it('warns and drops deprecated conflict.priority', function()
