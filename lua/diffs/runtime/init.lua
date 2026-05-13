@@ -61,7 +61,7 @@ local function init()
   log.set_enabled(config.debug)
 
   fast_hl_opts = {
-    hide_prefix = config.hide_prefix,
+    hide_prefix = not config.view.prefix,
     highlights = vim.tbl_deep_extend('force', config.highlights, {
       treesitter = { enabled = false },
     }),
@@ -160,7 +160,7 @@ end
 ---@return diffs.HunkOpts
 function M.get_highlight_opts()
   init()
-  return { hide_prefix = config.hide_prefix, highlights = config.highlights }
+  return { hide_prefix = not config.view.prefix, highlights = config.highlights }
 end
 
 M._test = {
