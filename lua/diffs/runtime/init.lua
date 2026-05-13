@@ -145,7 +145,7 @@ function M.get_fugitive_config()
   return config.integrations.fugitive
 end
 
----@return diffs.NeojjConfig|false
+---@return boolean
 function M.get_neojj_config()
   init()
   return config.integrations.neojj
