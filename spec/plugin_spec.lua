@@ -30,7 +30,7 @@ describe('plugin bootstrap', function()
       'vim.notify = function(message, level)',
       '_G.diffs_notifications[#_G.diffs_notifications + 1] = { message = message, level = level }',
       'end',
-      "vim.g.diffs = { hide_prefix = true, highlights = { gutter = false }, conflict = { priority = 250 }, integrations = { fugitive = { horizontal = 'dd', vertical = false }, neogit = {}, neojj = {}, gitsigns = {}, committia = {}, telescope = {} } }",
+      "vim.g.diffs = { hide_prefix = true, highlights = { gutter = false, priorities = { clear = 10, syntax = 20, line_bg = 30, char_bg = 40 } }, conflict = { priority = 250 }, integrations = { fugitive = { horizontal = 'dd', vertical = false }, neogit = {}, neojj = {}, gitsigns = {}, committia = {}, telescope = {} } }",
       ('vim.opt.runtimepath:prepend(%s)'):format(vim.inspect(vim.fn.getcwd())),
     }
 
@@ -60,6 +60,10 @@ describe('plugin bootstrap', function()
       "print('runtime_committia=' .. tostring(runtime_config.integrations.committia))",
       "print('runtime_telescope=' .. tostring(runtime_config.integrations.telescope))",
       "print('runtime_gutter=' .. tostring(runtime_config.highlights.gutter))",
+      "print('runtime_priority_clear=' .. tostring(runtime_config.highlights.priorities.clear))",
+      "print('runtime_priority_syntax=' .. tostring(runtime_config.highlights.priorities.syntax))",
+      "print('runtime_priority_line_bg=' .. tostring(runtime_config.highlights.priorities.line_bg))",
+      "print('runtime_priority_char_bg=' .. tostring(runtime_config.highlights.priorities.char_bg))",
       "print('runtime_conflict_priority=' .. tostring(runtime_config.conflict.priority))",
       'local has_fugitive = false',
       'local has_neogit = false',
@@ -82,7 +86,7 @@ describe('plugin bootstrap', function()
     local output = run_child(init_lines, after_lines)
 
     assert.matches('loaded=1', output, 1, true)
-    assert.matches('startup_deprecations=10', output, 1, true)
+    assert.matches('startup_deprecations=11', output, 1, true)
     assert.matches(
       'vim.g.diffs.hide_prefix is deprecated, use vim.g.diffs.view.prefix instead. | Feature will be removed in diffs.nvim 0.4.0',
       output,
@@ -138,12 +142,18 @@ describe('plugin bootstrap', function()
       true
     )
     assert.matches(
+      'vim.g.diffs.highlights.priorities.{clear,syntax,line_bg,char_bg} is deprecated. | Feature will be removed in diffs.nvim 0.4.0',
+      output,
+      1,
+      true
+    )
+    assert.matches(
       'vim.g.diffs.conflict.priority is deprecated. | Feature will be removed in diffs.nvim 0.4.0',
       output,
       1,
       true
     )
-    assert.matches('after_attach_deprecations=10', output, 1, true)
+    assert.matches('after_attach_deprecations=11', output, 1, true)
     assert.matches('runtime_view_prefix=false', output, 1, true)
     assert.matches('runtime_fugitive=true', output, 1, true)
     assert.matches('runtime_neogit=true', output, 1, true)
@@ -152,6 +162,10 @@ describe('plugin bootstrap', function()
     assert.matches('runtime_committia=true', output, 1, true)
     assert.matches('runtime_telescope=true', output, 1, true)
     assert.matches('runtime_gutter=false', output, 1, true)
+    assert.matches('runtime_priority_clear=198', output, 1, true)
+    assert.matches('runtime_priority_syntax=199', output, 1, true)
+    assert.matches('runtime_priority_line_bg=200', output, 1, true)
+    assert.matches('runtime_priority_char_bg=201', output, 1, true)
     assert.matches('runtime_conflict_priority=nil', output, 1, true)
     assert.matches('has_fugitive_autocmd=true', output, 1, true)
     assert.matches('has_neogit_autocmd=true', output, 1, true)

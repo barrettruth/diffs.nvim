@@ -20,7 +20,7 @@ highlighting driven by treesitter.
 - Inline merge conflict detection, highlighting, and resolution
 - Email quoting/patch syntax support (`> diff ...`)
 - Vim syntax fallback
-- Configurable highlighting blend & priorities
+- Configurable highlighting blend
 
 ## Requirements
 

@@ -36,7 +36,7 @@ local M = {}
 ---@field treesitter diffs.TreesitterConfig
 ---@field vim diffs.VimConfig
 ---@field intra diffs.IntraConfig
----@field priorities diffs.PrioritiesConfig
+---@field priorities diffs.PrioritiesConfig deprecated: custom values are ignored; priorities are fixed internally
 
 ---@class diffs.FugitiveConfig deprecated: use integrations.fugitive = true
 ---@field horizontal? string|false deprecated: remove; status keymaps are fixed
@@ -140,6 +140,7 @@ local DEFAULTS = {
 }
 
 local integration_keys = { 'fugitive', 'neogit', 'neojj', 'gitsigns', 'committia', 'telescope' }
+local priority_keys = { 'clear', 'syntax', 'line_bg', 'char_bg' }
 
 ---@param opts table
 local function migrate_view(opts)
@@ -264,11 +265,37 @@ local function migrate_telescope(integrations)
   integrations.telescope = true
 end
 
+---@param highlights diffs.Highlights
+local function deprecate_highlight_priorities(highlights)
+  if highlights.priorities == nil then
+    return
+  end
+  local priorities = highlights.priorities
+  vim.validate('highlights.priorities', priorities, 'table')
+  for _, key in ipairs(priority_keys) do
+    vim.validate('highlights.priorities.' .. key, priorities[key], 'number', true)
+    if priorities[key] and priorities[key] < 0 then
+      error('diffs: highlights.priorities.' .. key .. ' must be >= 0')
+    end
+  end
+  vim.deprecate(
+    'vim.g.diffs.highlights.priorities.{clear,syntax,line_bg,char_bg}',
+    nil,
+    '0.4.0',
+    'diffs.nvim'
+  )
+  highlights.priorities = nil
+end
+
 ---@param opts table
 local function deprecate_highlights(opts)
-  if opts.highlights and opts.highlights.gutter ~= nil then
+  if type(opts.highlights) ~= 'table' then
+    return
+  end
+  if opts.highlights.gutter ~= nil then
     vim.deprecate('vim.g.diffs.highlights.gutter', nil, '0.4.0', 'diffs.nvim')
   end
+  deprecate_highlight_priorities(opts.highlights)
 end
 
 ---@param opts table
@@ -490,7 +517,7 @@ function M.validate(opts)
     error('diffs: highlights.blend_alpha must be >= 0 and <= 1')
   end
   if opts.highlights and opts.highlights.priorities then
-    for _, key in ipairs({ 'clear', 'syntax', 'line_bg', 'char_bg' }) do
+    for _, key in ipairs(priority_keys) do
       local v = opts.highlights.priorities[key]
       if v and v < 0 then
         error('diffs: highlights.priorities.' .. key .. ' must be >= 0')
