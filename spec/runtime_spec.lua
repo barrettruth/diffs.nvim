@@ -131,6 +131,78 @@ describe('diffs.runtime', function()
       )
     end)
 
+    it('warns and drops deprecated conflict.priority', function()
+      local saved_notify = vim.notify
+      local notifications = {}
+      vim.notify = function(message, level)
+        notifications[#notifications + 1] = { message = message, level = level }
+      end
+
+      local ok, opts = pcall(config.new, { conflict = { priority = 250 } })
+      vim.notify = saved_notify
+
+      assert.is_true(ok)
+      assert.is_nil(opts.conflict.priority)
+      assert.are.equal(2, #notifications)
+      assert.are.equal(vim.log.levels.WARN, notifications[1].level)
+      assert.are.equal(
+        'vim.g.diffs.conflict.priority is deprecated.\n'
+          .. 'Feature will be removed in diffs.nvim 0.4.0',
+        notifications[1].message
+      )
+      assert.are.equal(vim.log.levels.WARN, notifications[2].level)
+      assert.is_true(notifications[2].message:find('stack traceback:\n\t', 1, true) == 1)
+      assert.is_not_nil(notifications[2].message:find('lua/diffs/config.lua:', 1, true))
+      assert.is_not_nil(notifications[2].message:find("in function 'deprecate_conflict'", 1, true))
+    end)
+
+    it('keeps supported conflict config without priority quiet', function()
+      local saved_notify = vim.notify
+      local notifications = {}
+      vim.notify = function(message, level)
+        notifications[#notifications + 1] = { message = message, level = level }
+      end
+
+      local ok, opts = pcall(config.new, { conflict = { show_virtual_text = false } })
+      vim.notify = saved_notify
+
+      assert.is_true(ok)
+      assert.is_false(opts.conflict.show_virtual_text)
+      assert.is_nil(opts.conflict.priority)
+      assert.are.equal(0, #notifications)
+    end)
+
+    it('validates deprecated conflict.priority before warning', function()
+      local saved_notify = vim.notify
+      local notifications = {}
+      vim.notify = function(message, level)
+        notifications[#notifications + 1] = { message = message, level = level }
+      end
+
+      local ok, err = pcall(config.new, { conflict = { priority = -1 } })
+      vim.notify = saved_notify
+
+      assert.is_false(ok)
+      assert.matches('diffs: conflict.priority must be >= 0', err, 1, true)
+      assert.are.equal(0, #notifications)
+    end)
+
+    it('type-checks deprecated conflict.priority before warning', function()
+      local saved_notify = vim.notify
+      local notifications = {}
+      vim.notify = function(message, level)
+        notifications[#notifications + 1] = { message = message, level = level }
+      end
+
+      local ok, err = pcall(config.new, { conflict = { priority = 'bad' } })
+      vim.notify = saved_notify
+
+      assert.is_false(ok)
+      assert.matches('conflict.priority', err, 1, true)
+      assert.matches('number', err, 1, true)
+      assert.are.equal(0, #notifications)
+    end)
+
     it('normalizes integrations.fugitive = true to enabled table without keymap config', function()
       local opts = config.new({ integrations = { fugitive = true } })
 

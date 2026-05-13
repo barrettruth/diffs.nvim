@@ -1024,7 +1024,6 @@ Configuration: ~
         disable_diagnostics = true,
         show_virtual_text = true,
         show_actions = false,
-        priority = 200,
         keymaps = false,
       },
     }
@@ -1085,10 +1084,10 @@ Configuration: ~
                              `DiffsConflictActions` highlight group. Only
                              configured keymaps appear.
 
-        {priority}           (integer, default: 200)
-                             Extmark priority for conflict region
-                             backgrounds and markers. Adjust if other
-                             plugins use the same priority range.
+        {priority}           (integer, deprecated)
+                             Remove this key. Conflict extmark ordering is
+                             fixed internally; during the deprecation window,
+                             custom values are ignored.
 
         {keymaps}            (table|false, default: false)
                              Opt-in buffer-local keymaps for conflict
