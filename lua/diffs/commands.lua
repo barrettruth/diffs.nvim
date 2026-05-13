@@ -4,6 +4,7 @@ local actions = require('diffs.actions')
 local content = require('diffs.content')
 local diffspec = require('diffs.spec')
 local gdiff_parser = require('diffs.gdiff')
+local generated = require('diffs.generated')
 local git = require('diffs.git')
 local hunk_model = require('diffs.hunks')
 local lists = require('diffs.lists')
@@ -152,7 +153,7 @@ function M.setup_diff_buf(bufnr)
   if not get_buffer_keymap(bufnr, 'n', 'q') then
     vim.keymap.set('n', 'q', '<cmd>close<CR>', { buffer = bufnr })
   end
-  local has_hunks, parsed_hunks = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_hunks')
+  local has_hunks, parsed_hunks = generated.raw_hunks(bufnr)
   if not has_hunks then
     clear_hunk_keymaps(bufnr)
     return
@@ -264,27 +265,16 @@ local function gdiff_buffer_label(diff_spec)
 end
 
 ---@param bufnr integer
----@param name string
----@return any
-local function get_buf_var(bufnr, name)
-  local ok, value = pcall(vim.api.nvim_buf_get_var, bufnr, name)
-  if ok then
-    return value
-  end
-  return nil
-end
-
----@param bufnr integer
 ---@param diff_spec diffs.DiffSpec
 local function set_diff_spec_var(bufnr, diff_spec)
-  vim.api.nvim_buf_set_var(bufnr, 'diffs_spec', diffspec.new(diff_spec))
+  generated.set_spec(bufnr, diff_spec)
 end
 
 ---@param bufnr integer
 ---@param diff_lines string[]
 ---@param diff_spec diffs.DiffSpec
 local function set_diff_hunks_var(bufnr, diff_lines, diff_spec)
-  vim.api.nvim_buf_set_var(bufnr, 'diffs_hunks', hunk_model.parse(diff_lines, diff_spec))
+  generated.set_hunks_from_lines(bufnr, diff_lines, diff_spec)
 end
 
 ---@param bufnr integer
@@ -299,125 +289,19 @@ end
 
 ---@param bufnr integer
 local function clear_diff_hunks_var(bufnr)
-  pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_hunks')
+  generated.clear_hunks(bufnr)
 end
 
 ---@param bufnr integer
 ---@return diffs.DiffSpec?, string?
 local function get_diff_spec_var(bufnr)
-  local raw = get_buf_var(bufnr, 'diffs_spec')
-  if raw == nil then
-    return nil, nil
-  end
-
-  local ok, parsed = pcall(diffspec.new, raw)
-  if not ok then
-    return nil, tostring(parsed)
-  end
-
-  return parsed, nil
-end
-
----@class diffs.GeneratedBufferSource
----@field version integer
----@field kind "file"|"file_pair"|"section"|"review"|"review_file"|"unmerged"|"split_endpoint"
----@field repo_root string
----@field spec? diffs.DiffSpec
----@field edge? "staged"|"unstaged"
----@field path? string
----@field old_path? string
----@field section? "staged"|"unstaged"
----@field review? diffs.GreviewSpec
----@field review_display? string
----@field selected_key? string
----@field selected_file? string
----@field working_path? string
----@field side? "left"|"right"
----@field filetype? string
-
----@param source table
----@return diffs.GeneratedBufferSource?
-local function normalize_source(source)
-  if type(source) ~= 'table' then
-    error('expected table')
-  end
-  if source.version ~= 1 then
-    error('expected version 1')
-  end
-  if type(source.repo_root) ~= 'string' or source.repo_root == '' then
-    error('expected repo_root')
-  end
-
-  if source.kind == 'file' then
-    if source.spec == nil then
-      error('expected file spec')
-    end
-    source.spec = diffspec.new(source.spec)
-  elseif source.kind == 'split_endpoint' then
-    if source.spec == nil then
-      error('expected split endpoint spec')
-    end
-    source.spec = diffspec.new(source.spec)
-    if source.side ~= 'left' and source.side ~= 'right' then
-      error('expected split endpoint side')
-    end
-    if type(source.path) ~= 'string' or source.path == '' then
-      error('expected split endpoint path')
-    end
-  elseif source.kind == 'file_pair' then
-    if source.edge ~= 'staged' and source.edge ~= 'unstaged' then
-      error('expected file_pair edge')
-    end
-    if type(source.path) ~= 'string' or source.path == '' then
-      error('expected file_pair path')
-    end
-    if type(source.old_path) ~= 'string' or source.old_path == '' then
-      error('expected file_pair old_path')
-    end
-  elseif source.kind == 'section' then
-    if source.section ~= 'staged' and source.section ~= 'unstaged' then
-      error('expected section')
-    end
-  elseif source.kind == 'review' then
-    if type(source.review) ~= 'table' then
-      error('expected review spec')
-    end
-  elseif source.kind == 'review_file' then
-    if type(source.review) ~= 'table' then
-      error('expected review file spec')
-    end
-    if source.spec == nil then
-      error('expected review file diff spec')
-    end
-    source.spec = diffspec.new(source.spec)
-    if type(source.path) ~= 'string' or source.path == '' then
-      error('expected review file path')
-    end
-  elseif source.kind == 'unmerged' then
-    if type(source.path) ~= 'string' or source.path == '' then
-      error('expected unmerged path')
-    end
-  else
-    error('unknown source kind')
-  end
-
-  return source
+  return generated.spec(bufnr)
 end
 
 ---@param bufnr integer
 ---@return diffs.GeneratedBufferSource?, string?
 local function get_source_var(bufnr)
-  local raw = get_buf_var(bufnr, 'diffs_source')
-  if raw == nil then
-    return nil, nil
-  end
-
-  local ok, source = pcall(normalize_source, raw)
-  if not ok then
-    return nil, tostring(source)
-  end
-
-  return source, nil
+  return generated.source(bufnr)
 end
 
 ---@param bufnr integer
@@ -465,10 +349,10 @@ local function create_generated_diff_buffer(opts)
     set_diff_hunks_var(bufnr, opts.lines, opts.diff_spec)
   end
   if opts.repo_root then
-    vim.api.nvim_buf_set_var(bufnr, 'diffs_repo_root', opts.repo_root)
+    generated.set_repo_root(bufnr, opts.repo_root)
   end
   if opts.source then
-    vim.api.nvim_buf_set_var(bufnr, 'diffs_source', opts.source)
+    generated.set_source(bufnr, opts.source)
   end
   for name, value in pairs(opts.vars or {}) do
     if value ~= nil then
@@ -1067,8 +951,7 @@ end
 ---@param state diffs.GreviewWorkspaceState
 ---@return diffs.GdiffHunk[]
 local function greview_workspace_hunks(state)
-  local hunks = get_buf_var(state.diff_buf, 'diffs_hunks')
-  return type(hunks) == 'table' and hunks or {}
+  return generated.hunks(state.diff_buf)
 end
 
 ---@param state diffs.GreviewWorkspaceState
@@ -1151,9 +1034,7 @@ end
 ---@param diff_spec diffs.DiffSpec
 ---@return diffs.GeneratedBufferSource
 local function review_file_source(state, selected, diff_spec)
-  return {
-    version = 1,
-    kind = 'review_file',
+  return generated.review_file_source({
     repo_root = state.repo_root,
     review = state.review,
     review_display = state.display,
@@ -1161,7 +1042,7 @@ local function review_file_source(state, selected, diff_spec)
     selected_file = selected.file,
     path = selected.file,
     spec = diff_spec,
-  }
+  })
 end
 
 ---@param bufnr integer
@@ -1171,8 +1052,8 @@ end
 ---@param diff_lines string[]
 local function replace_review_file_buffer(bufnr, state, selected, diff_spec, diff_lines)
   set_diff_spec_var(bufnr, diff_spec)
-  vim.api.nvim_buf_set_var(bufnr, 'diffs_repo_root', state.repo_root)
-  vim.api.nvim_buf_set_var(bufnr, 'diffs_source', review_file_source(state, selected, diff_spec))
+  generated.set_repo_root(bufnr, state.repo_root)
+  generated.set_source(bufnr, review_file_source(state, selected, diff_spec))
   replace_generated_diff_buffer_lines(bufnr, diff_lines, diff_spec)
   lists.set_for_unified_buffer(bufnr, diff_lines, {
     title = 'review: ' .. (selected.key or selected.file),
@@ -1575,9 +1456,7 @@ open_greview_workspace = function(spec, opts)
     lines = diff_lines,
     repo_root = normalized.repo_root,
     diff_spec = diff_spec,
-    source = {
-      version = 1,
-      kind = 'review_file',
+    source = generated.review_file_source({
       repo_root = normalized.repo_root,
       review = review_spec,
       review_display = normalized.display,
@@ -1585,7 +1464,7 @@ open_greview_workspace = function(spec, opts)
       selected_file = first.file,
       path = first.file,
       spec = diff_spec,
-    },
+    }),
   })
 
   local diff_win = vim.api.nvim_get_current_win()
@@ -1759,12 +1638,7 @@ function M.gdiff(args, vertical)
     lines = diff_lines,
     repo_root = repo_root,
     diff_spec = diff_spec,
-    source = {
-      version = 1,
-      kind = 'file',
-      repo_root = repo_root,
-      spec = diff_spec,
-    },
+    source = generated.file_source(repo_root, diff_spec),
   })
   show_generated_diff_buffer(diff_buf, vertical)
   lists.set_for_unified_buffer(diff_buf, diff_lines, {
@@ -1868,29 +1742,12 @@ function M.gdiff_file(filepath, opts)
 
   local source
   if diff_spec then
-    source = {
-      version = 1,
-      kind = 'file',
-      repo_root = repo_root,
-      spec = diff_spec,
-    }
+    source = generated.file_source(repo_root, diff_spec)
   elseif opts.unmerged then
-    source = {
-      version = 1,
-      kind = 'unmerged',
-      repo_root = repo_root,
-      path = rel_path,
-      working_path = filepath,
-    }
+    source = generated.unmerged_source(repo_root, rel_path, filepath)
   else
-    source = {
-      version = 1,
-      kind = 'file_pair',
-      repo_root = repo_root,
-      edge = diff_label,
-      path = rel_path,
-      old_path = old_rel_path,
-    }
+    local edge = opts.staged and 'staged' or 'unstaged'
+    source = generated.file_pair_source(repo_root, edge, rel_path, old_rel_path)
   end
 
   local diff_buf = create_generated_diff_buffer({
@@ -1962,12 +1819,7 @@ function M.gdiff_section(repo_root, opts)
     name = 'diffs://' .. diff_label .. ':all',
     lines = result,
     repo_root = repo_root,
-    source = {
-      version = 1,
-      kind = 'section',
-      repo_root = repo_root,
-      section = diff_label,
-    },
+    source = generated.section_source(repo_root, diff_label),
   })
   show_generated_diff_buffer(diff_buf, opts.vertical)
   lists.set_for_unified_buffer(diff_buf, result, {
@@ -1991,7 +1843,7 @@ function M.read_buffer(bufnr)
     return
   end
 
-  local repo_root = source and source.repo_root or get_buf_var(bufnr, 'diffs_repo_root')
+  local repo_root = source and source.repo_root or generated.repo_root(bufnr)
   if not repo_root then
     notify('cannot reload diffs:// buffer without diffs_repo_root', vim.log.levels.WARN)
     return
