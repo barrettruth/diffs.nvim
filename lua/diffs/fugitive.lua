@@ -254,18 +254,17 @@ function M.diff_file_under_cursor(vertical)
 end
 
 ---@param bufnr integer
----@param config { horizontal: string|false, vertical: string|false }
-function M.setup_keymaps(bufnr, config)
+function M.setup_keymaps(bufnr)
   keymaps.set_buffer_keymaps(buffer_keymaps, bufnr, {
     {
-      config.horizontal,
+      'du',
       function()
         M.diff_file_under_cursor(false)
       end,
       { desc = 'Unified diff (horizontal)' },
     },
     {
-      config.vertical,
+      'dU',
       function()
         M.diff_file_under_cursor(true)
       end,

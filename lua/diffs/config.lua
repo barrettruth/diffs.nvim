@@ -39,8 +39,8 @@ local M = {}
 ---@field priorities diffs.PrioritiesConfig
 
 ---@class diffs.FugitiveConfig
----@field horizontal string|false
----@field vertical string|false
+---@field horizontal? string|false deprecated: remove; status keymaps are fixed
+---@field vertical? string|false deprecated: remove; status keymaps are fixed
 
 ---@class diffs.NeogitConfig
 
@@ -158,6 +158,27 @@ local function migrate_view(opts)
   opts.hide_prefix = nil
 end
 
+---@param fugitive diffs.FugitiveConfig
+local function deprecate_fugitive_keymaps(fugitive)
+  if fugitive.horizontal == nil and fugitive.vertical == nil then
+    return
+  end
+  vim.validate('integrations.fugitive.horizontal', fugitive.horizontal, function(v)
+    return v == nil or v == false or type(v) == 'string'
+  end, 'string or false')
+  vim.validate('integrations.fugitive.vertical', fugitive.vertical, function(v)
+    return v == nil or v == false or type(v) == 'string'
+  end, 'string or false')
+  vim.deprecate(
+    'vim.g.diffs.integrations.fugitive.{horizontal,vertical}',
+    nil,
+    '0.4.0',
+    'diffs.nvim'
+  )
+  fugitive.horizontal = nil
+  fugitive.vertical = nil
+end
+
 ---@param opts table
 local function deprecate_highlights(opts)
   if opts.highlights and opts.highlights.gutter ~= nil then
@@ -194,11 +215,10 @@ end
 ---@param opts table
 function M.normalize_integrations(opts)
   local intg = opts.integrations or {}
-  local fugitive_defaults = { horizontal = 'du', vertical = 'dU' }
   if intg.fugitive == true then
-    intg.fugitive = vim.deepcopy(fugitive_defaults)
+    intg.fugitive = {}
   elseif type(intg.fugitive) == 'table' then
-    intg.fugitive = vim.tbl_extend('keep', intg.fugitive, fugitive_defaults)
+    deprecate_fugitive_keymaps(intg.fugitive)
   end
 
   if intg.neogit == true then
@@ -314,17 +334,6 @@ function M.validate(opts)
         true
       )
     end
-  end
-
-  if type(opts.integrations.fugitive) == 'table' then
-    ---@type diffs.FugitiveConfig
-    local fug = opts.integrations.fugitive
-    vim.validate('integrations.fugitive.horizontal', fug.horizontal, function(v)
-      return v == nil or v == false or type(v) == 'string'
-    end, 'string or false')
-    vim.validate('integrations.fugitive.vertical', fug.vertical, function(v)
-      return v == nil or v == false or type(v) == 'string'
-    end, 'string or false')
   end
 
   if opts.conflict then
