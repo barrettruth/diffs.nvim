@@ -14,7 +14,7 @@ require('diffs.commands').setup()
 local integrations = user_config.integrations or {}
 
 local gs_cfg = integrations.gitsigns
-if gs_cfg == true or type(gs_cfg) == 'table' then
+if gs_cfg == true then
   if not require('diffs.gitsigns').setup() then
     vim.api.nvim_create_autocmd('User', {
       pattern = 'GitAttach',

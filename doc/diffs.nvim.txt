@@ -204,6 +204,9 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              See |diffs.nvim-gitsigns|. >lua
                                  integrations = { gitsigns = true }
 <
+                             Passing a table is deprecated; use `true`
+                             instead. During the deprecation window, table
+                             presence still enables the integration.
 
             {committia}      (boolean|table, default: false)
                              Enable committia.vim integration. When active,
@@ -975,6 +978,12 @@ Enable gitsigns.nvim (https://github.com/lewis6991/gitsigns.nvim) popup
 integration for blame hunk previews: >lua
     vim.g.diffs = { integrations = { gitsigns = true } }
 <
+
+Configuration: ~
+                                                   *diffs.nvim.GitsignsConfig*
+    Use `gitsigns = false` to disable. Passing a table is deprecated; use
+    `gitsigns = true` instead. During the deprecation window, table presence
+    still enables the integration.
 
 `:Gitsigns blame_line full=true` popups receive treesitter syntax, line
 backgrounds, and intra-line diffs.
