@@ -3,6 +3,7 @@ if vim.g.loaded_diffs then
 end
 
 local config = require('diffs.config')
+local integrations = require('diffs.integrations')
 local user_config = config.new(vim.deepcopy(vim.g.diffs or {}))
 local runtime = require('diffs.runtime')
 
@@ -11,10 +12,9 @@ vim.g.loaded_diffs = 1
 
 require('diffs.commands').setup()
 
-local integrations = user_config.integrations or {}
+local integration_config = user_config.integrations or {}
 
-local gs_cfg = integrations.gitsigns
-if gs_cfg == true then
+if integrations.is_enabled(integration_config.gitsigns) then
   if not require('diffs.gitsigns').setup() then
     vim.api.nvim_create_autocmd('User', {
       pattern = 'GitAttach',
@@ -26,8 +26,7 @@ if gs_cfg == true then
   end
 end
 
-local tel_cfg = integrations.telescope
-if tel_cfg == true then
+if integrations.is_enabled(integration_config.telescope) then
   require('diffs.telescope').setup()
 end
 
