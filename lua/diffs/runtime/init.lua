@@ -24,6 +24,7 @@ local cache = cache_mod.new({
 })
 
 local initialized = false
+local configured = false
 local hl_retry_pending = false
 
 ---@diagnostic disable-next-line: missing-fields
@@ -57,7 +58,9 @@ local function init()
   end
   initialized = true
 
-  config = config_mod.new(vim.g.diffs or {})
+  if not configured then
+    config = config_mod.new(vim.g.diffs or {})
+  end
   log.set_enabled(config.debug)
 
   fast_hl_opts = {
@@ -97,6 +100,15 @@ local function init()
       diff_windows_mod.forget(diff_windows, tonumber(args.match))
     end,
   })
+end
+
+---@param user_config diffs.Config
+function M.configure(user_config)
+  if initialized then
+    return
+  end
+  config = user_config
+  configured = true
 end
 
 ---@param bufnr? integer

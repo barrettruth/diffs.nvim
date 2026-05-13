@@ -1,12 +1,15 @@
 if vim.g.loaded_diffs then
   return
 end
+
+local config = require('diffs.config')
+local user_config = config.new(vim.deepcopy(vim.g.diffs or {}))
+local runtime = require('diffs.runtime')
+
+runtime.configure(user_config)
 vim.g.loaded_diffs = 1
 
 require('diffs.commands').setup()
-local config = require('diffs.config')
-local runtime = require('diffs.runtime')
-local user_config = vim.g.diffs or {}
 
 local integrations = user_config.integrations or {}
 
