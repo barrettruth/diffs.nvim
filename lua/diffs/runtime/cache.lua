@@ -318,11 +318,9 @@ function Cache:run_deferred_syntax(bufnr, tick, changedtick, job_id, deferred_sy
   end
   local config = self.get_config()
   local t1 = config.debug and vim.uv.hrtime() or nil
-  local syntax_opts = {
-    hide_prefix = not config.view.prefix,
-    highlights = config.highlights,
+  local syntax_opts = highlight.hunk_opts(config, {
     syntax_only = true,
-  }
+  })
   for _, hunk in ipairs(hunks_to_hl) do
     highlight.highlight_hunk(bufnr, self.ns, hunk, syntax_opts)
   end

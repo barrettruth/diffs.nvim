@@ -113,16 +113,7 @@ local function on_preview(preview_winid, preview_bufnr)
     local highlight = require('diffs.highlight')
     for _, hunk in ipairs(hunks) do
       highlight.highlight_hunk(preview_bufnr, ns, hunk, opts)
-      for j, line in ipairs(hunk.lines) do
-        local ch = line:sub(1, 1)
-        if ch == '+' or ch == '-' then
-          pcall(api.nvim_buf_set_extmark, preview_bufnr, ns, hunk.start_line + j - 1, 0, {
-            end_col = 1,
-            hl_group = ch == '+' and '@diff.plus' or '@diff.minus',
-            priority = opts.highlights.priorities.syntax,
-          })
-        end
-      end
+      highlight.highlight_hunk_prefixes(preview_bufnr, ns, hunk, opts)
     end
 
     dbg('gitsigns blame: highlighted %d hunks in popup buf %d', #hunks, preview_bufnr)

@@ -152,6 +152,63 @@ end
 ---@field defer_vim_syntax? boolean
 ---@field syntax_only? boolean
 
+---@class diffs.HunkOptsOverride
+---@field highlights? table
+---@field defer_vim_syntax? boolean
+---@field syntax_only? boolean
+
+---@param config diffs.Config
+---@param overrides? diffs.HunkOptsOverride
+---@return diffs.HunkOpts
+function M.hunk_opts(config, overrides)
+  local opts = {
+    hide_prefix = not config.view.prefix,
+    highlights = config.highlights,
+  }
+  if not overrides then
+    return opts
+  end
+
+  for key, value in pairs(overrides) do
+    if key == 'highlights' then
+      opts.highlights = vim.tbl_deep_extend('force', config.highlights, value)
+    else
+      opts[key] = value
+    end
+  end
+
+  return opts
+end
+
+---@param bufnr integer
+---@param ns integer
+---@param hunk diffs.Hunk
+---@param opts diffs.HunkOpts
+---@return integer
+function M.highlight_hunk_prefixes(bufnr, ns, hunk, opts)
+  local p = opts.highlights.priorities
+  local pw = hunk.prefix_width or 1
+  local qw = hunk.quote_width or 0
+  local extmark_count = 0
+
+  for i, line in ipairs(hunk.lines) do
+    local buf_line = hunk.start_line + i - 1
+    for ci = 0, pw - 1 do
+      local ch = line:sub(ci + 1, ci + 1)
+      if ch == '+' or ch == '-' then
+        pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, ci + qw, {
+          end_col = ci + qw + 1,
+          hl_group = ch == '+' and '@diff.plus' or '@diff.minus',
+          priority = p.syntax,
+        })
+        extmark_count = extmark_count + 1
+      end
+    end
+  end
+
+  return extmark_count
+end
+
 ---@class diffs.TSContext
 ---@field before string[]?
 ---@field after string[]?

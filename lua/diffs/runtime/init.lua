@@ -8,6 +8,7 @@ local cache_mod = require('diffs.runtime.cache')
 local config_mod = require('diffs.config')
 local decorator = require('diffs.runtime.decorator')
 local diff_windows_mod = require('diffs.runtime.diff_windows')
+local highlight = require('diffs.highlight')
 local highlight_groups = require('diffs.runtime.highlight_groups')
 local log = require('diffs.log')
 
@@ -63,13 +64,12 @@ local function init()
   end
   log.set_enabled(config.debug)
 
-  fast_hl_opts = {
-    hide_prefix = not config.view.prefix,
-    highlights = vim.tbl_deep_extend('force', config.highlights, {
+  fast_hl_opts = highlight.hunk_opts(config, {
+    highlights = {
       treesitter = { enabled = false },
-    }),
+    },
     defer_vim_syntax = true,
-  }
+  })
 
   compute_highlight_groups(true)
 
@@ -172,7 +172,7 @@ end
 ---@return diffs.HunkOpts
 function M.get_highlight_opts()
   init()
-  return { hide_prefix = not config.view.prefix, highlights = config.highlights }
+  return highlight.hunk_opts(config)
 end
 
 M._test = {
