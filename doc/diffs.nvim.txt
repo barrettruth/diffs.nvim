@@ -194,6 +194,9 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              See |diffs.nvim-neojj|. >lua
                                  integrations = { neojj = true }
 <
+                             Passing a table is deprecated; use `true`
+                             instead. During the deprecation window, table
+                             presence still enables the integration.
 
             {gitsigns}       (boolean|table, default: false)
                              Enable gitsigns.nvim popup integration for
@@ -958,6 +961,12 @@ Enable neojj (https://github.com/NicholasZolton/neojj) support: >lua
 
 Expanding a diff in a neojj buffer (e.g., TAB on a file in the status view)
 applies treesitter syntax highlighting and intra-line diffs to the hunk lines.
+
+Configuration: ~
+                                                       *diffs.nvim.NeojjConfig*
+    Use `neojj = false` to disable. Passing a table is deprecated; use
+    `neojj = true` instead. During the deprecation window, table presence still
+    enables the integration.
 
 ------------------------------------------------------------------------------
 GITSIGNS                                                 *diffs.nvim-gitsigns*

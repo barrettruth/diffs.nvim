@@ -44,7 +44,7 @@ local M = {}
 
 ---@class diffs.NeogitConfig deprecated: use integrations.neogit = true
 
----@class diffs.NeojjConfig
+---@class diffs.NeojjConfig deprecated: use integrations.neojj = true
 
 ---@class diffs.GitsignsConfig
 
@@ -74,7 +74,7 @@ local M = {}
 ---@class diffs.IntegrationsConfig
 ---@field fugitive diffs.FugitiveConfig|false
 ---@field neogit boolean|diffs.NeogitConfig
----@field neojj diffs.NeojjConfig|false
+---@field neojj boolean
 ---@field gitsigns diffs.GitsignsConfig|false
 ---@field committia diffs.CommittiaConfig|false
 ---@field telescope diffs.TelescopeConfig|false
@@ -193,6 +193,20 @@ local function migrate_neogit(integrations)
   integrations.neogit = true
 end
 
+---@param integrations table
+local function migrate_neojj(integrations)
+  if type(integrations.neojj) ~= 'table' then
+    return
+  end
+  vim.deprecate(
+    'vim.g.diffs.integrations.neojj = { ... }',
+    'vim.g.diffs.integrations.neojj = true',
+    '0.4.0',
+    'diffs.nvim'
+  )
+  integrations.neojj = true
+end
+
 ---@param opts table
 local function deprecate_highlights(opts)
   if opts.highlights and opts.highlights.gutter ~= nil then
@@ -237,9 +251,7 @@ function M.normalize_integrations(opts)
 
   migrate_neogit(intg)
 
-  if intg.neojj == true then
-    intg.neojj = {}
-  end
+  migrate_neojj(intg)
 
   if intg.gitsigns == true then
     intg.gitsigns = {}
