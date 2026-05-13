@@ -130,6 +130,39 @@ describe('diffs.runtime', function()
         notifications[1].message
       )
     end)
+
+    it('normalizes integrations.fugitive = true to enabled table without keymap config', function()
+      local opts = config.new({ integrations = { fugitive = true } })
+
+      assert.are.same({}, opts.integrations.fugitive)
+    end)
+
+    it('warns and drops deprecated fugitive keymap config', function()
+      local saved_notify = vim.notify
+      local notifications = {}
+      vim.notify = function(message, level)
+        notifications[#notifications + 1] = { message = message, level = level }
+      end
+
+      local ok, opts = pcall(config.new, {
+        integrations = {
+          fugitive = {
+            horizontal = 'dd',
+            vertical = false,
+          },
+        },
+      })
+      vim.notify = saved_notify
+
+      assert.is_true(ok)
+      assert.are.same({}, opts.integrations.fugitive)
+      assert.are.equal(vim.log.levels.WARN, notifications[1].level)
+      assert.are.equal(
+        'vim.g.diffs.integrations.fugitive.{horizontal,vertical} is deprecated.\n'
+          .. 'Feature will be removed in diffs.nvim 0.4.0',
+        notifications[1].message
+      )
+    end)
   end)
 
   describe('attach', function()
@@ -421,7 +454,7 @@ describe('diffs.runtime', function()
     end)
 
     it('includes fugitive when integrations.fugitive is a table', function()
-      local fts = compute({ integrations = { fugitive = { horizontal = 'dd' } } })
+      local fts = compute({ integrations = { fugitive = {} } })
       assert.is_true(vim.tbl_contains(fts, 'fugitive'))
     end)
 
