@@ -207,12 +207,6 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                                  integrations = { telescope = true }
 <
 
-                             Legacy top-level keys (`vim.g.diffs.fugitive`,
-                             etc.) still work but emit a deprecation
-                             warning. If both `integrations` and top-level
-                             keys are present, `integrations` wins and
-                             the stale keys are ignored with a warning.
-
         {extra_filetypes}    (table, default: {})
                              Additional filetypes to attach to, beyond the
                              built-in `git`, `gitcommit`, and any enabled

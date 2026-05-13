@@ -417,21 +417,6 @@ describe('diffs.runtime', function()
       assert.is_true(vim.tbl_contains(fts, 'NeogitStatus'))
       assert.is_true(vim.tbl_contains(fts, 'diff'))
     end)
-
-    it('falls back to legacy top-level fugitive key', function()
-      local fts = compute({ fugitive = true })
-      assert.is_true(vim.tbl_contains(fts, 'fugitive'))
-    end)
-
-    it('falls back to legacy top-level neogit key', function()
-      local fts = compute({ neogit = true })
-      assert.is_true(vim.tbl_contains(fts, 'NeogitStatus'))
-    end)
-
-    it('prefers integrations key over legacy top-level key', function()
-      local fts = compute({ integrations = { fugitive = false }, fugitive = true })
-      assert.is_false(vim.tbl_contains(fts, 'fugitive'))
-    end)
   end)
 
   describe('diff mode', function()
