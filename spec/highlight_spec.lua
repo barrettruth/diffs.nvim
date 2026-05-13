@@ -1,7 +1,37 @@
 require('spec.helpers')
+local config = require('diffs.config')
 local highlight = require('diffs.highlight')
 
 describe('highlight', function()
+  describe('hunk_opts', function()
+    it('builds full hunk options from normalized config', function()
+      local opts = highlight.hunk_opts(config.new({ view = { prefix = false } }))
+
+      assert.is_true(opts.hide_prefix)
+      assert.are.same(
+        { clear = 198, syntax = 199, line_bg = 200, char_bg = 201 },
+        opts.highlights.priorities
+      )
+      assert.is_true(opts.highlights.treesitter.enabled)
+      assert.is_true(opts.highlights.vim.enabled)
+    end)
+
+    it('applies highlight overrides without mutating config', function()
+      local cfg = config.new()
+      local opts = highlight.hunk_opts(cfg, {
+        highlights = {
+          treesitter = { enabled = false },
+        },
+        defer_vim_syntax = true,
+      })
+
+      assert.is_false(opts.highlights.treesitter.enabled)
+      assert.is_true(cfg.highlights.treesitter.enabled)
+      assert.is_true(opts.defer_vim_syntax)
+      assert.are.same(cfg.highlights.priorities, opts.highlights.priorities)
+    end)
+  end)
+
   describe('highlight_hunk', function()
     local ns
 
@@ -74,6 +104,42 @@ describe('highlight', function()
       end
       return opts
     end
+
+    it('applies prefix extmarks with syntax priority', function()
+      local bufnr = create_buffer({
+        '-local x = 1',
+        '+local x = 2',
+        ' return x',
+      })
+      local hunk = {
+        filename = 'test.lua',
+        start_line = 0,
+        prefix_width = 1,
+        quote_width = 0,
+        lines = {
+          '-local x = 1',
+          '+local x = 2',
+          ' return x',
+        },
+      }
+
+      local count = highlight.highlight_hunk_prefixes(bufnr, ns, hunk, default_opts())
+
+      assert.are.equal(2, count)
+      local prefixes = {}
+      for _, mark in ipairs(get_extmarks(bufnr)) do
+        if mark[4] and mark[4].hl_group and mark[3] == 0 then
+          prefixes[mark[2]] = {
+            hl_group = mark[4].hl_group,
+            priority = mark[4].priority,
+          }
+        end
+      end
+      assert.are.same({ hl_group = '@diff.minus', priority = 199 }, prefixes[0])
+      assert.are.same({ hl_group = '@diff.plus', priority = 199 }, prefixes[1])
+      assert.is_nil(prefixes[2])
+      delete_buffer(bufnr)
+    end)
 
     it('applies DiffsClear extmarks to clear diff colors', function()
       local bufnr = create_buffer({
