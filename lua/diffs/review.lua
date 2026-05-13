@@ -1,6 +1,7 @@
 local M = {}
 
 local diffspec = require('diffs.spec')
+local generated = require('diffs.generated')
 local git = require('diffs.git')
 local lists = require('diffs.lists')
 local log = require('diffs.log')
@@ -763,16 +764,11 @@ function M.greview(spec, deps)
     name = target_name,
     lines = result,
     repo_root = review.repo_root,
-    source = {
-      version = 1,
-      kind = 'review',
-      repo_root = review.repo_root,
-      review = {
-        base = review.base,
-        target = review.target,
-        mode = review.mode,
-      },
-    },
+    source = generated.review_source(review.repo_root, {
+      base = review.base,
+      target = review.target,
+      mode = review.mode,
+    }),
     vars = {
       diffs_review_base = review.base,
       diffs_review_target = review.target,

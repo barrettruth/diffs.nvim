@@ -1,6 +1,6 @@
 local M = {}
 
-local diffspec = require('diffs.spec')
+local generated = require('diffs.generated')
 local hunk_model = require('diffs.hunks')
 
 local generated_list_autocmds = {}
@@ -25,11 +25,7 @@ local group = vim.api.nvim_create_augroup('diffs_generated_lists', { clear = fal
 ---@param name string
 ---@return any
 local function get_buf_var(bufnr, name)
-  local ok, value = pcall(vim.api.nvim_buf_get_var, bufnr, name)
-  if ok then
-    return value
-  end
-  return nil
+  return generated.get_var(bufnr, name)
 end
 
 ---@param bufnr integer
@@ -186,12 +182,7 @@ local function file_entries(hunks, diff_lines, opts)
     hunk.section = entry.section
     hunk.section_label = entry.section_label
     if not hunk.diff_spec and entry.diff_spec then
-      hunk.diff_spec = entry.diff_spec
-      local actions = diffspec.patch_actions(entry.diff_spec)
-      hunk.can_put = actions.can_put
-      hunk.can_obtain = actions.can_obtain
-      hunk.actionable = actions.can_put or actions.can_obtain
-      hunk.mutation_target = diffspec.mutation_target(entry.diff_spec)
+      hunk_model.decorate_actionability({ hunk }, entry.diff_spec)
     end
   end
   return entries
@@ -789,7 +780,7 @@ function M.set_for_unified_buffer(bufnr, diff_lines, opts)
   local state = list_state(diff_lines, opts)
 
   if opts.store_hunks then
-    vim.api.nvim_buf_set_var(bufnr, 'diffs_hunks', state.hunks)
+    generated.set_hunks(bufnr, state.hunks)
   end
 
   generated_list_state[bufnr] = {
