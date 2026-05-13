@@ -68,7 +68,7 @@ local M = {}
 ---@field show_virtual_text boolean
 ---@field format_virtual_text? fun(side: string, keymap: string|false): string?
 ---@field show_actions boolean
----@field priority integer
+---@field priority? integer deprecated: remove from config; conflict priority is fixed internally
 ---@field keymaps diffs.ConflictKeymaps|false
 
 ---@class diffs.IntegrationsConfig
@@ -135,7 +135,6 @@ local DEFAULTS = {
     disable_diagnostics = true,
     show_virtual_text = true,
     show_actions = false,
-    priority = 200,
     keymaps = false,
   },
 }
@@ -212,6 +211,19 @@ local function deprecate_highlights(opts)
   if opts.highlights and opts.highlights.gutter ~= nil then
     vim.deprecate('vim.g.diffs.highlights.gutter', nil, '0.4.0', 'diffs.nvim')
   end
+end
+
+---@param opts table
+local function deprecate_conflict(opts)
+  if type(opts.conflict) ~= 'table' or opts.conflict.priority == nil then
+    return
+  end
+  vim.validate('conflict.priority', opts.conflict.priority, 'number')
+  if opts.conflict.priority < 0 then
+    error('diffs: conflict.priority must be >= 0')
+  end
+  vim.deprecate('vim.g.diffs.conflict.priority', nil, '0.4.0', 'diffs.nvim')
+  opts.conflict.priority = nil
 end
 
 ---@param opts table
@@ -371,7 +383,6 @@ function M.validate(opts)
       true
     )
     vim.validate('conflict.show_actions', opts.conflict.show_actions, 'boolean', true)
-    vim.validate('conflict.priority', opts.conflict.priority, 'number', true)
     vim.validate('conflict.keymaps', opts.conflict.keymaps, function(v)
       return v == nil or v == false or type(v) == 'table'
     end, 'table or false')
@@ -438,9 +449,6 @@ function M.validate(opts)
       end
     end
   end
-  if opts.conflict and opts.conflict.priority and opts.conflict.priority < 0 then
-    error('diffs: conflict.priority must be >= 0')
-  end
 end
 
 ---@param opts? table
@@ -450,6 +458,7 @@ function M.new(opts)
   migrate_view(opts)
   M.normalize_integrations(opts)
   deprecate_highlights(opts)
+  deprecate_conflict(opts)
   M.validate(opts)
   return vim.tbl_deep_extend('force', DEFAULTS, opts)
 end
