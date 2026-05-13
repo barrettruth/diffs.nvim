@@ -1,5 +1,7 @@
 local M = {}
 
+local integration_metadata = require('diffs.integrations')
+
 ---@class diffs.TreesitterConfig
 ---@field enabled boolean
 ---@field max_lines integer
@@ -122,14 +124,7 @@ local DEFAULTS = {
       char_bg = 201,
     },
   },
-  integrations = {
-    fugitive = false,
-    neogit = false,
-    neojj = false,
-    gitsigns = false,
-    committia = false,
-    telescope = false,
-  },
+  integrations = integration_metadata.defaults(),
   conflict = {
     enabled = true,
     disable_diagnostics = true,
@@ -139,7 +134,6 @@ local DEFAULTS = {
   },
 }
 
-local integration_keys = { 'fugitive', 'neogit', 'neojj', 'gitsigns', 'committia', 'telescope' }
 local priority_keys = { 'clear', 'syntax', 'line_bg', 'char_bg' }
 
 ---@param opts table
@@ -314,27 +308,7 @@ end
 ---@param opts table
 ---@return string[]
 function M.compute_filetypes(opts)
-  local fts = { 'git', 'gitcommit' }
-  local intg = opts.integrations or {}
-  if intg.fugitive == true or type(intg.fugitive) == 'table' then
-    table.insert(fts, 'fugitive')
-  end
-  if intg.neogit == true or type(intg.neogit) == 'table' then
-    table.insert(fts, 'NeogitStatus')
-    table.insert(fts, 'NeogitCommitView')
-    table.insert(fts, 'NeogitDiffView')
-  end
-  if intg.neojj == true or type(intg.neojj) == 'table' then
-    table.insert(fts, 'NeojjStatus')
-    table.insert(fts, 'NeojjCommitView')
-    table.insert(fts, 'NeojjDiffView')
-  end
-  if type(opts.extra_filetypes) == 'table' then
-    for _, ft in ipairs(opts.extra_filetypes) do
-      table.insert(fts, ft)
-    end
-  end
-  return fts
+  return integration_metadata.filetypes(opts)
 end
 
 ---@param opts table
@@ -368,7 +342,7 @@ function M.validate(opts)
   local integration_validator = function(v)
     return v == nil or type(v) == 'boolean' or type(v) == 'table'
   end
-  for _, key in ipairs(integration_keys) do
+  for _, key in ipairs(integration_metadata.keys()) do
     vim.validate(
       'integrations.' .. key,
       opts.integrations[key],

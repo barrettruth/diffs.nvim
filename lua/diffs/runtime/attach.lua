@@ -1,3 +1,4 @@
+local integrations = require('diffs.integrations')
 local log = require('diffs.log')
 
 local M = {}
@@ -26,7 +27,10 @@ function M.attach(opts, bufnr)
 
   local config = opts.get_config()
   local neogit_augroup = nil
-  if config.integrations.neogit and vim.bo[bufnr].filetype:match('^Neogit') then
+  if
+    integrations.is_enabled(config.integrations.neogit)
+    and integrations.matches_filetype('neogit', vim.bo[bufnr].filetype)
+  then
     vim.b[bufnr].neogit_disable_hunk_highlight = true
     neogit_augroup = vim.api.nvim_create_augroup('diffs_neogit_' .. bufnr, { clear = true })
     vim.api.nvim_create_autocmd('User', {
@@ -41,7 +45,10 @@ function M.attach(opts, bufnr)
   end
 
   local neojj_augroup = nil
-  if config.integrations.neojj and vim.bo[bufnr].filetype:match('^Neojj') then
+  if
+    integrations.is_enabled(config.integrations.neojj)
+    and integrations.matches_filetype('neojj', vim.bo[bufnr].filetype)
+  then
     vim.b[bufnr].neojj_disable_hunk_highlight = true
     neojj_augroup = vim.api.nvim_create_augroup('diffs_neojj_' .. bufnr, { clear = true })
     vim.api.nvim_create_autocmd('User', {
