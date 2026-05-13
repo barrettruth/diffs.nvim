@@ -30,7 +30,7 @@ describe('plugin bootstrap', function()
       'vim.notify = function(message, level)',
       '_G.diffs_notifications[#_G.diffs_notifications + 1] = { message = message, level = level }',
       'end',
-      "vim.g.diffs = { hide_prefix = true, highlights = { gutter = false }, conflict = { priority = 250 }, integrations = { fugitive = { horizontal = 'dd', vertical = false }, neogit = {}, neojj = {}, gitsigns = {} } }",
+      "vim.g.diffs = { hide_prefix = true, highlights = { gutter = false }, conflict = { priority = 250 }, integrations = { fugitive = { horizontal = 'dd', vertical = false }, neogit = {}, neojj = {}, gitsigns = {}, committia = {} } }",
       ('vim.opt.runtimepath:prepend(%s)'):format(vim.inspect(vim.fn.getcwd())),
     }
 
@@ -57,6 +57,7 @@ describe('plugin bootstrap', function()
       "print('runtime_neogit=' .. tostring(runtime_config.integrations.neogit))",
       "print('runtime_neojj=' .. tostring(runtime_config.integrations.neojj))",
       "print('runtime_gitsigns=' .. tostring(runtime_config.integrations.gitsigns))",
+      "print('runtime_committia=' .. tostring(runtime_config.integrations.committia))",
       "print('runtime_gutter=' .. tostring(runtime_config.highlights.gutter))",
       "print('runtime_conflict_priority=' .. tostring(runtime_config.conflict.priority))",
       'local has_fugitive = false',
@@ -75,7 +76,7 @@ describe('plugin bootstrap', function()
     local output = run_child(init_lines, after_lines)
 
     assert.matches('loaded=1', output, 1, true)
-    assert.matches('startup_deprecations=7', output, 1, true)
+    assert.matches('startup_deprecations=8', output, 1, true)
     assert.matches(
       'vim.g.diffs.hide_prefix is deprecated, use vim.g.diffs.view.prefix instead. | Feature will be removed in diffs.nvim 0.4.0',
       output,
@@ -107,6 +108,12 @@ describe('plugin bootstrap', function()
       true
     )
     assert.matches(
+      'vim.g.diffs.integrations.committia = { ... } is deprecated, use vim.g.diffs.integrations.committia = true instead. | Feature will be removed in diffs.nvim 0.4.0',
+      output,
+      1,
+      true
+    )
+    assert.matches(
       'vim.g.diffs.highlights.gutter is deprecated. | Feature will be removed in diffs.nvim 0.4.0',
       output,
       1,
@@ -118,12 +125,13 @@ describe('plugin bootstrap', function()
       1,
       true
     )
-    assert.matches('after_attach_deprecations=7', output, 1, true)
+    assert.matches('after_attach_deprecations=8', output, 1, true)
     assert.matches('runtime_view_prefix=false', output, 1, true)
     assert.matches('runtime_fugitive_horizontal=nil', output, 1, true)
     assert.matches('runtime_neogit=true', output, 1, true)
     assert.matches('runtime_neojj=true', output, 1, true)
     assert.matches('runtime_gitsigns=true', output, 1, true)
+    assert.matches('runtime_committia=true', output, 1, true)
     assert.matches('runtime_gutter=false', output, 1, true)
     assert.matches('runtime_conflict_priority=nil', output, 1, true)
     assert.matches('has_fugitive_autocmd=true', output, 1, true)
