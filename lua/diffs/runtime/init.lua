@@ -157,7 +157,7 @@ function M.get_committia_config()
   return config.integrations.committia
 end
 
----@return diffs.TelescopeConfig|false
+---@return boolean
 function M.get_telescope_config()
   init()
   return config.integrations.telescope

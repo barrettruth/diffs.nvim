@@ -50,7 +50,7 @@ local M = {}
 
 ---@class diffs.CommittiaConfig deprecated: use integrations.committia = true
 
----@class diffs.TelescopeConfig
+---@class diffs.TelescopeConfig deprecated: use integrations.telescope = true
 
 ---@class diffs.ConflictKeymaps
 ---@field ours string|false
@@ -77,7 +77,7 @@ local M = {}
 ---@field neojj boolean
 ---@field gitsigns boolean
 ---@field committia boolean
----@field telescope diffs.TelescopeConfig|false
+---@field telescope boolean
 
 ---@class diffs.Config
 ---@field debug boolean|string
@@ -234,6 +234,20 @@ local function migrate_committia(integrations)
   integrations.committia = true
 end
 
+---@param integrations table
+local function migrate_telescope(integrations)
+  if type(integrations.telescope) ~= 'table' then
+    return
+  end
+  vim.deprecate(
+    'vim.g.diffs.integrations.telescope = { ... }',
+    'vim.g.diffs.integrations.telescope = true',
+    '0.4.0',
+    'diffs.nvim'
+  )
+  integrations.telescope = true
+end
+
 ---@param opts table
 local function deprecate_highlights(opts)
   if opts.highlights and opts.highlights.gutter ~= nil then
@@ -297,9 +311,7 @@ function M.normalize_integrations(opts)
 
   migrate_committia(intg)
 
-  if intg.telescope == true then
-    intg.telescope = {}
-  end
+  migrate_telescope(intg)
 
   opts.integrations = intg
 end

@@ -27,13 +27,8 @@ if gs_cfg == true then
 end
 
 local tel_cfg = integrations.telescope
-if tel_cfg == true or type(tel_cfg) == 'table' then
-  vim.api.nvim_create_autocmd('User', {
-    pattern = 'TelescopePreviewerLoaded',
-    callback = function()
-      runtime.attach(vim.api.nvim_get_current_buf())
-    end,
-  })
+if tel_cfg == true then
+  require('diffs.telescope').setup()
 end
 
 vim.api.nvim_create_autocmd('FileType', {
