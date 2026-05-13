@@ -1,6 +1,7 @@
 local M = {}
 
 local diffspec = require('diffs.spec')
+local generated = require('diffs.generated')
 local hunk_model = require('diffs.hunks')
 local lists = require('diffs.lists')
 local log = require('diffs.log')
@@ -116,9 +117,9 @@ end
 ---@param source diffs.SplitEndpointSource
 ---@param split_hunks? diffs.GdiffHunk[]
 local function set_source_vars(bufnr, source, split_hunks)
-  vim.api.nvim_buf_set_var(bufnr, 'diffs_repo_root', source.repo_root)
-  vim.api.nvim_buf_set_var(bufnr, 'diffs_spec', diffspec.new(source.spec))
-  vim.api.nvim_buf_set_var(bufnr, 'diffs_source', source)
+  generated.set_repo_root(bufnr, source.repo_root)
+  generated.set_spec(bufnr, source.spec)
+  generated.set_source(bufnr, source)
   vim.api.nvim_buf_set_var(bufnr, 'diffs_split_side', source.side)
   if split_hunks then
     vim.api.nvim_buf_set_var(bufnr, 'diffs_split_hunks', split_hunks)
@@ -838,8 +839,6 @@ function M.open(opts)
   local filetype = opts.filetype
   local path = spec.scope.path
   local base_source = {
-    version = 1,
-    kind = 'split_endpoint',
     repo_root = opts.repo_root,
     spec = spec,
     path = path,
@@ -847,8 +846,10 @@ function M.open(opts)
     quickfix = opts.quickfix,
   }
 
-  local left_source = vim.tbl_extend('force', base_source, { side = 'left' })
-  local right_source = vim.tbl_extend('force', base_source, { side = 'right' })
+  local left_source =
+    generated.split_endpoint_source(vim.tbl_extend('force', base_source, { side = 'left' }))
+  local right_source =
+    generated.split_endpoint_source(vim.tbl_extend('force', base_source, { side = 'right' }))
   local left_lines, left_err = endpoint_lines(left_source, { worktree_lines = opts.worktree_lines })
   if not left_lines then
     return nil, left_err

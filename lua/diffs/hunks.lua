@@ -120,15 +120,12 @@ local function is_review_section_header(line)
 end
 
 ---@param diff_spec diffs.DiffSpec?
----@return diffs.DiffSpec?, "index"|"worktree"|nil, boolean, boolean
+---@return diffs.DiffSpec?
 local function normalize_spec(diff_spec)
   if not diff_spec then
-    return nil, nil, false, false
+    return nil
   end
-  local spec = diffspec.new(diff_spec)
-  local target = diffspec.mutation_target(spec)
-  local actions = diffspec.patch_actions(spec)
-  return spec, target, actions.can_put, actions.can_obtain
+  return diffspec.new(diff_spec)
 end
 
 ---@param lines string[]
@@ -145,7 +142,7 @@ end
 ---@param diff_spec? diffs.DiffSpec
 ---@return diffs.GdiffHunk[]
 function M.parse(diff_lines, diff_spec)
-  local spec, target, can_put, can_obtain = normalize_spec(diff_spec)
+  local spec = normalize_spec(diff_spec)
   local hunks = {}
   local current_old_path = spec and spec.scope.kind == diffspec.scope_kind.file and spec.scope.path
     or nil
@@ -232,16 +229,6 @@ function M.parse(diff_lines, diff_spec)
             or nil,
           file_header_lines = file_header_lines,
           header = line,
-          diff_spec = spec,
-          edge = spec and {
-            left = diffspec.endpoint(spec.left),
-            right = diffspec.endpoint(spec.right),
-            mutation_target = target,
-          } or nil,
-          can_put = can_put,
-          can_obtain = can_obtain,
-          actionable = can_put or can_obtain,
-          mutation_target = target,
           source_lnum = source_lnum(new_range.start),
           lines = {},
         }
@@ -313,6 +300,42 @@ function M.parse(diff_lines, diff_spec)
 
   finish_hunk(#diff_lines)
 
+  return M.decorate_actionability(hunks, spec)
+end
+
+---@param hunk diffs.GdiffHunk
+---@param spec diffs.DiffSpec?
+---@param target "index"|"worktree"|nil
+---@param can_put boolean
+---@param can_obtain boolean
+local function decorate_hunk_actionability(hunk, spec, target, can_put, can_obtain)
+  hunk.diff_spec = spec
+  hunk.edge = spec
+      and {
+        left = diffspec.endpoint(spec.left),
+        right = diffspec.endpoint(spec.right),
+        mutation_target = target,
+      }
+    or nil
+  hunk.can_put = can_put
+  hunk.can_obtain = can_obtain
+  hunk.actionable = can_put or can_obtain
+  hunk.mutation_target = target
+end
+
+---@param hunks diffs.GdiffHunk[]
+---@param diff_spec? diffs.DiffSpec
+---@return diffs.GdiffHunk[]
+function M.decorate_actionability(hunks, diff_spec)
+  local spec = normalize_spec(diff_spec)
+  local target = spec and diffspec.mutation_target(spec) or nil
+  local patch_actions = spec and diffspec.patch_actions(spec) or nil
+  local can_put = patch_actions and patch_actions.can_put or false
+  local can_obtain = patch_actions and patch_actions.can_obtain or false
+
+  for _, hunk in ipairs(hunks or {}) do
+    decorate_hunk_actionability(hunk, spec, target, can_put, can_obtain)
+  end
   return hunks
 end
 
