@@ -369,11 +369,20 @@ describe('fugitive', function()
   end)
 
   describe('setup_keymaps', function()
+    it('installs fixed horizontal and vertical maps', function()
+      local buf = create_buffer()
+
+      fugitive.setup_keymaps(buf)
+
+      assert.are.equal('Unified diff (horizontal)', helpers.get_keymap(buf, 'du').desc)
+      assert.are.equal('Unified diff (vertical)', helpers.get_keymap(buf, 'dU').desc)
+    end)
+
     it('preserves pre-existing horizontal map and installs vertical map', function()
       local buf = create_buffer()
       vim.keymap.set('n', 'du', '<Nop>', { buffer = buf, desc = 'user horizontal' })
 
-      fugitive.setup_keymaps(buf, { horizontal = 'du', vertical = 'dU' })
+      fugitive.setup_keymaps(buf)
 
       assert.are.equal('user horizontal', helpers.get_keymap(buf, 'du').desc)
       assert.are.equal('Unified diff (vertical)', helpers.get_keymap(buf, 'dU').desc)
@@ -383,40 +392,10 @@ describe('fugitive', function()
       local buf = create_buffer()
       vim.keymap.set('n', 'dU', '<Nop>', { buffer = buf, desc = 'user vertical' })
 
-      fugitive.setup_keymaps(buf, { horizontal = 'du', vertical = 'dU' })
+      fugitive.setup_keymaps(buf)
 
       assert.are.equal('Unified diff (horizontal)', helpers.get_keymap(buf, 'du').desc)
       assert.are.equal('user vertical', helpers.get_keymap(buf, 'dU').desc)
-    end)
-
-    it('does not install disabled or empty maps', function()
-      local buf = create_buffer()
-
-      fugitive.setup_keymaps(buf, { horizontal = false, vertical = '' })
-
-      assert.is_false(helpers.has_keymap(buf, 'du'))
-      assert.is_false(helpers.has_keymap(buf, 'dU'))
-    end)
-
-    it('clears owned maps when disabled later', function()
-      local buf = create_buffer()
-
-      fugitive.setup_keymaps(buf, { horizontal = 'du', vertical = 'dU' })
-      fugitive.setup_keymaps(buf, { horizontal = false, vertical = false })
-
-      assert.is_false(helpers.has_keymap(buf, 'du'))
-      assert.is_false(helpers.has_keymap(buf, 'dU'))
-    end)
-
-    it('does not delete maps replaced after diffs.nvim installed them', function()
-      local buf = create_buffer()
-
-      fugitive.setup_keymaps(buf, { horizontal = 'du', vertical = 'dU' })
-      vim.keymap.set('n', 'du', '<Nop>', { buffer = buf, desc = 'user replacement' })
-      fugitive.setup_keymaps(buf, { horizontal = false, vertical = false })
-
-      assert.are.equal('user replacement', helpers.get_keymap(buf, 'du').desc)
-      assert.is_false(helpers.has_keymap(buf, 'dU'))
     end)
   end)
 end)

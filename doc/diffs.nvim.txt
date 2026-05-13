@@ -168,18 +168,11 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              Fields: ~
 
             {fugitive}       (boolean|table, default: false)
-                             Enable vim-fugitive integration. Pass `true`
-                             for defaults, or a table with sub-options
-                             (see |diffs.nvim.FugitiveConfig|). When active,
-                             the `fugitive` filetype is registered and
+                             Enable vim-fugitive integration. When active,
+                             the `fugitive` filetype is registered and fixed
                              status buffer keymaps are set. >lua
                                  vim.g.diffs = {
                                    integrations = { fugitive = true },
-                                 }
-                                 vim.g.diffs = {
-                                   integrations = {
-                                     fugitive = { horizontal = 'dd' },
-                                   },
                                  }
 <
 
@@ -920,24 +913,22 @@ Configuration: ~
 >lua
     vim.g.diffs = {
       integrations = {
-        fugitive = {
-          horizontal = 'du',  -- keymap for horizontal split, false to disable
-          vertical = 'dU',    -- keymap for vertical split, false to disable
-        },
+        fugitive = true,
       },
     }
 <
-    Passing a table enables fugitive integration. Use `fugitive = false`
-    to disable. There is no `enabled` field; table presence is sufficient.
+    Use `fugitive = false` to disable. Passing a table also enables the
+    integration. There is no `enabled` field; table presence is sufficient.
+    Status keymaps are fixed at `du` and `dU`.
 
     Fields: ~
-        {horizontal}         (string|false, default: 'du')
-                             Keymap for unified diff in horizontal split.
-                             Set to `false` to disable.
+        {horizontal}         (string|false, deprecated)
+                             Remove this key; the horizontal Fugitive status
+                             keymap is fixed at `du`.
 
-        {vertical}           (string|false, default: 'dU')
-                             Keymap for unified diff in vertical split.
-                             Set to `false` to disable.
+        {vertical}           (string|false, deprecated)
+                             Remove this key; the vertical Fugitive status
+                             keymap is fixed at `dU`.
 
 ------------------------------------------------------------------------------
 NEOGIT                                                     *diffs.nvim-neogit*
