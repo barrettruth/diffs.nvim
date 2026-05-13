@@ -1,7 +1,5 @@
 local M = {}
 
-local notify = require('diffs.log').notify
-
 ---@class diffs.TreesitterConfig
 ---@field enabled boolean
 ---@field max_lines integer
@@ -84,12 +82,6 @@ local notify = require('diffs.log').notify
 ---@field extra_filetypes string[]
 ---@field highlights diffs.Highlights
 ---@field integrations diffs.IntegrationsConfig
----@field fugitive? diffs.FugitiveConfig|false deprecated: use integrations.fugitive
----@field neogit? diffs.NeogitConfig|false deprecated: use integrations.neogit
----@field neojj? diffs.NeojjConfig|false deprecated: use integrations.neojj
----@field gitsigns? diffs.GitsignsConfig|false deprecated: use integrations.gitsigns
----@field committia? diffs.CommittiaConfig|false deprecated: use integrations.committia
----@field telescope? diffs.TelescopeConfig|false deprecated: use integrations.telescope
 ---@field conflict diffs.ConflictConfig
 
 ---@type diffs.Config
@@ -156,27 +148,15 @@ end
 function M.compute_filetypes(opts)
   local fts = { 'git', 'gitcommit' }
   local intg = opts.integrations or {}
-  local fug = intg.fugitive
-  if fug == nil then
-    fug = opts.fugitive
-  end
-  if fug == true or type(fug) == 'table' then
+  if intg.fugitive == true or type(intg.fugitive) == 'table' then
     table.insert(fts, 'fugitive')
   end
-  local neo = intg.neogit
-  if neo == nil then
-    neo = opts.neogit
-  end
-  if neo == true or type(neo) == 'table' then
+  if intg.neogit == true or type(intg.neogit) == 'table' then
     table.insert(fts, 'NeogitStatus')
     table.insert(fts, 'NeogitCommitView')
     table.insert(fts, 'NeogitDiffView')
   end
-  local njj = intg.neojj
-  if njj == nil then
-    njj = opts.neojj
-  end
-  if njj == true or type(njj) == 'table' then
+  if intg.neojj == true or type(intg.neojj) == 'table' then
     table.insert(fts, 'NeojjStatus')
     table.insert(fts, 'NeojjCommitView')
     table.insert(fts, 'NeojjDiffView')
@@ -190,47 +170,7 @@ function M.compute_filetypes(opts)
 end
 
 ---@param opts table
-function M.migrate_integrations(opts)
-  if opts.integrations then
-    local stale = {}
-    for _, key in ipairs(integration_keys) do
-      if opts[key] ~= nil then
-        stale[#stale + 1] = key
-        opts[key] = nil
-      end
-    end
-    if #stale > 0 then
-      local old = 'vim.g.diffs.{' .. table.concat(stale, ', ') .. '}'
-      local new = 'vim.g.diffs.integrations.{' .. table.concat(stale, ', ') .. '}'
-      notify('ignoring ' .. old .. '; move to ' .. new .. ' or remove', vim.log.levels.WARN)
-    end
-    return
-  end
-  local has_legacy = false
-  for _, key in ipairs(integration_keys) do
-    if opts[key] ~= nil then
-      has_legacy = true
-      break
-    end
-  end
-  if not has_legacy then
-    return
-  end
-  vim.deprecate('vim.g.diffs.<integration>', 'vim.g.diffs.integrations.*', '0.3.2', 'diffs.nvim')
-  local legacy = {}
-  for _, key in ipairs(integration_keys) do
-    if opts[key] ~= nil then
-      legacy[key] = opts[key]
-      opts[key] = nil
-    end
-  end
-  opts.integrations = legacy
-end
-
----@param opts table
 function M.normalize_integrations(opts)
-  M.migrate_integrations(opts)
-
   local intg = opts.integrations or {}
   local fugitive_defaults = { horizontal = 'du', vertical = 'dU' }
   if intg.fugitive == true then
