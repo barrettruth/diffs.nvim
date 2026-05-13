@@ -163,6 +163,52 @@ describe('diffs.runtime', function()
         notifications[1].message
       )
     end)
+
+    it('keeps integrations.neogit = true as the supported enable path', function()
+      local saved_notify = vim.notify
+      local notifications = {}
+      vim.notify = function(message, level)
+        notifications[#notifications + 1] = { message = message, level = level }
+      end
+
+      local opts = config.new({ integrations = { neogit = true } })
+      vim.notify = saved_notify
+
+      assert.is_true(opts.integrations.neogit)
+      assert.are.equal(0, #notifications)
+    end)
+
+    it('warns and maps deprecated integrations.neogit table form to true', function()
+      local saved_notify = vim.notify
+      local notifications = {}
+      vim.notify = function(message, level)
+        notifications[#notifications + 1] = { message = message, level = level }
+      end
+
+      local ok, opts = pcall(config.new, {
+        integrations = {
+          neogit = {},
+        },
+      })
+      vim.notify = saved_notify
+
+      assert.is_true(ok)
+      assert.is_true(opts.integrations.neogit)
+      assert.are.equal(2, #notifications)
+      assert.are.equal(vim.log.levels.WARN, notifications[1].level)
+      assert.are.equal(
+        'vim.g.diffs.integrations.neogit = { ... } is deprecated, use vim.g.diffs.integrations.neogit = true instead.\n'
+          .. 'Feature will be removed in diffs.nvim 0.4.0',
+        notifications[1].message
+      )
+      assert.are.equal(vim.log.levels.WARN, notifications[2].level)
+      assert.is_true(notifications[2].message:find('stack traceback:\n\t', 1, true) == 1)
+      assert.is_not_nil(notifications[2].message:find('lua/diffs/config.lua:', 1, true))
+      assert.is_not_nil(notifications[2].message:find("in function 'migrate_neogit'", 1, true))
+      assert.is_not_nil(
+        notifications[2].message:find("in function 'normalize_integrations'", 1, true)
+      )
+    end)
   end)
 
   describe('attach', function()

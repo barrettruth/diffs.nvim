@@ -42,7 +42,7 @@ local M = {}
 ---@field horizontal? string|false deprecated: remove; status keymaps are fixed
 ---@field vertical? string|false deprecated: remove; status keymaps are fixed
 
----@class diffs.NeogitConfig
+---@class diffs.NeogitConfig deprecated: use integrations.neogit = true
 
 ---@class diffs.NeojjConfig
 
@@ -73,7 +73,7 @@ local M = {}
 
 ---@class diffs.IntegrationsConfig
 ---@field fugitive diffs.FugitiveConfig|false
----@field neogit diffs.NeogitConfig|false
+---@field neogit boolean|diffs.NeogitConfig
 ---@field neojj diffs.NeojjConfig|false
 ---@field gitsigns diffs.GitsignsConfig|false
 ---@field committia diffs.CommittiaConfig|false
@@ -179,6 +179,20 @@ local function deprecate_fugitive_keymaps(fugitive)
   fugitive.vertical = nil
 end
 
+---@param integrations table
+local function migrate_neogit(integrations)
+  if type(integrations.neogit) ~= 'table' then
+    return
+  end
+  vim.deprecate(
+    'vim.g.diffs.integrations.neogit = { ... }',
+    'vim.g.diffs.integrations.neogit = true',
+    '0.4.0',
+    'diffs.nvim'
+  )
+  integrations.neogit = true
+end
+
 ---@param opts table
 local function deprecate_highlights(opts)
   if opts.highlights and opts.highlights.gutter ~= nil then
@@ -221,9 +235,7 @@ function M.normalize_integrations(opts)
     deprecate_fugitive_keymaps(intg.fugitive)
   end
 
-  if intg.neogit == true then
-    intg.neogit = {}
-  end
+  migrate_neogit(intg)
 
   if intg.neojj == true then
     intg.neojj = {}
@@ -255,14 +267,14 @@ function M.validate(opts)
   end
   vim.validate('integrations', opts.integrations, 'table', true)
   local integration_validator = function(v)
-    return v == nil or v == false or type(v) == 'table'
+    return v == nil or type(v) == 'boolean' or type(v) == 'table'
   end
   for _, key in ipairs(integration_keys) do
     vim.validate(
       'integrations.' .. key,
       opts.integrations[key],
       integration_validator,
-      'table or false'
+      'boolean or table'
     )
   end
   vim.validate('extra_filetypes', opts.extra_filetypes, 'table', true)
