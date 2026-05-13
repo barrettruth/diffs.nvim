@@ -139,7 +139,7 @@ function M.detach_diff()
   diff_windows_mod.detach(diff_windows)
 end
 
----@return diffs.FugitiveConfig|false
+---@return boolean
 function M.get_fugitive_config()
   init()
   return config.integrations.fugitive
