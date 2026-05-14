@@ -27,6 +27,8 @@ local integration_metadata = require('diffs.integrations')
 
 ---@class diffs.ViewConfig
 ---@field prefix boolean
+---@field change_bar string
+---@field rail_separator string
 
 ---@class diffs.Highlights
 ---@field background boolean
@@ -95,6 +97,8 @@ local DEFAULTS = {
   debug = false,
   view = {
     prefix = true,
+    change_bar = '▏',
+    rail_separator = '│',
   },
   extra_filetypes = {},
   highlights = {
@@ -337,6 +341,8 @@ function M.validate(opts)
   vim.validate('view', opts.view, 'table', true)
   if opts.view then
     vim.validate('view.prefix', opts.view.prefix, 'boolean', true)
+    vim.validate('view.change_bar', opts.view.change_bar, 'string', true)
+    vim.validate('view.rail_separator', opts.view.rail_separator, 'string', true)
   end
   vim.validate('integrations', opts.integrations, 'table', true)
   local integration_validator = function(v)

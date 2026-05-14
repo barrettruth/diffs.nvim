@@ -66,6 +66,35 @@ describe('diffs.config', function()
       assert.is_nil(opts.hide_prefix)
     end)
 
+    it('defaults view glyphs', function()
+      local opts = config.new()
+      assert.are.equal('▏', opts.view.change_bar)
+      assert.are.equal('│', opts.view.rail_separator)
+    end)
+
+    it('accepts custom view glyphs', function()
+      local opts = config.new({
+        view = {
+          change_bar = '┃',
+          rail_separator = '|',
+        },
+      })
+      assert.are.equal('┃', opts.view.change_bar)
+      assert.are.equal('|', opts.view.rail_separator)
+    end)
+
+    it('validates custom view glyphs', function()
+      local ok, err = pcall(config.new, { view = { change_bar = false } })
+      assert.is_false(ok)
+      assert.matches('view.change_bar', err, 1, true)
+      assert.matches('string', err, 1, true)
+
+      ok, err = pcall(config.new, { view = { rail_separator = false } })
+      assert.is_false(ok)
+      assert.matches('view.rail_separator', err, 1, true)
+      assert.matches('string', err, 1, true)
+    end)
+
     it('warns and maps deprecated hide_prefix = true to view.prefix = false', function()
       local saved_notify = vim.notify
       local notifications = {}

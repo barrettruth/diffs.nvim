@@ -93,7 +93,11 @@ end
 
 local function buffer_lines(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-  return rails.strip_lines(lines, rails.width_for_buffer(bufnr))
+  return rails.strip_lines(
+    lines,
+    rails.width_for_buffer(bufnr),
+    rails.separator_width_for_buffer(bufnr)
+  )
 end
 
 local function review_diff_lines()

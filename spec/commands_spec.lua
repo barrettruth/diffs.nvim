@@ -10,6 +10,7 @@ local split = require('diffs.split')
 local saved_git = {}
 local saved_runtime_attach
 local saved_runtime_get_conflict_config
+local saved_runtime_get_view_config
 local saved_schedule
 local saved_systemlist
 local saved_notify
@@ -51,6 +52,13 @@ end
 local function mock_conflict_config(config)
   saved_runtime_get_conflict_config = runtime.get_conflict_config
   runtime.get_conflict_config = function()
+    return config
+  end
+end
+
+local function mock_view_config(config)
+  saved_runtime_get_view_config = runtime.get_view_config
+  runtime.get_view_config = function()
     return config
   end
 end
@@ -272,7 +280,7 @@ local function buffer_lines(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local ok, rail_width = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_rail_width')
   if ok then
-    return rails.strip_lines(lines, rail_width)
+    return rails.strip_lines(lines, rail_width, rails.separator_width_for_buffer(bufnr))
   end
   return lines
 end
@@ -362,6 +370,10 @@ local function restore_mocks()
   if saved_runtime_get_conflict_config then
     runtime.get_conflict_config = saved_runtime_get_conflict_config
     saved_runtime_get_conflict_config = nil
+  end
+  if saved_runtime_get_view_config then
+    runtime.get_view_config = saved_runtime_get_view_config
+    saved_runtime_get_view_config = nil
   end
   if saved_schedule then
     vim.schedule = saved_schedule
@@ -655,6 +667,7 @@ describe('commands', function()
         return '/tmp/repo'
       end)
       mock_runtime_attach(function() end)
+      mock_view_config({ prefix = true, change_bar = '▏', rail_separator = '|' })
 
       commands.gdiff(nil, false)
 
@@ -686,11 +699,10 @@ describe('commands', function()
       assert.is_true(table.concat(lines, '\n'):find('+local x = 1', 1, true) ~= nil)
 
       local display_lines = vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false)
-      assert.are.equal(10, vim.api.nvim_buf_get_var(diff_buf, 'diffs_rail_width'))
-      assert.are.equal('      │ diff --git a/lua/foo.lua b/lua/foo.lua', display_lines[1])
-      assert.is_true(
-        table.concat(display_lines, '\n'):find('    2 │ +local x = 1', 1, true) ~= nil
-      )
+      assert.are.equal(8, vim.api.nvim_buf_get_var(diff_buf, 'diffs_rail_width'))
+      assert.are.equal(3, vim.api.nvim_buf_get_var(diff_buf, 'diffs_rail_separator_width'))
+      assert.are.equal('      | diff --git a/lua/foo.lua b/lua/foo.lua', display_lines[1])
+      assert.is_true(table.concat(display_lines, '\n'):find('    2 | +local x = 1', 1, true) ~= nil)
 
       local qf = quickfix_items()
       assert.are.equal(1, #qf)
@@ -750,6 +762,7 @@ describe('commands', function()
       local saved_splitright = vim.o.splitright
       vim.o.splitright = false
       local ok, err = pcall(function()
+        mock_view_config({ prefix = true, change_bar = '┃', rail_separator = '│' })
         create_split_source()
         commands.gdiff('++layout=split', false)
       end)
@@ -824,7 +837,7 @@ describe('commands', function()
         if
           mark[2] == 1
           and details.sign_hl_group == 'DiffsAddBar'
-          and details.sign_text == '▏ '
+          and details.sign_text == '┃ '
         then
           has_added_line_bar = true
         end
