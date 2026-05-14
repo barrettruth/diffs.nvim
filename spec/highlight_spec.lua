@@ -646,9 +646,9 @@ describe('highlight', function()
 
     it('draws generated rail change bars before line-number columns', function()
       local bufnr = create_buffer({
-        '      ┃ @@ -1,1 +1,1 @@',
-        '  1   ┃ -old',
-        '    1 ┃ +new',
+        '      │ @@ -1,1 +1,1 @@',
+        '  1   │ -old',
+        '    1 │ +new',
       })
 
       local hunk = {
@@ -694,9 +694,9 @@ describe('highlight', function()
 
     it('keeps hide_prefix overlay off generated line-number rails', function()
       local bufnr = create_buffer({
-        '      ┃ @@ -1,1 +1,1 @@',
-        '  1   ┃ -old',
-        '    1 ┃ +new',
+        '      │ @@ -1,1 +1,1 @@',
+        '  1   │ -old',
+        '    1 │ +new',
       })
 
       local hunk = {
@@ -770,7 +770,7 @@ describe('highlight', function()
 
     it('leaves generated context prefix cells unpainted for cursorline', function()
       local bufnr = create_buffer({
-        '  1 1 ┃  local M = {}',
+        '  1 1 │  local M = {}',
       })
 
       local hunk = {
@@ -812,8 +812,8 @@ describe('highlight', function()
 
     it('does not apply DiffsClear over generated rail source content', function()
       local bufnr = create_buffer({
-        '      ┃ @@ -0,0 +1,1 @@',
-        '    1 ┃ +local untracked = {}',
+        '      │ @@ -0,0 +1,1 @@',
+        '    1 │ +local untracked = {}',
       })
 
       local hunk = {
