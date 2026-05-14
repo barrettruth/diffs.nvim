@@ -3,7 +3,7 @@ local M = {}
 local hunk_model = require('diffs.hunks')
 
 local bar_slot = '  '
-local separator = ' ┃ '
+local separator = ' │ '
 local compact_separator = separator:gsub('%s+$', '')
 
 ---@class diffs.RailInfo
