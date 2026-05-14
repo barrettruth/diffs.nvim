@@ -25,11 +25,12 @@ local buffer_keymaps = {}
 function M.parse_hunks(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local rail_width = rails.width_for_buffer(bufnr)
+  local rail_separator_width = rails.separator_width_for_buffer(bufnr)
   local hunks = {}
   local current = nil
 
   for i, line in ipairs(lines) do
-    line = rails.strip(line, rail_width)
+    line = rails.strip(line, rail_width, rail_separator_width)
     local idx = i - 1
     if line:match('^@@') then
       if current then

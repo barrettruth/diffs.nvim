@@ -169,6 +169,12 @@ function M.get_conflict_config()
   return config.conflict
 end
 
+---@return diffs.ViewConfig
+function M.get_view_config()
+  init()
+  return config.view
+end
+
 ---@return diffs.HunkOpts
 function M.get_highlight_opts()
   init()

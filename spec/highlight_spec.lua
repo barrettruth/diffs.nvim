@@ -8,6 +8,7 @@ describe('highlight', function()
       local opts = highlight.hunk_opts(config.new({ view = { prefix = false } }))
 
       assert.is_true(opts.hide_prefix)
+      assert.are.equal('▏', opts.change_bar)
       assert.are.same(
         { clear = 198, syntax = 199, line_bg = 200, char_bg = 201 },
         opts.highlights.priorities
@@ -94,12 +95,16 @@ describe('highlight', function()
           },
         },
       }
+      opts.change_bar = '▏'
       if overrides then
         if overrides.highlights then
           opts.highlights = vim.tbl_deep_extend('force', opts.highlights, overrides.highlights)
         end
         if overrides.hide_prefix ~= nil then
           opts.hide_prefix = overrides.hide_prefix
+        end
+        if overrides.change_bar ~= nil then
+          opts.change_bar = overrides.change_bar
         end
       end
       return opts
@@ -667,6 +672,7 @@ describe('highlight', function()
         hunk,
         default_opts({
           hide_prefix = true,
+          change_bar = '┃',
           highlights = {
             background = true,
             treesitter = { enabled = false },
@@ -681,7 +687,7 @@ describe('highlight', function()
           local group = d.virt_text[1][2]
           if group == 'DiffsAddBar' or group == 'DiffsDeleteBar' then
             bars[mark[2]] = group
-            assert.are.equal('▏', d.virt_text[1][1])
+            assert.are.equal('┃', d.virt_text[1][1])
             assert.are.equal(0, mark[3])
           end
         end
@@ -689,6 +695,62 @@ describe('highlight', function()
 
       assert.are.equal('DiffsDeleteBar', bars[1])
       assert.are.equal('DiffsAddBar', bars[2])
+      delete_buffer(bufnr)
+    end)
+
+    it('uses custom rail separator width for generated rails', function()
+      local bufnr = create_buffer({
+        '      | @@ -1,1 +1,1 @@',
+        '  1   | -old',
+        '    1 | +new',
+      })
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { '-old', '+new' },
+        prefix_width = 1,
+        quote_width = 8,
+        rail_width = 8,
+        rail_separator_width = 3,
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({
+          hide_prefix = true,
+          highlights = {
+            background = true,
+            treesitter = { enabled = false },
+          },
+        })
+      )
+
+      local rails = {}
+      local rail_numbers = {}
+      for _, mark in ipairs(get_extmarks(bufnr)) do
+        local d = mark[4]
+        if d and d.hl_group == 'DiffsRail' then
+          rails[#rails + 1] = { row = mark[2], col = mark[3], end_col = d.end_col }
+        end
+        if d and d.hl_group == 'DiffsRailNr' then
+          rail_numbers[#rail_numbers + 1] = { row = mark[2], col = mark[3], end_col = d.end_col }
+        end
+      end
+
+      assert.are.same({
+        { row = 1, col = 0, end_col = 8 },
+        { row = 2, col = 0, end_col = 8 },
+      }, rails)
+      assert.are.same({
+        { row = 1, col = 2, end_col = 3 },
+        { row = 1, col = 4, end_col = 5 },
+        { row = 2, col = 2, end_col = 3 },
+        { row = 2, col = 4, end_col = 5 },
+      }, rail_numbers)
       delete_buffer(bufnr)
     end)
 
