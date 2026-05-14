@@ -687,9 +687,9 @@ describe('commands', function()
 
       local display_lines = vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false)
       assert.are.equal(10, vim.api.nvim_buf_get_var(diff_buf, 'diffs_rail_width'))
-      assert.are.equal('      ┃ diff --git a/lua/foo.lua b/lua/foo.lua', display_lines[1])
+      assert.are.equal('      │ diff --git a/lua/foo.lua b/lua/foo.lua', display_lines[1])
       assert.is_true(
-        table.concat(display_lines, '\n'):find('    2 ┃ +local x = 1', 1, true) ~= nil
+        table.concat(display_lines, '\n'):find('    2 │ +local x = 1', 1, true) ~= nil
       )
 
       local qf = quickfix_items()
