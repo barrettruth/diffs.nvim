@@ -42,16 +42,15 @@ CONTENTS                                                 *diffs.nvim-contents*
        Neogit ............................................ |diffs.nvim-neogit|
        Neojj .............................................. |diffs.nvim-neojj|
        Gitsigns ........................................ |diffs.nvim-gitsigns|
+       Committia ...................................... |diffs.nvim-committia|
        Telescope ...................................... |diffs.nvim-telescope|
   8. Conflict Resolution ............................... |diffs.nvim-conflict|
   9. Merge Diff Resolution ................................ |diffs.nvim-merge|
  10. API .................................................... |diffs.nvim-api|
-       Plugin Authors ........................... |diffs.nvim-plugin-authors|
- 11. Implementation .............................. |diffs.nvim-implementation|
- 12. Known Limitations .............................. |diffs.nvim-limitations|
- 13. Highlight Groups ................................ |diffs.nvim-highlights|
- 14. Health Check ........................................ |diffs.nvim-health|
- 15. Acknowledgements .......................... |diffs.nvim-acknowledgements|
+ 11. Known Limitations .............................. |diffs.nvim-limitations|
+ 12. Highlight Groups ................................ |diffs.nvim-highlights|
+ 13. Health Check ........................................ |diffs.nvim-health|
+ 14. Acknowledgements .......................... |diffs.nvim-acknowledgements|
 
 ==============================================================================
 REQUIREMENTS                                         *diffs.nvim-requirements*
@@ -83,7 +82,7 @@ plugin support.
 ==============================================================================
 CONFIGURATION                                              *diffs.nvim-config*
 
-Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
+Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
 >lua
     vim.g.diffs = {
       debug = false,
@@ -131,17 +130,33 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
       },
     }
 <
+
+Pre-v0.4.0 migration window: ~
+    This release still accepts deprecated config forms and emits warnings with
+    removal targeted at v0.4.0. Update config before the hard-removal release:
+    - `hide_prefix` -> `view.prefix` (inverted)
+    - `integrations.*` tables -> boolean toggles
+    - `integrations.fugitive.horizontal` / `.vertical` -> fixed `du` / `dU`
+    - remove `highlights.gutter`
+    - remove `highlights.priorities`
+    - remove `conflict.priority`
+
                                                            *diffs.nvim.Config*
     Fields: ~
         {debug}              (boolean, default: false)
-                             Enable debug logging to ` :messages` with
+                             Enable debug logging to `:messages` with
                              `[diffs]` prefix.
+
+        {hide_prefix}        (boolean, deprecated)
+                             Top-level legacy key. Use `view.prefix` instead.
+                             The value is inverted: `hide_prefix = true` maps
+                             to `view.prefix = false`.
 
         {view}               (table, default: see below)
                              Diff view display options.
                              See |diffs.nvim.ViewConfig| for fields.
 
-                                                    *diffs.nvim.ViewConfig*
+                                                       *diffs.nvim.ViewConfig*
     View table fields: ~
         {prefix}             (boolean, default: true)
                              Show diff prefixes (`+`/`-`/` `). Set to
@@ -149,83 +164,35 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                              When `highlights.background` is also enabled,
                              the overlay inherits the line's background color.
 
-        {hide_prefix}        (boolean, deprecated)
-                             Use `view.prefix` instead. The value is inverted:
-                             `hide_prefix = true` maps to
-                             `view.prefix = false`.
-
         {integrations}       (table, default: all false)
                              Integration toggles. Each key accepts `true` or
-                             `false`; tables are accepted where documented for
-                             current or deprecated sub-options. See
+                             `false`. Deprecated table forms still enable the
+                             integration during the migration window. See
                              |diffs.nvim-integrations|.
                                                *diffs.nvim.IntegrationsConfig*
                              Fields: ~
 
             {fugitive}       (boolean|table, default: false)
-                             Enable vim-fugitive integration. When active,
-                             the `fugitive` filetype is registered and fixed
-                             status buffer keymaps are set. >lua
-                                 vim.g.diffs = {
-                                   integrations = { fugitive = true },
-                                 }
-<
-                             Passing a table is deprecated; use `true`
-                             instead. During the deprecation window, table
-                             presence still enables the integration. Table
-                             fields do not configure the fixed `du`/`dU`
-                             status keymaps.
+                             Enable vim-fugitive support. See
+                             |diffs.nvim-fugitive|.
 
             {neogit}         (boolean|table, default: false)
-                             Enable Neogit integration. When active,
-                             `NeogitStatus`, `NeogitCommitView`, and
-                             `NeogitDiffView` filetypes are registered.
-                             See |diffs.nvim-neogit|. >lua
-                                 integrations = { neogit = true }
-<
-                             Passing a table is deprecated; use `true`
-                             instead. During the deprecation window, table
-                             presence still enables the integration.
+                             Enable Neogit support. See |diffs.nvim-neogit|.
 
             {neojj}          (boolean|table, default: false)
-                             Enable neojj integration. When active,
-                             `NeojjStatus`, `NeojjCommitView`, and
-                             `NeojjDiffView` filetypes are registered.
-                             See |diffs.nvim-neojj|. >lua
-                                 integrations = { neojj = true }
-<
-                             Passing a table is deprecated; use `true`
-                             instead. During the deprecation window, table
-                             presence still enables the integration.
+                             Enable neojj support. See |diffs.nvim-neojj|.
 
             {gitsigns}       (boolean|table, default: false)
-                             Enable gitsigns.nvim popup integration for
-                             blame hunk previews.
-                             See |diffs.nvim-gitsigns|. >lua
-                                 integrations = { gitsigns = true }
-<
-                             Passing a table is deprecated; use `true`
-                             instead. During the deprecation window, table
-                             presence still enables the integration.
+                             Enable gitsigns.nvim popup support. See
+                             |diffs.nvim-gitsigns|.
 
             {committia}      (boolean|table, default: false)
-                             Enable committia.vim integration. When active,
-                             committia's diff pane receives treesitter
-                             syntax and intra-line diffs. >lua
-                                 integrations = { committia = true }
-<
-                             Passing a table is deprecated; use `true`
-                             instead. During the deprecation window, table
-                             presence still normalizes to `true`.
+                             Enable committia.vim diff-pane support. See
+                             |diffs.nvim-committia|.
 
             {telescope}      (boolean|table, default: false)
-                             Enable telescope.nvim preview highlighting.
-                             See |diffs.nvim-telescope|. >lua
-                                 integrations = { telescope = true }
-<
-                             Passing a table is deprecated; use `true`
-                             instead. During the deprecation window, table
-                             presence still normalizes to `true`.
+                             Enable telescope.nvim preview support. See
+                             |diffs.nvim-telescope|.
 
         {extra_filetypes}    (table, default: {})
                              Additional filetypes to attach to, beyond the
@@ -264,11 +231,8 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
         {blend_alpha}        (number, default: 0.6)
                              Alpha value for diff line background intensity.
                              Controls how strongly diff lines (adds/deletes)
-                             stand out from the editor background. Intra-line
-                             highlights use alpha + 0.3 (capped at 1.0) for
-                             extra contrast. Must be between 0 and 1
-                             (inclusive). Higher values produce more vivid
-                             backgrounds.
+                             stand out from the editor background. Must be
+                             between 0 and 1 (inclusive).
 
         {warn_max_lines}     (boolean, default: true)
                              Show a `vim.notify()` warning when syntax
@@ -294,7 +258,6 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
         {priorities}         (table, deprecated)
                              Remove this key. Custom priority values are
                              ignored and layering is fixed internally.
-                             See |diffs.nvim.PrioritiesConfig| for fields.
 
         {overrides}          (table, default: {})
                              Map of highlight group names to highlight
@@ -306,15 +269,8 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
                                                     *diffs.nvim.ContextConfig*
     Context config fields: ~
         {enabled}            (boolean, default: true)
-                             Read surrounding code from the working tree
-                             file and feed it into the treesitter string
-                             parser. Uses the hunk's `@@ +start,count @@`
-                             line numbers to read lines before and after
-                             the hunk from disk. Improves syntax accuracy
-                             when the hunk is inside an incomplete construct
-                             (e.g., a table literal or function body whose
-                             opening is not visible in the hunk's own
-                             context lines).
+                             Read surrounding working-tree code to improve
+                             syntax highlighting at hunk boundaries.
 
         {lines}              (integer, default: 25)
                              Max context lines to read in each direction.
@@ -323,26 +279,8 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
 
                                                  *diffs.nvim.PrioritiesConfig*
     Priorities config fields (deprecated): ~
-        This table remains documented for the 0.4.0 migration window only.
-        Custom values are validated for compatibility, then ignored and
-        removed; diffs.nvim uses the fixed internal layering below.
-
-        {clear}              (integer, default: 198, deprecated)
-                             Fixed priority for `DiffsClear` extmarks that
-                             reset underlying diff foreground colors.
-
-        {syntax}             (integer, default: 199, deprecated)
-                             Fixed priority for treesitter and vim syntax
-                             extmarks.
-
-        {line_bg}            (integer, default: 200, deprecated)
-                             Fixed priority for `DiffsAdd`/`DiffsDelete`
-                             line background extmarks.
-
-        {char_bg}            (integer, default: 201, deprecated)
-                             Fixed priority for
-                             `DiffsAddText`/`DiffsDeleteText`
-                             character-level background extmarks.
+        Remove `highlights.priorities`; user-supplied values are dropped during
+        the migration window and fixed internal defaults are used.
 
                                                  *diffs.nvim.TreesitterConfig*
     Treesitter config fields: ~
@@ -360,20 +298,13 @@ Configuration is done via `vim.g.diffs`. Set this before the plugin loads:
         {enabled}            (boolean, default: true)
                              Use vim syntax highlighting as fallback when no
                              treesitter parser is available for a language.
-                             Creates a scratch buffer, sets the filetype, and
-                             queries `synID()` per character to extract
-                             highlight groups. Deferred via `vim.schedule()`
-                             so cold renders never block the first paint.
-                             Warm hunks can reuse cached syntax spans. Slower
-                             than treesitter but covers languages without a
-                             TS parser installed (e.g., COBOL, Fortran).
+                             Slower than treesitter, but covers languages
+                             without a parser installed.
 
         {max_lines}          (integer, default: 200)
                              Skip vim syntax highlighting for hunks with more
                              highlighted lines (`+`/`-`) than this threshold.
-                             Context lines are not counted. Lower than the
-                             treesitter default due to the per-character cost
-                             of `synID()`.
+                             Context lines are not counted.
 
                                                       *diffs.nvim.IntraConfig*
     Intra config fields: ~
@@ -432,61 +363,41 @@ syntax highlighting warning.
 ==============================================================================
 COMMANDS                                                 *diffs.nvim-commands*
 
-diffs.nvim view boundaries: ~
+diffs.nvim-owned views: ~
 
-diffs.nvim only replaces layout for buffers it creates and can model as
-explicit endpoints. Today that means `diffs://` |:Gdiff| buffers, |:Greview|
-buffers, experimental split views, and plugin-owned launches from integrations
-such as Fugitive status maps. Commit views and any other future layout
-replacements must follow the same rule: first model the source endpoints, then
-own the layout.
+|:Gdiff|, |:Greview|, split layouts, and Fugitive status maps create
+diffs.nvim-owned `diffs://` views. Ordinary `git`, `gitcommit`, `diff`,
+`extra_filetypes`, picker previews, and third-party integration buffers remain
+highlight-only.
 
-Ordinary `git`, `gitcommit`, `diff`, `extra_filetypes`, picker previews, and
-third-party integration buffers remain highlight-only. diffs.nvim may attach
-syntax, backgrounds, and intra-line highlights to those buffers, but it must not
-replace their layout unless the user invoked a diffs.nvim-owned view.
-
-:Gdiff [++layout=unified|split] [object]                             *:Gdiff*
+:Gdiff [++layout=unified|split] [object]                              *:Gdiff*
     Open a unified diff of the current file against a Fugitive-style object.
-    Displays in a horizontal split below the current window.
-
-    The diff buffer shows `+`/`-` lines with full syntax highlighting for the
-    code language, plus diff header highlighting for `diff --git`, `---`,
-    `+++`, and `@@` lines.
+    The default unified layout opens below the current window and reuses an
+    existing `diffs://` window in the tabpage when one exists.
 
     `diffs://` unified buffers include old and new line-number columns before
-    the unified diff text. A blank cell means that line does not exist on that
-    side of the diff.
+    the unified diff text. The default unified layout does not enter native Vim
+    `&diff` mode or open writable Fugitive object buffers.
 
-    In the default unified layout, if a `diffs://` window already exists in the
-    current tabpage, the new diff replaces its buffer instead of creating
-    another split.
-
-    This is a diffs.nvim-owned view, not Fugitive `:Gdiffsplit` parity.
-    diffs.nvim owns the `diffs://` buffers, hunk metadata, and plugin actions.
-    The default unified layout does not enter native Vim `&diff` mode, open
-    writable Fugitive object buffers, or emulate `:Gdiffsplit` window lifecycle.
-    The experimental `++layout=split` variant uses native `&diff` alignment for
-    old/new endpoint windows, but disables diff folds as layout.
+    `++layout=split` opens paired old/new endpoint windows with native `&diff`
+    alignment. See |diffs.nvim-paired-windows|.
 
     Plain direct |:Gdiff| from a worktree file compares the index to the
     worktree and shows only unstaged changes. Staged-only changes report no
     changes for that edge. To view staged changes, use a staged Fugitive status
     row with |diffs.nvim-du|/|diffs.nvim-dU| or an explicit supported object
-    form such as `:Gdiff :0:%`.
-
-    Fugitive does not provide a `--staged` `:Gdiffsplit` flag, so diffs.nvim
-    does not add one to |:Gdiff|. Endpoint selection is expressed through the
-    object argument and through Fugitive status-row context.
+    form such as `:Gdiff :0:%`. |:Gdiff| does not provide a `--staged` flag.
 
     Parameters: ~
         ++layout=unified (optional) Open the default unified `diffs://` view.
         ++layout=split (optional) Open the current single-file comparison as
-                    experimental paired old/new endpoint windows.
+                    paired old/new endpoint windows.
         ++novertical (optional) Force a horizontal split. Useful with |:Gvdiff|
                     or command wrappers.
         {object}    (string, optional) Fugitive-style object to diff against.
                     Defaults to the current file in the index.
+
+    Completion covers `++layout=...`, supported object forms, and git refs.
 
     Examples: >vim
         :Gdiff          " diff against the index
@@ -495,133 +406,32 @@ replace their layout unless the user invoked a diffs.nvim-owned view.
         :Gdiff :0:%     " diff against the index explicitly
         :Gdiff abc123   " diff against specific commit
 <
-    Edge-case behavior: ~
+    Edge cases: ~
+    - Untracked and added files render as all-added files.
+    - Deleted files render as all-removed files.
+    - Files with both staged and unstaged changes require one view per edge:
+      plain |:Gdiff| shows unstaged changes; staged status rows show staged
+      changes.
+    - Unmerged files open a merge diff view. Native 3-way `:Gdiffsplit!`
+      windows are not emulated.
+    - Mode-only changes, binary files, submodules, merge-stage objects, and pure
+      renames report a warning or no text changes.
 
-    Case              Endpoint model              Behavior ~
-    Untracked file    index -> working tree       Renders as a new file.
-                                                 `dp` stages the file.
-    Added file        HEAD -> index               Renders as a new file.
-                                                 `do` unstages the file.
-    Deleted file      index -> working tree or    Renders as a deleted
-                      HEAD -> index               file. `dp` stages an
-                                                 unstaged deletion; `do`
-                                                 unstages a staged deletion.
-    Both staged and   one view per edge           Plain |:Gdiff| shows
-    unstaged changes                              index -> working tree.
-                                                 Staged status rows show
-                                                 HEAD -> index.
-    Rename or copy    requires old and new paths  Not supported by the
-                                                 same-path DiffSpec model.
-                                                 Status-row old/new path
-                                                 views render content changes
-                                                 without hunk actions; pure
-                                                 renames report no text
-                                                 changes.
-    Mode-only change  no text hunk                Not supported. Shows an
-                                                 explicit warning.
-    Binary file       no text hunk                Not supported. Shows an
-                                                 explicit warning.
-    Submodule         gitlink, not file content   Not supported. Shows an
-                                                 explicit warning.
-    Unmerged file     :2: (ours) -> :3:          Plain |:Gdiff|, or an
-                      (theirs)                   explicit index object, opens
-                                                 a merge diff view. Native
-                                                 3-way `:Gdiffsplit!` windows
-                                                 are not emulated.
-    Merge-stage       :1:/:2:/:3: object         Not supported by |:Gdiff|
-    object                                       object parsing yet.
+    Hunk actions run `git apply --cached --check` before mutating the index.
+    Stale hunks, context drift, and index mismatches fail without partial
+    mutation. `dp` appears only for supported index -> worktree hunks/ranges;
+    `do` appears only for supported tree -> index hunks/ranges.
 
-    Supported hunk actions run `git apply --cached --check` before mutating
-    the index. Stale hunks, context drift, and index mismatches fail without
-    applying a partial mutation. Mutation maps are capability-scoped: `dp`
-    appears only for supported index -> worktree hunks/ranges, and `do`
-    appears only for supported tree -> index hunks/ranges. Read-only and
-    unsupported `diffs://` buffers do not expose mutation maps.
+Paired-window behavior: ~                          *diffs.nvim-paired-windows*
 
-    Native expectations outside this diffs.nvim-owned buffer contract, such as
-    `:Gdiffsplit!`, 3-way `&diff` windows, writable Fugitive object buffers,
-    and `dq`, are not emulated.
+    `++layout=split` opens a single-file comparison as paired old/new endpoint
+    windows. Endpoint buffers are read-only `diffs://` views; edits happen in
+    real source buffers opened from the view. Native `&diff` aligns rows, but
+    diff folds are disabled.
 
-Paired-window contract: ~                       *diffs.nvim-paired-windows*
-
-    The `++layout=split` view is the split rendering of a single
-    |:Gdiff| file comparison. It is not a parser for arbitrary diff text and it
-    must only apply when diffs.nvim owns explicit endpoint metadata.
-
-    The contract below describes the target behavior for paired
-    windows. It is an implementation target for the experimental split view, not
-    a claim that every current release implements each item.
-
-    Model: ~
-        - The left window displays the old endpoint and the right window
-          displays the new endpoint.
-        - Both buffers are `diffs://` endpoint buffers with stored
-          repo root, DiffSpec, endpoint side, and source path metadata.
-        - Both endpoint buffers are read-only views. Edits happen in real source
-          buffers opened from the diffs.nvim view.
-        - Native `&diff` alignment may provide filler rows, but diff folds are
-          not the layout mechanism and should be disabled for split
-          windows.
-        - Window-local user settings such as statusline, statuscolumn, number,
-          and cursorline should be preserved unless the diffs.nvim view
-          explicitly owns and documents a local display choice.
-        - Split endpoint windows set a one-column local 'signcolumn' while
-          open so changed lines can show the same left-edge change bar used by
-          generated unified views. The previous value is restored when the pair
-          is released.
-
-    Lifecycle: ~
-        - Opening a split view creates or reuses a coherent pair. It must not
-          leave stale endpoint buffers with duplicate `diffs://` names.
-        - `q` closes the pair, not just the current endpoint. Both
-          endpoint buffers should be deleted.
-        - Manually closing, wiping, or deleting either endpoint should not leave
-          an actionable half-pair. The remaining side should be closed or
-          detached from pair-only mappings and metadata.
-        - If the pair contains the last usable window, closing it may replace
-          one window with an empty buffer rather than closing Neovim.
-
-    Refresh: ~
-        - `:edit`, `BufReadCmd`, and pair-owned refresh paths should reload the
-          same comparison from stored metadata.
-        - Refreshing either endpoint should refresh both endpoints when the peer
-          is still valid.
-        - A failed reload should report the failing endpoint/spec and avoid a
-          silent partial update where one side is fresh and the other is stale.
-
-    Navigation: ~
-        - `]c` and `[c` should work from either endpoint and move through the
-          same underlying hunk sequence.
-        - Moving to a hunk should keep the paired windows aligned. If an
-          endpoint has no real line for that side of the hunk, land on the
-          nearest aligned row rather than inventing buffer text.
-        - Wrapping behavior should match unified |:Gdiff| hunk
-          navigation.
-
-    Source opening: ~
-        - `<CR>` opens a real worktree source file only when the current
-          endpoint and row can be mapped to worktree content.
-        - Tree-backed and index-backed rows should explain that they cannot be
-          opened as writable worktree files.
-        - Source opening should prefer an existing source window when one is
-          already visible.
-
-    Cursor and scroll sync: ~
-        - The paired windows should act as one comparison while still allowing
-          the cursor to live on either side.
-        - Cursor and scroll sync may be best-effort around native diff filler
-          rows, but it must not mutate `diffs://` buffers from decoration or
-          redraw callbacks.
-        - Sync should not require global options or leave unrelated windows
-          scroll-bound after the pair closes.
-
-    Deferred decisions: ~
-        - Quickfix and location-list targets for split rows are not settled.
-          Until that is decided, split |:Gdiff| should not add new qf/loclist
-          behavior beyond existing |:Greview| lists.
-        - Direct editing of the right-side worktree endpoint is not
-          part of the contract. Endpoint buffers remain read-only
-          unless a later API explicitly changes that ownership model.
+    `q` closes the pair. `:edit` refreshes the same comparison. `]c`/`[c`
+    navigate hunks from either side. `<CR>` opens a real worktree file only when
+    the current row maps to worktree content.
 
 
 :Gvdiff [object]                                                     *:Gvdiff*
@@ -630,7 +440,7 @@ Paired-window contract: ~                       *diffs.nvim-paired-windows*
 :Ghdiff [object]                                                     *:Ghdiff*
     Like |:Gdiff| but explicitly opens in a horizontal split.
 
-:Greview [++layout=unified|split] [review-spec]                    *:Greview*
+:Greview [++layout=unified|split] [review-spec]                     *:Greview*
     Open a repository review.
 
     With no arguments, reviews the current repository state against the
@@ -646,33 +456,24 @@ Paired-window contract: ~                       *diffs.nvim-paired-windows*
     Without `++layout=split`, populates the quickfix list with file entries
     (one per changed file, with `+N`/`-M` stats) and the location list with hunk
     entries (one per `@@` header, with filename and hunk number). All entries
-    point into the diff buffer, so ` :cnext`/` :cprev` navigate between files
-    and ` :lnext`/` :lprev` navigate between hunks within the buffer.
+    point into the diff buffer, so `:cnext`/`:cprev` navigate between files and
+    `:lnext`/`:lprev` navigate between hunks within the buffer.
 
-    The buffer is named `diffs://review:{review-spec}` where
-    `{review-spec}` is the normalized review specification. Reloading with
-    ` :edit` refreshes the same review.
-
-    If a `diffs://` window already exists in the current tabpage, the new
-    diff replaces its buffer instead of creating another split.
+    Reloading with `:edit` refreshes the same review. If a `diffs://` window
+    already exists in the current tabpage, the new diff replaces its buffer
+    instead of creating another split.
 
     With `++layout=split`, |:Greview| opens a two-surface review workspace
     instead of the full review map. The left window is a read-only generated
-    `diffs://review-split:{review-spec}` buffer for one review file. It keeps
-    unified generated-diff behavior such as `]c`, `[c`, `do`, `dp`, Visual
-    `do`/`dp`, and `:edit` refresh. The right window is the real editable
-    worktree file when the selected edge has an existing worktree target;
-    otherwise it is a read-only `diffs://review-target:{endpoint}:{file}` view
-    of the tree or index target.
+    diff for one review file. The right window is the real editable worktree
+    file when possible; otherwise it is a read-only tree or index target.
 
     In split layout, the quickfix list remains the repo-wide review file index
     and the location list is the active file's hunk index. Selecting quickfix
     or location-list entries with the |diffs.nvim| mapped <CR> updates the
-    existing workspace instead of opening a third review buffer. Native
-    `:cnext`/`:cprev` and `:lnext`/`:lprev` movement is not the split workspace
-    update path. Saving the right-side worktree buffer refreshes the generated
-    diff on the left. Native Vim `&diff` mode is not used for |:Greview| split
-    workspaces.
+    existing workspace. Saving the right-side worktree buffer refreshes the
+    generated diff on the left. Native Vim `&diff` mode is not used for
+    |:Greview| split workspaces.
 
     Parameters: ~
         ++layout=unified (optional) Open the default unified review buffer.
@@ -687,6 +488,8 @@ Paired-window contract: ~                       *diffs.nvim-paired-windows*
                        - `{base}..{target}`: direct review of explicit target
                          `{target}` against base `{base}`
 
+    Completion covers `++layout=...` and git refs.
+
     Examples: >vim
         :Greview
         :Greview ++layout=split
@@ -699,19 +502,8 @@ Paired-window contract: ~                       *diffs.nvim-paired-windows*
     Lua command helper: >lua
         require('diffs.commands').greview({
           base = 'origin/main',
-        })
-
-        require('diffs.commands').greview({
-          base = 'origin/main',
           target = 'refs/forge/pr/42',
-        })
-
-        require('diffs.commands').greview({
-          base = 'origin/main',
-          target = 'refs/forge/pr/42',
-          mode = 'direct',
           repo = '/path/to/repo',
-          vertical = true,
         })
 
         require('diffs.commands').greview_split()
@@ -735,10 +527,6 @@ Paired-window contract: ~                       *diffs.nvim-paired-windows*
         quickfix item, or loclist item as the file selection, and the review
         quickfix list remains the authoritative file list.
 
-        `require('diffs.commands').review_file_at_line(bufnr, lnum)` returns
-        the filename at a given line in a review buffer by walking backwards
-        to the nearest `diff --git` header.
-
     These helpers are command integration helpers for |:Greview|. The stable
     root Lua API remains the small surface documented at |diffs.nvim-api|.
 
@@ -753,17 +541,13 @@ MAPPINGS                                                 *diffs.nvim-mappings*
 <Plug>(diffs-gvdiff)    Show index-to-worktree unified diff in a vertical
                         split. Equivalent to |:Gvdiff| with no arguments.
 
-                                                *<Plug>(diffs-gdiff-open-source)*
+                                             *<Plug>(diffs-gdiff-open-source)*
 <Plug>(diffs-gdiff-open-source)
                         Open the real worktree file at the current |:Gdiff|
                         hunk location. `diffs://` buffers map this to
-                        <CR> by default. Map this plug key yourself if you want
-                        another alias: >lua
-                            vim.keymap.set('n', 'go',
-                              '<Plug>(diffs-gdiff-open-source)')
-<
+                        <CR> by default.
 
-                                             *<Plug>(diffs-greview-open-split)*
+                                            *<Plug>(diffs-greview-open-split)*
 <Plug>(diffs-greview-open-split)
                         Open the currently selected |:Greview| file in a
                         two-surface split workspace: generated per-file diff on
@@ -869,6 +653,7 @@ autocmds for each integration's filetypes and attaches automatically.
         neogit = true,
         neojj = true,
         gitsigns = true,
+        committia = true,
       },
     }
 <
@@ -880,8 +665,8 @@ Opt-in: ~ For filetypes not covered by a built-in integration, use
 <
 
 Plugin authors that render their own unified diff buffers should use this same
-path rather than depending on generated `diffs://` buffers or internal metadata;
-see |diffs.nvim-plugin-authors|.
+path rather than depending on generated `diffs://` buffers or internal
+metadata; see |diffs.nvim-plugin-authors|.
 
 ------------------------------------------------------------------------------
 FUGITIVE                                                 *diffs.nvim-fugitive*
@@ -898,8 +683,8 @@ Fugitive status keymaps: ~
 
 When inside a `:Git` status buffer, diffs.nvim provides keymaps to open
 unified `diffs://` views for files or entire sections. These keymaps reuse
-Fugitive status context for endpoint selection; they do not call
-`:Gdiffsplit` or open native Vim diff windows.
+Fugitive status context for endpoint selection; they do not call `:Gdiffsplit`
+or open native Vim diff windows.
 
 Keymaps: ~
                                                *diffs.nvim-du* *diffs.nvim-dU*
@@ -924,13 +709,13 @@ Behavior by file status: ~
 
 On section headers, the keymap runs `git diff` (or `git diff --cached` for
 staged) and displays all changes in that section as a single unified diff
-without hunk actions. Empty staged or unstaged sections report which section has
-no changes. Untracked section headers show a warning since there is no
+without hunk actions. Empty staged or unstaged sections report which section
+has no changes. Untracked section headers show a warning since there is no
 meaningful diff.
 
-This status-row behavior is intentionally narrower than Fugitive `:Gdiffsplit`.
-It preserves the useful edge selection model while keeping `diffs://` buffers
-read-only, explicit, and owned by diffs.nvim.
+This status-row behavior is intentionally narrower than Fugitive
+`:Gdiffsplit`. It preserves the useful edge selection model while keeping
+`diffs://` buffers read-only, explicit, and owned by diffs.nvim.
 
 Configuration: ~
                                                    *diffs.nvim.FugitiveConfig*
@@ -982,7 +767,7 @@ Expanding a diff in a neojj buffer (e.g., TAB on a file in the status view)
 applies treesitter syntax highlighting and intra-line diffs to the hunk lines.
 
 Configuration: ~
-                                                       *diffs.nvim.NeojjConfig*
+                                                      *diffs.nvim.NeojjConfig*
     Use `neojj = false` to disable. Passing a table is deprecated; use
     `neojj = true` instead. During the deprecation window, table presence still
     enables the integration.
@@ -1006,6 +791,18 @@ backgrounds, and intra-line diffs.
 
 Highlights are applied in a separate `diffs-gitsigns` namespace and do not
 interfere with the main decoration provider used for diff buffers.
+
+------------------------------------------------------------------------------
+COMMITTIA                                               *diffs.nvim-committia*
+
+Enable committia.vim (https://github.com/rhysd/committia.vim) diff-pane
+support: >lua
+    vim.g.diffs = { integrations = { committia = true } }
+<
+
+Use `committia = false` to disable. Passing a table is deprecated; use
+`committia = true` instead. During the deprecation window, table presence
+still enables the integration.
 
 ------------------------------------------------------------------------------
 TELESCOPE                                               *diffs.nvim-telescope*
@@ -1161,17 +958,17 @@ User events: ~
 ==============================================================================
 MERGE DIFF RESOLUTION                                       *diffs.nvim-merge*
 
-When running plain |:Gdiff| or an explicit index-object comparison (for example
-`:Gdiff :%`) on an unmerged worktree file, or pressing `du`/`dU` on an
+When running plain |:Gdiff| or an explicit index-object comparison (for
+example `:Gdiff :%`) on an unmerged worktree file, or pressing `du`/`dU` on an
 unmerged (`U`) file in the fugitive status buffer, diffs.nvim opens a unified
 diff of ours (`git show :2:path`) vs theirs (`git show :3:path`) with full
-treesitter and intra-line highlighting. Revision comparisons such as
-`:Gdiff HEAD` keep rendering that revision against the conflicted worktree
-buffer.
+treesitter and intra-line highlighting. Revision comparisons such as `:Gdiff
+HEAD` keep rendering that revision against the conflicted worktree buffer.
 
-The same conflict resolution keymaps (`co`/`ct`/`cb`/`c0`/`]c`/`[c`) are
-available on the diff buffer. They resolve conflicts in the working file by
-matching diff hunks to conflict markers:
+When `conflict.keymaps` is configured, those same conflict resolution mappings
+are available on the diff buffer. The corresponding |<Plug>(diffs-merge-ours)|
+family is documented in |diffs.nvim-mappings|. They resolve conflicts in the
+working file by matching diff hunks to conflict markers:
 
 - `co` replaces the conflict region with ours content
 - `ct` replaces the conflict region with theirs content
@@ -1183,9 +980,9 @@ Resolved hunks are marked with `(resolved)` virtual text. Hunks that
 correspond to auto-merged content (no conflict markers) show an informational
 notification and are left unchanged.
 
-The working file buffer is modified in place; save it when ready. Phase 1
-inline conflict highlights (see |diffs.nvim-conflict|) are refreshed
-automatically after each resolution.
+The working file buffer is modified in place; save it when ready. Inline
+conflict highlights (see |diffs.nvim-conflict|) are refreshed automatically
+after each resolution.
 
 ==============================================================================
 API                                                           *diffs.nvim-api*
@@ -1206,25 +1003,19 @@ refresh({bufnr})                                        *diffs.nvim.refresh()*
         {bufnr}  (integer, optional) Buffer number. Defaults to current buffer.
 
 ------------------------------------------------------------------------------
-PLUGIN AUTHORS                                  *diffs.nvim-plugin-authors*
-
-The stable root Lua API is intentionally small: |diffs.nvim.attach()| and
-|diffs.nvim.refresh()|.
+PLUGIN AUTHORS                                     *diffs.nvim-plugin-authors*
 
 For plugin-owned unified diff buffers, keep ownership of the buffer and
-lifecycle in the host plugin:
-
-1. Use a filetype listed in `vim.g.diffs.extra_filetypes`.
-2. Optionally set `b:diffs_repo_root` to the repository root before attaching.
-3. Call |diffs.nvim.attach()| after the buffer has diff-like contents.
-4. Call |diffs.nvim.refresh()| after replacing or regenerating the contents.
+lifecycle in the host plugin. Use a filetype listed in
+`vim.g.diffs.extra_filetypes`, optionally set `b:diffs_repo_root`, call
+|diffs.nvim.attach()| after writing the diff contents, and call
+|diffs.nvim.refresh()| after regenerating the buffer.
 
 Configuration: >lua
     vim.g.diffs = {
       extra_filetypes = { 'myplugin-diff' },
     }
-<
-Example: >lua
+< Example: >lua
     local bufnr = vim.api.nvim_create_buf(false, true)
 
     vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, diff_lines)
@@ -1235,45 +1026,9 @@ Example: >lua
 <
 
 `b:diffs_repo_root` is the only supported `b:diffs_*` variable for external
-buffers. All other `b:diffs_*` variables, generated `diffs://` buffer names,
-hunk/spec/source metadata, quickfix/location-list `user_data`, and modules under
-`lua/diffs/` other than `require('diffs')` are internal unless documented here.
-
-diffs.nvim only highlights and refreshes the diff buffer in this integration
-mode. Host plugins remain responsible for proposed-edit permissions,
-accept/reject flows, review comments, patch application, buffer cleanup, and any
-AI or remote-review protocol state.
-
-==============================================================================
-IMPLEMENTATION                                     *diffs.nvim-implementation*
-
-Summary / commit detail views: ~
-1. `FileType` autocmd for computed filetypes (see |diffs.nvim-config|) triggers
-   |diffs.nvim.attach()|.
-2. The buffer is parsed to detect file headers (`M path/to/file`,
-   `diff --git a/... b/...`) and hunk headers (`@@ -10,3 +10,4 @@`)
-3. For each hunk:
-   - Language is detected from the filename using `vim.filetype.match()`
-   - Diff prefixes (`+`/`-`/` `) are stripped from code lines
-   - Code is parsed with `vim.treesitter.get_string_parser()`
-   - If no treesitter parser and `vim.enabled`: vim syntax fallback via
-     scratch buffer and `synID()`
-   - `DiffsClear` extmarks at priority 198 clear underlying diff foreground
-   - Syntax highlights are applied as extmarks at priority 199
-   - Background extmarks (`DiffsAdd`/`DiffsDelete`) at priority 200
-   - Character-level diff extmarks (`DiffsAddText`/`DiffsDeleteText`) at
-     priority 201 overlay changed characters with an intense background
-   - Conceal extmarks hide diff prefixes when `view.prefix` is disabled
-   - Priority layering is fixed internally; deprecated custom priorities are
-     ignored
-4. A decoration provider re-highlights visible hunks on each redraw
-
-Diff mode views: ~
-1. `OptionSet diff` detects when any window enters diff mode
-2. All `&diff` windows in the tabpage receive a window-local 'winhighlight'
-   override that remaps `DiffAdd`/`DiffDelete`/`DiffChange`/`DiffText` to
-   background-only variants, allowing existing treesitter highlighting to
-   show through the diff colors
+buffers. Other `b:diffs_*` variables, generated `diffs://` buffer names,
+hunk/spec/source metadata, quickfix/location-list `user_data`, and non-root
+`lua/diffs/` modules are internal unless documented here.
 
 ==============================================================================
 KNOWN LIMITATIONS                                     *diffs.nvim-limitations*
@@ -1283,11 +1038,8 @@ Incomplete Syntax Context ~
 Treesitter parses each diff hunk in isolation. When `highlights.context` is
 enabled (the default), surrounding code is read from the working tree file and
 fed into the parser to improve accuracy at hunk boundaries. This helps when a
-hunk is inside a table, function body, or loop whose opening is beyond the
-hunk's own context lines. Requires `repo_root` and `file_new_start` to be
-available on the hunk (true for standard unified diffs). In rare cases, hunks
-that start or end mid-expression may still produce imperfect highlights due to
-treesitter error recovery.
+hunk starts inside a table, function body, or loop. Hunks that start or end
+mid-expression may still produce imperfect highlights.
 
 Syntax Highlighting Flash ~
                                                             *diffs.nvim-flash*
@@ -1295,131 +1047,78 @@ When opening a fugitive buffer, there is an unavoidable visual "flash" where
 the buffer briefly shows fugitive's default diff highlighting before
 diffs.nvim applies its own highlights.
 
-This occurs because diffs.nvim hooks into the `FileType fugitive` event, which
-fires after vim-fugitive has already painted the buffer. The decoration
-provider applies highlights on the next redraw cycle.
-
-This is separate from vim syntax fallback rendering. For languages without a
-treesitter parser, cold fallback syntax may appear one frame later, while
-stale deferred fallback renders are discarded if the buffer changes.
-
 Conflicting Diff Plugins ~
                                                  *diffs.nvim-plugin-conflicts*
-diffs.nvim may not interact well with other plugins that modify diff
-highlighting or the sign column in diff views. Known plugins that may
-conflict:
-
-  - diffview.nvim (sindrets/diffview.nvim)
-      Provides its own diff highlighting and conflict resolution UI.
-      When using diffview.nvim for viewing diffs, you may want to disable
-      diffs.nvim's diff mode attachment or use one plugin exclusively.
-
-  - mini.diff (echasnovski/mini.diff)
-      Visualizes buffer differences with its own highlighting system.
-      May override or conflict with diffs.nvim's background highlighting.
-
-  - gitsigns.nvim (lewis6991/gitsigns.nvim)
-      Generally compatible for sign column decorations, but both plugins
-      modifying line highlights may produce unexpected results.
-
-  - git-conflict.nvim (akinsho/git-conflict.nvim)
-      Provides conflict marker highlighting and resolution keymaps.
-      diffs.nvim now has built-in conflict resolution (see
-      |diffs.nvim-conflict|). Disable one or the other to avoid overlap.
-
-If you experience visual conflicts, try disabling the conflicting plugin's
-diff-related features.
+Plugins that also own diff highlighting, sign columns, or conflict resolution
+can visually conflict with diffs.nvim. Common overlap points include
+diffview.nvim, mini.diff, gitsigns.nvim line highlights, and
+git-conflict.nvim. If you see visual conflicts, disable one plugin's
+overlapping diff features.
 
 ==============================================================================
 HIGHLIGHT GROUPS                                       *diffs.nvim-highlights*
 
-diffs.nvim defines custom highlight groups. All groups use `default = true`,
-so colorschemes can override them by defining the group before the plugin
-loads.
-
-All derived groups are computed by alpha-blending a source color into the
-`Normal` background. Line-level groups blend at 40% alpha for a subtle tint;
-character-level groups blend at 60% for more contrast. Line-number groups
-combine both: background from the line-level blend, foreground from the
-character-level blend.
+diffs.nvim defines custom highlight groups with `default = true`. Colorschemes
+can override them before diffs.nvim loads, or users can override them with
+`highlights.overrides`.
 
 
 Fugitive unified diff highlights: ~
+                                                                  *DiffsClear*
+    DiffsClear          Clears underlying diff foreground colors while preserving
+                        the normal foreground.
+
                                                                     *DiffsAdd*
-    DiffsAdd            Background for `+` lines. Derived by blending
-                        `DiffAdd` background with `Normal` at 40% alpha.
+    DiffsAdd            Background for `+` lines.
 
                                                                  *DiffsDelete*
-    DiffsDelete         Background for `-` lines. Derived by blending
-                        `DiffDelete` background with `Normal` at 40% alpha.
+    DiffsDelete         Background for `-` lines.
 
-                                                                 *DiffsRail*
+                                                                   *DiffsRail*
     DiffsRail           Generated old/new line-number rail and separator.
-                        Foreground follows the plain diff rail text; does not
-                        combine with source syntax captures.
 
-                                                                *DiffsRailNr*
+                                                                 *DiffsRailNr*
     DiffsRailNr         Generated old/new line numbers on context lines.
-                        Foreground follows `LineNr`; does not combine with
-                        source syntax captures.
 
-                                                            *DiffsAddRailNr*
+                                                              *DiffsAddRailNr*
     DiffsAddRailNr      Generated number rail on `+` lines, including the
                         missing old-side number slot.
-                        Foreground matches `DiffsAddBar` background; does
-                        not combine with source syntax captures.
 
-                                                         *DiffsDeleteRailNr*
+                                                           *DiffsDeleteRailNr*
     DiffsDeleteRailNr   Generated number rail on `-` lines, including the
                         missing new-side number slot.
-                        Foreground matches `DiffsDeleteBar` background; does
-                        not combine with source syntax captures.
 
                                                                  *DiffsAddBar*
     DiffsAddBar         Change bar for `+` lines in diffs.nvim-owned views.
-                        Foreground follows added diff text; background follows
-                        the changed-line background.
 
                                                               *DiffsDeleteBar*
     DiffsDeleteBar      Change bar for `-` lines in diffs.nvim-owned views.
-                        Foreground follows deleted diff text; background
-                        follows the changed-line background.
 
                                                                 *DiffsAddText*
     DiffsAddText        Character-level background for changed characters
-                        within `+` lines. Uses the raw `DiffAdd` background
-                        color. Only sets `bg`, so treesitter foreground
-                        colors show through.
+                        within `+` lines.
 
                                                              *DiffsDeleteText*
     DiffsDeleteText     Character-level background for changed characters
-                        within `-` lines. Uses the raw `DiffDelete`
-                        background color.
+                        within `-` lines.
 
 Conflict highlights: ~
                                                            *DiffsConflictOurs*
     DiffsConflictOurs   Background for "ours" (current) content lines.
-                        Derived by blending `DiffAdd` background with
-                        `Normal` at 40% alpha (green tint).
 
                                                          *DiffsConflictTheirs*
     DiffsConflictTheirs Background for "theirs" (incoming) content lines.
-                        Derived by blending `DiffChange` background with
-                        `Normal` at 40% alpha.
 
                                                            *DiffsConflictBase*
     DiffsConflictBase   Background for base (ancestor) content lines in
-                        diff3 conflicts. Derived by blending `DiffText`
-                        background with `Normal` at 30% alpha (muted).
+                        diff3 conflicts.
 
                                                          *DiffsConflictMarker*
     DiffsConflictMarker Dimmed foreground with bold for `<<<<<<<`,
                         `=======`, `>>>>>>>`, and `|||||||` marker lines.
 
                                                          *DiffsConflictOursNr*
-    DiffsConflictOursNr Line number for "ours" content lines. Foreground
-                        from higher-alpha blend, background from line-level
-                        blend.
+    DiffsConflictOursNr Line number for "ours" content lines.
 
                                                        *DiffsConflictTheirsNr*
     DiffsConflictTheirsNr Line number for "theirs" content lines.
@@ -1435,21 +1134,16 @@ Diff mode window highlights: ~ These are used for 'winhighlight' remapping in
 `&diff` windows.
 
                                                                 *DiffsDiffAdd*
-    DiffsDiffAdd        Background-only. Derived from `DiffAdd` bg.
-                        Treesitter provides foreground syntax highlighting.
+    DiffsDiffAdd        Background-only replacement for `DiffAdd`.
 
                                                              *DiffsDiffDelete*
-    DiffsDiffDelete     Foreground and background from `DiffDelete`.
-                        Used for filler lines (`/////`) which have no real
-                        code content to highlight.
+    DiffsDiffDelete     Replacement for `DiffDelete`.
 
                                                              *DiffsDiffChange*
-    DiffsDiffChange     Background-only. Derived from `DiffChange` bg.
-                        Treesitter provides foreground syntax highlighting.
+    DiffsDiffChange     Background-only replacement for `DiffChange`.
 
                                                                *DiffsDiffText*
-    DiffsDiffText       Background-only. Derived from `DiffText` bg.
-                        Treesitter provides foreground syntax highlighting.
+    DiffsDiffText       Background-only replacement for `DiffText`.
 
 To customize these in your colorscheme: >lua
     vim.api.nvim_set_hl(0, 'DiffsAdd', { bg = '#2e4a3a' })
@@ -1468,7 +1162,7 @@ To customize these in your colorscheme: >lua
 ==============================================================================
 HEALTH CHECK                                               *diffs.nvim-health*
 
-Run ` :checkhealth` diffs to verify your setup.
+Run `:checkhealth diffs` to verify your setup.
 
 Checks performed:
 - Neovim version >= 0.9.0
