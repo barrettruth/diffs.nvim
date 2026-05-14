@@ -46,6 +46,7 @@ CONTENTS                                                 *diffs.nvim-contents*
   8. Conflict Resolution ............................... |diffs.nvim-conflict|
   9. Merge Diff Resolution ................................ |diffs.nvim-merge|
  10. API .................................................... |diffs.nvim-api|
+       Plugin Authors ........................... |diffs.nvim-plugin-authors|
  11. Implementation .............................. |diffs.nvim-implementation|
  12. Known Limitations .............................. |diffs.nvim-limitations|
  13. Highlight Groups ................................ |diffs.nvim-highlights|
@@ -695,7 +696,7 @@ Paired-window contract: ~                       *diffs.nvim-paired-windows*
         :Greview origin/main..feature/topic
 <
 
-    Lua API: >lua
+    Lua command helper: >lua
         require('diffs.commands').greview({
           base = 'origin/main',
         })
@@ -737,6 +738,9 @@ Paired-window contract: ~                       *diffs.nvim-paired-windows*
         `require('diffs.commands').review_file_at_line(bufnr, lnum)` returns
         the filename at a given line in a review buffer by walking backwards
         to the nearest `diff --git` header.
+
+    These helpers are command integration helpers for |:Greview|. The stable
+    root Lua API remains the small surface documented at |diffs.nvim-api|.
 
 ==============================================================================
 MAPPINGS                                                 *diffs.nvim-mappings*
@@ -874,6 +878,10 @@ Opt-in: ~ For filetypes not covered by a built-in integration, use
 >lua
     vim.g.diffs = { extra_filetypes = { 'diff' } }
 <
+
+Plugin authors that render their own unified diff buffers should use this same
+path rather than depending on generated `diffs://` buffers or internal metadata;
+see |diffs.nvim-plugin-authors|.
 
 ------------------------------------------------------------------------------
 FUGITIVE                                                 *diffs.nvim-fugitive*
@@ -1196,6 +1204,45 @@ refresh({bufnr})                                        *diffs.nvim.refresh()*
 
     Parameters: ~
         {bufnr}  (integer, optional) Buffer number. Defaults to current buffer.
+
+------------------------------------------------------------------------------
+PLUGIN AUTHORS                                  *diffs.nvim-plugin-authors*
+
+The stable root Lua API is intentionally small: |diffs.nvim.attach()| and
+|diffs.nvim.refresh()|.
+
+For plugin-owned unified diff buffers, keep ownership of the buffer and
+lifecycle in the host plugin:
+
+1. Use a filetype listed in `vim.g.diffs.extra_filetypes`.
+2. Optionally set `b:diffs_repo_root` to the repository root before attaching.
+3. Call |diffs.nvim.attach()| after the buffer has diff-like contents.
+4. Call |diffs.nvim.refresh()| after replacing or regenerating the contents.
+
+Configuration: >lua
+    vim.g.diffs = {
+      extra_filetypes = { 'myplugin-diff' },
+    }
+<
+Example: >lua
+    local bufnr = vim.api.nvim_create_buf(false, true)
+
+    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, diff_lines)
+    vim.b[bufnr].diffs_repo_root = repo_root
+    vim.bo[bufnr].filetype = 'myplugin-diff'
+
+    require('diffs').attach(bufnr)
+<
+
+`b:diffs_repo_root` is the only supported `b:diffs_*` variable for external
+buffers. All other `b:diffs_*` variables, generated `diffs://` buffer names,
+hunk/spec/source metadata, quickfix/location-list `user_data`, and modules under
+`lua/diffs/` other than `require('diffs')` are internal unless documented here.
+
+diffs.nvim only highlights and refreshes the diff buffer in this integration
+mode. Host plugins remain responsible for proposed-edit permissions,
+accept/reject flows, review comments, patch application, buffer cleanup, and any
+AI or remote-review protocol state.
 
 ==============================================================================
 IMPLEMENTATION                                     *diffs.nvim-implementation*
