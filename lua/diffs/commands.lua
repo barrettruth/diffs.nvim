@@ -282,8 +282,10 @@ end
 local function set_diff_rails_var(bufnr, info)
   if info then
     vim.api.nvim_buf_set_var(bufnr, 'diffs_rail_width', info.prefix_width)
+    vim.api.nvim_buf_set_var(bufnr, 'diffs_rail_separator_width', info.separator_width)
   else
     pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_rail_width')
+    pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_rail_separator_width')
   end
 end
 
@@ -339,7 +341,9 @@ end
 ---@return integer
 local function create_generated_diff_buffer(opts)
   local bufnr = vim.api.nvim_create_buf(false, true)
-  local display_lines, rail_info = rails.annotate(opts.lines)
+  local display_lines, rail_info = rails.annotate(opts.lines, {
+    rail_separator = runtime.get_view_config().rail_separator,
+  })
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, display_lines)
   vim.api.nvim_buf_set_name(bufnr, opts.name)
   set_diff_rails_var(bufnr, rail_info)
@@ -386,7 +390,9 @@ end
 ---@param diff_lines string[]
 ---@param diff_spec? diffs.DiffSpec
 local function replace_generated_diff_buffer_lines(bufnr, diff_lines, diff_spec)
-  local display_lines, rail_info = rails.annotate(diff_lines)
+  local display_lines, rail_info = rails.annotate(diff_lines, {
+    rail_separator = runtime.get_view_config().rail_separator,
+  })
   vim.api.nvim_set_option_value('modifiable', true, { buf = bufnr })
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, display_lines)
   set_diff_rails_var(bufnr, rail_info)
@@ -1626,6 +1632,7 @@ function M.gdiff(args, vertical)
       filetype = vim.api.nvim_get_option_value('filetype', { buf = bufnr }),
       worktree_lines = worktree_lines,
       diff_lines = diff_lines,
+      change_bar = runtime.get_view_config().change_bar,
     })
     if not opened then
       notify(split_err or 'cannot open split Gdiff', vim.log.levels.ERROR)
@@ -1850,7 +1857,9 @@ function M.read_buffer(bufnr)
   end
 
   if source and source.kind == 'split_endpoint' then
-    local ok, err = split.read_buffer(bufnr, source)
+    local ok, err = split.read_buffer(bufnr, source, {
+      change_bar = runtime.get_view_config().change_bar,
+    })
     if not ok then
       notify(err or 'cannot reload split diffs:// buffer', vim.log.levels.WARN)
     end

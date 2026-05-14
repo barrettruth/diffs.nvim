@@ -22,7 +22,7 @@ local peer_buffers = {}
 local pair_window_options = {}
 local syncing_cursor = false
 local split_bar_ns = vim.api.nvim_create_namespace('diffs_split_change_bar')
-local split_change_bar = '▏'
+local default_change_bar = '▏'
 
 ---@type fun(bufnr: integer)
 local clear_cursor_sync
@@ -37,6 +37,7 @@ local ensure_cursor_sync
 ---@field diff_lines? string[]
 ---@field hunk_index? integer
 ---@field quickfix? boolean
+---@field change_bar? string
 
 ---@class diffs.SplitEndpointSource
 ---@field version integer
@@ -131,7 +132,8 @@ end
 ---@param bufnr integer
 ---@param source diffs.SplitEndpointSource
 ---@param split_hunks? diffs.GdiffHunk[]
-local function set_split_change_bars(bufnr, source, split_hunks)
+---@param change_bar? string
+local function set_split_change_bars(bufnr, source, split_hunks, change_bar)
   vim.api.nvim_buf_clear_namespace(bufnr, split_bar_ns, 0, -1)
   for _, hunk in ipairs(split_hunks or {}) do
     for _, line in ipairs(hunk.lines or {}) do
@@ -147,7 +149,7 @@ local function set_split_change_bars(bufnr, source, split_hunks)
 
       if lnum and lnum >= 1 and lnum <= vim.api.nvim_buf_line_count(bufnr) then
         pcall(vim.api.nvim_buf_set_extmark, bufnr, split_bar_ns, lnum - 1, 0, {
-          sign_text = split_change_bar,
+          sign_text = change_bar or default_change_bar,
           sign_hl_group = hl_group,
           priority = 210,
         })
@@ -234,13 +236,14 @@ end
 ---@param source diffs.SplitEndpointSource
 ---@param lines string[]
 ---@param split_hunks? diffs.GdiffHunk[]
+---@param change_bar? string
 ---@return integer
-local function create_buffer(source, lines, split_hunks)
+local function create_buffer(source, lines, split_hunks, change_bar)
   local bufnr = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
   vim.api.nvim_buf_set_name(bufnr, buffer_name(source))
   set_source_vars(bufnr, source, split_hunks)
-  set_split_change_bars(bufnr, source, split_hunks)
+  set_split_change_bars(bufnr, source, split_hunks, change_bar)
   set_buffer_options(bufnr, source.filetype)
   set_keymaps(bufnr)
   return bufnr
@@ -670,11 +673,12 @@ end
 ---@param source diffs.SplitEndpointSource
 ---@param lines string[]
 ---@param split_hunks? diffs.GdiffHunk[]
-local function apply_buffer_lines(bufnr, source, lines, split_hunks)
+---@param change_bar? string
+local function apply_buffer_lines(bufnr, source, lines, split_hunks, change_bar)
   vim.api.nvim_set_option_value('modifiable', true, { buf = bufnr })
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
   set_source_vars(bufnr, source, split_hunks)
-  set_split_change_bars(bufnr, source, split_hunks)
+  set_split_change_bars(bufnr, source, split_hunks, change_bar)
   set_buffer_options(bufnr, source.filetype)
   set_keymaps(bufnr)
   ensure_pair_cleanup(bufnr)
@@ -867,8 +871,8 @@ function M.open(opts)
     vim.api.nvim_set_current_win(invoking_win)
   end
 
-  local left_buf = create_buffer(left_source, left_lines, split_hunks)
-  local right_buf = create_buffer(right_source, right_lines, split_hunks)
+  local left_buf = create_buffer(left_source, left_lines, split_hunks, opts.change_bar)
+  local right_buf = create_buffer(right_source, right_lines, split_hunks, opts.change_bar)
   local left_win = vim.api.nvim_get_current_win()
   vim.cmd('rightbelow vsplit')
   local right_win = vim.api.nvim_get_current_win()
@@ -926,8 +930,10 @@ end
 
 ---@param bufnr integer
 ---@param source table
+---@param opts? { change_bar?: string }
 ---@return boolean, string?
-function M.read_buffer(bufnr, source)
+function M.read_buffer(bufnr, source, opts)
+  opts = opts or {}
   source = normalize_source(source)
 
   local peer = split_peer(bufnr)
@@ -965,9 +971,9 @@ function M.read_buffer(bufnr, source)
     split_hunks = split_hunks_for(diff_lines, source.spec)
   end
 
-  apply_buffer_lines(bufnr, source, current_lines, split_hunks)
+  apply_buffer_lines(bufnr, source, current_lines, split_hunks, opts.change_bar)
   if peer and peer_source and peer_lines then
-    apply_buffer_lines(peer, peer_source, peer_lines, split_hunks)
+    apply_buffer_lines(peer, peer_source, peer_lines, split_hunks, opts.change_bar)
     if source.side == 'left' then
       set_peers(bufnr, peer)
     else
