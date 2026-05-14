@@ -11,6 +11,23 @@ local vim_syntax_cache_size = 0
 local vim_syntax_cache_clock = 0
 local vim_syntax_cache_limit = 128
 
+---@class diffs.HighlightPriorities
+---@field clear integer
+---@field syntax integer
+---@field line_bg integer
+---@field char_bg integer
+
+---@class diffs.HunkHighlights: diffs.Highlights
+---@field priorities diffs.HighlightPriorities
+
+---@type diffs.HighlightPriorities
+local HIGHLIGHT_PRIORITIES = {
+  clear = 198,
+  syntax = 199,
+  line_bg = 200,
+  char_bg = 201,
+}
+
 local function get_vim_syntax_cache_key(ft, code_lines)
   return ft .. '\0' .. table.concat(code_lines, '\n')
 end
@@ -76,7 +93,7 @@ end
 ---@param text string
 ---@param lang string
 ---@param context_lines? string[]
----@param priorities diffs.PrioritiesConfig
+---@param priorities diffs.HighlightPriorities
 ---@param context_before? string[]
 ---@return integer
 local function highlight_text(
@@ -148,7 +165,7 @@ end
 
 ---@class diffs.HunkOpts
 ---@field hide_prefix boolean
----@field highlights diffs.Highlights
+---@field highlights diffs.HunkHighlights
 ---@field defer_vim_syntax? boolean
 ---@field syntax_only? boolean
 
@@ -161,9 +178,11 @@ end
 ---@param overrides? diffs.HunkOptsOverride
 ---@return diffs.HunkOpts
 function M.hunk_opts(config, overrides)
+  local highlights = vim.deepcopy(config.highlights or {})
+  highlights.priorities = vim.deepcopy(HIGHLIGHT_PRIORITIES)
   local opts = {
     hide_prefix = not config.view.prefix,
-    highlights = config.highlights,
+    highlights = highlights,
   }
   if not overrides then
     return opts
@@ -171,7 +190,7 @@ function M.hunk_opts(config, overrides)
 
   for key, value in pairs(overrides) do
     if key == 'highlights' then
-      opts.highlights = vim.tbl_deep_extend('force', config.highlights, value)
+      opts.highlights = vim.tbl_deep_extend('force', opts.highlights, value)
     else
       opts[key] = value
     end
@@ -220,7 +239,7 @@ end
 ---@param line_map table<integer, integer>
 ---@param col_offset integer
 ---@param covered_lines? table<integer, true>
----@param priorities diffs.PrioritiesConfig
+---@param priorities diffs.HighlightPriorities
 ---@param force_high_priority? boolean
 ---@param context? diffs.TSContext
 ---@return integer
@@ -433,7 +452,7 @@ end
 ---@param code_lines string[]
 ---@param covered_lines? table<integer, true>
 ---@param leading_offset? integer
----@param priorities diffs.PrioritiesConfig
+---@param priorities diffs.HighlightPriorities
 ---@return integer
 local function highlight_vim_syntax(
   bufnr,
