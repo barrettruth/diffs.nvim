@@ -9,7 +9,7 @@ local diffspec = require('diffs.spec')
 ---@class diffs.GdiffParseResult
 ---@field spec diffs.DiffSpec
 ---@field novertical boolean
----@field layout "unified"|"split"
+---@field layout "unified"|"stacked"|"split"
 
 local function normalize_rev(rev)
   if rev == '@' then
@@ -104,7 +104,7 @@ function M.parse(args, context)
         return nil, 'repeated ++layout option'
       end
       local value = tokens[1]:match('^%+%+layout=(.+)$')
-      if value ~= 'unified' and value ~= 'split' then
+      if value ~= 'unified' and value ~= 'stacked' and value ~= 'split' then
         return nil, 'unsupported layout ' .. tostring(value)
       end
       has_layout = true

@@ -446,10 +446,12 @@ describe('commands', function()
 
       assert.are.same({
         '++layout=unified',
+        '++layout=stacked',
         '++layout=split',
       }, commands._test.complete_gdiff('++l'))
       assert.are.same({
         '++layout=unified',
+        '++layout=stacked',
         '++layout=split',
         ':',
         ':%',
@@ -2147,6 +2149,20 @@ describe('commands', function()
       }, parsed)
     end)
 
+    it('parses Greview command stacked layout option', function()
+      local parsed =
+        commands._test.parse_greview_command('++layout=stacked origin/main...refs/pull/42/head')
+
+      assert.are.same({
+        layout = 'stacked',
+        spec = {
+          base = 'origin/main',
+          target = 'refs/pull/42/head',
+          mode = 'merge-base',
+        },
+      }, parsed)
+    end)
+
     it('rejects unsupported Greview command layout options', function()
       local parsed, err = commands._test.parse_greview_command('++layout=tiled origin/main')
 
@@ -2255,6 +2271,7 @@ describe('commands', function()
 
       assert.are.same({
         '++layout=unified',
+        '++layout=stacked',
         '++layout=split',
       }, matches)
     end)
@@ -2269,6 +2286,7 @@ describe('commands', function()
 
       assert.are.same({
         '++layout=unified',
+        '++layout=stacked',
         '++layout=split',
         'origin/main',
         'feature/topic',
@@ -2304,6 +2322,7 @@ describe('commands', function()
       )
       assert.are.same({
         '++layout=unified',
+        '++layout=stacked',
         '++layout=split',
         '++topic',
       }, commands._test.complete_greview_command('++', 'Greview ++', #'Greview ++'))
