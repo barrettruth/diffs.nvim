@@ -561,6 +561,7 @@ end
 
 local layout_options = {
   '++layout=unified',
+  '++layout=stacked',
   '++layout=split',
 }
 

@@ -77,6 +77,14 @@ describe('diffs.gdiff', function()
     assert.are.equal('split', result.layout)
   end)
 
+  it('parses opt-in stacked layout separately from endpoint parsing', function()
+    local result = parse('++layout=stacked HEAD')
+
+    assert.are.same(diffspec.rev_to_worktree('HEAD', path), result.spec)
+    assert.is_false(result.novertical)
+    assert.are.equal('stacked', result.layout)
+  end)
+
   it('allows explicit unified layout', function()
     local result = parse('++layout=unified HEAD')
 
