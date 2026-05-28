@@ -19,7 +19,7 @@ local notify = log.notify
 
 ---@class diffs.GreviewCommandParseResult
 ---@field spec diffs.GreviewSpec
----@field layout "unified"|"split"
+---@field layout "unified"|"stacked"|"split"
 
 ---@class diffs.NormalizedGreview
 ---@field base string
@@ -183,7 +183,7 @@ function M.parse_command_args(args)
       return nil, 'repeated ++layout option'
     end
     local value = tokens[1]:match('^%+%+layout=(.+)$')
-    if value ~= 'unified' and value ~= 'split' then
+    if value ~= 'unified' and value ~= 'stacked' and value ~= 'split' then
       return nil, 'unsupported layout ' .. tostring(value)
     end
     has_layout = true
