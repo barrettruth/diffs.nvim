@@ -455,13 +455,19 @@ local function replace_combined_diffs(raw_lines, repo_root)
   return result
 end
 
+---@class diffs.ReviewDepsOpts
+---@field rail_style? diffs.RailStyle
+
+---@param opts? diffs.ReviewDepsOpts
 ---@return diffs.ReviewDeps
-local function review_deps()
+local function review_deps(opts)
+  opts = opts or {}
   return {
     create_generated_diff_buffer = create_generated_diff_buffer,
     show_generated_diff_buffer = show_generated_diff_buffer,
     attach_generated_diff_buffer = attach_generated_diff_buffer,
     replace_combined_diffs = replace_combined_diffs,
+    rail_style = opts.rail_style,
   }
 end
 
@@ -558,9 +564,10 @@ local function file_pair_label(diff_label, rel_path, old_rel_path)
 end
 
 ---@param spec? diffs.GreviewSpec
+---@param opts? diffs.ReviewDepsOpts
 ---@return integer?
-function M.greview(spec)
-  return review.greview(spec, review_deps())
+function M.greview(spec, opts)
+  return review.greview(spec, review_deps(opts))
 end
 
 ---@param buf integer
@@ -575,6 +582,15 @@ local layout_options = {
   '++layout=stacked',
   '++layout=split',
 }
+
+---@param layout? "unified"|"stacked"|"split"
+---@return diffs.RailStyle
+local function rail_style_for_layout(layout)
+  if layout == 'stacked' then
+    return 'single'
+  end
+  return 'dual'
+end
 
 local gdiff_objects = {
   ':',
@@ -739,7 +755,9 @@ function M.greview_command(args)
     return open_greview_workspace(parsed.spec)
   end
 
-  local bufnr = M.greview(parsed.spec)
+  local bufnr = M.greview(parsed.spec, {
+    rail_style = rail_style_for_layout(parsed.layout),
+  })
   return bufnr
 end
 
@@ -1596,6 +1614,7 @@ function M.gdiff(args, vertical)
     vertical = false
   end
 
+  local rail_style = rail_style_for_layout(parsed.layout)
   local diff_spec = parsed.spec
   local diff_label = gdiff_buffer_label(diff_spec)
   local diff_path = diff_spec.scope.path
@@ -1619,6 +1638,7 @@ function M.gdiff(args, vertical)
     M.gdiff_file(filepath, {
       vertical = vertical,
       unmerged = true,
+      rail_style = rail_style,
     })
     return
   end
@@ -1658,6 +1678,7 @@ function M.gdiff(args, vertical)
     repo_root = repo_root,
     diff_spec = diff_spec,
     source = generated.file_source(repo_root, diff_spec),
+    rail_style = rail_style,
   })
   show_generated_diff_buffer(diff_buf, vertical)
   lists.set_for_unified_buffer(diff_buf, diff_lines, {
@@ -1674,6 +1695,7 @@ end
 ---@field unmerged? boolean
 ---@field old_filepath? string
 ---@field hunk_position? { hunk_header: string, offset: integer }
+---@field rail_style? diffs.RailStyle
 
 ---@param filepath string
 ---@param opts? diffs.GdiffFileOpts
@@ -1775,6 +1797,7 @@ function M.gdiff_file(filepath, opts)
     repo_root = repo_root,
     diff_spec = diff_spec,
     source = source,
+    rail_style = opts.rail_style,
     vars = {
       diffs_old_filepath = old_rel_path ~= rel_path and old_rel_path or nil,
     },
