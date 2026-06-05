@@ -299,6 +299,16 @@ function M.separator_width_for_buffer(bufnr)
   return #separator_for()
 end
 
+---@param bufnr integer
+---@return diffs.RailStyle
+function M.style_for_buffer(bufnr)
+  local ok, style = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_rail_style')
+  if ok and style == 'single' then
+    return 'single'
+  end
+  return 'dual'
+end
+
 M._test = {
   format_lnum = format_lnum,
   separator_for = separator_for,
