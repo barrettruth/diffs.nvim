@@ -15,8 +15,8 @@ highlighting driven by treesitter.
   more!
 - Character-level intra-line diff highlighting
 - Word-level diff highlighting
-- `:Gdiff` unified diff against any revision
-- `:Greview` full-repo review diff with qflist/loclist navigation
+- `:Diff` unified diff against any revision
+- `:Diff review` full-repo review diff with qflist/loclist navigation
 - Inline merge conflict detection, highlighting, and resolution
 - Email quoting/patch syntax support (`> diff ...`)
 - Vim syntax fallback
