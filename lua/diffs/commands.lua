@@ -600,8 +600,8 @@ end
 
 local function warn_legacy_command()
   notify(
-    ':Gdiff, :Gvdiff, :Ghdiff, and :Greview are deprecated. '
-      .. 'Use :Diff and :Diff review instead. These aliases will be removed in 0.4.0.',
+    ':Gdiff, :Gvdiff, :Ghdiff, and :Greview are deprecated, use :Diff and :Diff review instead.\n'
+      .. 'Feature will be removed in diffs.nvim 0.4.0',
     vim.log.levels.WARN
   )
 end
