@@ -592,6 +592,21 @@ local function rail_style_for_layout(layout)
   return 'dual'
 end
 
+local function warn_legacy_command()
+  notify(
+    ':Gdiff, :Gvdiff, :Ghdiff, and :Greview are deprecated. '
+      .. 'Use :Diff and :Diff review instead. These aliases will be removed in 0.4.0.',
+    vim.log.levels.WARN
+  )
+end
+
+local function warn_vertical_split_ignored()
+  notify(
+    '++layout=split ignores the :vertical modifier; the split layout manages its own windows',
+    vim.log.levels.WARN
+  )
+end
+
 local gdiff_objects = {
   ':',
   ':%',
@@ -600,6 +615,7 @@ local gdiff_objects = {
 }
 
 local command_names = {
+  Diff = true,
   Gdiff = true,
   Gvdiff = true,
   Ghdiff = true,
@@ -641,8 +657,8 @@ end
 ---@param arglead string
 ---@param cmdline? string
 ---@param cursorpos? integer
----@return { has_layout: boolean, has_value: boolean }
-local function completion_context(arglead, cmdline, cursorpos)
+---@return string[] # completed argument tokens before the cursor, excluding the command name
+local function command_arg_tokens(arglead, cmdline, cursorpos)
   local before = cmdline or ''
   if type(cursorpos) == 'number' and cursorpos > 0 then
     before = before:sub(1, cursorpos)
@@ -663,10 +679,21 @@ local function completion_context(arglead, cmdline, cursorpos)
     command_index = 1
   end
 
+  local args = {}
+  for i = command_index + 1, #tokens do
+    args[#args + 1] = tokens[i]
+  end
+  return args
+end
+
+---@param args string[]
+---@param from? integer # first argument index to scan (defaults to 1)
+---@return { has_layout: boolean, has_value: boolean }
+local function args_context(args, from)
   local has_layout = false
   local has_value = false
-  for i = command_index + 1, #tokens do
-    local token = tokens[i]
+  for i = from or 1, #args do
+    local token = args[i]
     if token:match('^%+%+layout=') then
       has_layout = true
     elseif not token:match('^%+%+') then
@@ -677,6 +704,14 @@ local function completion_context(arglead, cmdline, cursorpos)
     has_layout = has_layout,
     has_value = has_value,
   }
+end
+
+---@param arglead string
+---@param cmdline? string
+---@param cursorpos? integer
+---@return { has_layout: boolean, has_value: boolean }
+local function completion_context(arglead, cmdline, cursorpos)
+  return args_context(command_arg_tokens(arglead, cmdline, cursorpos))
 end
 
 ---@param arglead string
@@ -715,11 +750,9 @@ local function complete_gdiff_split_command(arglead, cmdline, cursorpos)
 end
 
 ---@param arglead string
----@param cmdline? string
----@param cursorpos? integer
+---@param context { has_layout: boolean, has_value: boolean }
 ---@return string[]
-local function complete_greview_command(arglead, cmdline, cursorpos)
-  local context = completion_context(arglead, cmdline, cursorpos)
+local function complete_review_args(arglead, context)
   if context.has_value then
     return {}
   end
@@ -739,12 +772,40 @@ local function complete_greview_command(arglead, cmdline, cursorpos)
   return matches
 end
 
+---@param arglead string
+---@param cmdline? string
+---@param cursorpos? integer
+---@return string[]
+local function complete_greview_command(arglead, cmdline, cursorpos)
+  return complete_review_args(arglead, completion_context(arglead, cmdline, cursorpos))
+end
+
+---@param arglead string
+---@param cmdline? string
+---@param cursorpos? integer
+---@return string[]
+local function complete_diff_command(arglead, cmdline, cursorpos)
+  local args = command_arg_tokens(arglead, cmdline, cursorpos)
+  if args[1] == 'review' then
+    return complete_review_args(arglead, args_context(args, 2))
+  end
+  local matches = {}
+  if #args == 0 and not arglead:match('^%+%+') and starts_with('review', arglead) then
+    matches[#matches + 1] = 'review'
+  end
+  vim.list_extend(matches, complete_gdiff_command(arglead, cmdline, cursorpos))
+  return matches
+end
+
 ---@type fun(spec?: diffs.GreviewSpec, opts?: { selection?: diffs.GeneratedFileSelection, replace_win?: integer }): integer?
 local open_greview_workspace
 
 ---@param args? string
+---@param vertical? boolean
+---@param opts? { warn_vertical_split?: boolean }
 ---@return integer?
-function M.greview_command(args)
+function M.greview_command(args, vertical, opts)
+  opts = opts or {}
   local parsed, err = review.parse_command_args(args)
   if not parsed then
     notify(err, vim.log.levels.ERROR)
@@ -752,13 +813,38 @@ function M.greview_command(args)
   end
 
   if parsed.layout == 'split' then
+    if opts.warn_vertical_split then
+      warn_vertical_split_ignored()
+    end
     return open_greview_workspace(parsed.spec)
   end
 
+  parsed.spec.vertical = vertical or false
   local bufnr = M.greview(parsed.spec, {
     rail_style = rail_style_for_layout(parsed.layout),
   })
   return bufnr
+end
+
+--- Primary `:Diff` command handler. Routes `:Diff review ...` to the review
+--- surface and everything else to the current-file diff, threading the
+--- `:vertical` modifier through to generated layouts.
+---@param args? string
+---@param vertical? boolean
+---@return integer?
+function M.diff_command(args, vertical)
+  vertical = vertical or false
+  if args then
+    local sub, remainder = args:match('^%s*(%S+)%s*(.*)$')
+    if sub == 'review' then
+      return M.greview_command(
+        remainder ~= '' and remainder or nil,
+        vertical,
+        { warn_vertical_split = vertical }
+      )
+    end
+  end
+  return M.gdiff(args, vertical, { warn_vertical_split = vertical })
 end
 
 ---@param repo_root string
@@ -1586,7 +1672,9 @@ end
 
 ---@param args? string
 ---@param vertical? boolean
-function M.gdiff(args, vertical)
+---@param opts? { warn_vertical_split?: boolean }
+function M.gdiff(args, vertical, opts)
+  opts = opts or {}
   local bufnr = vim.api.nvim_get_current_buf()
   local filepath = vim.api.nvim_buf_get_name(bufnr)
 
@@ -1608,6 +1696,10 @@ function M.gdiff(args, vertical)
   if not parsed then
     notify(parse_err, vim.log.levels.ERROR)
     return
+  end
+
+  if parsed.layout == 'split' and opts.warn_vertical_split then
+    warn_vertical_split_ignored()
   end
 
   if parsed.novertical then
@@ -2033,44 +2125,58 @@ function M.read_buffer(bufnr)
 end
 
 function M.setup()
+  vim.api.nvim_create_user_command('Diff', function(opts)
+    M.diff_command(opts.args ~= '' and opts.args or nil, opts.smods.vertical)
+  end, {
+    nargs = '*',
+    bar = true,
+    complete = complete_diff_command,
+    desc = 'Show a current-file diff, or a repository review with :Diff review',
+  })
+
   vim.api.nvim_create_user_command('Gdiff', function(opts)
+    warn_legacy_command()
     M.gdiff(opts.args ~= '' and opts.args or nil, false)
   end, {
     nargs = '*',
     bar = true,
     complete = complete_gdiff_command,
-    desc = 'Show current-file diff against a Fugitive object',
+    desc = 'Deprecated alias for :Diff',
   })
 
   vim.api.nvim_create_user_command('Gvdiff', function(opts)
+    warn_legacy_command()
     M.gdiff(opts.args ~= '' and opts.args or nil, true)
   end, {
     nargs = '*',
     bar = true,
     complete = complete_gdiff_split_command,
-    desc = 'Show unified diff against a Fugitive object in vertical split',
+    desc = 'Deprecated alias for :vertical Diff',
   })
 
   vim.api.nvim_create_user_command('Ghdiff', function(opts)
+    warn_legacy_command()
     M.gdiff(opts.args ~= '' and opts.args or nil, false)
   end, {
     nargs = '*',
     bar = true,
     complete = complete_gdiff_split_command,
-    desc = 'Show unified diff against a Fugitive object in horizontal split',
+    desc = 'Deprecated alias for :Diff',
   })
 
   vim.api.nvim_create_user_command('Greview', function(opts)
+    warn_legacy_command()
     M.greview_command(opts.args ~= '' and opts.args or nil)
   end, {
     nargs = '*',
     bar = true,
     complete = complete_greview_command,
-    desc = 'Review the repo against the default branch or a git review spec',
+    desc = 'Deprecated alias for :Diff review',
   })
 end
 
 M._test = {
+  complete_diff = complete_diff_command,
   complete_gdiff = complete_gdiff_command,
   complete_gdiff_object = complete_gdiff_object,
   complete_gdiff_split = complete_gdiff_split_command,

@@ -414,15 +414,122 @@ describe('commands', function()
   end)
 
   describe('setup', function()
-    it('registers Gdiff, Gvdiff, and Ghdiff commands', function()
+    it('registers the Diff command alongside the deprecated aliases', function()
       commands.setup()
       local cmds = vim.api.nvim_get_commands({})
+      assert.is_not_nil(cmds.Diff)
+      assert.is_true(cmds.Diff.bar)
       assert.is_not_nil(cmds.Gdiff)
       assert.is_not_nil(cmds.Gvdiff)
       assert.is_not_nil(cmds.Ghdiff)
+      assert.is_not_nil(cmds.Greview)
       assert.is_true(cmds.Gdiff.bar)
       assert.is_true(cmds.Gvdiff.bar)
       assert.is_true(cmds.Ghdiff.bar)
+      assert.is_true(cmds.Greview.bar)
+    end)
+  end)
+
+  describe('Diff command dispatch', function()
+    local function capture_dispatch(args, vertical)
+      local saved_gdiff = commands.gdiff
+      local saved_greview = commands.greview_command
+      local captured = {}
+      commands.gdiff = function(a, v, o)
+        captured.gdiff = { args = a, vertical = v, opts = o }
+      end
+      commands.greview_command = function(a, v, o)
+        captured.greview = { args = a, vertical = v, opts = o }
+      end
+      commands.diff_command(args, vertical)
+      commands.gdiff = saved_gdiff
+      commands.greview_command = saved_greview
+      return captured
+    end
+
+    it('routes plain arguments to the current-file diff', function()
+      local captured = capture_dispatch('HEAD~3', false)
+      assert.is_nil(captured.greview)
+      assert.are.same(
+        { args = 'HEAD~3', vertical = false, opts = { warn_vertical_split = false } },
+        captured.gdiff
+      )
+    end)
+
+    it('threads the :vertical modifier and the split warning into the diff path', function()
+      local captured = capture_dispatch(nil, true)
+      assert.is_nil(captured.greview)
+      assert.are.same(
+        { args = nil, vertical = true, opts = { warn_vertical_split = true } },
+        captured.gdiff
+      )
+    end)
+
+    it('routes a leading review subcommand to the review surface', function()
+      local captured = capture_dispatch('review origin/main', true)
+      assert.is_nil(captured.gdiff)
+      assert.are.same(
+        { args = 'origin/main', vertical = true, opts = { warn_vertical_split = true } },
+        captured.greview
+      )
+    end)
+
+    it('treats a bare review subcommand as a review with no spec', function()
+      local captured = capture_dispatch('review', false)
+      assert.is_nil(captured.gdiff)
+      assert.are.same(
+        { args = nil, vertical = false, opts = { warn_vertical_split = false } },
+        captured.greview
+      )
+    end)
+
+    it('only treats review as the subcommand when it is the first token', function()
+      local captured = capture_dispatch('++layout=split review', false)
+      assert.is_nil(captured.greview)
+      assert.are.same(
+        { args = '++layout=split review', vertical = false, opts = { warn_vertical_split = false } },
+        captured.gdiff
+      )
+    end)
+  end)
+
+  describe('deprecated command aliases', function()
+    local function count_deprecations(notifications)
+      local count = 0
+      for _, n in ipairs(notifications) do
+        if tostring(n.message):find('deprecated', 1, true) then
+          count = count + 1
+        end
+      end
+      return count
+    end
+
+    it('warns on use of every deprecated alias', function()
+      commands.setup()
+      local notifications = capture_notifications()
+      vim.cmd('enew')
+      vim.cmd('silent! Gdiff')
+      vim.cmd('silent! Gvdiff')
+      vim.cmd('silent! Ghdiff')
+      vim.cmd('silent! Greview ++layout=bogus')
+      assert.are.equal(4, count_deprecations(notifications))
+    end)
+
+    it('warns again on every repeated use of a deprecated alias', function()
+      commands.setup()
+      local notifications = capture_notifications()
+      vim.cmd('enew')
+      vim.cmd('silent! Gdiff')
+      vim.cmd('silent! Gdiff')
+      assert.are.equal(2, count_deprecations(notifications))
+    end)
+
+    it('does not warn for the :Diff command', function()
+      commands.setup()
+      local notifications = capture_notifications()
+      vim.cmd('enew')
+      vim.cmd('silent! Diff')
+      assert.are.equal(0, count_deprecations(notifications))
     end)
   end)
 
@@ -593,6 +700,70 @@ describe('commands', function()
 
     it('keeps Gvdiff and Ghdiff completion focused on objects', function()
       assert.are.same({}, commands._test.complete_gdiff_split('++l'))
+    end)
+
+    it('completes the Diff review subcommand, layout options, objects, and refs', function()
+      mock_repo_root(function()
+        return '/tmp/repo'
+      end)
+      mock_systemlist(function()
+        return { 'origin/main', 'feature/topic' }
+      end)
+
+      assert.are.same({
+        'review',
+        '++layout=unified',
+        '++layout=stacked',
+        '++layout=split',
+        ':',
+        ':%',
+        ':0:%',
+        '@:%',
+        'origin/main',
+        'feature/topic',
+      }, commands._test.complete_diff('', 'Diff ', #'Diff '))
+
+      assert.are.same({ 'review' }, commands._test.complete_diff('rev', 'Diff rev', #'Diff rev'))
+
+      assert.are.same({
+        '++layout=unified',
+        '++layout=stacked',
+        '++layout=split',
+      }, commands._test.complete_diff('++l', 'Diff ++l', #'Diff ++l'))
+
+      assert.are.same({
+        '++layout=unified',
+        '++layout=stacked',
+        '++layout=split',
+        'origin/main',
+        'feature/topic',
+      }, commands._test.complete_diff('', 'Diff review ', #'Diff review '))
+
+      assert.are.same(
+        {
+          'origin/main',
+          'feature/topic',
+        },
+        commands._test.complete_diff(
+          '',
+          'Diff review ++layout=split ',
+          #'Diff review ++layout=split '
+        )
+      )
+
+      assert.are.same(
+        {},
+        commands._test.complete_diff('', 'Diff review origin/main ', #'Diff review origin/main ')
+      )
+      assert.are.same(
+        {},
+        commands._test.complete_diff(
+          '',
+          'Diff review ++layout=split origin/main ',
+          #'Diff review ++layout=split origin/main '
+        )
+      )
+      assert.are.same({}, commands._test.complete_diff('', 'Diff HEAD ', #'Diff HEAD '))
     end)
   end)
 
@@ -1001,6 +1172,35 @@ describe('commands', function()
       assert.are.equal(1, #right_loc)
       assert.are.equal(left_buf, left_loc[1].bufnr)
       assert.are.equal(right_buf, right_loc[1].bufnr)
+    end)
+
+    it('warns and still opens the split when :vertical Diff ++layout=split is used', function()
+      local notifications = capture_notifications()
+      local saved_splitright = vim.o.splitright
+      vim.o.splitright = false
+      local ok, err = pcall(function()
+        mock_view_config({ prefix = true, change_bar = '┃', rail_separator = '│' })
+        create_split_source()
+        commands.diff_command('++layout=split', true)
+      end)
+      vim.o.splitright = saved_splitright
+      assert.is_true(ok, err)
+
+      local right_buf = vim.api.nvim_get_current_buf()
+      local left_buf = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer')
+      table.insert(test_buffers, left_buf)
+      table.insert(test_buffers, right_buf)
+      local left_win, right_win = find_split_windows(left_buf, right_buf)
+      assert.is_not_nil(left_win)
+      assert.is_not_nil(right_win)
+
+      local warned = false
+      for _, n in ipairs(notifications) do
+        if tostring(n.message):find('++layout=split ignores the :vertical modifier', 1, true) then
+          warned = true
+        end
+      end
+      assert.is_true(warned)
     end)
 
     it('moves split hunk navigation through both endpoint windows', function()
@@ -2895,6 +3095,27 @@ describe('commands', function()
       assert.are.equal(1, #loc)
       assert.are.equal(diff_buf, loc[1].bufnr)
       assert.is_true(loc[1].text:find('file.txt', 1, true) ~= nil)
+    end)
+
+    it('warns and still opens the workspace for :vertical Diff review ++layout=split', function()
+      local repo_root = create_repo()
+      vim.fn.writefile({ 'line 1', 'line 2 changed' }, repo_root .. '/file.txt')
+      edit_file(repo_root .. '/file.txt')
+      mock_runtime_attach(function() end)
+      local notifications = capture_notifications()
+
+      local diff_buf =
+        commands.greview_command('++layout=split HEAD', true, { warn_vertical_split = true })
+      track_workspace(diff_buf)
+
+      local warned = false
+      for _, n in ipairs(notifications) do
+        if tostring(n.message):find('++layout=split ignores the :vertical modifier', 1, true) then
+          warned = true
+        end
+      end
+      assert.is_true(warned)
+      assert.are.equal(2, #main_windows())
     end)
 
     it('replaces the visible review buffer even when another window is current', function()

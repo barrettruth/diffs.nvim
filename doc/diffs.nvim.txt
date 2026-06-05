@@ -24,8 +24,8 @@ Features: ~
 - Vim syntax fallback for languages without a treesitter parser
 - Blended diff background colors that preserve syntax visibility
 - Optional diff prefix (`+`/`-`/` `) concealment
-- |:Gdiff| unified diff against any revision
-- |:Greview| full-repo review diff with qflist/loclist navigation
+- |:Diff| unified diff against any revision
+- |:Diff-review| full-repo review diff with qflist/loclist navigation
 - Email quoting/patch syntax support (`> diff ...`)
 
 ==============================================================================
@@ -377,13 +377,14 @@ COMMANDS                                                 *diffs.nvim-commands*
 
 diffs.nvim-owned views: ~
 
-|:Gdiff|, |:Greview|, split layouts, and Fugitive status maps create
+|:Diff|, |:Diff-review|, split layouts, and Fugitive status maps create
 diffs.nvim-owned `diffs://` views. Ordinary `git`, `gitcommit`, `diff`,
 `extra_filetypes`, picker previews, and third-party integration buffers remain
 highlight-only.
 
-:Gdiff [++layout=unified|stacked|split] [object]                      *:Gdiff*
-    Open a diff of the current file against a Fugitive-style object.
+:Diff [++layout=unified|stacked|split] [object]                        *:Diff*
+    Open a diff of the current file against a Fugitive-style object. Use
+    |:Diff-review| (`:Diff review`) for repository reviews.
     The default unified layout opens below the current window and reuses an
     existing `diffs://` window in the tabpage when one exists.
 
@@ -397,11 +398,16 @@ highlight-only.
     `++layout=split` opens paired old/new endpoint windows with native `&diff`
     alignment. See |diffs.nvim-paired-windows|.
 
-    Plain direct |:Gdiff| from a worktree file compares the index to the
+    Prefix with |:vertical| to open the generated `unified` and `stacked`
+    layouts in a vertical split (`:vertical Diff`). The modifier is ignored for
+    `++layout=split`, which manages its own two-window arrangement;
+    `:vertical Diff ++layout=split` warns and continues.
+
+    Plain direct |:Diff| from a worktree file compares the index to the
     worktree and shows only unstaged changes. Staged-only changes report no
     changes for that edge. To view staged changes, use a staged Fugitive status
     row with |diffs.nvim-du|/|diffs.nvim-dU| or an explicit supported object
-    form such as `:Gdiff :0:%`. |:Gdiff| does not provide a `--staged` flag.
+    form such as `:Diff :0:%`. |:Diff| does not provide a `--staged` flag.
 
     Parameters: ~
         ++layout=unified (optional) Open the default generated `diffs://` view
@@ -410,26 +416,28 @@ highlight-only.
                     context-aware line-number rail.
         ++layout=split (optional) Open the current single-file comparison as
                     paired old/new endpoint windows.
-        ++novertical (optional) Force a horizontal split. Useful with |:Gvdiff|
-                    or command wrappers.
+        ++novertical (optional) Force a horizontal split even under |:vertical|.
+                    Useful in command wrappers.
         {object}    (string, optional) Fugitive-style object to diff against.
                     Defaults to the current file in the index.
 
-    Completion covers `++layout=...`, supported object forms, and git refs.
+    Completion covers `++layout=...`, the `review` subcommand, supported object
+    forms, and git refs.
 
     Examples: >vim
-        :Gdiff          " diff against the index
-        :Gdiff main     " diff against main branch
-        :Gdiff HEAD~3   " diff against 3 commits ago
-        :Gdiff :0:%     " diff against the index explicitly
-        :Gdiff abc123   " diff against specific commit
-        :Gdiff ++layout=stacked
+        :Diff           " diff against the index
+        :Diff main      " diff against main branch
+        :Diff HEAD~3    " diff against 3 commits ago
+        :Diff :0:%      " diff against the index explicitly
+        :Diff abc123    " diff against specific commit
+        :Diff ++layout=stacked
+        :vertical Diff  " open the generated diff in a vertical split
 <
     Edge cases: ~
     - Untracked and added files render as all-added files.
     - Deleted files render as all-removed files.
     - Files with both staged and unstaged changes require one view per edge:
-      plain |:Gdiff| shows unstaged changes; staged status rows show staged
+      plain |:Diff| shows unstaged changes; staged status rows show staged
       changes.
     - Unmerged files open a merge diff view. Native 3-way `:Gdiffsplit!`
       windows are not emulated.
@@ -475,14 +483,10 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     the current row maps to worktree content.
 
 
-:Gvdiff [object]                                                     *:Gvdiff*
-    Like |:Gdiff| but opens in a vertical split.
-
-:Ghdiff [object]                                                     *:Ghdiff*
-    Like |:Gdiff| but explicitly opens in a horizontal split.
-
-:Greview [++layout=unified|stacked|split] [review-spec]             *:Greview*
-    Open a repository review.
+:Diff review [++layout=unified|stacked|split] [review-spec]     *:Diff-review*
+    Open a repository review. `review` must be the first argument; a revision
+    literally named `review` must be addressed another way (for example
+    `refs/heads/review`).
 
     With no arguments, reviews the current repository state against the
     remote default branch (detected via `git -C <repo> symbolic-ref
@@ -508,7 +512,7 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     already exists in the current tabpage, the new diff replaces its buffer
     instead of creating another split.
 
-    With `++layout=split`, |:Greview| opens a two-surface review workspace
+    With `++layout=split`, |:Diff-review| opens a two-surface review workspace
     instead of the full review map. The left window is a read-only generated
     diff for one review file. The right window is the real editable worktree
     file when possible; otherwise it is a read-only tree or index target.
@@ -518,7 +522,12 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     or location-list entries with the |diffs.nvim| mapped <CR> updates the
     existing workspace. Saving the right-side worktree buffer refreshes the
     generated diff on the left. Native Vim `&diff` mode is not used for
-    |:Greview| split workspaces, and the windows are not scroll-bound.
+    |:Diff-review| split workspaces, and the windows are not scroll-bound.
+
+    Prefix with |:vertical| to open the generated `unified` and `stacked`
+    review maps in a vertical split (`:vertical Diff review`). As with |:Diff|,
+    the modifier is ignored for `++layout=split`;
+    `:vertical Diff review ++layout=split` warns and continues.
 
     Parameters: ~
         ++layout=unified (optional) Open the default generated review map with
@@ -539,13 +548,13 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     Completion covers `++layout=...` and git refs.
 
     Examples: >vim
-        :Greview
-        :Greview ++layout=stacked origin/main
-        :Greview ++layout=split
-        :Greview origin/main
-        :Greview ++layout=split origin/main
-        :Greview origin/main...refs/forge/pr/42
-        :Greview origin/main..feature/topic
+        :Diff review
+        :Diff review ++layout=stacked origin/main
+        :Diff review ++layout=split
+        :Diff review origin/main
+        :vertical Diff review origin/main
+        :Diff review origin/main...refs/forge/pr/42
+        :Diff review origin/main..feature/topic
 <
 
     Lua command helper: >lua
@@ -571,34 +580,53 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
 
     Utilities: ~
         `require('diffs.commands').greview_split()` opens the currently
-        selected |:Greview| file in the same two-surface split workspace used
-        by `:Greview ++layout=split`. It uses the review buffer cursor,
+        selected |:Diff-review| file in the same two-surface split workspace used
+        by `:Diff review ++layout=split`. It uses the review buffer cursor,
         quickfix item, or loclist item as the file selection, and the review
         quickfix list remains the authoritative file list.
 
-    These helpers are command integration helpers for |:Greview|. The stable
+    These helpers are command integration helpers for |:Diff-review|. The stable
     root Lua API remains the small surface documented at |diffs.nvim-api|.
+
+Deprecated command aliases: ~              *diffs.nvim-deprecated-commands*
+
+    :Gdiff, :Gvdiff, :Ghdiff, and :Greview are deprecated aliases kept for the
+    pre-v0.4.0 migration window. Each warns on every use and will be removed in
+    v0.4.0. Use |:Diff| and |:Diff-review| instead.
+                                    *:Gdiff* *:Gvdiff* *:Ghdiff* *:Greview*
+        :Gdiff    ->  :Diff
+        :Gvdiff   ->  :vertical Diff
+        :Ghdiff   ->  :Diff
+        :Greview  ->  :Diff review
+
+    To recreate the old spellings as local commands after they are removed: >vim
+        command! -nargs=* -bar Gdiff Diff <args>
+        command! -nargs=* -bar Gvdiff vertical Diff <args>
+        command! -nargs=* -bar Ghdiff Diff <args>
+        command! -nargs=* -bar Greview Diff review <args>
+<
 
 ==============================================================================
 MAPPINGS                                                 *diffs.nvim-mappings*
 
                                                          *<Plug>(diffs-gdiff)*
 <Plug>(diffs-gdiff)     Show index-to-worktree unified diff in a horizontal
-                        split. Equivalent to |:Gdiff| with no arguments.
+                        split. Equivalent to |:Diff| with no arguments.
 
                                                         *<Plug>(diffs-gvdiff)*
 <Plug>(diffs-gvdiff)    Show index-to-worktree unified diff in a vertical
-                        split. Equivalent to |:Gvdiff| with no arguments.
+                        split. Equivalent to `:vertical Diff` with no
+                        arguments.
 
                                              *<Plug>(diffs-gdiff-open-source)*
 <Plug>(diffs-gdiff-open-source)
-                        Open the real worktree file at the current |:Gdiff|
+                        Open the real worktree file at the current |:Diff|
                         hunk location. `diffs://` buffers map this to
                         <CR> by default.
 
                                             *<Plug>(diffs-greview-open-split)*
 <Plug>(diffs-greview-open-split)
-                        Open the currently selected |:Greview| file in a
+                        Open the currently selected |:Diff-review| file in a
                         two-surface split workspace: generated per-file diff on
                         the left, editable worktree or read-only target view on
                         the right.
@@ -672,14 +700,14 @@ Example configuration: >lua
 Diff buffer mappings: ~
                                                                 *diffs.nvim-q*
     q               Close the diff window. Available in all `diffs://`
-                    buffers created by |:Gdiff|, |:Gvdiff|, |:Ghdiff|,
-                    or the fugitive status keymaps. In paired split
-                    views, close the pair; see |diffs.nvim-paired-windows|.
-    ]c              Jump to the next hunk boundary in unified |:Gdiff|
+                    buffers created by |:Diff| or the fugitive status
+                    keymaps. In paired split views, close the pair; see
+                    |diffs.nvim-paired-windows|.
+    ]c              Jump to the next hunk boundary in unified |:Diff|
                     buffers.
-    [c              Jump to the previous hunk boundary in unified |:Gdiff|
+    [c              Jump to the previous hunk boundary in unified |:Diff|
                     buffers.
-    <CR>            Open the real worktree file at the current |:Gdiff| hunk
+    <CR>            Open the real worktree file at the current |:Diff| hunk
                     location when the current endpoint row is worktree-backed.
     dp              In Normal mode, stage the current whole hunk when the
                     buffer compares the index to the worktree. In Visual mode,
@@ -725,7 +753,7 @@ Enable vim-fugitive (https://github.com/tpope/vim-fugitive) support: >lua
 <
 
 `:Git` status and commit views receive treesitter syntax, line backgrounds,
-and intra-line diffs. |:Gdiff| opens a unified diff against any revision (see
+and intra-line diffs. |:Diff| opens a unified diff against any revision (see
 |diffs.nvim-commands|).
 
 Fugitive status keymaps: ~
@@ -1007,11 +1035,11 @@ User events: ~
 ==============================================================================
 MERGE DIFF RESOLUTION                                       *diffs.nvim-merge*
 
-When running plain |:Gdiff| or an explicit index-object comparison (for
-example `:Gdiff :%`) on an unmerged worktree file, or pressing `du`/`dU` on an
+When running plain |:Diff| or an explicit index-object comparison (for
+example `:Diff :%`) on an unmerged worktree file, or pressing `du`/`dU` on an
 unmerged (`U`) file in the fugitive status buffer, diffs.nvim opens a unified
 diff of ours (`git show :2:path`) vs theirs (`git show :3:path`) with full
-treesitter and intra-line highlighting. Revision comparisons such as `:Gdiff
+treesitter and intra-line highlighting. Revision comparisons such as `:Diff
 HEAD` keep rendering that revision against the conflicted worktree buffer.
 
 When `conflict.keymaps` is configured, those same conflict resolution mappings
@@ -1047,7 +1075,7 @@ merged working file in Neovim:
 
 When the file opens, diffs.nvim detects conflict markers automatically.
 Configure `conflict.keymaps` to enable buffer-local resolution mappings; see
-|diffs.nvim-conflict|. From a Git-unmerged file, |:Gdiff| can also open the
+|diffs.nvim-conflict|. From a Git-unmerged file, |:Diff| can also open the
 generated ours-vs-theirs merge diff view documented above.
 
 Save and quit after resolving conflicts. Use `:cq` to abort.
