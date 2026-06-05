@@ -283,9 +283,15 @@ local function set_diff_rails_var(bufnr, info)
   if info then
     vim.api.nvim_buf_set_var(bufnr, 'diffs_rail_width', info.prefix_width)
     vim.api.nvim_buf_set_var(bufnr, 'diffs_rail_separator_width', info.separator_width)
+    if info.style == 'single' or info.style == 'dual' then
+      vim.api.nvim_buf_set_var(bufnr, 'diffs_rail_style', info.style)
+    else
+      pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_rail_style')
+    end
   else
     pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_rail_width')
     pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_rail_separator_width')
+    pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_rail_style')
   end
 end
 
@@ -336,6 +342,7 @@ end
 ---@field diff_spec? diffs.DiffSpec
 ---@field source? diffs.GeneratedBufferSource
 ---@field vars? table<string, any>
+---@field rail_style? diffs.RailStyle
 
 ---@param opts diffs.GeneratedDiffBufferOpts
 ---@return integer
@@ -343,6 +350,7 @@ local function create_generated_diff_buffer(opts)
   local bufnr = vim.api.nvim_create_buf(false, true)
   local display_lines, rail_info = rails.annotate(opts.lines, {
     rail_separator = runtime.get_view_config().rail_separator,
+    rail_style = opts.rail_style,
   })
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, display_lines)
   vim.api.nvim_buf_set_name(bufnr, opts.name)
@@ -389,9 +397,12 @@ end
 ---@param bufnr integer
 ---@param diff_lines string[]
 ---@param diff_spec? diffs.DiffSpec
-local function replace_generated_diff_buffer_lines(bufnr, diff_lines, diff_spec)
+---@param opts? { rail_style?: diffs.RailStyle }
+local function replace_generated_diff_buffer_lines(bufnr, diff_lines, diff_spec, opts)
+  opts = opts or {}
   local display_lines, rail_info = rails.annotate(diff_lines, {
     rail_separator = runtime.get_view_config().rail_separator,
+    rail_style = opts.rail_style or rails.style_for_buffer(bufnr),
   })
   vim.api.nvim_set_option_value('modifiable', true, { buf = bufnr })
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, display_lines)
@@ -2042,7 +2053,9 @@ M._test = {
   complete_gdiff_split = complete_gdiff_split_command,
   complete_greview = review.complete,
   complete_greview_command = complete_greview_command,
+  create_generated_diff_buffer = create_generated_diff_buffer,
   gdiff_buffer_label = gdiff_buffer_label,
+  replace_generated_diff_buffer_lines = replace_generated_diff_buffer_lines,
   close_greview_workspace = close_greview_workspace,
   greview_workspace_state = function(bufnr)
     return greview_workspaces[bufnr]

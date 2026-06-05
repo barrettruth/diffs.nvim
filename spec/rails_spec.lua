@@ -1,4 +1,4 @@
-require('spec.helpers')
+local helpers = require('spec.helpers')
 
 local rails = require('diffs.rails')
 
@@ -184,5 +184,25 @@ describe('diffs.rails', function()
         finish = 4,
       },
     }, rails.number_ranges(info.prefix_width, info.separator_width, info.style))
+  end)
+
+  it('reads buffer rail style with a dual compatibility default', function()
+    local bufnr = helpers.create_buffer({})
+
+    assert.are.equal('dual', rails.style_for_buffer(bufnr))
+
+    vim.api.nvim_buf_set_var(bufnr, 'diffs_rail_style', 'single')
+    assert.are.equal('single', rails.style_for_buffer(bufnr))
+
+    vim.api.nvim_buf_set_var(bufnr, 'diffs_rail_style', 'dual')
+    assert.are.equal('dual', rails.style_for_buffer(bufnr))
+
+    vim.api.nvim_buf_set_var(bufnr, 'diffs_rail_style', 'stacked')
+    assert.are.equal('dual', rails.style_for_buffer(bufnr))
+
+    pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_rail_style')
+    assert.are.equal('dual', rails.style_for_buffer(bufnr))
+
+    helpers.delete_buffer(bufnr)
   end)
 end)

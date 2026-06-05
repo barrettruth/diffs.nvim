@@ -2,6 +2,7 @@ local helpers = require('spec.helpers')
 
 local commands = require('diffs.commands')
 local diffspec = require('diffs.spec')
+local generated = require('diffs.generated')
 local git = require('diffs.git')
 local rails = require('diffs.rails')
 local runtime = require('diffs.runtime')
@@ -425,6 +426,117 @@ describe('commands', function()
     end)
   end)
 
+  describe('generated rail style metadata', function()
+    local function diff_lines(change)
+      return {
+        'diff --git a/lua/foo.lua b/lua/foo.lua',
+        '--- a/lua/foo.lua',
+        '+++ b/lua/foo.lua',
+        '@@ -1,2 +1,3 @@',
+        ' local M = {}',
+        '+' .. change,
+        ' return M',
+      }
+    end
+
+    local function assert_single_rail_display(bufnr, change)
+      local display_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+
+      assert.are.equal(6, vim.api.nvim_buf_get_var(bufnr, 'diffs_rail_width'))
+      assert.are.equal(3, vim.api.nvim_buf_get_var(bufnr, 'diffs_rail_separator_width'))
+      assert.are.equal('single', vim.api.nvim_buf_get_var(bufnr, 'diffs_rail_style'))
+      assert.are.equal('single', rails.style_for_buffer(bufnr))
+      assert.are.equal('    | diff --git a/lua/foo.lua b/lua/foo.lua', display_lines[1])
+      assert.is_true(table.concat(display_lines, '\n'):find('  2 | +' .. change, 1, true) ~= nil)
+    end
+
+    it('creates single-rail generated buffers and keeps hunk metadata raw', function()
+      mock_view_config({ prefix = true, change_bar = '▏', rail_separator = '|' })
+
+      local diff_spec = diffspec.index_to_worktree('lua/foo.lua')
+      local bufnr = commands._test.create_generated_diff_buffer({
+        name = 'diffs://unstaged:lua/foo.lua',
+        lines = diff_lines('local x = 1'),
+        repo_root = '/tmp/repo',
+        diff_spec = diff_spec,
+        source = generated.file_source('/tmp/repo', diff_spec),
+        rail_style = 'single',
+      })
+      table.insert(test_buffers, bufnr)
+
+      assert_single_rail_display(bufnr, 'local x = 1')
+
+      local diff_hunks = vim.api.nvim_buf_get_var(bufnr, 'diffs_hunks')
+      assert.are.equal(1, #diff_hunks)
+      assert.are.equal('diff --git a/lua/foo.lua b/lua/foo.lua', diff_hunks[1].file_header_lines[1])
+      assert.are.equal('@@ -1,2 +1,3 @@', diff_hunks[1].header)
+      assert.are.equal('@@ -1,2 +1,3 @@', diff_hunks[1].lines[1].text)
+      assert.are.equal(' local M = {}', diff_hunks[1].lines[2].text)
+      assert.are.equal('+local x = 1', diff_hunks[1].lines[3].text)
+      assert.are.equal(' return M', diff_hunks[1].lines[4].text)
+    end)
+
+    it('preserves single rails when generated buffers reload without an explicit style', function()
+      mock_view_config({ prefix = true, change_bar = '▏', rail_separator = '|' })
+      mock_runtime_attach(function() end)
+      mock_systemlist(function(cmd)
+        assert.are.same({
+          'git',
+          '-C',
+          '/tmp/repo',
+          'diff',
+          '--no-ext-diff',
+          '--no-color',
+        }, cmd)
+        return diff_lines('local reloaded = true')
+      end)
+
+      local bufnr = commands._test.create_generated_diff_buffer({
+        name = 'diffs://unstaged:all',
+        lines = diff_lines('local stale = true'),
+        repo_root = '/tmp/repo',
+        source = generated.section_source('/tmp/repo', 'unstaged'),
+        rail_style = 'single',
+      })
+      table.insert(test_buffers, bufnr)
+
+      commands.read_buffer(bufnr)
+
+      assert_single_rail_display(bufnr, 'local reloaded = true')
+      assert.is_true(buffer_text(bufnr):find('+local reloaded = true', 1, true) ~= nil)
+      assert.is_false(buffer_text(bufnr):find('+local stale = true', 1, true) ~= nil)
+    end)
+
+    it('lets generated buffer replacement override an existing rail style', function()
+      mock_view_config({ prefix = true, change_bar = '▏', rail_separator = '|' })
+
+      local bufnr = commands._test.create_generated_diff_buffer({
+        name = 'diffs://unstaged:all',
+        lines = diff_lines('local single = true'),
+        repo_root = '/tmp/repo',
+        rail_style = 'single',
+      })
+      table.insert(test_buffers, bufnr)
+
+      commands._test.replace_generated_diff_buffer_lines(
+        bufnr,
+        diff_lines('local dual = true'),
+        nil,
+        { rail_style = 'dual' }
+      )
+
+      local display_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+      assert.are.equal(8, vim.api.nvim_buf_get_var(bufnr, 'diffs_rail_width'))
+      assert.are.equal(3, vim.api.nvim_buf_get_var(bufnr, 'diffs_rail_separator_width'))
+      assert.are.equal('dual', vim.api.nvim_buf_get_var(bufnr, 'diffs_rail_style'))
+      assert.are.equal('dual', rails.style_for_buffer(bufnr))
+      assert.are.equal('      | diff --git a/lua/foo.lua b/lua/foo.lua', display_lines[1])
+      assert.is_true(
+        table.concat(display_lines, '\n'):find('    2 | +local dual = true', 1, true) ~= nil
+      )
+    end)
+  end)
+
   describe('command completion', function()
     it('completes Gdiff layout options and Fugitive-style objects', function()
       mock_repo_root(function()
@@ -703,6 +815,7 @@ describe('commands', function()
       local display_lines = vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false)
       assert.are.equal(8, vim.api.nvim_buf_get_var(diff_buf, 'diffs_rail_width'))
       assert.are.equal(3, vim.api.nvim_buf_get_var(diff_buf, 'diffs_rail_separator_width'))
+      assert.are.equal('dual', vim.api.nvim_buf_get_var(diff_buf, 'diffs_rail_style'))
       assert.are.equal('      | diff --git a/lua/foo.lua b/lua/foo.lua', display_lines[1])
       assert.is_true(table.concat(display_lines, '\n'):find('    2 | +local x = 1', 1, true) ~= nil)
 
