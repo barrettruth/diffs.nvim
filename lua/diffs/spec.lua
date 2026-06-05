@@ -4,6 +4,7 @@ M.endpoint_kind = {
   tree = 'tree',
   index = 'index',
   worktree = 'worktree',
+  stage = 'stage',
 }
 
 M.scope_kind = {
@@ -32,7 +33,11 @@ end
 ---@class diffs.WorktreeEndpoint
 ---@field kind "worktree"
 
----@alias diffs.Endpoint diffs.TreeEndpoint|diffs.IndexEndpoint|diffs.WorktreeEndpoint
+---@class diffs.StageEndpoint
+---@field kind "stage"
+---@field stage 1|2|3
+
+---@alias diffs.Endpoint diffs.TreeEndpoint|diffs.IndexEndpoint|diffs.WorktreeEndpoint|diffs.StageEndpoint
 
 ---@class diffs.FileScope
 ---@field kind "file"
@@ -65,6 +70,15 @@ function M.worktree()
   return { kind = M.endpoint_kind.worktree }
 end
 
+---@param stage 1|2|3
+---@return diffs.StageEndpoint
+function M.stage(stage)
+  if stage ~= 1 and stage ~= 2 and stage ~= 3 then
+    error('diffs: stage endpoint must be 1, 2, or 3')
+  end
+  return { kind = M.endpoint_kind.stage, stage = stage }
+end
+
 ---@param endpoint diffs.Endpoint
 ---@return diffs.Endpoint
 function M.endpoint(endpoint)
@@ -80,6 +94,10 @@ function M.endpoint(endpoint)
 
   if endpoint.kind == M.endpoint_kind.worktree then
     return M.worktree()
+  end
+
+  if endpoint.kind == M.endpoint_kind.stage then
+    return M.stage(endpoint.stage)
   end
 
   error('diffs: unsupported endpoint kind: ' .. tostring(endpoint.kind))
@@ -162,6 +180,13 @@ function M.rev_to_rev(left_rev, right_rev, path)
   return M.file(M.tree(left_rev), M.tree(right_rev), path)
 end
 
+---@param stage 1|2|3
+---@param path string
+---@return diffs.DiffSpec
+function M.stage_to_worktree(stage, path)
+  return M.file(M.stage(stage), M.worktree(), path)
+end
+
 ---@param endpoint diffs.Endpoint
 ---@return string
 function M.endpoint_label(endpoint)
@@ -169,6 +194,10 @@ function M.endpoint_label(endpoint)
 
   if endpoint.kind == M.endpoint_kind.tree then
     return 'tree:' .. endpoint.rev
+  end
+
+  if endpoint.kind == M.endpoint_kind.stage then
+    return 'stage:' .. endpoint.stage
   end
 
   return endpoint.kind
@@ -196,6 +225,12 @@ end
 ---@return "index"|"worktree"|nil
 function M.mutation_target(diff_spec)
   diff_spec = M.new(diff_spec)
+
+  -- Merge-stage comparisons are read-only: a stage blob cannot be staged or
+  -- restored through hunk actions.
+  if diff_spec.left.kind == M.endpoint_kind.stage then
+    return nil
+  end
 
   if diff_spec.right.kind == M.endpoint_kind.index then
     return M.endpoint_kind.index

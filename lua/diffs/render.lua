@@ -127,6 +127,8 @@ function M.read_endpoint(endpoint, filepath, opts)
   local lines, err
   if endpoint.kind == diffspec.endpoint_kind.tree then
     lines, err = git.get_file_content(endpoint.rev, filepath)
+  elseif endpoint.kind == diffspec.endpoint_kind.stage then
+    lines, err = git.get_file_content(':' .. endpoint.stage, filepath)
   elseif endpoint.kind == diffspec.endpoint_kind.index then
     lines, err = git.get_index_content(filepath)
   elseif endpoint.kind == diffspec.endpoint_kind.worktree then

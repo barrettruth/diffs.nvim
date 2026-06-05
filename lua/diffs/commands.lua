@@ -261,6 +261,12 @@ local function gdiff_buffer_label(diff_spec)
     return left.rev
   end
 
+  if
+    left.kind == diffspec.endpoint_kind.stage and right.kind == diffspec.endpoint_kind.worktree
+  then
+    return 'stage' .. left.stage
+  end
+
   return diffspec.label(diff_spec)
 end
 
@@ -607,6 +613,9 @@ local function warn_vertical_split_ignored()
   )
 end
 
+-- Always-available object literals offered in completion. Merge-stage objects
+-- (`:1:%`/`:2:%`/`:3:%`) are valid only during a conflict, so they are accepted
+-- by the parser but not advertised here.
 local gdiff_objects = {
   ':',
   ':%',
@@ -1716,6 +1725,13 @@ function M.gdiff(args, vertical, opts)
     return
   end
 
+  local diff_filepath = repo_root .. '/' .. diff_path
+
+  if diff_spec.left.kind == diffspec.endpoint_kind.stage and not git.is_unmerged(diff_filepath) then
+    notify(diff_path .. ' is not in a merge conflict', vim.log.levels.ERROR)
+    return
+  end
+
   if
     diff_spec.left.kind == diffspec.endpoint_kind.index
     and diff_spec.right.kind == diffspec.endpoint_kind.worktree
@@ -1735,7 +1751,9 @@ function M.gdiff(args, vertical, opts)
     return
   end
 
-  local worktree_lines = content.from_buffer(bufnr)
+  -- Only the current buffer's content stands in for the worktree side; an
+  -- explicit-path object targets a different file that must be read from disk.
+  local worktree_lines = diff_path == rel_path and content.from_buffer(bufnr) or nil
   local diff_lines, render_err = render.file(diff_spec, repo_root, {
     worktree_lines = worktree_lines,
   })

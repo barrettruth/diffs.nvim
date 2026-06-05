@@ -383,8 +383,9 @@ diffs.nvim-owned `diffs://` views. Ordinary `git`, `gitcommit`, `diff`,
 highlight-only.
 
 :Diff [++layout=unified|stacked|split] [object]                        *:Diff*
-    Open a diff of the current file against a Fugitive-style object. Use
-    |:Diff-review| (`:Diff review`) for repository reviews.
+    Open a diff of the current file against a diff object. The object language
+    is defined at |diffs.nvim-diff-objects|. Use |:Diff-review| (`:Diff review`)
+    for repository reviews.
     The default unified layout opens below the current window and reuses an
     existing `diffs://` window in the tabpage when one exists.
 
@@ -418,8 +419,9 @@ highlight-only.
                     paired old/new endpoint windows.
         ++novertical (optional) Force a horizontal split even under |:vertical|.
                     Useful in command wrappers.
-        {object}    (string, optional) Fugitive-style object to diff against.
-                    Defaults to the current file in the index.
+        {object}    (string, optional) The object to diff against; see
+                    |diffs.nvim-diff-objects|. Defaults to the current file in
+                    the index.
 
     Completion covers `++layout=...`, the `review` subcommand, supported object
     forms, and git refs.
@@ -441,13 +443,47 @@ highlight-only.
       changes.
     - Unmerged files open a merge diff view. Native 3-way `:Gdiffsplit!`
       windows are not emulated.
-    - Mode-only changes, binary files, submodules, merge-stage objects, and pure
-      renames report a warning or no text changes.
+    - Mode-only changes, binary files, submodules, and pure renames report a
+      warning or no text changes.
 
     Hunk actions run `git apply --cached --check` before mutating the index.
     Stale hunks, context drift, and index mismatches fail without partial
     mutation. `dp` appears only for supported index -> worktree hunks/ranges;
     `do` appears only for supported tree -> index hunks/ranges.
+
+Diff objects: ~                                       *diffs.nvim-diff-objects*
+
+    `:Diff [object]` takes a single object that names one side of the diff; the
+    other side is that path's worktree (except the staged-context default). `%`
+    is the current file.
+
+    Supported objects: ~
+        (omitted)   Current file: index vs worktree (HEAD vs index in a staged
+                    context).
+        {rev}       Current file at {rev} vs worktree. {rev} is any git
+                    revision: `HEAD`, `@` (alias for HEAD), `HEAD~3`, a branch,
+                    a tag, or a commit hash.
+        :           Current file: index vs worktree. Also `:%` and `:0:%`.
+        {rev}:%     Current file at {rev} vs worktree. Also `@:%`, `HEAD:%`.
+        {rev}:{path} The {path} at {rev} vs the {path} worktree file, for
+                    example `:Diff HEAD:lua/foo.lua`.
+        :{path}     The {path} in the index vs its worktree file. Also
+                    `:0:{path}`.
+        :1:% :2:% :3:%
+                    The file at merge stage 1 (base), 2 (ours), or 3 (theirs)
+                    vs the worktree. Read-only, and valid only while the file is
+                    in a merge conflict. Also `:1:{path}` etc.
+
+    Unsupported objects: ~
+        These recognizable Fugitive forms are rejected with a specific error:
+        - `#`, `#N`                   alternate-buffer expansion
+        - `!`, `!:{path}`             owner-commit expansion
+        - `<cfile>`                   cursor-file expansion
+        - `./{path}`, `:(top){path}`  worktree-relative and pathspec-magic paths
+        - `:/{message}`               commit-message search
+        - `{a}..{b}`, `{a}...{b}`     ranges; use |:Diff-review| instead
+        - `{rev}:`                    tree objects
+        - `-`                         the previous object
 
 Stacked generated layout: ~                        *diffs.nvim-stacked-layout*
 
