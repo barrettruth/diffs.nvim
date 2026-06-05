@@ -832,6 +832,36 @@ describe('commands', function()
       assert.is_true(loc[1].text:find('lua/foo.lua', 1, true) ~= nil)
     end)
 
+    it('opens stacked :Gdiff as a generated buffer with single rails', function()
+      mock_runtime_attach(function() end)
+      mock_view_config({ prefix = true, change_bar = '▏', rail_separator = '|' })
+      create_split_source()
+
+      commands.gdiff('++layout=stacked', false)
+
+      local diff_buf = vim.api.nvim_get_current_buf()
+      table.insert(test_buffers, diff_buf)
+      local display_lines = vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false)
+
+      assert.are.equal('diffs://unstaged:lua/foo.lua', vim.api.nvim_buf_get_name(diff_buf))
+      assert.are.same(
+        diffspec.index_to_worktree('lua/foo.lua'),
+        vim.api.nvim_buf_get_var(diff_buf, 'diffs_spec')
+      )
+      assert.are.equal(6, vim.api.nvim_buf_get_var(diff_buf, 'diffs_rail_width'))
+      assert.are.equal(3, vim.api.nvim_buf_get_var(diff_buf, 'diffs_rail_separator_width'))
+      assert.are.equal('single', vim.api.nvim_buf_get_var(diff_buf, 'diffs_rail_style'))
+      assert.are.equal('single', rails.style_for_buffer(diff_buf))
+      assert.are.equal('    | diff --git a/lua/foo.lua b/lua/foo.lua', display_lines[1])
+      assert.is_true(table.concat(display_lines, '\n'):find('  2 | +local x = 1', 1, true) ~= nil)
+      assert.is_false(has_buf_var(diff_buf, 'diffs_split_peer'))
+
+      for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+        local name = vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(win))
+        assert.is_false(name:match('^diffs://split:') ~= nil)
+      end
+    end)
+
     it('opens default :Gdiff for untracked files as index to worktree additions', function()
       local source_buf = vim.api.nvim_create_buf(false, true)
       table.insert(test_buffers, source_buf)
@@ -1613,7 +1643,7 @@ describe('commands', function()
       local diff_buf = vim.api.nvim_get_current_buf()
       table.insert(test_buffers, diff_buf)
 
-      local function assert_unmerged_view(bufnr)
+      local function assert_unmerged_view(bufnr, expected_rail_style)
         local lines = buffer_lines(bufnr)
         local text = table.concat(lines, '\n')
 
@@ -1638,6 +1668,9 @@ describe('commands', function()
         assert.is_true(text:find('<<<<<<<', 1, true) == nil)
         assert.is_true(helpers.has_keymap(bufnr, 'go'))
         assert.is_true(helpers.has_keymap(bufnr, 'gt'))
+        if expected_rail_style then
+          assert.are.equal(expected_rail_style, vim.api.nvim_buf_get_var(bufnr, 'diffs_rail_style'))
+        end
       end
 
       assert_unmerged_view(diff_buf)
@@ -1650,6 +1683,22 @@ describe('commands', function()
 
       assert_unmerged_view(diff_buf)
       helpers.delete_buffer(diff_buf)
+
+      vim.api.nvim_set_current_win(source_win)
+      commands.gdiff('++layout=stacked', false)
+
+      local stacked_unmerged_buf = vim.api.nvim_get_current_buf()
+      table.insert(test_buffers, stacked_unmerged_buf)
+      assert_unmerged_view(stacked_unmerged_buf, 'single')
+
+      vim.api.nvim_set_option_value('modifiable', true, { buf = stacked_unmerged_buf })
+      vim.api.nvim_buf_set_lines(stacked_unmerged_buf, 0, -1, false, { 'stale unmerged content' })
+      vim.api.nvim_set_option_value('modifiable', false, { buf = stacked_unmerged_buf })
+
+      commands.read_buffer(stacked_unmerged_buf)
+
+      assert_unmerged_view(stacked_unmerged_buf, 'single')
+      helpers.delete_buffer(stacked_unmerged_buf)
 
       for _, object in ipairs({ ':%', ':0:%' }) do
         vim.api.nvim_set_current_win(source_win)
@@ -2698,6 +2747,44 @@ describe('commands', function()
       assert.are.equal('branch:lua/dup.lua', qf[2].user_data.diffs.key)
       assert.are.equal('staged:lua/dup.lua', qf[3].user_data.diffs.key)
       assert.are.equal('unstaged:lua/dup.lua', qf[5].user_data.diffs.key)
+    end)
+
+    it('opens Greview stacked layout as a single generated review map with single rails', function()
+      local repo = create_current_state_review_repo()
+      edit_file(repo.repo_root .. '/lua/branch.lua')
+      mock_runtime_attach(function() end)
+      mock_view_config({ prefix = true, change_bar = '▏', rail_separator = '|' })
+
+      local bufnr = commands.greview_command(('++layout=stacked %s'):format(repo.base))
+      assert.is_not_nil(bufnr)
+      table.insert(test_buffers, bufnr)
+
+      local display_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+      local text = buffer_text(bufnr)
+
+      assert.are.equal('diffs://review:' .. repo.base, vim.api.nvim_buf_get_name(bufnr))
+      assert.are.equal('single', vim.api.nvim_buf_get_var(bufnr, 'diffs_rail_style'))
+      assert.are.equal('single', rails.style_for_buffer(bufnr))
+      assert.is_true(display_lines[1]:find('    | # Branch:', 1, true) ~= nil)
+      assert.is_true(text:find('# Branch:', 1, true) ~= nil)
+      assert.is_true(text:find('# Staged:', 1, true) ~= nil)
+      assert.is_true(text:find('# Unstaged:', 1, true) ~= nil)
+      assert.is_true(text:find('# Untracked:', 1, true) ~= nil)
+      assert.is_true(text:find('+branch head', 1, true) ~= nil)
+      assert.is_nil(commands._test.greview_workspace_state(bufnr))
+
+      local qf = quickfix_items()
+      assert.are.equal(7, #qf)
+      assert.are.equal(bufnr, qf[1].bufnr)
+      assert.are.equal('branch:lua/branch.lua', qf[1].user_data.diffs.key)
+      assert.are.equal('staged:lua/dup.lua', qf[3].user_data.diffs.key)
+      assert.are.equal('unstaged:lua/dup.lua', qf[5].user_data.diffs.key)
+
+      for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+        local name = vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(win))
+        assert.is_false(name:match('^diffs://review%-split:') ~= nil)
+        assert.is_false(name:match('^diffs://review%-target:') ~= nil)
+      end
     end)
 
     local function main_windows()
