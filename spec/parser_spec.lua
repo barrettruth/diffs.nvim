@@ -84,6 +84,35 @@ describe('parser', function()
       delete_buffer(bufnr)
     end)
 
+    it('records single generated rail style and keeps parsed hunk lines rail-free', function()
+      local annotated, info = rails.annotate({
+        'diff --git a/lua/test.lua b/lua/test.lua',
+        '--- a/lua/test.lua',
+        '+++ b/lua/test.lua',
+        '@@ -1,2 +1,3 @@',
+        ' local M = {}',
+        '-local old = false',
+        '+local new = true',
+      }, { rail_style = 'single' })
+      local bufnr = create_buffer(annotated)
+      vim.api.nvim_buf_set_var(bufnr, 'diffs_rail_width', info.prefix_width)
+      vim.api.nvim_buf_set_var(bufnr, 'diffs_rail_separator_width', info.separator_width)
+      vim.api.nvim_buf_set_var(bufnr, 'diffs_rail_style', info.style)
+
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('single', hunks[1].rail_style)
+      assert.are.equal(info.prefix_width, hunks[1].rail_width)
+      assert.are.equal(info.separator_width, hunks[1].rail_separator_width)
+      assert.are.same({
+        ' local M = {}',
+        '-local old = false',
+        '+local new = true',
+      }, hunks[1].lines)
+      delete_buffer(bufnr)
+    end)
+
     it('detects multiple hunks in same file', function()
       local bufnr = create_buffer({
         'M lua/test.lua',

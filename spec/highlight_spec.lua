@@ -1,6 +1,7 @@
 require('spec.helpers')
 local config = require('diffs.config')
 local highlight = require('diffs.highlight')
+local rails = require('diffs.rails')
 
 describe('highlight', function()
   describe('hunk_opts', function()
@@ -827,6 +828,128 @@ describe('highlight', function()
         { row = 1, col = 2, end_col = 5, group = 'DiffsDeleteRailNr' },
         { row = 2, col = 2, end_col = 5, group = 'DiffsAddRailNr' },
       }, rail_numbers)
+      delete_buffer(bufnr)
+    end)
+
+    it('highlights single generated rail numbers for context and changed lines', function()
+      local annotated, info = rails.annotate({
+        '@@ -1,2 +1,2 @@',
+        ' local M = {}',
+        '-local old = false',
+        '+local new = true',
+      }, { rail_style = 'single' })
+      local bufnr = create_buffer(annotated)
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = {
+          ' local M = {}',
+          '-local old = false',
+          '+local new = true',
+        },
+        prefix_width = 1,
+        quote_width = info.prefix_width,
+        rail_width = info.prefix_width,
+        rail_separator_width = info.separator_width,
+        rail_style = info.style,
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({
+          highlights = {
+            treesitter = { enabled = false },
+          },
+        })
+      )
+
+      local rail_marks = {}
+      local base_numbers = {}
+      local changed_numbers = {}
+      for _, mark in ipairs(get_extmarks(bufnr)) do
+        local d = mark[4]
+        if d and d.hl_group == 'DiffsRail' then
+          rail_marks[#rail_marks + 1] = { row = mark[2], col = mark[3], end_col = d.end_col }
+        end
+        if d and d.hl_group == 'DiffsRailNr' then
+          base_numbers[#base_numbers + 1] = { row = mark[2], col = mark[3], end_col = d.end_col }
+        end
+        if d and (d.hl_group == 'DiffsAddRailNr' or d.hl_group == 'DiffsDeleteRailNr') then
+          changed_numbers[#changed_numbers + 1] =
+            { row = mark[2], col = mark[3], end_col = d.end_col, group = d.hl_group }
+        end
+      end
+
+      assert.are.same({
+        { row = 1, col = 0, end_col = info.prefix_width },
+        { row = 2, col = 0, end_col = info.prefix_width },
+        { row = 3, col = 0, end_col = info.prefix_width },
+      }, rail_marks)
+      assert.are.same({
+        { row = 1, col = 2, end_col = 3 },
+        { row = 2, col = 2, end_col = 3 },
+        { row = 3, col = 2, end_col = 3 },
+      }, base_numbers)
+      assert.are.same({
+        { row = 2, col = 2, end_col = 3, group = 'DiffsDeleteRailNr' },
+        { row = 3, col = 2, end_col = 3, group = 'DiffsAddRailNr' },
+      }, changed_numbers)
+      delete_buffer(bufnr)
+    end)
+
+    it('keeps hide_prefix overlay off single generated line-number rails', function()
+      local annotated, info = rails.annotate({
+        '@@ -1,1 +1,1 @@',
+        '-old',
+        '+new',
+      }, { rail_style = 'single' })
+      local bufnr = create_buffer(annotated)
+
+      local hunk = {
+        filename = 'test.lua',
+        lang = 'lua',
+        start_line = 1,
+        lines = { '-old', '+new' },
+        prefix_width = 1,
+        quote_width = info.prefix_width,
+        rail_width = info.prefix_width,
+        rail_separator_width = info.separator_width,
+        rail_style = info.style,
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({
+          hide_prefix = true,
+          highlights = {
+            background = true,
+            treesitter = { enabled = false },
+          },
+        })
+      )
+
+      local overlays = {}
+      for _, mark in ipairs(get_extmarks(bufnr)) do
+        local d = mark[4]
+        if d and d.virt_text and d.virt_text[1] then
+          local text, group = d.virt_text[1][1], d.virt_text[1][2]
+          if group == 'DiffsAdd' or group == 'DiffsDelete' then
+            overlays[#overlays + 1] = { row = mark[2], col = mark[3], text = text, group = group }
+            assert.is_true(mark[3] >= info.prefix_width)
+          end
+        end
+      end
+
+      assert.are.same({
+        { row = 1, col = info.prefix_width, text = ' ', group = 'DiffsDelete' },
+        { row = 2, col = info.prefix_width, text = ' ', group = 'DiffsAdd' },
+      }, overlays)
       delete_buffer(bufnr)
     end)
 
