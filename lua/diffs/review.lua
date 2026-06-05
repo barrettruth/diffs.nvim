@@ -35,6 +35,7 @@ local notify = log.notify
 ---@field show_generated_diff_buffer fun(bufnr: integer, vertical?: boolean)
 ---@field attach_generated_diff_buffer fun(bufnr: integer)
 ---@field replace_combined_diffs fun(lines: string[], repo_root: string): string[]
+---@field rail_style? diffs.RailStyle
 
 ---@param bufnr integer
 ---@param name string
@@ -769,6 +770,7 @@ function M.greview(spec, deps)
       target = review.target,
       mode = review.mode,
     }),
+    rail_style = deps.rail_style,
     vars = {
       diffs_review_base = review.base,
       diffs_review_target = review.target,
