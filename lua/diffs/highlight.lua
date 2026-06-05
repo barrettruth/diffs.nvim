@@ -6,6 +6,23 @@ local rails = require('diffs.rails')
 
 local default_change_bar = '▏'
 
+---@param start_col integer
+---@param end_col integer
+---@param raw_len integer?
+---@return integer?, integer?
+local function clamp_cols(start_col, end_col, raw_len)
+  if raw_len then
+    if start_col >= raw_len then
+      return nil, nil
+    end
+    end_col = math.min(end_col, raw_len)
+  end
+  if end_col <= start_col then
+    return nil, nil
+  end
+  return start_col, end_col
+end
+
 local vim_syntax_cache = {}
 local vim_syntax_cache_size = 0
 local vim_syntax_cache_clock = 0
@@ -826,38 +843,41 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
             priority = p.syntax,
           })
 
-          local ranges = rails.ranges(hunk.rail_width, hunk.rail_separator_width)
-          if ranges then
-            pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, ranges.old_start, {
-              end_col = ranges.old_end,
-              hl_group = 'DiffsRailNr',
-              priority = p.syntax + 1,
-            })
-            pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, ranges.new_start, {
-              end_col = ranges.new_end,
-              hl_group = 'DiffsRailNr',
-              priority = p.syntax + 1,
-            })
+          local rail_style = hunk.rail_style or 'dual'
+          local rail_number_ranges =
+            rails.number_ranges(hunk.rail_width, hunk.rail_separator_width, rail_style)
+          if rail_number_ranges then
+            for _, range in ipairs(rail_number_ranges) do
+              local nr_start, nr_end = clamp_cols(range.start, range.finish, raw_len)
+              if nr_start and nr_end then
+                pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, nr_start, {
+                  end_col = nr_end,
+                  hl_group = 'DiffsRailNr',
+                  priority = p.syntax + 1,
+                })
+              end
+            end
           end
           local rail_nr_start, rail_nr_end, rail_nr_hl
-          if ranges and has_del then
-            rail_nr_start = ranges.old_start
-            rail_nr_end = ranges.new_end
-            rail_nr_hl = 'DiffsDeleteRailNr'
-          elseif ranges and has_add then
-            rail_nr_start = ranges.old_start
-            rail_nr_end = ranges.new_end
-            rail_nr_hl = 'DiffsAddRailNr'
+          if (has_del or has_add) and rail_number_ranges then
+            local first_range = rail_number_ranges[1]
+            local last_range = rail_style == 'single' and first_range
+              or rail_number_ranges[#rail_number_ranges]
+            if first_range and last_range then
+              rail_nr_start = first_range.start
+              rail_nr_end = last_range.finish
+              rail_nr_hl = has_del and 'DiffsDeleteRailNr' or 'DiffsAddRailNr'
+            end
           end
           if rail_nr_start and rail_nr_end and rail_nr_hl then
-            if raw_len and rail_nr_end > raw_len then
-              rail_nr_end = raw_len
+            rail_nr_start, rail_nr_end = clamp_cols(rail_nr_start, rail_nr_end, raw_len)
+            if rail_nr_start and rail_nr_end then
+              pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, rail_nr_start, {
+                end_col = rail_nr_end,
+                hl_group = rail_nr_hl,
+                priority = p.syntax + 2,
+              })
             end
-            pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, rail_nr_start, {
-              end_col = rail_nr_end,
-              hl_group = rail_nr_hl,
-              priority = p.syntax + 2,
-            })
           end
         end
         for ci = 0, pw - 1 do

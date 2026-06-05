@@ -16,6 +16,7 @@
 ---@field quote_width integer
 ---@field rail_width integer?
 ---@field rail_separator_width integer?
+---@field rail_style diffs.RailStyle?
 ---@field repo_root string?
 ---@field context_before string[]?
 ---@field context_after string[]?
@@ -156,6 +157,7 @@ function M.parse_buffer(bufnr)
   local repo_root = get_repo_root(bufnr)
   local rail_width = rails.width_for_buffer(bufnr)
   local rail_separator_width = rails.separator_width_for_buffer(bufnr)
+  local rail_style = rail_width > 0 and rails.style_for_buffer(bufnr) or nil
 
   local quote_prefix = nil
   local quote_width = 0
@@ -227,6 +229,7 @@ function M.parse_buffer(bufnr)
         repo_root = repo_root,
         rail_width = rail_width > 0 and rail_width or nil,
         rail_separator_width = rail_width > 0 and rail_separator_width or nil,
+        rail_style = rail_style,
       }
       if hunk_count == 1 and header_start and #header_lines > 0 then
         hunk.header_start_line = header_start
