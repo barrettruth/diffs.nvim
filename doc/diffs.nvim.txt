@@ -996,6 +996,25 @@ The working file buffer is modified in place; save it when ready. Inline
 conflict highlights (see |diffs.nvim-conflict|) are refreshed automatically
 after each resolution.
 
+Git mergetool:                                      *diffs.nvim-git-mergetool*
+
+diffs.nvim can be used with `git mergetool` by configuring Git to open the
+merged working file in Neovim:
+>gitconfig
+    [merge]
+        tool = diffs-nvim
+
+    [mergetool "diffs-nvim"]
+        cmd = nvim "$MERGED"
+<
+
+When the file opens, diffs.nvim detects conflict markers automatically.
+Configure `conflict.keymaps` to enable buffer-local resolution mappings; see
+|diffs.nvim-conflict|. From a Git-unmerged file, |:Gdiff| can also open the
+generated ours-vs-theirs merge diff view documented above.
+
+Save and quit after resolving conflicts. Use `:cq` to abort.
+
 ==============================================================================
 API                                                           *diffs.nvim-api*
 
