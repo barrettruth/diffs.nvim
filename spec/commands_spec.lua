@@ -1826,6 +1826,64 @@ describe('commands', function()
       }, vim.api.nvim_buf_get_var(unstaged_buf, 'diffs_source'))
     end)
 
+    it('renders an explicit-path object against that path worktree counterpart', function()
+      local repo_root = create_repo()
+      write_repo_file(repo_root, 'other.lua', { 'local a = 1', 'return a' })
+      git_cmd(repo_root, { 'add', 'other.lua' })
+      git_cmd(repo_root, { 'commit', '-qm', 'add other' })
+      vim.fn.writefile({ 'local a = 1', 'local b = 2', 'return a' }, repo_root .. '/other.lua')
+      edit_file(repo_root .. '/file.txt')
+      mock_runtime_attach(function() end)
+
+      commands.diff_command('HEAD:other.lua', false)
+
+      local diff_buf = vim.api.nvim_get_current_buf()
+      table.insert(test_buffers, diff_buf)
+      assert.are.equal('diffs://HEAD:other.lua', vim.api.nvim_buf_get_name(diff_buf))
+      assert.are.same(
+        diffspec.rev_to_worktree('HEAD', 'other.lua'),
+        vim.api.nvim_buf_get_var(diff_buf, 'diffs_spec')
+      )
+      local text = table.concat(buffer_lines(diff_buf), '\n')
+      assert.is_true(text:find('+local b = 2', 1, true) ~= nil)
+    end)
+
+    it('renders a read-only merge-stage object against the worktree', function()
+      local _, filepath = create_conflicted_repo()
+      edit_file(filepath)
+      mock_runtime_attach(function() end)
+      assert.is_true(git.is_unmerged(filepath))
+
+      commands.diff_command(':2:%', false)
+
+      local diff_buf = vim.api.nvim_get_current_buf()
+      table.insert(test_buffers, diff_buf)
+      assert.are.equal('diffs://stage2:file.txt', vim.api.nvim_buf_get_name(diff_buf))
+      assert.are.same(
+        diffspec.stage_to_worktree(2, 'file.txt'),
+        vim.api.nvim_buf_get_var(diff_buf, 'diffs_spec')
+      )
+      assert.is_false(helpers.has_keymap(diff_buf, 'dp'))
+      assert.is_false(helpers.has_keymap(diff_buf, 'do'))
+    end)
+
+    it('rejects a merge-stage object when the file is not in a conflict', function()
+      local repo_root = create_repo()
+      edit_file(repo_root .. '/file.txt')
+      mock_runtime_attach(function() end)
+      local notifications = capture_notifications()
+
+      commands.diff_command(':2:%', false)
+
+      local rejected = false
+      for _, n in ipairs(notifications) do
+        if tostring(n.message):find('is not in a merge conflict', 1, true) then
+          rejected = true
+        end
+      end
+      assert.is_true(rejected)
+    end)
+
     it('routes direct :Gdiff on unmerged files to the generated unmerged view', function()
       local repo_root, filepath = create_conflicted_repo()
       edit_file(filepath)

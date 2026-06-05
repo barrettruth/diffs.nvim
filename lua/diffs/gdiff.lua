@@ -40,28 +40,100 @@ local function is_worktree(endpoint)
   return endpoint.kind == diffspec.endpoint_kind.worktree
 end
 
+---@class diffs.GdiffParsedObject
+---@field left diffs.Endpoint
+---@field path? string # explicit path; nil means the current file
+---@field right_worktree? boolean # if set, the right endpoint is the worktree rather than `current`
+
+--- Parse a single `:Diff` object into its left endpoint, optional explicit
+--- path, and whether the right endpoint should be pinned to the worktree.
+--- Recognizable Fugitive forms that are intentionally unsupported are rejected
+--- with specific messages (see |diffs.nvim-diff-objects|).
 ---@param object string
----@return diffs.Endpoint?, string?
-local function parse_object_endpoint(object)
+---@return diffs.GdiffParsedObject?, string?
+local function parse_object(object)
+  if object == '#' or object:match('^#%d+$') then
+    return nil, 'alternate-buffer objects (#) are not supported'
+  end
+  if object:sub(1, 1) == '!' then
+    return nil, 'owner-commit objects (!) are not supported'
+  end
+  if object == '<cfile>' then
+    return nil, '<cfile> objects are not supported'
+  end
+  if object == '-' then
+    return nil, 'the previous-object form (-) is not supported'
+  end
+  if object == '.' or object:sub(1, 2) == './' or object:sub(1, 3) == '../' then
+    return nil, 'worktree-relative path objects (./) are not supported'
+  end
+  if object:find('..', 1, true) then
+    return nil, 'range objects are not supported; use :Diff review for ranges'
+  end
+  if object:match('^:/') then
+    return nil, 'commit-message search objects (:/) are not supported'
+  end
+  if object:match('^:%(') then
+    return nil, 'pathspec-magic objects (:(...)) are not supported'
+  end
+
   if object == ':' or object == ':%' or object == ':0:%' then
-    return diffspec.index(), nil
+    return { left = diffspec.index() }, nil
   end
 
-  local stage = object:match('^:(%d):%%$')
-  if stage then
-    return nil, 'unsupported index stage :' .. stage .. ':%'
+  local stage_digit, stage_rest = object:match('^:([0-3]):(.+)$')
+  if stage_digit then
+    local left
+    if stage_digit == '0' then
+      left = diffspec.index()
+    elseif stage_digit == '1' then
+      left = diffspec.stage(1)
+    elseif stage_digit == '2' then
+      left = diffspec.stage(2)
+    else
+      left = diffspec.stage(3)
+    end
+    return {
+      left = left,
+      path = stage_rest ~= '%' and stage_rest or nil,
+      right_worktree = true,
+    },
+      nil
   end
 
-  local rev = object:match('^(.+):%%$')
+  if object:match('^:[123]$') then
+    return nil,
+      'merge stage ' .. object .. ' needs a path; use ' .. object .. ':% for the current file'
+  end
+
+  if object:sub(1, 1) == ':' then
+    local object_path = object:sub(2)
+    if object_path == '%' then
+      return { left = diffspec.index() }, nil
+    end
+    return { left = diffspec.index(), path = object_path, right_worktree = true }, nil
+  end
+
+  if object:match(':$') then
+    return nil, 'tree objects (trailing :) are not supported'
+  end
+
+  -- Greedy: `a:b:c` splits at the last colon. Git revisions rarely contain
+  -- colons, and an invalid revision surfaces later when its content is read.
+  local rev, rev_path = object:match('^(.+):(.+)$')
   if rev then
-    return diffspec.tree(normalize_rev(rev)), nil
+    if rev_path == '%' then
+      return { left = diffspec.tree(normalize_rev(rev)) }, nil
+    end
+    return {
+      left = diffspec.tree(normalize_rev(rev)),
+      path = rev_path,
+      right_worktree = true,
+    },
+      nil
   end
 
-  if object:find(':', 1, true) then
-    return nil, 'unsupported Fugitive object: ' .. object
-  end
-
-  return diffspec.tree(normalize_rev(object)), nil
+  return { left = diffspec.tree(normalize_rev(object)) }, nil
 end
 
 ---@param current diffs.Endpoint
@@ -132,13 +204,15 @@ function M.parse(args, context)
       nil
   end
 
-  local endpoint, err = parse_object_endpoint(tokens[1])
-  if not endpoint then
+  local object, err = parse_object(tokens[1])
+  if not object then
     return nil, err
   end
 
+  local scope_path = object.path or path
+  local right = object.right_worktree and diffspec.worktree() or current
   return {
-    spec = diffspec.file(endpoint, current, path),
+    spec = diffspec.file(object.left, right, scope_path),
     novertical = novertical,
     layout = layout,
   },

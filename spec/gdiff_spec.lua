@@ -127,10 +127,75 @@ describe('diffs.gdiff', function()
     assert.are.equal('expected at most one Fugitive object', err)
   end)
 
-  it('rejects unsupported index stages for now', function()
-    local result, err = gdiff.parse(':2:%', { path = path })
+  it('maps revision explicit-path objects to revision -> worktree of that path', function()
+    local result = parse('HEAD:lua/bar.lua')
 
-    assert.is_nil(result)
-    assert.are.equal('unsupported index stage :2:%', err)
+    assert.are.same(diffspec.rev_to_worktree('HEAD', 'lua/bar.lua'), result.spec)
   end)
+
+  it('normalizes @ in revision explicit-path objects', function()
+    local result = parse('@:lua/bar.lua')
+
+    assert.are.same(diffspec.rev_to_worktree('HEAD', 'lua/bar.lua'), result.spec)
+  end)
+
+  it('maps index explicit-path objects to index -> worktree of that path', function()
+    for _, object in ipairs({ ':lua/bar.lua', ':0:lua/bar.lua' }) do
+      local result = parse(object)
+
+      assert.are.same(diffspec.index_to_worktree('lua/bar.lua'), result.spec)
+    end
+  end)
+
+  it('maps merge-stage current-file objects to stage -> worktree', function()
+    for _, stage in ipairs({ 1, 2, 3 }) do
+      local result = parse((':%d:%%'):format(stage))
+
+      assert.are.same(diffspec.stage_to_worktree(stage, path), result.spec)
+    end
+  end)
+
+  it('maps merge-stage explicit-path objects to stage -> worktree of that path', function()
+    local result = parse(':3:lua/bar.lua')
+
+    assert.are.same(diffspec.stage_to_worktree(3, 'lua/bar.lua'), result.spec)
+  end)
+
+  it('pins explicit-path objects to the worktree even in a staged context', function()
+    local result = parse('HEAD:lua/bar.lua', diffspec.index())
+
+    assert.are.same(diffspec.rev_to_worktree('HEAD', 'lua/bar.lua'), result.spec)
+  end)
+
+  local rejected = {
+    { object = '#', err = 'alternate-buffer objects (#) are not supported' },
+    { object = '#2', err = 'alternate-buffer objects (#) are not supported' },
+    { object = '!', err = 'owner-commit objects (!) are not supported' },
+    { object = '!:lua/bar.lua', err = 'owner-commit objects (!) are not supported' },
+    { object = '<cfile>', err = '<cfile> objects are not supported' },
+    { object = '-', err = 'the previous-object form (-) is not supported' },
+    { object = './lua/bar.lua', err = 'worktree-relative path objects (./) are not supported' },
+    { object = '../lua/bar.lua', err = 'worktree-relative path objects (./) are not supported' },
+    {
+      object = 'main..other',
+      err = 'range objects are not supported; use :Diff review for ranges',
+    },
+    {
+      object = 'main...other',
+      err = 'range objects are not supported; use :Diff review for ranges',
+    },
+    { object = ':2', err = 'merge stage :2 needs a path; use :2:% for the current file' },
+    { object = ':/fix', err = 'commit-message search objects (:/) are not supported' },
+    { object = ':(top)lua/bar.lua', err = 'pathspec-magic objects (:(...)) are not supported' },
+    { object = 'master:', err = 'tree objects (trailing :) are not supported' },
+  }
+
+  for _, case in ipairs(rejected) do
+    it('rejects ' .. case.object, function()
+      local result, err = gdiff.parse(case.object, { path = path })
+
+      assert.is_nil(result)
+      assert.are.equal(case.err, err)
+    end)
+  end
 end)

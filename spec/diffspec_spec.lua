@@ -73,6 +73,32 @@ describe('diffs.spec', function()
     assert.are.equal('tree:origin/main -> tree:HEAD file:lua/foo.lua', diffspec.label(spec))
   end)
 
+  it('represents read-only merge-stage to worktree file diffs', function()
+    local spec = diffspec.stage_to_worktree(2, path)
+
+    assert.are.same({
+      left = { kind = 'stage', stage = 2 },
+      right = { kind = 'worktree' },
+      scope = { kind = 'file', path = path },
+      mode = 'unified',
+    }, spec)
+    assert.is_false(diffspec.is_index_target(spec))
+    assert.is_false(diffspec.is_worktree_target(spec))
+    assert.is_true(diffspec.is_read_only(spec))
+    assert.are.same({ read_only = true }, diffspec.mutability(spec))
+    assert.are.same({ can_put = false, can_obtain = false }, diffspec.patch_actions(spec))
+    assert.are.equal('stage:2 -> worktree file:lua/foo.lua', diffspec.label(spec))
+  end)
+
+  it('rejects invalid merge-stage numbers', function()
+    assert.has_error(function()
+      diffspec.stage(0)
+    end, 'diffs: stage endpoint must be 1, 2, or 3')
+    assert.has_error(function()
+      diffspec.stage(4)
+    end, 'diffs: stage endpoint must be 1, 2, or 3')
+  end)
+
   it('normalizes table-shaped specs without keeping caller-owned tables', function()
     local input = {
       left = { kind = 'tree', rev = 'HEAD' },
