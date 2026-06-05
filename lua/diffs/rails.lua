@@ -5,6 +5,8 @@ local hunk_model = require('diffs.hunks')
 local default_rail_separator = '│'
 local bar_slot = '  '
 
+---@alias diffs.RailStyle "dual"|"single"
+
 ---@param glyph string?
 ---@return string
 local function separator_for(glyph)
@@ -15,12 +17,26 @@ end
 ---@field width integer
 ---@field prefix_width integer
 ---@field separator_width integer
+---@field style diffs.RailStyle
 
 ---@class diffs.RailRanges
 ---@field old_start integer
 ---@field old_end integer
 ---@field new_start integer
 ---@field new_end integer
+
+---@class diffs.RailNumberRange
+---@field start integer
+---@field finish integer
+
+---@param style diffs.RailStyle?
+---@return diffs.RailStyle
+local function normalize_rail_style(style)
+  if style == 'single' then
+    return 'single'
+  end
+  return 'dual'
+end
 
 ---@param value integer?
 ---@param width integer
@@ -51,6 +67,21 @@ local function new_lnum(line)
 end
 
 ---@param line diffs.GdiffHunkLine?
+---@return integer?
+local function single_lnum(line)
+  if not line then
+    return nil
+  end
+  if line.kind == 'delete' then
+    return line.old_lnum
+  end
+  if line.kind == 'context' or line.kind == 'add' then
+    return line.new_lnum
+  end
+  return nil
+end
+
+---@param line diffs.GdiffHunkLine?
 ---@param text string
 ---@return boolean
 local function is_empty_context_line(line, text)
@@ -66,14 +97,24 @@ local function has_number(line, start_col, end_col)
 end
 
 ---@param line string
+---@param ranges diffs.RailNumberRange[]?
+---@return boolean
+local function any_range_has_number(line, ranges)
+  for _, range in ipairs(ranges or {}) do
+    if has_number(line, range.start, range.finish) then
+      return true
+    end
+  end
+  return false
+end
+
+---@param line string
 ---@param prefix_width integer
 ---@param separator_width? integer
 ---@return boolean
-local function has_context_rails(line, prefix_width, separator_width)
-  local ranges = M.ranges(prefix_width, separator_width)
-  return ranges ~= nil
-    and has_number(line, ranges.old_start, ranges.old_end)
-    and has_number(line, ranges.new_start, ranges.new_end)
+local function has_rail_number(line, prefix_width, separator_width)
+  return any_range_has_number(line, M.number_ranges(prefix_width, separator_width, 'dual'))
+    or any_range_has_number(line, M.number_ranges(prefix_width, separator_width, 'single'))
 end
 
 ---@param lines string[]
@@ -93,10 +134,11 @@ local function collect_lines(lines)
 end
 
 ---@param lines string[]
----@param opts? { rail_separator?: string }
+---@param opts? { rail_separator?: string, rail_style?: diffs.RailStyle }
 ---@return string[], diffs.RailInfo?
 function M.annotate(lines, opts)
   opts = opts or {}
+  local rail_style = normalize_rail_style(opts.rail_style)
   local separator = separator_for(opts.rail_separator)
   local compact_separator = separator:gsub('%s+$', '')
 
@@ -106,19 +148,27 @@ function M.annotate(lines, opts)
   end
 
   local width = math.max(1, #tostring(max_lnum))
-  local prefix_width = #bar_slot + width + 1 + width + #separator
+  local prefix_width = rail_style == 'single' and (#bar_slot + width + #separator)
+    or (#bar_slot + width + 1 + width + #separator)
   local annotated = {}
 
   for lnum, text in ipairs(lines) do
     local line = by_lnum[lnum]
     local line_separator = is_empty_context_line(line, text) and compact_separator or separator
     local display_text = is_empty_context_line(line, text) and '' or text
-    annotated[lnum] = bar_slot
-      .. format_lnum(old_lnum(line), width)
-      .. ' '
-      .. format_lnum(new_lnum(line), width)
-      .. line_separator
-      .. display_text
+    if rail_style == 'single' then
+      annotated[lnum] = bar_slot
+        .. format_lnum(single_lnum(line), width)
+        .. line_separator
+        .. display_text
+    else
+      annotated[lnum] = bar_slot
+        .. format_lnum(old_lnum(line), width)
+        .. ' '
+        .. format_lnum(new_lnum(line), width)
+        .. line_separator
+        .. display_text
+    end
   end
 
   return annotated,
@@ -126,6 +176,7 @@ function M.annotate(lines, opts)
       width = width,
       prefix_width = prefix_width,
       separator_width = #separator,
+      style = rail_style,
     }
 end
 
@@ -138,7 +189,7 @@ function M.strip(line, prefix_width, separator_width)
     return line
   end
   local stripped = line:sub(prefix_width + 1)
-  if stripped == '' and has_context_rails(line, prefix_width, separator_width) then
+  if stripped == '' and has_rail_number(line, prefix_width, separator_width) then
     return ' '
   end
   return stripped
@@ -184,6 +235,47 @@ function M.ranges(prefix_width, separator_width)
     old_end = old_end,
     new_start = new_start,
     new_end = new_end,
+  }
+end
+
+---@param prefix_width integer?
+---@param separator_width? integer
+---@param rail_style? diffs.RailStyle
+---@return diffs.RailNumberRange[]?
+function M.number_ranges(prefix_width, separator_width, rail_style)
+  if type(prefix_width) ~= 'number' or prefix_width <= 0 then
+    return nil
+  end
+  separator_width = separator_width or #separator_for()
+
+  if normalize_rail_style(rail_style) == 'single' then
+    local width = prefix_width - #bar_slot - separator_width
+    if width < 1 or width % 1 ~= 0 then
+      return nil
+    end
+
+    return {
+      {
+        start = #bar_slot,
+        finish = #bar_slot + width,
+      },
+    }
+  end
+
+  local ranges = M.ranges(prefix_width, separator_width)
+  if not ranges then
+    return nil
+  end
+
+  return {
+    {
+      start = ranges.old_start,
+      finish = ranges.old_end,
+    },
+    {
+      start = ranges.new_start,
+      finish = ranges.new_end,
+    },
   }
 end
 
