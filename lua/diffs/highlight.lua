@@ -6,11 +6,14 @@ local rails = require('diffs.rails')
 
 local default_change_bar = '▏'
 
----@param start_col integer
----@param end_col integer
+---@param start_col integer?
+---@param end_col integer?
 ---@param raw_len integer?
 ---@return integer?, integer?
 local function clamp_cols(start_col, end_col, raw_len)
+  if not start_col or not end_col then
+    return nil, nil
+  end
   if raw_len then
     if start_col >= raw_len then
       return nil, nil
@@ -870,10 +873,12 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
             end
           end
           if rail_nr_start and rail_nr_end and rail_nr_hl then
-            rail_nr_start, rail_nr_end = clamp_cols(rail_nr_start, rail_nr_end, raw_len)
-            if rail_nr_start and rail_nr_end then
-              pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, rail_nr_start, {
-                end_col = rail_nr_end,
+            local nr_start = rail_nr_start
+            local nr_end = rail_nr_end
+            nr_start, nr_end = clamp_cols(nr_start, nr_end, raw_len)
+            if nr_start and nr_end then
+              pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, nr_start, {
+                end_col = nr_end,
                 hl_group = rail_nr_hl,
                 priority = p.syntax + 2,
               })
