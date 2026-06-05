@@ -598,10 +598,22 @@ local function rail_style_for_layout(layout)
   return 'dual'
 end
 
-local function warn_legacy_command()
+local legacy_command_replacements = {
+  Gdiff = ':Diff',
+  Gvdiff = ':vertical Diff',
+  Ghdiff = ':Diff',
+  Greview = ':Diff review',
+}
+
+---@param command "Gdiff"|"Gvdiff"|"Ghdiff"|"Greview"
+local function warn_legacy_command(command)
   notify(
-    ':Gdiff, :Gvdiff, :Ghdiff, and :Greview are deprecated, use :Diff and :Diff review instead.\n'
-      .. 'Feature will be removed in diffs.nvim 0.4.0',
+    ':'
+      .. command
+      .. ' is deprecated, use '
+      .. legacy_command_replacements[command]
+      .. ' instead.\n'
+      .. 'Feature will be removed in diffs.nvim 0.4.0. See :help diffs.nvim-deprecated-commands',
     vim.log.levels.WARN
   )
 end
@@ -2153,7 +2165,7 @@ function M.setup()
   })
 
   vim.api.nvim_create_user_command('Gdiff', function(opts)
-    warn_legacy_command()
+    warn_legacy_command('Gdiff')
     M.gdiff(opts.args ~= '' and opts.args or nil, false)
   end, {
     nargs = '*',
@@ -2163,7 +2175,7 @@ function M.setup()
   })
 
   vim.api.nvim_create_user_command('Gvdiff', function(opts)
-    warn_legacy_command()
+    warn_legacy_command('Gvdiff')
     M.gdiff(opts.args ~= '' and opts.args or nil, true)
   end, {
     nargs = '*',
@@ -2173,7 +2185,7 @@ function M.setup()
   })
 
   vim.api.nvim_create_user_command('Ghdiff', function(opts)
-    warn_legacy_command()
+    warn_legacy_command('Ghdiff')
     M.gdiff(opts.args ~= '' and opts.args or nil, false)
   end, {
     nargs = '*',
@@ -2183,7 +2195,7 @@ function M.setup()
   })
 
   vim.api.nvim_create_user_command('Greview', function(opts)
-    warn_legacy_command()
+    warn_legacy_command('Greview')
     M.greview_command(opts.args ~= '' and opts.args or nil)
   end, {
     nargs = '*',

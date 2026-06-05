@@ -494,8 +494,16 @@ describe('commands', function()
   end)
 
   describe('deprecated command aliases', function()
-    local command_deprecation = '[diffs]: :Gdiff, :Gvdiff, :Ghdiff, and :Greview are deprecated, use :Diff and :Diff review instead.\n'
-      .. 'Feature will be removed in diffs.nvim 0.4.0'
+    local deprecations = {
+      Gdiff = '[diffs]: :Gdiff is deprecated, use :Diff instead.\n'
+        .. 'Feature will be removed in diffs.nvim 0.4.0. See :help diffs.nvim-deprecated-commands',
+      Gvdiff = '[diffs]: :Gvdiff is deprecated, use :vertical Diff instead.\n'
+        .. 'Feature will be removed in diffs.nvim 0.4.0. See :help diffs.nvim-deprecated-commands',
+      Ghdiff = '[diffs]: :Ghdiff is deprecated, use :Diff instead.\n'
+        .. 'Feature will be removed in diffs.nvim 0.4.0. See :help diffs.nvim-deprecated-commands',
+      Greview = '[diffs]: :Greview is deprecated, use :Diff review instead.\n'
+        .. 'Feature will be removed in diffs.nvim 0.4.0. See :help diffs.nvim-deprecated-commands',
+    }
 
     local function count_deprecations(notifications)
       local count = 0
@@ -507,6 +515,16 @@ describe('commands', function()
       return count
     end
 
+    local function deprecation_messages(notifications)
+      local messages = {}
+      for _, n in ipairs(notifications) do
+        if tostring(n.message):find('deprecated', 1, true) then
+          messages[#messages + 1] = n.message
+        end
+      end
+      return messages
+    end
+
     it('warns on use of every deprecated alias', function()
       commands.setup()
       local notifications = capture_notifications()
@@ -516,7 +534,12 @@ describe('commands', function()
       vim.cmd('silent! Ghdiff')
       vim.cmd('silent! Greview ++layout=bogus')
       assert.are.equal(4, count_deprecations(notifications))
-      assert.are.equal(command_deprecation, notifications[1].message)
+      assert.are.same({
+        deprecations.Gdiff,
+        deprecations.Gvdiff,
+        deprecations.Ghdiff,
+        deprecations.Greview,
+      }, deprecation_messages(notifications))
     end)
 
     it('warns again on every repeated use of a deprecated alias', function()
