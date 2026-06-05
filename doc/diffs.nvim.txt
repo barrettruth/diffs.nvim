@@ -518,7 +518,7 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     or location-list entries with the |diffs.nvim| mapped <CR> updates the
     existing workspace. Saving the right-side worktree buffer refreshes the
     generated diff on the left. Native Vim `&diff` mode is not used for
-    |:Greview| split workspaces.
+    |:Greview| split workspaces, and the windows are not scroll-bound.
 
     Parameters: ~
         ++layout=unified (optional) Open the default generated review map with
