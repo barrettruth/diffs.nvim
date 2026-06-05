@@ -71,6 +71,11 @@ fzf-lua is supported out-of-the-box.
 
 See the documentation for more information.
 
+**Q: Can I use diffs.nvim as a Git mergetool?**
+
+Yes. Configure Git to open `$MERGED` with Neovim; diffs.nvim will detect
+conflict markers automatically. See `:help diffs.nvim-git-mergetool`.
+
 ## Known Limitations
 
 - **Incomplete syntax context**: Treesitter parses each diff hunk in isolation.
