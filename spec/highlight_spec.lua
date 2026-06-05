@@ -730,12 +730,12 @@ describe('highlight', function()
         })
       )
 
-      local rails = {}
+      local rail_marks = {}
       local rail_numbers = {}
       for _, mark in ipairs(get_extmarks(bufnr)) do
         local d = mark[4]
         if d and d.hl_group == 'DiffsRail' then
-          rails[#rails + 1] = { row = mark[2], col = mark[3], end_col = d.end_col }
+          rail_marks[#rail_marks + 1] = { row = mark[2], col = mark[3], end_col = d.end_col }
         end
         if d and d.hl_group == 'DiffsRailNr' then
           rail_numbers[#rail_numbers + 1] = { row = mark[2], col = mark[3], end_col = d.end_col }
@@ -745,7 +745,7 @@ describe('highlight', function()
       assert.are.same({
         { row = 1, col = 0, end_col = 8 },
         { row = 2, col = 0, end_col = 8 },
-      }, rails)
+      }, rail_marks)
       assert.are.same({
         { row = 1, col = 2, end_col = 3 },
         { row = 1, col = 4, end_col = 5 },
@@ -786,7 +786,7 @@ describe('highlight', function()
       )
 
       local overlays = {}
-      local rails = {}
+      local rail_marks = {}
       local base_rail_numbers = {}
       local rail_numbers = {}
       for _, mark in ipairs(get_extmarks(bufnr)) do
@@ -798,7 +798,7 @@ describe('highlight', function()
           end
         end
         if d and d.hl_group == 'DiffsRail' then
-          rails[#rails + 1] = { row = mark[2], col = mark[3], end_col = d.end_col }
+          rail_marks[#rail_marks + 1] = { row = mark[2], col = mark[3], end_col = d.end_col }
         end
         if d and d.hl_group == 'DiffsRailNr' then
           base_rail_numbers[#base_rail_numbers + 1] =
@@ -817,7 +817,7 @@ describe('highlight', function()
       assert.are.same({
         { row = 1, col = 0, end_col = 10 },
         { row = 2, col = 0, end_col = 10 },
-      }, rails)
+      }, rail_marks)
       assert.are.same({
         { row = 1, col = 2, end_col = 3 },
         { row = 1, col = 4, end_col = 5 },
