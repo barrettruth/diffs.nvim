@@ -402,6 +402,46 @@ describe('merge', function()
       cleanup()
     end)
 
+    it('matches and resolves conflicts from generated single-rail hunks', function()
+      local working_path = '/tmp/diffs_test_single_rail_resolve.lua'
+      local w_bufnr = create_working_buffer({
+        '<<<<<<< HEAD',
+        'local x = 1',
+        '=======',
+        'local x = 2',
+        '>>>>>>> feature',
+      }, working_path)
+
+      local annotated, info = rails.annotate({
+        'diff --git a/file.lua b/file.lua',
+        '--- a/file.lua',
+        '+++ b/file.lua',
+        '@@ -1,1 +1,1 @@',
+        '-local x = 1',
+        '+local x = 2',
+      }, { rail_style = 'single' })
+      local d_bufnr = create_diff_buffer(annotated, working_path)
+      vim.api.nvim_buf_set_var(d_bufnr, 'diffs_rail_width', info.prefix_width)
+      vim.api.nvim_buf_set_var(d_bufnr, 'diffs_rail_separator_width', info.separator_width)
+      vim.api.nvim_buf_set_var(d_bufnr, 'diffs_rail_style', info.style)
+      vim.api.nvim_set_current_buf(d_bufnr)
+
+      local hunks = merge.parse_hunks(d_bufnr)
+      assert.are.equal(1, #hunks)
+      assert.are.same({ 'local x = 1' }, hunks[1].del_lines)
+      assert.are.same({ 'local x = 2' }, hunks[1].add_lines)
+      assert.is_not_nil(merge.match_hunk_to_conflict(hunks[1], w_bufnr))
+
+      vim.api.nvim_win_set_cursor(0, { 5, 0 })
+      merge.resolve_theirs(d_bufnr, default_config())
+
+      local lines = vim.api.nvim_buf_get_lines(w_bufnr, 0, -1, false)
+      assert.are.same({ 'local x = 2' }, lines)
+
+      helpers.delete_buffer(d_bufnr)
+      helpers.delete_buffer(w_bufnr)
+    end)
+
     it('notifies when hunk is already resolved', function()
       setup_buffers()
       vim.api.nvim_win_set_cursor(0, { 5, 0 })
