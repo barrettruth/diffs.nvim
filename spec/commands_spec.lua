@@ -494,6 +494,9 @@ describe('commands', function()
   end)
 
   describe('deprecated command aliases', function()
+    local command_deprecation = '[diffs]: :Gdiff, :Gvdiff, :Ghdiff, and :Greview are deprecated, use :Diff and :Diff review instead.\n'
+      .. 'Feature will be removed in diffs.nvim 0.4.0'
+
     local function count_deprecations(notifications)
       local count = 0
       for _, n in ipairs(notifications) do
@@ -513,6 +516,7 @@ describe('commands', function()
       vim.cmd('silent! Ghdiff')
       vim.cmd('silent! Greview ++layout=bogus')
       assert.are.equal(4, count_deprecations(notifications))
+      assert.are.equal(command_deprecation, notifications[1].message)
     end)
 
     it('warns again on every repeated use of a deprecated alias', function()
