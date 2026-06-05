@@ -172,9 +172,9 @@ Pre-v0.4.0 migration window: ~
                              `DiffsDeleteBar`.
 
         {rail_separator}     (string, default: '│')
-                             Glyph between generated old/new line-number
-                             rails and diff text. Surrounding padding is
-                             managed internally.
+                             Glyph between the generated line-number area and
+                             diff text. Surrounding padding is managed
+                             internally.
 
         {integrations}       (table, default: all false)
                              Integration toggles. Each key accepts `true` or
@@ -382,14 +382,17 @@ diffs.nvim-owned `diffs://` views. Ordinary `git`, `gitcommit`, `diff`,
 `extra_filetypes`, picker previews, and third-party integration buffers remain
 highlight-only.
 
-:Gdiff [++layout=unified|split] [object]                              *:Gdiff*
-    Open a unified diff of the current file against a Fugitive-style object.
+:Gdiff [++layout=unified|stacked|split] [object]                      *:Gdiff*
+    Open a diff of the current file against a Fugitive-style object.
     The default unified layout opens below the current window and reuses an
     existing `diffs://` window in the tabpage when one exists.
 
-    `diffs://` unified buffers include old and new line-number columns before
-    the unified diff text. The default unified layout does not enter native Vim
-    `&diff` mode or open writable Fugitive object buffers.
+    `++layout=unified` and `++layout=stacked` create generated `diffs://`
+    buffers. Unified buffers include old and new line-number rails before the
+    unified diff text. Stacked buffers use the same generated diff text with a
+    single context-aware line-number rail; see |diffs.nvim-stacked-layout|.
+    Generated layouts do not enter native Vim `&diff` mode or open writable
+    Fugitive object buffers.
 
     `++layout=split` opens paired old/new endpoint windows with native `&diff`
     alignment. See |diffs.nvim-paired-windows|.
@@ -401,7 +404,10 @@ highlight-only.
     form such as `:Gdiff :0:%`. |:Gdiff| does not provide a `--staged` flag.
 
     Parameters: ~
-        ++layout=unified (optional) Open the default unified `diffs://` view.
+        ++layout=unified (optional) Open the default generated `diffs://` view
+                    with old and new line-number rails.
+        ++layout=stacked (optional) Open a generated `diffs://` view with one
+                    context-aware line-number rail.
         ++layout=split (optional) Open the current single-file comparison as
                     paired old/new endpoint windows.
         ++novertical (optional) Force a horizontal split. Useful with |:Gvdiff|
@@ -417,6 +423,7 @@ highlight-only.
         :Gdiff HEAD~3   " diff against 3 commits ago
         :Gdiff :0:%     " diff against the index explicitly
         :Gdiff abc123   " diff against specific commit
+        :Gdiff ++layout=stacked
 <
     Edge cases: ~
     - Untracked and added files render as all-added files.
@@ -433,6 +440,28 @@ highlight-only.
     Stale hunks, context drift, and index mismatches fail without partial
     mutation. `dp` appears only for supported index -> worktree hunks/ranges;
     `do` appears only for supported tree -> index hunks/ranges.
+
+Stacked generated layout: ~                        *diffs.nvim-stacked-layout*
+
+    `++layout=stacked` creates a generated single-column `diffs://` layout. It
+    keeps normal unified diff text, but replaces the two old/new line-number
+    rails used by the unified generated layout with one context-aware rail.
+
+    In the stacked rail:
+    - `-` lines display old-side line numbers.
+    - `+` lines display new-side line numbers.
+    - Context lines display new-side line numbers.
+    - Headers and metadata do not display file line numbers.
+
+    Replacements can therefore repeat a number: a deleted old-side line and the
+    added new-side line that replaces it may both show the same value.
+>diff
+     | @@ -9,3 +9,3 @@
+   9 |  alpha
+  10 | -beta
+  10 | +beta changed
+  11 |  gamma
+<
 
 Paired-window behavior: ~                          *diffs.nvim-paired-windows*
 
@@ -452,7 +481,7 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
 :Ghdiff [object]                                                     *:Ghdiff*
     Like |:Gdiff| but explicitly opens in a horizontal split.
 
-:Greview [++layout=unified|split] [review-spec]                     *:Greview*
+:Greview [++layout=unified|stacked|split] [review-spec]             *:Greview*
     Open a repository review.
 
     With no arguments, reviews the current repository state against the
@@ -465,11 +494,15 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     using merge-base semantics. With `A..B`, reviews explicit target `B`
     against base `A` as a direct two-endpoint comparison.
 
-    Without `++layout=split`, populates the quickfix list with file entries
-    (one per changed file, with `+N`/`-M` stats) and the location list with hunk
-    entries (one per `@@` header, with filename and hunk number). All entries
-    point into the diff buffer, so `:cnext`/`:cprev` navigate between files and
-    `:lnext`/`:lprev` navigate between hunks within the buffer.
+    `++layout=unified` and `++layout=stacked` both create full generated review
+    maps. Unified review maps use old and new line-number rails; stacked review
+    maps use one context-aware line-number rail as described at
+    |diffs.nvim-stacked-layout|. These layouts populate the quickfix list with
+    file entries (one per changed file, with `+N`/`-M` stats) and the location
+    list with hunk entries (one per `@@` header, with filename and hunk number).
+    All entries point into the diff buffer, so `:cnext`/`:cprev` navigate
+    between files and `:lnext`/`:lprev` navigate between hunks within the
+    buffer.
 
     Reloading with `:edit` refreshes the same review. If a `diffs://` window
     already exists in the current tabpage, the new diff replaces its buffer
@@ -488,7 +521,10 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     |:Greview| split workspaces.
 
     Parameters: ~
-        ++layout=unified (optional) Open the default unified review buffer.
+        ++layout=unified (optional) Open the default generated review map with
+                       old and new line-number rails.
+        ++layout=stacked (optional) Open a generated review map with one
+                       context-aware line-number rail.
         ++layout=split (optional) Open the two-surface split workspace for the
                        first renderable changed review file.
         {review-spec}  (string, optional) One of:
@@ -504,6 +540,7 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
 
     Examples: >vim
         :Greview
+        :Greview ++layout=stacked origin/main
         :Greview ++layout=split
         :Greview origin/main
         :Greview ++layout=split origin/main
@@ -1094,7 +1131,7 @@ can override them before diffs.nvim loads, or users can override them with
 `highlights.overrides`.
 
 
-Fugitive unified diff highlights: ~
+Diff and generated rail highlights: ~
                                                                   *DiffsClear*
     DiffsClear          Clears underlying diff foreground colors while preserving
                         the normal foreground.
@@ -1106,18 +1143,16 @@ Fugitive unified diff highlights: ~
     DiffsDelete         Background for `-` lines.
 
                                                                    *DiffsRail*
-    DiffsRail           Generated old/new line-number rail and separator.
+    DiffsRail           Generated line-number rails and separators.
 
                                                                  *DiffsRailNr*
-    DiffsRailNr         Generated old/new line numbers on context lines.
+    DiffsRailNr         Context line numbers in generated rails.
 
                                                               *DiffsAddRailNr*
-    DiffsAddRailNr      Generated number rail on `+` lines, including the
-                        missing old-side number slot.
+    DiffsAddRailNr      Add line-number rails on generated `+` lines.
 
                                                            *DiffsDeleteRailNr*
-    DiffsDeleteRailNr   Generated number rail on `-` lines, including the
-                        missing new-side number slot.
+    DiffsDeleteRailNr   Delete line-number rails on generated `-` lines.
 
                                                                  *DiffsAddBar*
     DiffsAddBar         Change bar for `+` lines in diffs.nvim-owned views.
