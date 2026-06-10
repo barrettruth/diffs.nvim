@@ -79,8 +79,8 @@ conflict markers automatically. See `:help diffs.nvim-git-mergetool`.
 ## Known Limitations
 
 - **Incomplete syntax context**: Treesitter parses each diff hunk in isolation.
-  Context lines within the hunk provide syntactic context for the parser. In
-  rare cases, hunks that start or end mid-expression may produce imperfect
+  Context lines within the hunk provide syntactic context for the parser. With
+  or without context, hunks that start or end mid-expression may produce imperfect
   highlights due to treesitter error recovery.
 
 - **Syntax "flashing"**: `diffs.nvim` hooks into the `FileType fugitive` event
