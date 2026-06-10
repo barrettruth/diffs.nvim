@@ -1,5 +1,6 @@
 local M = {}
 
+local diff = require('diffs.diff')
 local diffspec = require('diffs.spec')
 local generated = require('diffs.generated')
 local hunk_model = require('diffs.hunks')
@@ -22,7 +23,15 @@ local peer_buffers = {}
 local pair_window_options = {}
 local syncing_cursor = false
 local split_bar_ns = vim.api.nvim_create_namespace('diffs_split_change_bar')
+local split_intra_ns = vim.api.nvim_create_namespace('diffs_split_intra')
 local default_change_bar = '▏'
+
+local split_winhighlight = table.concat({
+  'DiffAdd:DiffsDiffAdd',
+  'DiffDelete:DiffsDiffDelete',
+  'DiffChange:DiffsDiffChange',
+  'DiffText:DiffsDiffChange',
+}, ',')
 
 ---@type fun(bufnr: integer)
 local clear_cursor_sync
@@ -159,6 +168,59 @@ local function set_split_change_bars(bufnr, source, split_hunks, change_bar)
 end
 
 ---@param bufnr integer
+---@param source diffs.SplitEndpointSource
+---@param split_hunks? diffs.GdiffHunk[]
+local function set_split_intra(bufnr, source, split_hunks)
+  vim.api.nvim_buf_clear_namespace(bufnr, split_intra_ns, 0, -1)
+  if not split_hunks or #split_hunks == 0 then
+    return
+  end
+
+  local opts = require('diffs.runtime').get_highlight_opts()
+  local intra_cfg = opts.highlights.intra
+  if not intra_cfg or not intra_cfg.enabled then
+    return
+  end
+
+  local side = source.side
+  local want_kind = side == 'left' and 'delete' or 'add'
+  local hl_group = side == 'left' and 'DiffsDeleteText' or 'DiffsAddText'
+  local priority = opts.highlights.priorities.char_bg
+  local line_count = vim.api.nvim_buf_line_count(bufnr)
+
+  for _, hunk in ipairs(split_hunks) do
+    ---@type string[]
+    local texts = {}
+    ---@type diffs.GdiffHunkLine[]
+    local refs = {}
+    for _, line in ipairs(hunk.lines or {}) do
+      if line.kind ~= 'header' then
+        texts[#texts + 1] = line.text
+        refs[#refs + 1] = line
+      end
+    end
+
+    if #texts > 0 and #texts <= intra_cfg.max_lines then
+      local intra = diff.compute_intra_hunks(texts, intra_cfg.algorithm)
+      local spans = intra and (side == 'left' and intra.del_spans or intra.add_spans) or {}
+      for _, span in ipairs(spans) do
+        local ref = refs[span.line]
+        local lnum = ref and ref.kind == want_kind and (side == 'left' and ref.old_lnum or ref.new_lnum)
+        local col_start = span.col_start - 1
+        local col_end = span.col_end - 1
+        if lnum and lnum >= 1 and lnum <= line_count and col_start >= 0 and col_end > col_start then
+          pcall(vim.api.nvim_buf_set_extmark, bufnr, split_intra_ns, lnum - 1, col_start, {
+            end_col = col_end,
+            hl_group = hl_group,
+            priority = priority,
+          })
+        end
+      end
+    end
+  end
+end
+
+---@param bufnr integer
 ---@param filetype? string
 local function set_buffer_options(bufnr, filetype)
   vim.api.nvim_set_option_value('buftype', 'nowrite', { buf = bufnr })
@@ -244,6 +306,7 @@ local function create_buffer(source, lines, split_hunks, change_bar)
   vim.api.nvim_buf_set_name(bufnr, buffer_name(source))
   set_source_vars(bufnr, source, split_hunks)
   set_split_change_bars(bufnr, source, split_hunks, change_bar)
+  set_split_intra(bufnr, source, split_hunks)
   set_buffer_options(bufnr, source.filetype)
   set_keymaps(bufnr)
   return bufnr
@@ -270,6 +333,7 @@ local function remember_pair_window_options(win)
     foldenable = vim.api.nvim_get_option_value('foldenable', { win = win }),
     foldcolumn = vim.api.nvim_get_option_value('foldcolumn', { win = win }),
     signcolumn = vim.api.nvim_get_option_value('signcolumn', { win = win }),
+    winhighlight = vim.api.nvim_get_option_value('winhighlight', { win = win }),
   }
 end
 
@@ -278,6 +342,7 @@ local function set_pair_window_options(win)
   vim.api.nvim_set_option_value('scrollbind', true, { win = win })
   vim.api.nvim_set_option_value('cursorbind', true, { win = win })
   vim.api.nvim_set_option_value('signcolumn', 'yes:1', { win = win })
+  vim.api.nvim_set_option_value('winhighlight', split_winhighlight, { win = win })
   disable_diff_folds(win)
 end
 
@@ -296,6 +361,7 @@ local function clear_pair_window_options(win)
   pcall(vim.api.nvim_set_option_value, 'cursorbind', false, { win = win })
   pcall(vim.api.nvim_set_option_value, 'diff', false, { win = win })
   pcall(vim.api.nvim_set_option_value, 'foldenable', true, { win = win })
+  pcall(vim.api.nvim_set_option_value, 'winhighlight', '', { win = win })
 end
 
 ---@param win integer
@@ -403,6 +469,7 @@ local function clear_split_state(bufnr)
   pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_split_hunks')
   pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_split_side')
   vim.api.nvim_buf_clear_namespace(bufnr, split_bar_ns, 0, -1)
+  vim.api.nvim_buf_clear_namespace(bufnr, split_intra_ns, 0, -1)
   if clear_cursor_sync then
     clear_cursor_sync(bufnr)
   end
@@ -679,6 +746,7 @@ local function apply_buffer_lines(bufnr, source, lines, split_hunks, change_bar)
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
   set_source_vars(bufnr, source, split_hunks)
   set_split_change_bars(bufnr, source, split_hunks, change_bar)
+  set_split_intra(bufnr, source, split_hunks)
   set_buffer_options(bufnr, source.filetype)
   set_keymaps(bufnr)
   ensure_pair_cleanup(bufnr)

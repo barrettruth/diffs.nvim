@@ -1201,6 +1201,55 @@ describe('commands', function()
       assert.are.equal(right_buf, right_loc[1].bufnr)
     end)
 
+    it('paints the configured intra word-diff overlay on both split panes', function()
+      mock_view_config({ prefix = true, change_bar = '┃', rail_separator = '│' })
+      create_split_source({
+        index_lines = { 'function f()', '  return 111', '  log()', 'end' },
+        worktree_lines = { 'function f()', '  return 222', '  log()', 'end' },
+      })
+      commands.gdiff('++layout=split', false)
+
+      local right_buf = vim.api.nvim_get_current_buf()
+      local left_buf = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer')
+      table.insert(test_buffers, left_buf)
+      table.insert(test_buffers, right_buf)
+      local left_win, right_win = find_split_windows(left_buf, right_buf)
+
+      local intra_ns = vim.api.nvim_get_namespaces().diffs_split_intra
+      assert.is_not_nil(intra_ns)
+
+      local function intra_mark(bufnr, group)
+        for _, mark in
+          ipairs(vim.api.nvim_buf_get_extmarks(bufnr, intra_ns, 0, -1, { details = true }))
+        do
+          if mark[4].hl_group == group then
+            return mark
+          end
+        end
+        return nil
+      end
+
+      local left_mark = intra_mark(left_buf, 'DiffsDeleteText')
+      local right_mark = intra_mark(right_buf, 'DiffsAddText')
+      assert.is_not_nil(left_mark)
+      assert.is_not_nil(right_mark)
+      assert.are.equal(1, left_mark[2])
+      assert.are.equal(9, left_mark[3])
+      assert.are.equal(12, left_mark[4].end_col)
+      assert.are.equal(1, right_mark[2])
+      assert.are.equal(9, right_mark[3])
+      assert.are.equal(12, right_mark[4].end_col)
+
+      assert.is_true(
+        vim.api.nvim_get_option_value('winhighlight', { win = left_win })
+          :find('DiffText:DiffsDiffChange', 1, true) ~= nil
+      )
+      assert.is_true(
+        vim.api.nvim_get_option_value('winhighlight', { win = right_win })
+          :find('DiffText:DiffsDiffChange', 1, true) ~= nil
+      )
+    end)
+
     it('warns and still opens the split when :vertical Diff ++layout=split is used', function()
       local notifications = capture_notifications()
       local saved_splitright = vim.o.splitright
