@@ -11,13 +11,10 @@
 ---@field del_lines {idx: integer, text: string}[]
 ---@field add_lines {idx: integer, text: string}[]
 
----@class diffs.DiffOpts
----@field algorithm? string
----@field linematch? integer
-
 local M = {}
 
 local dbg = require('diffs.log').dbg
+local diffopt = require('diffs.diffopt')
 
 ---@param hunk_lines string[]
 ---@return diffs.ChangeGroup[]
@@ -62,20 +59,6 @@ function M.extract_change_groups(hunk_lines)
   end
 
   return groups
-end
-
----@return diffs.DiffOpts
-local function parse_diffopt()
-  local opts = {}
-  for _, item in ipairs(vim.split(vim.o.diffopt, ',')) do
-    local key, val = item:match('^(%w+):(.+)$')
-    if key == 'algorithm' then
-      opts.algorithm = val
-    elseif key == 'linematch' then
-      opts.linematch = tonumber(val)
-    end
-  end
-  return opts
 end
 
 ---@param old_text string
@@ -346,7 +329,7 @@ function M.compute_intra_hunks(hunk_lines, algorithm)
   ---@type diffs.DiffOpts?
   local diff_opts = nil
   if not vscode_handle then
-    diff_opts = parse_diffopt()
+    diff_opts = diffopt.resolve()
     if diff_opts.algorithm then
       dbg('diffopt algorithm: %s', diff_opts.algorithm)
     end

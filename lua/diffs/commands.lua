@@ -3,6 +3,7 @@ local M = {}
 local actions = require('diffs.actions')
 local content = require('diffs.content')
 local diff_parser = require('diffs.diffargs')
+local diffopt = require('diffs.diffopt')
 local diffspec = require('diffs.spec')
 local generated = require('diffs.generated')
 local git = require('diffs.git')
@@ -479,6 +480,7 @@ end
 ---@return string[]
 local function render_section_source(repo_root, section)
   local cmd = { 'git', '-C', repo_root, 'diff', '--no-ext-diff', '--no-color' }
+  vim.list_extend(cmd, diffopt.git_flags())
   if section == 'staged' then
     table.insert(cmd, '--cached')
   end
@@ -1523,6 +1525,7 @@ function M.diff_section(repo_root, opts)
   opts = opts or {}
 
   local cmd = { 'git', '-C', repo_root, 'diff', '--no-ext-diff', '--no-color' }
+  vim.list_extend(cmd, diffopt.git_flags())
   if opts.staged then
     table.insert(cmd, '--cached')
   end

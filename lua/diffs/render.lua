@@ -1,6 +1,7 @@
 local M = {}
 
 local content = require('diffs.content')
+local diffopt = require('diffs.diffopt')
 local diffspec = require('diffs.spec')
 local git = require('diffs.git')
 
@@ -50,10 +51,14 @@ function M.unified_lines(old_lines, new_lines, old_name, new_name, opts)
   local new_content = content.to_string(new_lines)
 
   local diff_fn = vim.text and vim.text.diff or vim.diff
-  local diff_output = diff_fn(old_content, new_content, {
-    result_type = 'unified',
-    ctxlen = 3,
-  })
+  local diff_output = diff_fn(
+    old_content,
+    new_content,
+    vim.tbl_extend('force', {
+      result_type = 'unified',
+      ctxlen = 3,
+    }, diffopt.vim_diff_opts())
+  )
 
   if not diff_output or diff_output == '' then
     return {}
