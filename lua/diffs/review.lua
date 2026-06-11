@@ -785,6 +785,7 @@ function M.greview(spec, deps)
     metadata_for_line = list_opts and list_opts.metadata_for_line,
     sections = list_opts and list_opts.sections,
     store_hunks = list_opts and list_opts.store_hunks,
+    quickfix = true,
   })
 
   deps.attach_generated_diff_buffer(diff_buf)

@@ -410,6 +410,11 @@ highlight-only.
     row with |diffs.nvim-du|/|diffs.nvim-dU| or an explicit supported object
     form such as `:Diff :0:%`. |:Diff| does not provide a `--staged` flag.
 
+    A single-file |:Diff| populates the window's |location-list| with that
+    file's hunks and leaves the global |quickfix| list untouched. The quickfix
+    list is taken over as a repo-wide file index only for multi-file views and
+    |:Diff-review|.
+
     Parameters: ~
         ++layout=unified (optional) Open the default generated `diffs://` view
                     with old and new line-number rails.
