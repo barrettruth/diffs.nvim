@@ -19,7 +19,6 @@ describe('diffs.diffargs', function()
     local result = parse(nil)
 
     assert.are.same(diffspec.index_to_worktree(path), result.spec)
-    assert.is_false(result.novertical)
     assert.are.equal('unified', result.layout)
   end)
 
@@ -61,19 +60,10 @@ describe('diffs.diffargs', function()
     assert.are.same(diffspec.head_to_index(path), result.spec)
   end)
 
-  it('keeps ++novertical separate from endpoint parsing', function()
-    local result = parse('++novertical HEAD')
-
-    assert.are.same(diffspec.rev_to_worktree('HEAD', path), result.spec)
-    assert.is_true(result.novertical)
-    assert.are.equal('unified', result.layout)
-  end)
-
   it('parses opt-in split layout separately from endpoint parsing', function()
     local result = parse('++layout=split HEAD')
 
     assert.are.same(diffspec.rev_to_worktree('HEAD', path), result.spec)
-    assert.is_false(result.novertical)
     assert.are.equal('split', result.layout)
   end)
 
@@ -81,7 +71,6 @@ describe('diffs.diffargs', function()
     local result = parse('++layout=stacked HEAD')
 
     assert.are.same(diffspec.rev_to_worktree('HEAD', path), result.spec)
-    assert.is_false(result.novertical)
     assert.are.equal('stacked', result.layout)
   end)
 
