@@ -141,9 +141,35 @@ local function set_source_vars(bufnr, source, split_hunks)
   end
 end
 
-local rail_styles = {
-  delete = { bar = 'DiffsDeleteBar', nr = 'DiffsDeleteRailNr', fill = 'DiffsDelete' },
-  add = { bar = 'DiffsAddBar', nr = 'DiffsAddRailNr', fill = 'DiffsAdd' },
+---@class diffs.SplitSideConfig
+---@field kind "delete"|"add"
+---@field lnum "old_lnum"|"new_lnum"
+---@field spans "del_spans"|"add_spans"
+---@field line_hl string
+---@field text_hl string
+---@field bar_hl string
+---@field nr_hl string
+
+---@type table<"left"|"right", diffs.SplitSideConfig>
+local side_config = {
+  left = {
+    kind = 'delete',
+    lnum = 'old_lnum',
+    spans = 'del_spans',
+    line_hl = 'DiffsDelete',
+    text_hl = 'DiffsDeleteText',
+    bar_hl = 'DiffsDeleteBar',
+    nr_hl = 'DiffsDeleteRailNr',
+  },
+  right = {
+    kind = 'add',
+    lnum = 'new_lnum',
+    spans = 'add_spans',
+    line_hl = 'DiffsAdd',
+    text_hl = 'DiffsAddText',
+    bar_hl = 'DiffsAddBar',
+    nr_hl = 'DiffsAddRailNr',
+  },
 }
 
 ---@param info diffs.SplitPaneInfo
@@ -155,18 +181,16 @@ local function rail_segment(info, lnum)
   if not row or row.kind == 'filler' then
     return '%#DiffsRail#' .. string.rep(' ', width + 2)
   end
-  local number = info.side == 'left' and row.old_lnum or row.new_lnum
+  local cfg = side_config[info.side]
+  local number = row[cfg.lnum]
   local numstr = number and ('%' .. width .. 'd'):format(number) or string.rep(' ', width)
-  local changed = (info.side == 'left' and row.kind == 'delete')
-    or (info.side == 'right' and row.kind == 'add')
-  if changed then
-    local style = rail_styles[row.kind]
+  if row.kind == cfg.kind then
     return ('%%#%s#%s%%#%s#%s%%#%s# '):format(
-      style.bar,
+      cfg.bar_hl,
       info.change_bar,
-      style.nr,
+      cfg.nr_hl,
       numstr,
-      style.fill
+      cfg.line_hl
     )
   end
   return ('%%#DiffsRailNr# %s '):format(numstr)
@@ -195,18 +219,13 @@ end
 local function set_split_line_bg(bufnr, info)
   vim.api.nvim_buf_clear_namespace(bufnr, split_line_ns, 0, -1)
   local priorities = require('diffs.runtime').get_highlight_opts().highlights.priorities
+  local cfg = side_config[info.side]
   for lnum, row in ipairs(info.rows) do
-    local hl
-    if info.side == 'left' and row.kind == 'delete' then
-      hl = 'DiffsDelete'
-    elseif info.side == 'right' and row.kind == 'add' then
-      hl = 'DiffsAdd'
-    end
-    if hl then
+    if row.kind == cfg.kind then
       pcall(vim.api.nvim_buf_set_extmark, bufnr, split_line_ns, lnum - 1, 0, {
         end_row = lnum,
         end_col = 0,
-        hl_group = hl,
+        hl_group = cfg.line_hl,
         hl_eol = true,
         priority = priorities.line_bg,
       })
@@ -229,15 +248,13 @@ local function set_split_intra(bufnr, info, hunks)
     return
   end
 
-  local side = info.side
-  local want_kind = side == 'left' and 'delete' or 'add'
-  local hl_group = side == 'left' and 'DiffsDeleteText' or 'DiffsAddText'
+  local cfg = side_config[info.side]
   local priority = opts.highlights.priorities.char_bg
 
   ---@type table<integer, integer>
   local lnum_to_row = {}
   for row_index, row in ipairs(info.rows) do
-    local source_lnum = side == 'left' and row.old_lnum or row.new_lnum
+    local source_lnum = row[cfg.lnum]
     if source_lnum then
       lnum_to_row[source_lnum] = row_index
     end
@@ -258,12 +275,10 @@ local function set_split_intra(bufnr, info, hunks)
 
     if #texts > 0 and #texts <= intra_cfg.max_lines then
       local intra = diff.compute_intra_hunks(texts, intra_cfg.algorithm)
-      local spans = intra and (side == 'left' and intra.del_spans or intra.add_spans) or {}
+      local spans = intra and intra[cfg.spans] or {}
       for _, span in ipairs(spans) do
         local ref = refs[span.line]
-        local source_lnum = ref
-          and ref.kind == want_kind
-          and (side == 'left' and ref.old_lnum or ref.new_lnum)
+        local source_lnum = ref and ref.kind == cfg.kind and ref[cfg.lnum]
         local buf_row = source_lnum and lnum_to_row[source_lnum]
         local col_start = span.col_start - 1
         local col_end = span.col_end - 1
@@ -276,7 +291,7 @@ local function set_split_intra(bufnr, info, hunks)
         then
           pcall(vim.api.nvim_buf_set_extmark, bufnr, split_intra_ns, buf_row - 1, col_start, {
             end_col = col_end,
-            hl_group = hl_group,
+            hl_group = cfg.text_hl,
             priority = priority,
           })
         end
@@ -533,7 +548,6 @@ local function clear_split_state(bufnr)
   end
 
   clear_pair_tracking(bufnr)
-  pane_info[bufnr] = nil
   pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_split_peer')
   pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_split_hunks')
   pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_split_side')
@@ -1100,6 +1114,24 @@ function M.release_pair_window_options(win)
   return true
 end
 
+---@param rows diffs.SplitRow[]
+---@param cursor_row integer
+---@param lnum_field "old_lnum"|"new_lnum"
+---@return diffs.SplitRow?
+local function nearest_non_filler_row(rows, cursor_row, lnum_field)
+  for offset = 0, #rows do
+    local above = rows[cursor_row - offset]
+    if above and above.kind ~= 'filler' and above[lnum_field] then
+      return above
+    end
+    local below = rows[cursor_row + offset]
+    if below and below.kind ~= 'filler' and below[lnum_field] then
+      return below
+    end
+  end
+  return nil
+end
+
 ---@param bufnr integer
 ---@return boolean
 function M.open_source(bufnr)
@@ -1133,22 +1165,9 @@ function M.open_source(bufnr)
   local info = pane_info[bufnr]
   local target_lnum = cursor_row
   if info and info.rows then
-    local row = info.rows[cursor_row]
-    if not row or row.kind == 'filler' or not row.new_lnum then
-      for offset = 0, #info.rows do
-        local above = info.rows[cursor_row - offset]
-        local below = info.rows[cursor_row + offset]
-        if above and above.kind ~= 'filler' and above.new_lnum then
-          row = above
-          break
-        end
-        if below and below.kind ~= 'filler' and below.new_lnum then
-          row = below
-          break
-        end
-      end
-    end
-    target_lnum = (row and row.new_lnum) or cursor_row
+    local lnum_field = side_config[source.side].lnum
+    local row = nearest_non_filler_row(info.rows, cursor_row, lnum_field)
+    target_lnum = (row and row[lnum_field]) or cursor_row
   end
   local existing_win = find_window_for_file(filepath)
   if existing_win then
