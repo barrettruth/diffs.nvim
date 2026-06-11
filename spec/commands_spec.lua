@@ -1259,11 +1259,13 @@ describe('commands', function()
       assert.are.equal(12, right_mark[4].end_col)
 
       assert.is_true(
-        vim.api.nvim_get_option_value('winhighlight', { win = left_win })
+        vim.api
+          .nvim_get_option_value('winhighlight', { win = left_win })
           :find('DiffText:DiffsDiffChange', 1, true) ~= nil
       )
       assert.is_true(
-        vim.api.nvim_get_option_value('winhighlight', { win = right_win })
+        vim.api
+          .nvim_get_option_value('winhighlight', { win = right_win })
           :find('DiffText:DiffsDiffChange', 1, true) ~= nil
       )
     end)
@@ -1304,11 +1306,13 @@ describe('commands', function()
       runtime.attach_diff()
 
       assert.is_true(
-        vim.api.nvim_get_option_value('winhighlight', { win = left_win })
+        vim.api
+          .nvim_get_option_value('winhighlight', { win = left_win })
           :find('DiffText:DiffsDiffChange', 1, true) ~= nil
       )
       assert.is_true(
-        vim.api.nvim_get_option_value('winhighlight', { win = right_win })
+        vim.api
+          .nvim_get_option_value('winhighlight', { win = right_win })
           :find('DiffText:DiffsDiffChange', 1, true) ~= nil
       )
     end)

@@ -211,7 +211,9 @@ local function set_split_intra(bufnr, source, split_hunks)
       local spans = intra and (side == 'left' and intra.del_spans or intra.add_spans) or {}
       for _, span in ipairs(spans) do
         local ref = refs[span.line]
-        local lnum = ref and ref.kind == want_kind and (side == 'left' and ref.old_lnum or ref.new_lnum)
+        local lnum = ref
+          and ref.kind == want_kind
+          and (side == 'left' and ref.old_lnum or ref.new_lnum)
         local col_start = span.col_start - 1
         local col_end = span.col_end - 1
         if lnum and lnum >= 1 and lnum <= line_count and col_start >= 0 and col_end > col_start then

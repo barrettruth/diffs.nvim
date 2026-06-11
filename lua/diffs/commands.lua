@@ -17,8 +17,7 @@ local split = require('diffs.split')
 
 local dbg = log.dbg
 local notify = log.notify
-local review_split_group =
-  vim.api.nvim_create_augroup('diffs_review_split', { clear = false })
+local review_split_group = vim.api.nvim_create_augroup('diffs_review_split', { clear = false })
 
 ---@class diffs.HunkKeymap
 ---@field mode string
@@ -1027,7 +1026,12 @@ local function review_selection_from_item(item)
     return nil
   end
   local data = item.user_data.diffs
-  if type(data) ~= 'table' or data.kind ~= 'file' or type(data.file) ~= 'string' or data.file == '' then
+  if
+    type(data) ~= 'table'
+    or data.kind ~= 'file'
+    or type(data.file) ~= 'string'
+    or data.file == ''
+  then
     return nil
   end
   return {
