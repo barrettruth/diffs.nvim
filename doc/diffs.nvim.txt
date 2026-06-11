@@ -616,6 +616,45 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     These helpers are command integration helpers for |:Diff-review|. The stable
     root Lua API remains the small surface documented at |diffs.nvim-api|.
 
+Whitespace handling: ~                                  *diffs.nvim-whitespace*
+
+    Generated diffs honor Neovim's |'diffopt'| whitespace flags, in both the
+    line-level diff and the intra-line character highlights. There is no
+    separate plugin option; 'diffopt' is the single lever.
+
+        iwhite      Ignore changes in the amount of whitespace (git `-b`).
+        iwhiteall   Ignore all whitespace (git `-w`).
+        iwhiteeol   Ignore whitespace changes at end of line.
+        iblank      Ignore changes whose lines are blank.
+
+    The default is to show every whitespace difference. Set a baseline with
+    'diffopt', for example: >vim
+        set diffopt+=iwhiteall
+<
+    The same flags apply to |:Diff|, |:Diff-review|, and every layout, because
+    the generated diffs read 'diffopt' as they are rendered.
+
+    Toggle: ~
+        gw          Toggle `iwhiteall` in the global 'diffopt' and re-render the
+                    visible `diffs://` buffers in place. Mapped by default in
+                    every generated diff buffer; remap with
+                    |<Plug>(diffs-toggle-whitespace)|. The toggle flips only
+                    `iwhiteall`; set `iwhite`, `iwhiteeol`, or `iblank` through
+                    'diffopt' directly.
+
+    Because 'diffopt' is global, the toggle also changes native |:diffsplit|
+    windows, which pick it up on their next |:diffupdate|.
+
+    Limitations: ~
+    - With `highlights.intra.algorithm = 'vscode'` the intra-line highlighter
+      ignores only leading and trailing whitespace; internal whitespace inside
+      a changed line is still highlighted. A warning is issued once. Use the
+      `default` algorithm for full whitespace handling.
+    - 'diffopt' `algorithm` and `linematch` are honored by the generated diffs
+      too. `linematch` has no git equivalent, so it shapes the file diffs
+      computed with |vim.diff()| but not the git-backed surfaces (|:Diff-review|
+      and the staged/unstaged section diffs).
+
 ==============================================================================
 MAPPINGS                                                 *diffs.nvim-mappings*
 
@@ -639,6 +678,19 @@ MAPPINGS                                                 *diffs.nvim-mappings*
                         Open the currently selected |:Diff-review| file as a
                         paired side-by-side diff: the old/removed endpoint on
                         the left, the new/added endpoint on the right.
+
+                                          *<Plug>(diffs-toggle-whitespace)*
+<Plug>(diffs-toggle-whitespace)
+                        Toggle ignoring whitespace in diffs. Flips `iwhiteall`
+                        in the global |'diffopt'| and re-renders the visible
+                        `diffs://` buffers. Mapped to `gw` by default in every
+                        generated diff buffer. See |diffs.nvim-whitespace|.
+
+                                                   *<Plug>(diffs-refresh)*
+<Plug>(diffs-refresh)
+                        Re-render the current `diffs://` buffer in place,
+                        preserving the cursor and view. Useful after changing
+                        'diffopt' directly. Comparable to |:diffupdate|.
 
 Example configuration: >lua
     vim.keymap.set('n', '<leader>gd', '<Plug>(diffs-diff)')

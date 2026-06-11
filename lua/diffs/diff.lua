@@ -11,13 +11,13 @@
 ---@field del_lines {idx: integer, text: string}[]
 ---@field add_lines {idx: integer, text: string}[]
 
----@class diffs.DiffOpts
----@field algorithm? string
----@field linematch? integer
-
 local M = {}
 
 local dbg = require('diffs.log').dbg
+local notify = require('diffs.log').notify
+local diffopt = require('diffs.diffopt')
+
+local warned_vscode_whitespace = false
 
 ---@param hunk_lines string[]
 ---@return diffs.ChangeGroup[]
@@ -64,20 +64,6 @@ function M.extract_change_groups(hunk_lines)
   return groups
 end
 
----@return diffs.DiffOpts
-local function parse_diffopt()
-  local opts = {}
-  for _, item in ipairs(vim.split(vim.o.diffopt, ',')) do
-    local key, val = item:match('^(%w+):(.+)$')
-    if key == 'algorithm' then
-      opts.algorithm = val
-    elseif key == 'linematch' then
-      opts.linematch = tonumber(val)
-    end
-  end
-  return opts
-end
-
 ---@param old_text string
 ---@param new_text string
 ---@param diff_opts? diffs.DiffOpts
@@ -117,6 +103,37 @@ local function split_bytes(s)
     table.insert(bytes, s:sub(i, i))
   end
   return bytes
+end
+
+--- Drop intra-line spans whose covered text is purely whitespace, so that
+--- whitespace-only character differences are not highlighted while 'diffopt'
+--- ignores whitespace. The byte-level differ cannot express this itself, so it
+--- is filtered from the resulting spans.
+---@param spans diffs.CharSpan[]
+---@param line string
+---@param diff_opts diffs.DiffOpts
+---@return diffs.CharSpan[]
+local function drop_whitespace_spans(spans, line, diff_opts)
+  local ignore_all = diff_opts.ignore_whitespace
+  local ignore_eol = diff_opts.ignore_whitespace_change_at_eol
+  if not (ignore_all or ignore_eol) then
+    return spans
+  end
+  local kept = {}
+  for _, span in ipairs(spans) do
+    local text = line:sub(span.col_start, span.col_end - 1)
+    local whitespace_only = text:match('^%s*$') ~= nil
+    local drop
+    if ignore_all then
+      drop = whitespace_only
+    else
+      drop = whitespace_only and span.col_end > #line
+    end
+    if not drop then
+      kept[#kept + 1] = span
+    end
+  end
+  return kept
 end
 
 ---@param old_line string
@@ -160,6 +177,11 @@ local function char_diff_pair(old_line, new_line, del_idx, add_idx, diff_opts)
         col_end = ch.new_start + ch.new_count,
       })
     end
+  end
+
+  if diff_opts then
+    del_spans = drop_whitespace_spans(del_spans, old_line, diff_opts)
+    add_spans = drop_whitespace_spans(add_spans, new_line, diff_opts)
   end
 
   return del_spans, add_spans
@@ -254,8 +276,9 @@ end
 
 ---@param group diffs.ChangeGroup
 ---@param handle table
+---@param diff_opts? diffs.DiffOpts
 ---@return diffs.CharSpan[], diffs.CharSpan[]
-local function diff_group_vscode(group, handle)
+local function diff_group_vscode(group, handle, diff_opts)
   ---@type diffs.CharSpan[]
   local all_del = {}
   ---@type diffs.CharSpan[]
@@ -282,8 +305,15 @@ local function diff_group_vscode(group, handle)
     mod_arr[i - 1] = t
   end
 
+  local ignore_trim = false
+  if diff_opts then
+    ignore_trim = diff_opts.ignore_whitespace == true
+      or diff_opts.ignore_whitespace_change == true
+      or diff_opts.ignore_whitespace_change_at_eol == true
+  end
+
   local opts = ffi.new('DiffsDiffOptions', {
-    ignore_trim_whitespace = false,
+    ignore_trim_whitespace = ignore_trim,
     max_computation_time_ms = 1000,
     compute_moves = false,
     extend_to_subwords = false,
@@ -343,16 +373,22 @@ function M.compute_intra_hunks(hunk_lines, algorithm)
     end
   end
 
-  ---@type diffs.DiffOpts?
-  local diff_opts = nil
-  if not vscode_handle then
-    diff_opts = parse_diffopt()
-    if diff_opts.algorithm then
-      dbg('diffopt algorithm: %s', diff_opts.algorithm)
-    end
-    if diff_opts.linematch then
-      dbg('diffopt linematch: %d', diff_opts.linematch)
-    end
+  local diff_opts = diffopt.resolve()
+  if diff_opts.algorithm then
+    dbg('diffopt algorithm: %s', diff_opts.algorithm)
+  end
+  if diff_opts.linematch then
+    dbg('diffopt linematch: %d', diff_opts.linematch)
+  end
+
+  if vscode_handle and diff_opts.ignore_whitespace and not warned_vscode_whitespace then
+    warned_vscode_whitespace = true
+    notify(
+      'the vscode intra-line algorithm ignores only leading/trailing whitespace; '
+        .. 'internal whitespace differences are still highlighted. Set '
+        .. 'highlights.intra.algorithm = "default" for full whitespace handling.',
+      vim.log.levels.WARN
+    )
   end
 
   ---@type diffs.CharSpan[]
@@ -371,7 +407,7 @@ function M.compute_intra_hunks(hunk_lines, algorithm)
     dbg('group %d: %d del lines, %d add lines', gi, #group.del_lines, #group.add_lines)
     local ds, as
     if vscode_handle then
-      ds, as = diff_group_vscode(group, vscode_handle)
+      ds, as = diff_group_vscode(group, vscode_handle, diff_opts)
     else
       ds, as = diff_group_native(group, diff_opts)
     end

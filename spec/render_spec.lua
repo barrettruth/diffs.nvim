@@ -6,6 +6,7 @@ local render = require('diffs.render')
 
 local saved_git = {}
 local test_repos = {}
+local original_diffopt = vim.o.diffopt
 
 local function git_cmd(repo_root, args)
   local cmd = { 'git', '-C', repo_root }
@@ -89,6 +90,7 @@ end
 describe('diffs.render', function()
   after_each(function()
     restore_mocks()
+    vim.o.diffopt = original_diffopt
   end)
 
   it('renders index to worktree edges separately from staged changes', function()
@@ -198,6 +200,28 @@ describe('diffs.render', function()
   it('renders clean index to worktree edges as empty diffs', function()
     local repo_root = create_repo()
 
+    local lines, err = render.file(diffspec.index_to_worktree('file.txt'), repo_root)
+
+    assert.is_nil(err)
+    assert.are.same({}, lines)
+  end)
+
+  it('treats a whitespace-only change as no diff when iwhiteall is set', function()
+    local repo_root = create_repo()
+    vim.fn.writefile({ 'line 1  ', 'line 2' }, repo_root .. '/file.txt')
+
+    vim.o.diffopt = 'internal,filler,iwhiteall'
+    local lines, err = render.file(diffspec.index_to_worktree('file.txt'), repo_root)
+
+    assert.is_nil(err)
+    assert.are.same({}, lines)
+  end)
+
+  it('treats a blank-line-only change as no diff when iblank is set', function()
+    local repo_root = create_repo()
+    vim.fn.writefile({ 'line 1', '', 'line 2' }, repo_root .. '/file.txt')
+
+    vim.o.diffopt = 'internal,filler,iblank'
     local lines, err = render.file(diffspec.index_to_worktree('file.txt'), repo_root)
 
     assert.is_nil(err)
