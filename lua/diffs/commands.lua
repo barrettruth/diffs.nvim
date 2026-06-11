@@ -1290,10 +1290,6 @@ function M.diff(args, vertical, opts)
     warn_vertical_split_ignored()
   end
 
-  if parsed.novertical then
-    vertical = false
-  end
-
   local rail_style = rail_style_for_layout(parsed.layout)
   local diff_spec = parsed.spec
   local diff_label = diff_buffer_label(diff_spec)
