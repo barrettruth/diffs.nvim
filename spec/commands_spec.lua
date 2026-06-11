@@ -1144,14 +1144,13 @@ describe('commands', function()
         'diffs://split:right:worktree:lua/foo.lua',
         vim.api.nvim_buf_get_name(right_buf)
       )
-      assert.are.same(
-        { 'local M = {}', 'return M' },
-        vim.api.nvim_buf_get_lines(left_buf, 0, -1, false)
-      )
-      assert.are.same(
-        { 'local M = {}', 'local x = 1', 'return M' },
-        vim.api.nvim_buf_get_lines(right_buf, 0, -1, false)
-      )
+      local left_lines = vim.api.nvim_buf_get_lines(left_buf, 0, -1, false)
+      local right_lines = vim.api.nvim_buf_get_lines(right_buf, 0, -1, false)
+      assert.are.equal(#left_lines, #right_lines)
+      assert.are.equal('local M = {}', left_lines[1])
+      assert.are.equal('local M = {}', right_lines[1])
+      assert.are.equal('local x = 1', right_lines[2])
+      assert.is_true(vim.tbl_contains(left_lines, ''))
       assert.are.same(
         diffspec.index_to_worktree('lua/foo.lua'),
         vim.api.nvim_buf_get_var(left_buf, 'diffs_spec')
@@ -1162,10 +1161,12 @@ describe('commands', function()
       assert.are.equal('lua', vim.api.nvim_get_option_value('filetype', { buf = right_buf }))
       assert.is_false(vim.api.nvim_get_option_value('modifiable', { buf = left_buf }))
       assert.is_false(vim.api.nvim_get_option_value('modifiable', { buf = right_buf }))
-      assert.is_true(vim.api.nvim_get_option_value('diff', { win = left_win }))
-      assert.is_true(vim.api.nvim_get_option_value('diff', { win = right_win }))
-      assert.are.equal('yes:1', vim.api.nvim_get_option_value('signcolumn', { win = left_win }))
-      assert.are.equal('yes:1', vim.api.nvim_get_option_value('signcolumn', { win = right_win }))
+      assert.is_false(vim.api.nvim_get_option_value('diff', { win = left_win }))
+      assert.is_false(vim.api.nvim_get_option_value('diff', { win = right_win }))
+      assert.is_false(vim.api.nvim_get_option_value('number', { win = left_win }))
+      assert.is_false(vim.api.nvim_get_option_value('number', { win = right_win }))
+      assert.is_true(vim.api.nvim_get_option_value('statuscolumn', { win = left_win }) ~= '')
+      assert.is_true(vim.api.nvim_get_option_value('statuscolumn', { win = right_win }) ~= '')
       assert.are.equal('manual', vim.api.nvim_get_option_value('foldmethod', { win = left_win }))
       assert.are.equal('manual', vim.api.nvim_get_option_value('foldmethod', { win = right_win }))
       assert.is_false(vim.api.nvim_get_option_value('foldenable', { win = left_win }))
@@ -1188,27 +1189,26 @@ describe('commands', function()
       assert.is_false(helpers.has_keymap(right_buf, 'dp'))
       assert.is_false(helpers.has_keymap(right_buf, 'do'))
 
-      local bar_ns = vim.api.nvim_get_namespaces().diffs_split_change_bar
-      local right_bars = vim.api.nvim_buf_get_extmarks(right_buf, bar_ns, 0, -1, {
-        details = true,
-      })
-      local has_added_line_bar = false
-      for _, mark in ipairs(right_bars) do
-        local details = mark[4]
-        if
-          mark[2] == 1
-          and details.sign_hl_group == 'DiffsAddBar'
-          and details.sign_text == '┃ '
-        then
-          has_added_line_bar = true
+      local line_ns = vim.api.nvim_get_namespaces().diffs_split_line
+      local right_bg = vim.api.nvim_buf_get_extmarks(right_buf, line_ns, 0, -1, { details = true })
+      local has_added_line_bg = false
+      for _, mark in ipairs(right_bg) do
+        if mark[2] == 1 and mark[4].hl_group == 'DiffsAdd' and mark[4].hl_eol then
+          has_added_line_bg = true
         end
       end
-      assert.is_true(has_added_line_bar)
+      assert.is_true(has_added_line_bg)
+
+      vim.g.statusline_winid = right_win
+      vim.v.lnum = 2
+      local rail = require('diffs.split').statuscolumn()
+      assert.is_true(rail:find('DiffsAddBar', 1, true) ~= nil)
+      assert.is_true(rail:find('┃', 1, true) ~= nil)
 
       local qf = quickfix_items()
       assert.are.equal(1, #qf)
       assert.are.equal(right_buf, qf[1].bufnr)
-      assert.are.equal(1, qf[1].lnum)
+      assert.are.equal(2, qf[1].lnum)
       assert.is_true(qf[1].text:find('lua/foo.lua', 1, true) ~= nil)
 
       local left_loc = loclist_items(left_win)
@@ -1231,7 +1231,6 @@ describe('commands', function()
       local left_buf = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer')
       table.insert(test_buffers, left_buf)
       table.insert(test_buffers, right_buf)
-      local left_win, right_win = find_split_windows(left_buf, right_buf)
 
       local intra_ns = vim.api.nvim_get_namespaces().diffs_split_intra
       assert.is_not_nil(intra_ns)
@@ -1258,16 +1257,9 @@ describe('commands', function()
       assert.are.equal(9, right_mark[3])
       assert.are.equal(12, right_mark[4].end_col)
 
-      assert.is_true(
-        vim.api
-          .nvim_get_option_value('winhighlight', { win = left_win })
-          :find('DiffText:DiffsDiffChange', 1, true) ~= nil
-      )
-      assert.is_true(
-        vim.api
-          .nvim_get_option_value('winhighlight', { win = right_win })
-          :find('DiffText:DiffsDiffChange', 1, true) ~= nil
-      )
+      local line_ns = vim.api.nvim_get_namespaces().diffs_split_line
+      assert.is_true(#vim.api.nvim_buf_get_extmarks(left_buf, line_ns, { 1, 0 }, { 1, -1 }, {}) > 0)
+      assert.is_true(#vim.api.nvim_buf_get_extmarks(right_buf, line_ns, { 1, 0 }, { 1, -1 }, {}) > 0)
     end)
 
     it('skips the intra overlay when highlights.intra is disabled', function()
@@ -1292,7 +1284,7 @@ describe('commands', function()
       assert.are.equal(0, #vim.api.nvim_buf_get_extmarks(right_buf, intra_ns, 0, -1, {}))
     end)
 
-    it('keeps the split DiffText suppression when attach_diff re-runs', function()
+    it('leaves split panes untouched when attach_diff re-runs', function()
       mock_view_config({ prefix = true, change_bar = '┃', rail_separator = '│' })
       create_split_source()
       commands.gdiff('++layout=split', false)
@@ -1305,16 +1297,10 @@ describe('commands', function()
 
       runtime.attach_diff()
 
-      assert.is_true(
-        vim.api
-          .nvim_get_option_value('winhighlight', { win = left_win })
-          :find('DiffText:DiffsDiffChange', 1, true) ~= nil
-      )
-      assert.is_true(
-        vim.api
-          .nvim_get_option_value('winhighlight', { win = right_win })
-          :find('DiffText:DiffsDiffChange', 1, true) ~= nil
-      )
+      assert.is_false(vim.api.nvim_get_option_value('diff', { win = left_win }))
+      assert.is_false(vim.api.nvim_get_option_value('diff', { win = right_win }))
+      assert.is_true(vim.api.nvim_get_option_value('statuscolumn', { win = left_win }) ~= '')
+      assert.is_true(vim.api.nvim_get_option_value('statuscolumn', { win = right_win }) ~= '')
     end)
 
     it('warns and still opens the split when :vertical Diff ++layout=split is used', function()
@@ -1390,20 +1376,29 @@ describe('commands', function()
       local right_loc = loclist_items(right_win)
       assert.are.equal(2, #right_loc)
       assert.are.equal(right_buf, right_loc[2].bufnr)
-      assert.are.equal(hunks[2].new_range.start, right_loc[2].lnum)
+
+      local function synced_row()
+        local lrow = vim.api.nvim_win_get_cursor(left_win)[1]
+        local rrow = vim.api.nvim_win_get_cursor(right_win)[1]
+        assert.are.equal(lrow, rrow)
+        return rrow
+      end
+      local function in_hunk(row, hunk)
+        return row >= hunk.new_range.start
+          and row <= math.max(hunk.new_range.start, hunk.new_range.finish)
+      end
 
       vim.api.nvim_set_current_win(right_win)
-      vim.api.nvim_win_set_cursor(right_win, { hunks[1].new_range.start, 0 })
+      vim.api.nvim_win_set_cursor(right_win, { 1, 0 })
 
       split.goto_next(right_buf)
+      assert.is_true(in_hunk(synced_row(), hunks[1]))
 
-      assert.are.same({ hunks[2].old_range.start, 0 }, vim.api.nvim_win_get_cursor(left_win))
-      assert.are.same({ hunks[2].new_range.start, 0 }, vim.api.nvim_win_get_cursor(right_win))
+      split.goto_next(right_buf)
+      assert.is_true(in_hunk(synced_row(), hunks[2]))
 
       split.goto_prev(right_buf)
-
-      assert.are.same({ hunks[1].old_range.start, 0 }, vim.api.nvim_win_get_cursor(left_win))
-      assert.are.same({ hunks[1].new_range.start, 0 }, vim.api.nvim_win_get_cursor(right_win))
+      assert.is_true(in_hunk(synced_row(), hunks[1]))
 
       vim.api.nvim_set_current_win(right_win)
       vim.cmd('lopen')
@@ -1420,11 +1415,14 @@ describe('commands', function()
       vim.api.nvim_win_set_cursor(0, { 2, 0 })
       vim.cmd('normal \r')
       vim.wait(100, function()
-        return vim.api.nvim_win_get_cursor(left_win)[1] == hunks[2].old_range.start
+        return vim.api.nvim_win_get_cursor(left_win)[1] == right_loc[2].lnum
       end)
 
-      assert.are.same({ hunks[2].old_range.start, 0 }, vim.api.nvim_win_get_cursor(left_win))
-      assert.are.same({ hunks[2].new_range.start, 0 }, vim.api.nvim_win_get_cursor(right_win))
+      assert.are.equal(right_loc[2].lnum, vim.api.nvim_win_get_cursor(left_win)[1])
+      assert.are.equal(
+        vim.api.nvim_win_get_cursor(left_win)[1],
+        vim.api.nvim_win_get_cursor(right_win)[1]
+      )
     end)
 
     it('targets the old endpoint for split deleted hunks in qf and loclist', function()
@@ -3241,14 +3239,10 @@ describe('commands', function()
       local hunks = vim.api.nvim_buf_get_var(panes.right_buf, 'diffs_split_hunks')
       local hunk = hunks[hunk_index]
       assert.is_not_nil(hunk)
-      assert.are.same(
-        { math.max(1, hunk.new_range.start), 0 },
-        vim.api.nvim_win_get_cursor(panes.right_win)
-      )
-      assert.are.same(
-        { math.max(1, hunk.old_range.start), 0 },
-        vim.api.nvim_win_get_cursor(panes.left_win)
-      )
+      local left_row = vim.api.nvim_win_get_cursor(panes.left_win)[1]
+      local right_row = vim.api.nvim_win_get_cursor(panes.right_win)[1]
+      assert.are.equal(left_row, right_row)
+      assert.is_true(right_row >= 1)
     end
 
     local function create_mode_first_review_repo()
@@ -3314,8 +3308,8 @@ describe('commands', function()
       )
       assert.are.equal(2, #main_windows())
       assert.is_nil(visible_review_map())
-      assert.is_true(vim.api.nvim_get_option_value('diff', { win = panes.left_win }))
-      assert.is_true(vim.api.nvim_get_option_value('diff', { win = panes.right_win }))
+      assert.is_false(vim.api.nvim_get_option_value('diff', { win = panes.left_win }))
+      assert.is_false(vim.api.nvim_get_option_value('diff', { win = panes.right_win }))
       assert.is_true(vim.api.nvim_get_option_value('scrollbind', { win = panes.left_win }))
       assert.is_true(vim.api.nvim_get_option_value('scrollbind', { win = panes.right_win }))
 

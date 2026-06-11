@@ -396,8 +396,8 @@ highlight-only.
     Generated layouts do not enter native Vim `&diff` mode or open writable
     Fugitive object buffers.
 
-    `++layout=split` opens paired old/new endpoint windows with native `&diff`
-    alignment. See |diffs.nvim-paired-windows|.
+    `++layout=split` opens plugin-aligned paired old/new endpoint windows.
+    See |diffs.nvim-paired-windows|.
 
     Prefix with |:vertical| to open the generated `unified` and `stacked`
     layouts in a vertical split (`:vertical Diff`). The modifier is ignored for
@@ -511,12 +511,23 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
 
     `++layout=split` opens a single-file comparison as paired old/new endpoint
     windows: the old/removed endpoint on the left, the new/added endpoint on the
-    right. Endpoint buffers are read-only `diffs://` views; edits happen in
-    real source buffers opened from the view. Native `&diff` aligns rows and the
-    windows are scroll- and cursor-bound, but diff folds are disabled. Changed
-    regions within a line carry the same intra-line word-diff highlighting as
-    generated buffers, honoring `highlights.intra` (including the `vscode`
-    algorithm).
+    right. Endpoint buffers are read-only `diffs://` views holding the real file
+    content of each side; edits happen in real source buffers opened from the
+    view.
+
+    The panes are not native `&diff` windows. They are plugin-rendered: the
+    plugin aligns both sides row-for-row by inserting blank filler rows, then
+    keeps the windows in lockstep with `scrollbind`/`cursorbind`. Because the
+    panes hold real, contiguous file content, treesitter highlights them as the
+    target language. Each changed line is painted with the same palette as
+    generated buffers, so its background is continuous across the gutter and the
+    text, and changed regions within a line carry the same intra-line word-diff
+    highlighting, honoring `highlights.intra` (including the `vscode` algorithm).
+
+    Each pane renders its own side's real line numbers in a `statuscolumn` rail
+    (blank on filler rows), so the rail does not depend on or conflict with a
+    global `number`/`statuscolumn` setting; the originals are restored when the
+    pair closes. Diff folds are disabled.
 
     `q` closes the pair. `:edit` refreshes the same comparison. `]c`/`[c`
     navigate hunks from either side. `<CR>` opens a real worktree file only when
@@ -555,9 +566,10 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     With `++layout=split`, |:Diff-review| opens one review file as a paired
     side-by-side diff instead of the full review map: the old/removed endpoint
     on the left, the new/added endpoint on the right. Both panes are read-only
-    `diffs://` endpoint views aligned with native Vim `&diff` and bound for
-    synchronized scrolling and cursor movement, with the same intra-line
-    word-diff highlighting as generated buffers (see |diffs.nvim-paired-windows|).
+    plugin-rendered `diffs://` endpoint views, row-aligned with filler rows and
+    bound for synchronized scrolling and cursor movement, with the same line and
+    intra-line word-diff highlighting as generated buffers
+    (see |diffs.nvim-paired-windows|).
 
     In split layout, the quickfix list remains the repo-wide review file index
     and the location list is the active file's hunk index. Selecting a quickfix
