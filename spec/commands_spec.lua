@@ -433,19 +433,15 @@ describe('commands', function()
   end)
 
   describe('setup', function()
-    it('registers the Diff command alongside the deprecated aliases', function()
+    it('registers the Diff command without the removed aliases', function()
       commands.setup()
       local cmds = vim.api.nvim_get_commands({})
       assert.is_not_nil(cmds.Diff)
       assert.is_true(cmds.Diff.bar)
-      assert.is_not_nil(cmds.Gdiff)
-      assert.is_not_nil(cmds.Gvdiff)
-      assert.is_not_nil(cmds.Ghdiff)
-      assert.is_not_nil(cmds.Greview)
-      assert.is_true(cmds.Gdiff.bar)
-      assert.is_true(cmds.Gvdiff.bar)
-      assert.is_true(cmds.Ghdiff.bar)
-      assert.is_true(cmds.Greview.bar)
+      assert.is_nil(cmds.Gdiff)
+      assert.is_nil(cmds.Gvdiff)
+      assert.is_nil(cmds.Ghdiff)
+      assert.is_nil(cmds.Greview)
     end)
   end)
 
@@ -509,73 +505,6 @@ describe('commands', function()
         { args = '++layout=split review', vertical = false, opts = { warn_vertical_split = false } },
         captured.gdiff
       )
-    end)
-  end)
-
-  describe('deprecated command aliases', function()
-    local deprecations = {
-      Gdiff = '[diffs]: :Gdiff is deprecated, use :Diff instead.\n'
-        .. 'Feature will be removed in diffs.nvim 0.4.0. See :help diffs.nvim-deprecated-commands',
-      Gvdiff = '[diffs]: :Gvdiff is deprecated, use :vertical Diff instead.\n'
-        .. 'Feature will be removed in diffs.nvim 0.4.0. See :help diffs.nvim-deprecated-commands',
-      Ghdiff = '[diffs]: :Ghdiff is deprecated, use :Diff instead.\n'
-        .. 'Feature will be removed in diffs.nvim 0.4.0. See :help diffs.nvim-deprecated-commands',
-      Greview = '[diffs]: :Greview is deprecated, use :Diff review instead.\n'
-        .. 'Feature will be removed in diffs.nvim 0.4.0. See :help diffs.nvim-deprecated-commands',
-    }
-
-    local function count_deprecations(notifications)
-      local count = 0
-      for _, n in ipairs(notifications) do
-        if tostring(n.message):find('deprecated', 1, true) then
-          count = count + 1
-        end
-      end
-      return count
-    end
-
-    local function deprecation_messages(notifications)
-      local messages = {}
-      for _, n in ipairs(notifications) do
-        if tostring(n.message):find('deprecated', 1, true) then
-          messages[#messages + 1] = n.message
-        end
-      end
-      return messages
-    end
-
-    it('warns on use of every deprecated alias', function()
-      commands.setup()
-      local notifications = capture_notifications()
-      vim.cmd('enew')
-      vim.cmd('silent! Gdiff')
-      vim.cmd('silent! Gvdiff')
-      vim.cmd('silent! Ghdiff')
-      vim.cmd('silent! Greview ++layout=bogus')
-      assert.are.equal(4, count_deprecations(notifications))
-      assert.are.same({
-        deprecations.Gdiff,
-        deprecations.Gvdiff,
-        deprecations.Ghdiff,
-        deprecations.Greview,
-      }, deprecation_messages(notifications))
-    end)
-
-    it('warns again on every repeated use of a deprecated alias', function()
-      commands.setup()
-      local notifications = capture_notifications()
-      vim.cmd('enew')
-      vim.cmd('silent! Gdiff')
-      vim.cmd('silent! Gdiff')
-      assert.are.equal(2, count_deprecations(notifications))
-    end)
-
-    it('does not warn for the :Diff command', function()
-      commands.setup()
-      local notifications = capture_notifications()
-      vim.cmd('enew')
-      vim.cmd('silent! Diff')
-      assert.are.equal(0, count_deprecations(notifications))
     end)
   end)
 
@@ -691,63 +620,6 @@ describe('commands', function()
   end)
 
   describe('command completion', function()
-    it('completes Gdiff layout options and Fugitive-style objects', function()
-      mock_repo_root(function()
-        return '/tmp/repo'
-      end)
-      mock_systemlist(function(cmd)
-        assert.are.same({
-          'git',
-          '-C',
-          '/tmp/repo',
-          'for-each-ref',
-          '--format=%(refname:short)',
-          'refs/heads/',
-          'refs/remotes/',
-          'refs/tags/',
-        }, cmd)
-        return { 'origin/main', 'feature/topic' }
-      end)
-
-      assert.are.same({
-        '++layout=unified',
-        '++layout=stacked',
-        '++layout=split',
-      }, commands._test.complete_gdiff('++l'))
-      assert.are.same({
-        '++layout=unified',
-        '++layout=stacked',
-        '++layout=split',
-        ':',
-        ':%',
-        ':0:%',
-        '@:%',
-        'origin/main',
-        'feature/topic',
-      }, commands._test.complete_gdiff('', 'Gdiff ', #'Gdiff '))
-      assert.are.same({
-        ':',
-        ':%',
-        ':0:%',
-        '@:%',
-        'origin/main',
-        'feature/topic',
-      }, commands._test.complete_gdiff('', 'Gdiff ++layout=split ', #'Gdiff ++layout=split '))
-      assert.are.same({}, commands._test.complete_gdiff('', 'Gdiff HEAD ', #'Gdiff HEAD '))
-      assert.are.same({ ':', ':%', ':0:%' }, commands._test.complete_gdiff(':'))
-      assert.are.same({ ':0:%' }, commands._test.complete_gdiff(':0', 'Gdiff :0', #'Gdiff :0'))
-      assert.are.same(
-        { ':0:%' },
-        commands._test.complete_gdiff(':0', 'vertical Gdiff :0', #'vertical Gdiff :0')
-      )
-      assert.are.same({ '@:%' }, commands._test.complete_gdiff('@'))
-      assert.are.same({ 'origin/main' }, commands._test.complete_gdiff('origin/'))
-    end)
-
-    it('keeps Gvdiff and Ghdiff completion focused on objects', function()
-      assert.are.same({}, commands._test.complete_gdiff_split('++l'))
-    end)
-
     it('completes the Diff review subcommand, layout options, objects, and refs', function()
       mock_repo_root(function()
         return '/tmp/repo'
@@ -2783,15 +2655,6 @@ describe('commands', function()
     end)
   end)
 
-  describe('setup registers Greview command', function()
-    it('registers Greview command', function()
-      commands.setup()
-      local cmds = vim.api.nvim_get_commands({})
-      assert.is_not_nil(cmds.Greview)
-      assert.is_true(cmds.Greview.bar)
-    end)
-  end)
-
   describe('Greview helpers', function()
     it('parses base-only review args', function()
       local spec = commands._test.parse_review_arg('origin/main')
@@ -2947,17 +2810,7 @@ describe('commands', function()
       assert.are.same({ 'origin/main..feature/a', 'origin/main..feature/b' }, matches)
     end)
 
-    it('completes Greview command layout options', function()
-      local matches = commands._test.complete_greview_command('++l')
-
-      assert.are.same({
-        '++layout=unified',
-        '++layout=stacked',
-        '++layout=split',
-      }, matches)
-    end)
-
-    it('completes Greview layout options only before a review spec', function()
+    it('completes :Diff review layout options only before a review spec', function()
       mock_repo_root(function()
         return '/tmp/repo'
       end)
@@ -2972,33 +2825,33 @@ describe('commands', function()
         'origin/main',
         'feature/topic',
         '++topic',
-      }, commands._test.complete_greview_command('', 'Greview ', #'Greview '))
+      }, commands._test.complete_diff('', 'Diff review ', #'Diff review '))
       assert.are.same(
         {
           'origin/main',
           'feature/topic',
           '++topic',
         },
-        commands._test.complete_greview_command(
+        commands._test.complete_diff(
           '',
-          'Greview ++layout=split ',
-          #'Greview ++layout=split '
+          'Diff review ++layout=split ',
+          #'Diff review ++layout=split '
         )
       )
       assert.are.same(
         {},
-        commands._test.complete_greview_command('', 'Greview origin/main ', #'Greview origin/main ')
+        commands._test.complete_diff('', 'Diff review origin/main ', #'Diff review origin/main ')
       )
       assert.are.same(
         { 'origin/main' },
-        commands._test.complete_greview_command('origin/', 'Greview origin/', #'Greview origin/')
+        commands._test.complete_diff('origin/', 'Diff review origin/', #'Diff review origin/')
       )
       assert.are.same(
         { 'origin/main' },
-        commands._test.complete_greview_command(
+        commands._test.complete_diff(
           'origin/',
-          'belowright Greview origin/',
-          #'belowright Greview origin/'
+          'belowright Diff review origin/',
+          #'belowright Diff review origin/'
         )
       )
       assert.are.same({
@@ -3006,13 +2859,13 @@ describe('commands', function()
         '++layout=stacked',
         '++layout=split',
         '++topic',
-      }, commands._test.complete_greview_command('++', 'Greview ++', #'Greview ++'))
+      }, commands._test.complete_diff('++', 'Diff review ++', #'Diff review ++'))
       assert.are.same(
         { '++topic' },
-        commands._test.complete_greview_command(
+        commands._test.complete_diff(
           '++',
-          'Greview ++layout=split ++',
-          #'Greview ++layout=split ++'
+          'Diff review ++layout=split ++',
+          #'Diff review ++layout=split ++'
         )
       )
     end)

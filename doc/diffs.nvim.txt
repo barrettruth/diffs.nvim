@@ -616,24 +616,6 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     These helpers are command integration helpers for |:Diff-review|. The stable
     root Lua API remains the small surface documented at |diffs.nvim-api|.
 
-Deprecated command aliases: ~              *diffs.nvim-deprecated-commands*
-
-    :Gdiff, :Gvdiff, :Ghdiff, and :Greview are deprecated aliases kept for the
-    pre-v0.4.0 migration window. Each warns on every use and will be removed in
-    v0.4.0. Use |:Diff| and |:Diff-review| instead.
-                                    *:Gdiff* *:Gvdiff* *:Ghdiff* *:Greview*
-        :Gdiff    ->  :Diff
-        :Gvdiff   ->  :vertical Diff
-        :Ghdiff   ->  :Diff
-        :Greview  ->  :Diff review
-
-    To recreate the old spellings as local commands after they are removed: >vim
-        command! -nargs=* -bar Gdiff Diff <args>
-        command! -nargs=* -bar Gvdiff vertical Diff <args>
-        command! -nargs=* -bar Ghdiff Diff <args>
-        command! -nargs=* -bar Greview Diff review <args>
-<
-
 ==============================================================================
 MAPPINGS                                                 *diffs.nvim-mappings*
 

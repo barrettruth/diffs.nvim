@@ -585,26 +585,6 @@ local function rail_style_for_layout(layout)
   return 'dual'
 end
 
-local legacy_command_replacements = {
-  Gdiff = ':Diff',
-  Gvdiff = ':vertical Diff',
-  Ghdiff = ':Diff',
-  Greview = ':Diff review',
-}
-
----@param command "Gdiff"|"Gvdiff"|"Ghdiff"|"Greview"
-local function warn_legacy_command(command)
-  notify(
-    ':'
-      .. command
-      .. ' is deprecated, use '
-      .. legacy_command_replacements[command]
-      .. ' instead.\n'
-      .. 'Feature will be removed in diffs.nvim 0.4.0. See :help diffs.nvim-deprecated-commands',
-    vim.log.levels.WARN
-  )
-end
-
 local function warn_vertical_split_ignored()
   notify(
     '++layout=split ignores the :vertical modifier; the split layout manages its own windows',
@@ -624,10 +604,6 @@ local gdiff_objects = {
 
 local command_names = {
   Diff = true,
-  Gdiff = true,
-  Gvdiff = true,
-  Ghdiff = true,
-  Greview = true,
 }
 
 ---@param value string
@@ -746,18 +722,6 @@ local function complete_gdiff_command(arglead, cmdline, cursorpos)
 end
 
 ---@param arglead string
----@param cmdline? string
----@param cursorpos? integer
----@return string[]
-local function complete_gdiff_split_command(arglead, cmdline, cursorpos)
-  local context = completion_context(arglead, cmdline, cursorpos)
-  if context.has_value or arglead:match('^%+%+') then
-    return {}
-  end
-  return complete_gdiff_object(arglead)
-end
-
----@param arglead string
 ---@param context { has_layout: boolean, has_value: boolean }
 ---@return string[]
 local function complete_review_args(arglead, context)
@@ -778,14 +742,6 @@ local function complete_review_args(arglead, context)
   end
   vim.list_extend(matches, review.complete(arglead))
   return matches
-end
-
----@param arglead string
----@param cmdline? string
----@param cursorpos? integer
----@return string[]
-local function complete_greview_command(arglead, cmdline, cursorpos)
-  return complete_review_args(arglead, completion_context(arglead, cmdline, cursorpos))
 end
 
 ---@param arglead string
@@ -1737,55 +1693,13 @@ function M.setup()
     complete = complete_diff_command,
     desc = 'Show a current-file diff, or a repository review with :Diff review',
   })
-
-  vim.api.nvim_create_user_command('Gdiff', function(opts)
-    warn_legacy_command('Gdiff')
-    M.gdiff(opts.args ~= '' and opts.args or nil, false)
-  end, {
-    nargs = '*',
-    bar = true,
-    complete = complete_gdiff_command,
-    desc = 'Deprecated alias for :Diff',
-  })
-
-  vim.api.nvim_create_user_command('Gvdiff', function(opts)
-    warn_legacy_command('Gvdiff')
-    M.gdiff(opts.args ~= '' and opts.args or nil, true)
-  end, {
-    nargs = '*',
-    bar = true,
-    complete = complete_gdiff_split_command,
-    desc = 'Deprecated alias for :vertical Diff',
-  })
-
-  vim.api.nvim_create_user_command('Ghdiff', function(opts)
-    warn_legacy_command('Ghdiff')
-    M.gdiff(opts.args ~= '' and opts.args or nil, false)
-  end, {
-    nargs = '*',
-    bar = true,
-    complete = complete_gdiff_split_command,
-    desc = 'Deprecated alias for :Diff',
-  })
-
-  vim.api.nvim_create_user_command('Greview', function(opts)
-    warn_legacy_command('Greview')
-    M.greview_command(opts.args ~= '' and opts.args or nil)
-  end, {
-    nargs = '*',
-    bar = true,
-    complete = complete_greview_command,
-    desc = 'Deprecated alias for :Diff review',
-  })
 end
 
 M._test = {
   complete_diff = complete_diff_command,
   complete_gdiff = complete_gdiff_command,
   complete_gdiff_object = complete_gdiff_object,
-  complete_gdiff_split = complete_gdiff_split_command,
   complete_greview = review.complete,
-  complete_greview_command = complete_greview_command,
   create_generated_diff_buffer = create_generated_diff_buffer,
   gdiff_buffer_label = gdiff_buffer_label,
   replace_generated_diff_buffer_lines = replace_generated_diff_buffer_lines,
