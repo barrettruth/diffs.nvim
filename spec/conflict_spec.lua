@@ -214,7 +214,7 @@ describe('conflict', function()
         '>>>>>>> feature',
       })
 
-      conflict.attach(bufnr, default_config({ priority = 999 }))
+      conflict.attach(bufnr, default_config())
 
       local checked = 0
       for _, mark in ipairs(get_extmarks(bufnr)) do

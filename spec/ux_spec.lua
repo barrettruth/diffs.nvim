@@ -174,7 +174,7 @@ describe('ux', function()
       assert.are.equal('user open', keymap_desc(bufnr, 'o'))
       assert.are.equal('user visual obtain', keymap_desc(bufnr, 'do', 'x'))
       assert.are.equal('Open source file', keymap_desc(bufnr, '<CR>'))
-      assert.are.equal('Stage selected Gdiff lines', keymap_desc(bufnr, 'dp', 'x'))
+      assert.are.equal('Stage selected diff lines', keymap_desc(bufnr, 'dp', 'x'))
 
       vim.api.nvim_buf_del_var(bufnr, 'diffs_hunks')
       commands.setup_diff_buf(bufnr)

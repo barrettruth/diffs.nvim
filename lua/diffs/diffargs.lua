@@ -2,11 +2,11 @@ local M = {}
 
 local diffspec = require('diffs.spec')
 
----@class diffs.GdiffParseContext
+---@class diffs.DiffParseContext
 ---@field path string
 ---@field current? diffs.Endpoint
 
----@class diffs.GdiffParseResult
+---@class diffs.DiffParseResult
 ---@field spec diffs.DiffSpec
 ---@field novertical boolean
 ---@field layout "unified"|"stacked"|"split"
@@ -40,7 +40,7 @@ local function is_worktree(endpoint)
   return endpoint.kind == diffspec.endpoint_kind.worktree
 end
 
----@class diffs.GdiffParsedObject
+---@class diffs.DiffParsedObject
 ---@field left diffs.Endpoint
 ---@field path? string # explicit path; nil means the current file
 ---@field right_worktree? boolean # if set, the right endpoint is the worktree rather than `current`
@@ -50,7 +50,7 @@ end
 --- Recognizable Fugitive forms that are intentionally unsupported are rejected
 --- with specific messages (see |diffs.nvim-diff-objects|).
 ---@param object string
----@return diffs.GdiffParsedObject?, string?
+---@return diffs.DiffParsedObject?, string?
 local function parse_object(object)
   if object == '#' or object:match('^#%d+$') then
     return nil, 'alternate-buffer objects (#) are not supported'
@@ -150,15 +150,15 @@ local function default_spec(current, path)
 end
 
 ---@param args? string
----@param context diffs.GdiffParseContext
----@return diffs.GdiffParseResult?, string?
+---@param context diffs.DiffParseContext
+---@return diffs.DiffParseResult?, string?
 function M.parse(args, context)
   if not context or type(context) ~= 'table' then
-    error('diffs: gdiff parse context must be a table')
+    error('diffs: diff parse context must be a table')
   end
   local path = context.path
   if type(path) ~= 'string' or path == '' then
-    error('diffs: gdiff parse context path must be a non-empty string')
+    error('diffs: diff parse context path must be a non-empty string')
   end
 
   local current = context.current and diffspec.endpoint(context.current) or diffspec.worktree()

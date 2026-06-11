@@ -133,26 +133,11 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
     }
 <
 
-Pre-v0.4.0 migration window: ~
-    This release still accepts deprecated config forms and emits warnings with
-    removal targeted at v0.4.0. Update config before the hard-removal release:
-    - `hide_prefix` -> `view.prefix` (inverted)
-    - `integrations.*` tables -> boolean toggles
-    - `integrations.fugitive.horizontal` / `.vertical` -> fixed `du` / `dU`
-    - remove `highlights.gutter`
-    - remove `highlights.priorities`
-    - remove `conflict.priority`
-
                                                            *diffs.nvim.Config*
     Fields: ~
         {debug}              (boolean, default: false)
                              Enable debug logging to `:messages` with
                              `[diffs]` prefix.
-
-        {hide_prefix}        (boolean, deprecated)
-                             Top-level legacy key. Use `view.prefix` instead.
-                             The value is inverted: `hide_prefix = true` maps
-                             to `view.prefix = false`.
 
         {view}               (table, default: see below)
                              Diff view display options.
@@ -178,31 +163,29 @@ Pre-v0.4.0 migration window: ~
 
         {integrations}       (table, default: all false)
                              Integration toggles. Each key accepts `true` or
-                             `false`. Deprecated table forms still enable the
-                             integration during the migration window. See
-                             |diffs.nvim-integrations|.
+                             `false`. See |diffs.nvim-integrations|.
                                                *diffs.nvim.IntegrationsConfig*
                              Fields: ~
 
-            {fugitive}       (boolean|table, default: false)
+            {fugitive}       (boolean, default: false)
                              Enable vim-fugitive support. See
                              |diffs.nvim-fugitive|.
 
-            {neogit}         (boolean|table, default: false)
+            {neogit}         (boolean, default: false)
                              Enable Neogit support. See |diffs.nvim-neogit|.
 
-            {neojj}          (boolean|table, default: false)
+            {neojj}          (boolean, default: false)
                              Enable neojj support. See |diffs.nvim-neojj|.
 
-            {gitsigns}       (boolean|table, default: false)
+            {gitsigns}       (boolean, default: false)
                              Enable gitsigns.nvim popup support. See
                              |diffs.nvim-gitsigns|.
 
-            {committia}      (boolean|table, default: false)
+            {committia}      (boolean, default: false)
                              Enable committia.vim diff-pane support. See
                              |diffs.nvim-committia|.
 
-            {telescope}      (boolean|table, default: false)
+            {telescope}      (boolean, default: false)
                              Enable telescope.nvim preview support. See
                              |diffs.nvim-telescope|.
 
@@ -235,11 +218,6 @@ Pre-v0.4.0 migration window: ~
                              using `DiffsAdd`/`DiffsDelete` groups (derived
                              from `DiffAdd`/`DiffDelete` backgrounds).
 
-        {gutter}             (boolean, deprecated)
-                             Remove this key; it colored buffer line numbers
-                             rather than actual diff lines, so it did not
-                             model meaningful diff state.
-
         {blend_alpha}        (number, default: 0.6)
                              Alpha value for diff line background intensity.
                              Controls how strongly diff lines (adds/deletes)
@@ -267,10 +245,6 @@ Pre-v0.4.0 migration window: ~
                              Character-level (intra-line) diff highlighting.
                              See |diffs.nvim.IntraConfig| for fields.
 
-        {priorities}         (table, deprecated)
-                             Remove this key. Custom priority values are
-                             ignored and layering is fixed internally.
-
         {overrides}          (table, default: {})
                              Map of highlight group names to highlight
                              definitions (see `nvim_set_hl()`). Applied
@@ -288,11 +262,6 @@ Pre-v0.4.0 migration window: ~
                              Max context lines to read in each direction.
                              Files are read once per parse and cached across
                              hunks in the same file.
-
-                                                 *diffs.nvim.PrioritiesConfig*
-    Priorities config fields (deprecated): ~
-        Remove `highlights.priorities`; user-supplied values are dropped during
-        the migration window and fixed internal defaults are used.
 
                                                  *diffs.nvim.TreesitterConfig*
     Treesitter config fields: ~
@@ -617,13 +586,13 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
 <
 
     Lua command helper: >lua
-        require('diffs.commands').greview({
+        require('diffs.commands').review({
           base = 'origin/main',
           target = 'refs/forge/pr/42',
           repo = '/path/to/repo',
         })
 
-        require('diffs.commands').greview_split()
+        require('diffs.commands').review_split()
 <
     Fields: ~
         {base}    (string, optional) Base ref for the review. Defaults to the
@@ -638,7 +607,7 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
         {vertical} (boolean, optional) Open the review in a vertical split.
 
     Utilities: ~
-        `require('diffs.commands').greview_split()` opens the currently
+        `require('diffs.commands').review_split()` opens the currently
         selected |:Diff-review| file in the same paired side-by-side diff used
         by `:Diff review ++layout=split`. It uses the review buffer cursor,
         quickfix item, or loclist item as the file selection, and the review
@@ -647,51 +616,33 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     These helpers are command integration helpers for |:Diff-review|. The stable
     root Lua API remains the small surface documented at |diffs.nvim-api|.
 
-Deprecated command aliases: ~              *diffs.nvim-deprecated-commands*
-
-    :Gdiff, :Gvdiff, :Ghdiff, and :Greview are deprecated aliases kept for the
-    pre-v0.4.0 migration window. Each warns on every use and will be removed in
-    v0.4.0. Use |:Diff| and |:Diff-review| instead.
-                                    *:Gdiff* *:Gvdiff* *:Ghdiff* *:Greview*
-        :Gdiff    ->  :Diff
-        :Gvdiff   ->  :vertical Diff
-        :Ghdiff   ->  :Diff
-        :Greview  ->  :Diff review
-
-    To recreate the old spellings as local commands after they are removed: >vim
-        command! -nargs=* -bar Gdiff Diff <args>
-        command! -nargs=* -bar Gvdiff vertical Diff <args>
-        command! -nargs=* -bar Ghdiff Diff <args>
-        command! -nargs=* -bar Greview Diff review <args>
-<
-
 ==============================================================================
 MAPPINGS                                                 *diffs.nvim-mappings*
 
-                                                         *<Plug>(diffs-gdiff)*
-<Plug>(diffs-gdiff)     Show index-to-worktree unified diff in a horizontal
+                                                         *<Plug>(diffs-diff)*
+<Plug>(diffs-diff)     Show index-to-worktree unified diff in a horizontal
                         split. Equivalent to |:Diff| with no arguments.
 
-                                                        *<Plug>(diffs-gvdiff)*
-<Plug>(diffs-gvdiff)    Show index-to-worktree unified diff in a vertical
+                                                        *<Plug>(diffs-diff-vertical)*
+<Plug>(diffs-diff-vertical)    Show index-to-worktree unified diff in a vertical
                         split. Equivalent to `:vertical Diff` with no
                         arguments.
 
-                                             *<Plug>(diffs-gdiff-open-source)*
-<Plug>(diffs-gdiff-open-source)
+                                             *<Plug>(diffs-diff-open-source)*
+<Plug>(diffs-diff-open-source)
                         Open the real worktree file at the current |:Diff|
                         hunk location. `diffs://` buffers map this to
                         <CR> by default.
 
-                                            *<Plug>(diffs-greview-open-split)*
-<Plug>(diffs-greview-open-split)
+                                            *<Plug>(diffs-review-open-split)*
+<Plug>(diffs-review-open-split)
                         Open the currently selected |:Diff-review| file as a
                         paired side-by-side diff: the old/removed endpoint on
                         the left, the new/added endpoint on the right.
 
 Example configuration: >lua
-    vim.keymap.set('n', '<leader>gd', '<Plug>(diffs-gdiff)')
-    vim.keymap.set('n', '<leader>gD', '<Plug>(diffs-gvdiff)')
+    vim.keymap.set('n', '<leader>gd', '<Plug>(diffs-diff)')
+    vim.keymap.set('n', '<leader>gD', '<Plug>(diffs-diff-vertical)')
 <
 
                                                  *<Plug>(diffs-conflict-ours)*
@@ -853,7 +804,6 @@ This status-row behavior is intentionally narrower than Fugitive
 `diffs://` buffers read-only, explicit, and owned by diffs.nvim.
 
 Configuration: ~
-                                                   *diffs.nvim.FugitiveConfig*
 >lua
     vim.g.diffs = {
       integrations = {
@@ -861,19 +811,8 @@ Configuration: ~
       },
     }
 <
-    Use `fugitive = false` to disable. Passing a table is deprecated; use
-    `fugitive = true` instead. During the deprecation window, table presence
-    still enables the integration. There is no table `enabled` field. Status
-    keymaps are fixed at `du` and `dU`.
-
-    Deprecated table fields: ~
-        {horizontal}         (string|false, deprecated)
-                             Remove this key; the horizontal Fugitive status
-                             keymap is fixed at `du`.
-
-        {vertical}           (string|false, deprecated)
-                             Remove this key; the vertical Fugitive status
-                             keymap is fixed at `dU`.
+    Use `fugitive = false` to disable. Status keymaps are fixed at `du` and
+    `dU`.
 
 ------------------------------------------------------------------------------
 NEOGIT                                                     *diffs.nvim-neogit*
@@ -886,10 +825,7 @@ Expanding a diff in a Neogit buffer (e.g., TAB on a file in the status view)
 applies treesitter syntax highlighting and intra-line diffs to the hunk lines.
 
 Configuration: ~
-                                                     *diffs.nvim.NeogitConfig*
-    Use `neogit = false` to disable. Passing a table is deprecated; use
-    `neogit = true` instead. During the deprecation window, table presence still
-    enables the integration.
+    Use `neogit = false` to disable.
 
 ------------------------------------------------------------------------------
 NEOJJ                                                       *diffs.nvim-neojj*
@@ -902,10 +838,7 @@ Expanding a diff in a neojj buffer (e.g., TAB on a file in the status view)
 applies treesitter syntax highlighting and intra-line diffs to the hunk lines.
 
 Configuration: ~
-                                                      *diffs.nvim.NeojjConfig*
-    Use `neojj = false` to disable. Passing a table is deprecated; use
-    `neojj = true` instead. During the deprecation window, table presence still
-    enables the integration.
+    Use `neojj = false` to disable.
 
 ------------------------------------------------------------------------------
 GITSIGNS                                                 *diffs.nvim-gitsigns*
@@ -916,10 +849,7 @@ integration for blame hunk previews: >lua
 <
 
 Configuration: ~
-                                                   *diffs.nvim.GitsignsConfig*
-    Use `gitsigns = false` to disable. Passing a table is deprecated; use
-    `gitsigns = true` instead. During the deprecation window, table presence
-    still enables the integration.
+    Use `gitsigns = false` to disable.
 
 `:Gitsigns blame_line full=true` popups receive treesitter syntax, line
 backgrounds, and intra-line diffs.
@@ -935,9 +865,7 @@ support: >lua
     vim.g.diffs = { integrations = { committia = true } }
 <
 
-Use `committia = false` to disable. Passing a table is deprecated; use
-`committia = true` instead. During the deprecation window, table presence
-still enables the integration.
+Use `committia = false` to disable.
 
 ------------------------------------------------------------------------------
 TELESCOPE                                               *diffs.nvim-telescope*
@@ -946,9 +874,6 @@ Enable telescope.nvim (https://github.com/nvim-telescope/telescope.nvim)
 preview highlighting: >lua
     vim.g.diffs = { integrations = { telescope = true } }
 <
-
-Passing a table is deprecated; use `true` instead. During the deprecation
-window, table presence still normalizes to `true`.
 
 Telescope does not set `filetype=diff` on preview buffers — it calls
 `vim.treesitter.start(bufnr, "diff")` directly, so diffs.nvim's `FileType`
@@ -1043,11 +968,6 @@ Configuration: ~
                              keymaps. Renders as virtual lines using the
                              `DiffsConflictActions` highlight group. Only
                              configured keymaps appear.
-
-        {priority}           (integer, deprecated)
-                             Remove this key. Conflict extmark ordering is
-                             fixed internally; during the deprecation window,
-                             custom values are ignored.
 
         {keymaps}            (table|false, default: false)
                              Opt-in buffer-local keymaps for conflict

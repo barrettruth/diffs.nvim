@@ -17,7 +17,7 @@ local function get_buf_var(bufnr, name)
 end
 
 ---@param bufnr integer
----@return diffs.GdiffHunk[]
+---@return diffs.DiffHunk[]
 local function buffer_hunks(bufnr)
   local hunks = get_buf_var(bufnr, 'diffs_hunks')
   if type(hunks) == 'table' then
@@ -27,13 +27,13 @@ local function buffer_hunks(bufnr)
 end
 
 ---@param bufnr integer
----@return diffs.GdiffHunk?
+---@return diffs.DiffHunk?
 local function hunk_under_cursor(bufnr)
   local cursor_line = vim.api.nvim_win_get_cursor(0)[1]
   return hunk_model.hunk_at_line(buffer_hunks(bufnr), cursor_line)
 end
 
----@param hunk diffs.GdiffHunk
+---@param hunk diffs.DiffHunk
 ---@return diffs.DiffSpec?
 local function hunk_diff_spec(hunk)
   if not hunk.diff_spec then
@@ -53,13 +53,13 @@ local function extend_patch_lines(patch, lines)
   end
 end
 
----@param line diffs.GdiffHunkLine
+---@param line diffs.DiffHunkLine
 ---@return boolean
 local function is_change_line(line)
   return line.kind == 'add' or line.kind == 'delete'
 end
 
----@param line diffs.GdiffHunkLine
+---@param line diffs.DiffHunkLine
 ---@return string
 local function context_text(line)
   return ' ' .. line.text:sub(2)
@@ -73,11 +73,11 @@ local function in_range(lnum, range_start, range_finish)
   return lnum >= range_start and lnum <= range_finish
 end
 
----@param hunk diffs.GdiffHunk
+---@param hunk diffs.DiffHunk
 ---@return string?, string?
 function M.patch_for_hunk(hunk)
   if not hunk then
-    return nil, 'no Gdiff hunk under cursor'
+    return nil, 'no diff hunk under cursor'
   end
   if type(hunk.file_header_lines) ~= 'table' or #hunk.file_header_lines == 0 then
     return nil, 'cannot build hunk patch without file headers'
@@ -92,13 +92,13 @@ function M.patch_for_hunk(hunk)
   return table.concat(patch_lines, '\n') .. '\n', nil
 end
 
----@class diffs.GdiffChangeGroup
----@field lines diffs.GdiffHunkLine[]
+---@class diffs.DiffChangeGroup
+---@field lines diffs.DiffHunkLine[]
 ---@field has_add boolean
 ---@field has_delete boolean
 
----@param hunk diffs.GdiffHunk
----@return diffs.GdiffChangeGroup[]
+---@param hunk diffs.DiffHunk
+---@return diffs.DiffChangeGroup[]
 local function change_groups(hunk)
   local groups = {}
   local current = nil
@@ -125,7 +125,7 @@ local function change_groups(hunk)
   return groups
 end
 
----@param hunk diffs.GdiffHunk
+---@param hunk diffs.DiffHunk
 ---@param range_start integer
 ---@param range_finish integer
 ---@return string?
@@ -146,7 +146,7 @@ local function validate_range(hunk, range_start, range_finish)
   return nil
 end
 
----@param hunk diffs.GdiffHunk
+---@param hunk diffs.DiffHunk
 ---@param range_start integer
 ---@param range_finish integer
 ---@param opts? { target?: "left"|"right" }
@@ -155,19 +155,19 @@ function M.patch_for_range(hunk, range_start, range_finish, opts)
   opts = opts or {}
   local target = opts.target or 'left'
   if not hunk then
-    return nil, 'no Gdiff hunk under cursor'
+    return nil, 'no diff hunk under cursor'
   end
   if target ~= 'left' and target ~= 'right' then
-    return nil, 'invalid Gdiff range patch target'
+    return nil, 'invalid diff range patch target'
   end
   if type(range_start) ~= 'number' or type(range_finish) ~= 'number' then
-    return nil, 'invalid Gdiff visual range'
+    return nil, 'invalid diff visual range'
   end
   if range_finish < range_start then
     range_start, range_finish = range_finish, range_start
   end
   if range_start < hunk.buffer_range.start or range_finish > hunk.buffer_range.finish then
-    return nil, 'visual selection must stay within one Gdiff hunk'
+    return nil, 'visual selection must stay within one diff hunk'
   end
 
   local range_err = validate_range(hunk, range_start, range_finish)
@@ -214,7 +214,7 @@ function M.patch_for_range(hunk, range_start, range_finish, opts)
   end
 
   if not has_change then
-    return nil, 'visual selection does not include changed Gdiff lines'
+    return nil, 'visual selection does not include changed diff lines'
   end
 
   return table.concat(patch_lines, '\n') .. '\n', nil
@@ -261,16 +261,16 @@ local function checked_apply(repo_root, patch, operation, opts)
 end
 
 ---@param bufnr integer
----@return diffs.GdiffHunk?, diffs.DiffSpec?, string?
+---@return diffs.DiffHunk?, diffs.DiffSpec?, string?
 local function current_action_context(bufnr)
   local hunk = hunk_under_cursor(bufnr)
   if not hunk then
-    return nil, nil, 'no Gdiff hunk under cursor'
+    return nil, nil, 'no diff hunk under cursor'
   end
 
   local spec = hunk_diff_spec(hunk)
   if not spec then
-    return nil, nil, 'cannot resolve Gdiff hunk edge'
+    return nil, nil, 'cannot resolve diff hunk edge'
   end
 
   return hunk, spec, nil
@@ -279,7 +279,7 @@ end
 ---@param bufnr integer
 ---@param range_start integer
 ---@param range_finish integer
----@return diffs.GdiffHunk?, diffs.DiffSpec?, string?
+---@return diffs.DiffHunk?, diffs.DiffSpec?, string?
 local function range_action_context(bufnr, range_start, range_finish)
   if range_finish < range_start then
     range_start, range_finish = range_finish, range_start
@@ -289,19 +289,19 @@ local function range_action_context(bufnr, range_start, range_finish)
   local start_hunk = hunk_model.hunk_at_line(parsed, range_start)
   local finish_hunk = hunk_model.hunk_at_line(parsed, range_finish)
   if not start_hunk or not finish_hunk or start_hunk.index ~= finish_hunk.index then
-    return nil, nil, 'visual selection must stay within one Gdiff hunk'
+    return nil, nil, 'visual selection must stay within one diff hunk'
   end
 
   local spec = hunk_diff_spec(start_hunk)
   if not spec then
-    return nil, nil, 'cannot resolve Gdiff hunk edge'
+    return nil, nil, 'cannot resolve diff hunk edge'
   end
 
   return start_hunk, spec, nil
 end
 
 ---@param bufnr integer
----@param hunk diffs.GdiffHunk
+---@param hunk diffs.DiffHunk
 ---@param operation "stage"|"unstage"
 ---@param opts? { patch?: string, recount?: boolean }
 ---@return boolean
@@ -309,7 +309,7 @@ local function mutate_hunk(bufnr, hunk, operation, opts)
   opts = opts or {}
   local repo_root = get_buf_var(bufnr, 'diffs_repo_root')
   if not repo_root then
-    notify('cannot mutate Gdiff hunk without diffs_repo_root', vim.log.levels.ERROR)
+    notify('cannot mutate diff hunk without diffs_repo_root', vim.log.levels.ERROR)
     return false
   end
 
@@ -324,7 +324,7 @@ local function mutate_hunk(bufnr, hunk, operation, opts)
 
   local ok, err = checked_apply(repo_root, patch, operation, { recount = opts.recount })
   if not ok then
-    notify('failed to ' .. operation .. ' Gdiff hunk: ' .. err, vim.log.levels.ERROR)
+    notify('failed to ' .. operation .. ' diff hunk: ' .. err, vim.log.levels.ERROR)
     return false
   end
 
@@ -340,7 +340,7 @@ function M.put_hunk(bufnr)
     return false
   end
   if not hunk or not spec then
-    notify('cannot resolve Gdiff hunk edge', vim.log.levels.WARN)
+    notify('cannot resolve diff hunk edge', vim.log.levels.WARN)
     return false
   end
 
@@ -350,11 +350,11 @@ function M.put_hunk(bufnr)
   end
 
   if patch_actions.can_obtain then
-    notify('Gdiff hunk is already in the index', vim.log.levels.WARN)
+    notify('diff hunk is already in the index', vim.log.levels.WARN)
     return false
   end
 
-  notify('cannot put read-only Gdiff hunk', vim.log.levels.WARN)
+  notify('cannot put read-only diff hunk', vim.log.levels.WARN)
   return false
 end
 
@@ -367,7 +367,7 @@ function M.obtain_hunk(bufnr)
     return false
   end
   if not hunk or not spec then
-    notify('cannot resolve Gdiff hunk edge', vim.log.levels.WARN)
+    notify('cannot resolve diff hunk edge', vim.log.levels.WARN)
     return false
   end
 
@@ -381,14 +381,14 @@ function M.obtain_hunk(bufnr)
     return false
   end
 
-  notify('cannot obtain read-only Gdiff hunk', vim.log.levels.WARN)
+  notify('cannot obtain read-only diff hunk', vim.log.levels.WARN)
   return false
 end
 
 ---@param bufnr integer
 ---@param range_start integer
 ---@param range_finish integer
----@return diffs.GdiffHunk?, diffs.DiffSpec?, string?
+---@return diffs.DiffHunk?, diffs.DiffSpec?, string?
 local function range_context_or_notify(bufnr, range_start, range_finish)
   local hunk, spec, err = range_action_context(bufnr, range_start, range_finish)
   if err then
@@ -396,7 +396,7 @@ local function range_context_or_notify(bufnr, range_start, range_finish)
     return nil, nil, err
   end
   if not hunk or not spec then
-    local fallback = 'cannot resolve Gdiff hunk edge'
+    local fallback = 'cannot resolve diff hunk edge'
     notify(fallback, vim.log.levels.WARN)
     return nil, nil, fallback
   end
@@ -404,7 +404,7 @@ local function range_context_or_notify(bufnr, range_start, range_finish)
   return hunk, spec, nil
 end
 
----@param hunk diffs.GdiffHunk
+---@param hunk diffs.DiffHunk
 ---@param range_start integer
 ---@param range_finish integer
 ---@param target "left"|"right"
@@ -444,11 +444,11 @@ function M.put_range(bufnr, range_start, range_finish)
   end
 
   if patch_actions.can_obtain then
-    notify('Gdiff hunk is already in the index', vim.log.levels.WARN)
+    notify('diff hunk is already in the index', vim.log.levels.WARN)
     return false
   end
 
-  notify('cannot put read-only Gdiff hunk', vim.log.levels.WARN)
+  notify('cannot put read-only diff hunk', vim.log.levels.WARN)
   return false
 end
 
@@ -479,7 +479,7 @@ function M.obtain_range(bufnr, range_start, range_finish)
     return false
   end
 
-  notify('cannot obtain read-only Gdiff hunk', vim.log.levels.WARN)
+  notify('cannot obtain read-only diff hunk', vim.log.levels.WARN)
   return false
 end
 

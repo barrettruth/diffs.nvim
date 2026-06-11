@@ -591,7 +591,7 @@ describe('diffs.actions', function()
     assert.is_nil(worktree:find('-line 3', 1, true))
   end)
 
-  it('rejects visual ranges that cross Gdiff hunks without touching the index', function()
+  it('rejects visual ranges that cross diff hunks without touching the index', function()
     local notifications = capture_notifications()
     local repo_root = create_repo()
     write_repo_file(
@@ -616,7 +616,7 @@ describe('diffs.actions', function()
     assert.are.equal('', cached)
     assert.is_true(
       notifications[#notifications].message:find(
-        'visual selection must stay within one Gdiff hunk',
+        'visual selection must stay within one diff hunk',
         1,
         true
       ) ~= nil
@@ -684,8 +684,8 @@ describe('diffs.actions', function()
     assert.is_false(actions.put_hunk(bufnr))
     assert.is_false(actions.obtain_hunk(bufnr))
     assert.are.equal(0, calls)
-    assert.is_true(notifications[1].message:find('read-only Gdiff hunk', 1, true) ~= nil)
-    assert.is_true(notifications[2].message:find('read-only Gdiff hunk', 1, true) ~= nil)
+    assert.is_true(notifications[1].message:find('read-only diff hunk', 1, true) ~= nil)
+    assert.is_true(notifications[2].message:find('read-only diff hunk', 1, true) ~= nil)
   end)
 
   it('rejects destructive worktree restore and redundant index put operations', function()

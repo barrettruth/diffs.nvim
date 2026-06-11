@@ -56,13 +56,13 @@ local function win_number(win)
   return nil
 end
 
----@param hunk diffs.GdiffHunk
+---@param hunk diffs.DiffHunk
 ---@return string
 local function hunk_file(hunk)
   return hunk.file or hunk.path or '(unknown)'
 end
 
----@param hunk diffs.GdiffHunk
+---@param hunk diffs.DiffHunk
 ---@return integer
 local function file_lnum(hunk)
   return hunk.file_header_range and hunk.file_header_range.start or hunk.buffer_range.start
@@ -75,7 +75,7 @@ local function diff_file(line)
   return new_path or old_path
 end
 
----@param hunk diffs.GdiffHunk
+---@param hunk diffs.DiffHunk
 ---@return integer, integer
 local function hunk_stats(hunk)
   local adds = 0
@@ -147,7 +147,7 @@ local function entry_display_file(entry)
   return entry.file
 end
 
----@param hunk diffs.GdiffHunk?
+---@param hunk diffs.DiffHunk?
 ---@return string?
 local function hunk_key(hunk)
   if type(hunk) ~= 'table' then
@@ -156,7 +156,7 @@ local function hunk_key(hunk)
   return hunk.generated_key
 end
 
----@param hunks diffs.GdiffHunk[]
+---@param hunks diffs.DiffHunk[]
 ---@param diff_lines? string[]
 ---@param opts? table
 ---@return table[]
@@ -288,7 +288,7 @@ local function entry_at_lnum(entries, lnum, sections)
   return entries[1]
 end
 
----@param hunks diffs.GdiffHunk[]
+---@param hunks diffs.DiffHunk[]
 ---@param entries table[]
 ---@param lnum integer
 ---@return string?
@@ -298,7 +298,7 @@ local function file_at_lnum(hunks, entries, lnum)
 end
 
 ---@param bufnr integer
----@param hunks diffs.GdiffHunk[]
+---@param hunks diffs.DiffHunk[]
 ---@param entry table?
 ---@return table[]
 local function loclist_items(bufnr, hunks, entry)
@@ -335,9 +335,9 @@ local function loclist_items(bufnr, hunks, entry)
   return items
 end
 
----@param hunks diffs.GdiffHunk[]
+---@param hunks diffs.DiffHunk[]
 ---@param lnum integer
----@return diffs.GdiffHunk?
+---@return diffs.DiffHunk?
 local function hunk_at_lnum(hunks, lnum)
   for _, hunk in ipairs(hunks) do
     if lnum >= hunk.buffer_range.start and lnum <= hunk.buffer_range.finish then
@@ -347,9 +347,9 @@ local function hunk_at_lnum(hunks, lnum)
   return nil
 end
 
----@param hunks diffs.GdiffHunk[]
+---@param hunks diffs.DiffHunk[]
 ---@param index integer?
----@return diffs.GdiffHunk?
+---@return diffs.DiffHunk?
 local function hunk_by_index(hunks, index)
   if type(index) ~= 'number' then
     return nil
@@ -362,8 +362,8 @@ local function hunk_by_index(hunks, index)
   return nil
 end
 
----@param hunks diffs.GdiffHunk[]
----@param target diffs.GdiffHunk?
+---@param hunks diffs.DiffHunk[]
+---@param target diffs.DiffHunk?
 ---@return integer?
 local function file_hunk_index(hunks, target)
   if not target then
@@ -476,7 +476,7 @@ end
 
 ---@param diff_lines string[]
 ---@param opts? diffs.GeneratedListOptions
----@return { hunks: diffs.GdiffHunk[], entries: table[], sections: table[]?, loclist_title: string }
+---@return { hunks: diffs.DiffHunk[], entries: table[], sections: table[]?, loclist_title: string }
 local function list_state(diff_lines, opts)
   opts = opts or {}
   local diff_spec = opts.diff_spec
@@ -654,7 +654,7 @@ end
 ---@field section_label? string
 ---@field diff_spec? diffs.DiffSpec
 ---@field lnum integer?
----@field hunk? diffs.GdiffHunk
+---@field hunk? diffs.DiffHunk
 ---@field hunk_index? integer
 
 ---@param opts? diffs.GeneratedFileSelectionOpts
@@ -855,14 +855,14 @@ function M.set_loclist_for_buffer(bufnr, diff_lines, opts)
   end
 end
 
----@param hunk diffs.GdiffHunk
+---@param hunk diffs.DiffHunk
 ---@param anchors integer[]?
 ---@return integer
 local function split_anchor_lnum(hunk, anchors)
   return (anchors and anchors[hunk.index]) or 1
 end
 
----@param hunk diffs.GdiffHunk
+---@param hunk diffs.DiffHunk
 ---@param side "left"|"right"
 ---@param left_buf integer
 ---@param right_buf integer
@@ -877,7 +877,7 @@ end
 
 ---@param left_buf integer
 ---@param right_buf integer
----@param hunks diffs.GdiffHunk[]
+---@param hunks diffs.DiffHunk[]
 ---@param anchors integer[]?
 ---@param side "left"|"right"
 ---@return table[]
@@ -902,7 +902,7 @@ local function split_loclist_items(left_buf, right_buf, hunks, anchors, side)
   return items
 end
 
----@param opts { left_buf: integer, right_buf: integer, hunks: diffs.GdiffHunk[], anchors: integer[]? }
+---@param opts { left_buf: integer, right_buf: integer, hunks: diffs.DiffHunk[], anchors: integer[]? }
 ---@return table[]
 local function split_quickfix_items(opts)
   local entries = file_entries(opts.hunks)
@@ -932,7 +932,7 @@ local function split_quickfix_items(opts)
   return items
 end
 
----@param opts { title: string, loclist_title?: string, left_buf: integer, right_buf: integer, left_win?: integer, right_win?: integer, hunks: diffs.GdiffHunk[], anchors?: integer[], quickfix?: boolean }
+---@param opts { title: string, loclist_title?: string, left_buf: integer, right_buf: integer, left_win?: integer, right_win?: integer, hunks: diffs.DiffHunk[], anchors?: integer[], quickfix?: boolean }
 function M.set_for_split_pair(opts)
   local title = opts.title
   local loclist_title = opts.loclist_title or (title .. ' hunks')

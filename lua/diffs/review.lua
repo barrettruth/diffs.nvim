@@ -10,18 +10,18 @@ local render = require('diffs.render')
 local dbg = log.dbg
 local notify = log.notify
 
----@class diffs.GreviewSpec
+---@class diffs.ReviewSpec
 ---@field base? string
 ---@field target? string
 ---@field repo? string
 ---@field mode? string
 ---@field vertical? boolean
 
----@class diffs.GreviewCommandParseResult
----@field spec diffs.GreviewSpec
+---@class diffs.ReviewCommandParseResult
+---@field spec diffs.ReviewSpec
 ---@field layout "unified"|"stacked"|"split"
 
----@class diffs.NormalizedGreview
+---@class diffs.NormalizedReview
 ---@field base string
 ---@field target string?
 ---@field repo_root string
@@ -119,7 +119,7 @@ end
 local function merge_base(repo_root, base, target)
   local result = vim.fn.systemlist({ 'git', '-C', repo_root, 'merge-base', base, target })
   if vim.v.shell_error ~= 0 or not result[1] or result[1] == '' then
-    return nil, 'Greview merge base not found for spec: ' .. base .. '...' .. target
+    return nil, 'review merge base not found for spec: ' .. base .. '...' .. target
   end
   return result[1], nil
 end
@@ -132,22 +132,22 @@ end
 ---@return string?
 local function validate_refs(repo_root, base, target, mode, display)
   if not ref_exists(repo_root, base) then
-    return ('Greview base ref not found: %s (spec: %s)'):format(base, display)
+    return ('review base ref not found: %s (spec: %s)'):format(base, display)
   end
 
   if target and not ref_exists(repo_root, target) then
-    return ('Greview target ref not found: %s (spec: %s)'):format(target, display)
+    return ('review target ref not found: %s (spec: %s)'):format(target, display)
   end
 
   if target and mode == 'merge-base' and not merge_base_exists(repo_root, base, target) then
-    return 'Greview merge base not found for spec: ' .. display
+    return 'review merge base not found for spec: ' .. display
   end
 
   return nil
 end
 
 ---@param arg? string
----@return diffs.GreviewSpec?, string?
+---@return diffs.ReviewSpec?, string?
 function M.parse_arg(arg)
   if not arg or arg == '' then
     return {}, nil
@@ -173,7 +173,7 @@ function M.parse_arg(arg)
 end
 
 ---@param args? string
----@return diffs.GreviewCommandParseResult?, string?
+---@return diffs.ReviewCommandParseResult?, string?
 function M.parse_command_args(args)
   local tokens = split_args(args)
   local layout = 'unified'
@@ -207,28 +207,28 @@ function M.parse_command_args(args)
   }, nil
 end
 
----@param spec? diffs.GreviewSpec
+---@param spec? diffs.ReviewSpec
 ---@param repo_root_override? string
----@return diffs.NormalizedGreview?, string?
+---@return diffs.NormalizedReview?, string?
 function M.normalize(spec, repo_root_override)
   spec = spec or {}
   if type(spec) ~= 'table' then
-    error('diffs: greview() expects a table spec')
+    error('diffs: review() expects a table spec')
   end
   if spec.base ~= nil and type(spec.base) ~= 'string' then
-    error('diffs: greview.base must be a string')
+    error('diffs: review.base must be a string')
   end
   if spec.target ~= nil and type(spec.target) ~= 'string' then
-    error('diffs: greview.target must be a string')
+    error('diffs: review.target must be a string')
   end
   if spec.repo ~= nil and type(spec.repo) ~= 'string' then
-    error('diffs: greview.repo must be a string')
+    error('diffs: review.repo must be a string')
   end
   if spec.mode ~= nil and type(spec.mode) ~= 'string' then
-    error('diffs: greview.mode must be a string')
+    error('diffs: review.mode must be a string')
   end
   if spec.vertical ~= nil and type(spec.vertical) ~= 'boolean' then
-    error('diffs: greview.vertical must be a boolean')
+    error('diffs: review.vertical must be a boolean')
   end
 
   local repo_root = repo_root_override or resolve_repo_root(spec.repo)
@@ -246,7 +246,7 @@ function M.normalize(spec, repo_root_override)
 
   local target = spec.target
   if target == '' then
-    error('diffs: greview.target must be a non-empty string')
+    error('diffs: review.target must be a non-empty string')
   end
 
   local mode = spec.mode
@@ -254,10 +254,10 @@ function M.normalize(spec, repo_root_override)
     if mode == nil then
       mode = 'merge-base'
     elseif mode ~= 'merge-base' and mode ~= 'direct' then
-      error('diffs: greview.mode must be "merge-base" or "direct"')
+      error('diffs: review.mode must be "merge-base" or "direct"')
     end
   elseif mode ~= nil then
-    error('diffs: greview.mode requires greview.target')
+    error('diffs: review.mode requires review.target')
   end
 
   local display = base
@@ -289,7 +289,7 @@ function M.normalize(spec, repo_root_override)
     nil
 end
 
----@param review diffs.NormalizedGreview
+---@param review diffs.NormalizedReview
 ---@return string[]
 function M.build_cmd(review)
   local cmd = { 'git', '-C', review.repo_root, 'diff', '--no-ext-diff', '--no-color' }
@@ -369,7 +369,7 @@ local function section_specs(diff_lines, spec_for_file)
   return specs
 end
 
----@param review diffs.NormalizedGreview
+---@param review diffs.NormalizedReview
 ---@param base_rev string
 ---@return string[]?, string?
 local function branch_lines(review, base_rev)
@@ -382,7 +382,7 @@ local function branch_lines(review, base_rev)
   })
 end
 
----@param review diffs.NormalizedGreview
+---@param review diffs.NormalizedReview
 ---@param cached boolean
 ---@return string[]?, string?
 local function worktree_edge_lines(review, cached)
@@ -393,7 +393,7 @@ local function worktree_edge_lines(review, cached)
   return git_lines(review.repo_root, args)
 end
 
----@param review diffs.NormalizedGreview
+---@param review diffs.NormalizedReview
 ---@return string[]?, string?
 local function untracked_paths(review)
   local paths = vim.fn.systemlist({
@@ -501,7 +501,7 @@ local function metadata_for_records(records)
   end
 end
 
----@param review diffs.NormalizedGreview
+---@param review diffs.NormalizedReview
 ---@param deps diffs.ReviewDeps
 ---@return string[]?, string?, table?
 local function run_current_state(review, deps)
@@ -518,7 +518,7 @@ local function run_current_state(review, deps)
 
   local branch, branch_err = branch_lines(review, base_rev)
   if not branch then
-    return nil, branch_err ~= '' and branch_err or 'git diff failed for Greview Branch section', nil
+    return nil, branch_err ~= '' and branch_err or 'git diff failed for review Branch section', nil
   end
   local branch_rendered = deps.replace_combined_diffs(branch, review.repo_root)
   local branch_specs = section_specs(branch_rendered, function(file)
@@ -533,7 +533,7 @@ local function run_current_state(review, deps)
 
   local staged, staged_err = worktree_edge_lines(review, true)
   if not staged then
-    return nil, staged_err ~= '' and staged_err or 'git diff failed for Greview Staged section', nil
+    return nil, staged_err ~= '' and staged_err or 'git diff failed for review Staged section', nil
   end
   local staged_rendered = deps.replace_combined_diffs(staged, review.repo_root)
   local staged_unmerged = combined_diff_files(staged)
@@ -550,7 +550,7 @@ local function run_current_state(review, deps)
   local unstaged, unstaged_err = worktree_edge_lines(review, false)
   if not unstaged then
     return nil,
-      unstaged_err ~= '' and unstaged_err or 'git diff failed for Greview Unstaged section',
+      unstaged_err ~= '' and unstaged_err or 'git diff failed for review Unstaged section',
       nil
   end
   local unstaged_rendered = deps.replace_combined_diffs(unstaged, review.repo_root)
@@ -568,7 +568,7 @@ local function run_current_state(review, deps)
   local untracked, untracked_err = untracked_paths(review)
   if not untracked then
     return nil,
-      untracked_err ~= '' and untracked_err or 'git ls-files failed for Greview Untracked section',
+      untracked_err ~= '' and untracked_err or 'git ls-files failed for review Untracked section',
       nil
   end
   local untracked_lines = {}
@@ -605,11 +605,11 @@ local function run_current_state(review, deps)
     }
 end
 
----@param review_spec diffs.GreviewSpec?
+---@param review_spec diffs.ReviewSpec?
 ---@param repo_root string
 ---@param path string
 ---@param selection? diffs.GeneratedFileSelection
----@return diffs.DiffSpec?, diffs.NormalizedGreview?, string?
+---@return diffs.DiffSpec?, diffs.NormalizedReview?, string?
 function M.diff_spec_for_file(review_spec, repo_root, path, selection)
   if type(path) ~= 'string' or path == '' then
     return nil, nil, 'missing review file path'
@@ -639,7 +639,7 @@ function M.diff_spec_for_file(review_spec, repo_root, path, selection)
   return diffspec.rev_to_rev(normalized.base, normalized.target, path), normalized, nil
 end
 
----@param review diffs.NormalizedGreview
+---@param review diffs.NormalizedReview
 ---@return string
 function M.buffer_name(review)
   return 'diffs://review:' .. review.display
@@ -712,18 +712,18 @@ function M.complete(arglead)
   return matches
 end
 
----@param review diffs.NormalizedGreview
+---@param review diffs.NormalizedReview
 ---@param deps diffs.ReviewDeps
 ---@return string[]?, string?
 function M.run(review, deps)
   local result = vim.fn.systemlist(M.build_cmd(review))
   if vim.v.shell_error ~= 0 then
-    return nil, 'git diff failed for Greview spec: ' .. review.display
+    return nil, 'git diff failed for review spec: ' .. review.display
   end
   return deps.replace_combined_diffs(result, review.repo_root), nil
 end
 
----@param review diffs.NormalizedGreview
+---@param review diffs.NormalizedReview
 ---@param deps diffs.ReviewDeps
 ---@return string[]?, string?, table?
 function M.render(review, deps)
@@ -735,10 +735,10 @@ function M.render(review, deps)
   return result, err, nil
 end
 
----@param spec? diffs.GreviewSpec
+---@param spec? diffs.ReviewSpec
 ---@param deps diffs.ReviewDeps
 ---@return integer?
-function M.greview(spec, deps)
+function M.open(spec, deps)
   local review, err = M.normalize(spec)
   if not review then
     notify(err, vim.log.levels.ERROR)
@@ -808,7 +808,7 @@ function M.file_at_line(buf, lnum)
   return nil
 end
 
----@param review_spec diffs.GreviewSpec?
+---@param review_spec diffs.ReviewSpec?
 ---@param repo_root string
 ---@param deps diffs.ReviewDeps
 ---@return string[]?, string?, table?
