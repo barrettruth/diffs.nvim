@@ -368,6 +368,9 @@ local function set_keymaps(bufnr)
       M.goto_prev(vim.api.nvim_get_current_buf())
     end, { buffer = bufnr, desc = 'Previous diff hunk' })
   end
+  if not get_buffer_keymap(bufnr, 'n', 'gw') then
+    vim.keymap.set('n', 'gw', '<Plug>(diffs-toggle-whitespace)', { buffer = bufnr, remap = true })
+  end
 end
 
 ---@param source diffs.SplitEndpointSource

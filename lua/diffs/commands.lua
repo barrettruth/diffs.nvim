@@ -151,6 +151,9 @@ function M.setup_diff_buf(bufnr)
   if not get_buffer_keymap(bufnr, 'n', 'q') then
     vim.keymap.set('n', 'q', '<cmd>close<CR>', { buffer = bufnr })
   end
+  if not get_buffer_keymap(bufnr, 'n', 'gw') then
+    vim.keymap.set('n', 'gw', '<Plug>(diffs-toggle-whitespace)', { buffer = bufnr, remap = true })
+  end
   local has_hunks, parsed_hunks = generated.raw_hunks(bufnr)
   if not has_hunks then
     clear_hunk_keymaps(bufnr)
@@ -1685,6 +1688,84 @@ function M.read_buffer(bufnr)
   dbg('reloaded diff buffer %d (%s)', bufnr, debug_label)
 
   runtime.attach(bufnr)
+end
+
+---@param flag string
+---@return boolean
+local function diffopt_has(flag)
+  for _, item in ipairs(vim.split(vim.o.diffopt, ',', { plain = true })) do
+    if item == flag then
+      return true
+    end
+  end
+  return false
+end
+
+--- Re-render every visible diffs:// buffer in place, preserving each window's
+--- view. Used after a global change such as toggling whitespace, so the new
+--- setting is reflected consistently across all open diff surfaces.
+function M.refresh_visible()
+  ---@type { win: integer, view: table }[]
+  local views = {}
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    local buf = vim.api.nvim_win_get_buf(win)
+    if vim.api.nvim_buf_get_name(buf):match('^diffs://') then
+      views[#views + 1] = { win = win, view = vim.api.nvim_win_call(win, vim.fn.winsaveview) }
+    end
+  end
+
+  ---@type table<integer, boolean>
+  local done = {}
+  for _, entry in ipairs(views) do
+    local buf = vim.api.nvim_win_is_valid(entry.win) and vim.api.nvim_win_get_buf(entry.win)
+    if buf and not done[buf] then
+      done[buf] = true
+      local ok, peer = pcall(vim.api.nvim_buf_get_var, buf, 'diffs_split_peer')
+      if ok and type(peer) == 'number' then
+        done[peer] = true
+      end
+      M.read_buffer(buf)
+    end
+  end
+
+  for _, entry in ipairs(views) do
+    if vim.api.nvim_win_is_valid(entry.win) then
+      vim.api.nvim_win_call(entry.win, function()
+        vim.fn.winrestview(entry.view)
+      end)
+    end
+  end
+end
+
+--- Re-render a single diffs:// buffer in place, preserving its window view.
+---@param bufnr? integer
+function M.refresh(bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  if not vim.api.nvim_buf_get_name(bufnr):match('^diffs://') then
+    return
+  end
+  local win = first_window_for_buffer(bufnr)
+  local view = win and vim.api.nvim_win_call(win, vim.fn.winsaveview) or nil
+  M.read_buffer(bufnr)
+  if win and view and vim.api.nvim_win_is_valid(win) then
+    vim.api.nvim_win_call(win, function()
+      vim.fn.winrestview(view)
+    end)
+  end
+end
+
+--- Toggle ignoring all whitespace (iwhiteall) in the global 'diffopt' and
+--- re-render the visible diffs:// buffers. The setting is global, so it also
+--- affects native diff windows on their next update.
+function M.toggle_whitespace()
+  if diffopt_has('iwhiteall') then
+    vim.opt.diffopt:remove('iwhiteall')
+    vim.api.nvim_echo({ { '[diffs] diffopt -iwhiteall (showing whitespace)' } }, false, {})
+  else
+    vim.opt.diffopt:append('iwhiteall')
+    vim.api.nvim_echo({ { '[diffs] diffopt +iwhiteall (ignoring whitespace)' } }, false, {})
+  end
+  M.refresh_visible()
 end
 
 function M.setup()

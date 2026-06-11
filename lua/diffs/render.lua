@@ -320,7 +320,13 @@ function M.file(diff_spec, repo_root, opts)
     new_mode = new_mode,
     deleted_mode = old_mode,
   })
-  if #diff_lines == 0 and has_raw_changes(diff_spec, repo_root, path) then
+  if
+    #diff_lines == 0
+    and old_mode
+    and new_mode
+    and old_mode ~= new_mode
+    and has_raw_changes(diff_spec, repo_root, path)
+  then
     return nil, 'diff does not support mode-only changes'
   end
 
