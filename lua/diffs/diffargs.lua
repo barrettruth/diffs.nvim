@@ -8,7 +8,6 @@ local diffspec = require('diffs.spec')
 
 ---@class diffs.DiffParseResult
 ---@field spec diffs.DiffSpec
----@field novertical boolean
 ---@field layout "unified"|"stacked"|"split"
 
 local function normalize_rev(rev)
@@ -163,15 +162,11 @@ function M.parse(args, context)
 
   local current = context.current and diffspec.endpoint(context.current) or diffspec.worktree()
   local tokens = split_args(args)
-  local novertical = false
   local layout = 'unified'
   local has_layout = false
 
   while tokens[1] and tokens[1]:match('^%+%+') do
-    if tokens[1] == '++novertical' then
-      novertical = true
-      table.remove(tokens, 1)
-    elseif tokens[1]:match('^%+%+layout=') then
+    if tokens[1]:match('^%+%+layout=') then
       if has_layout then
         return nil, 'repeated ++layout option'
       end
@@ -198,10 +193,8 @@ function M.parse(args, context)
   if #tokens == 0 then
     return {
       spec = default_spec(current, path),
-      novertical = novertical,
       layout = layout,
-    },
-      nil
+    }, nil
   end
 
   local object, err = parse_object(tokens[1])
@@ -213,10 +206,8 @@ function M.parse(args, context)
   local right = object.right_worktree and diffspec.worktree() or current
   return {
     spec = diffspec.file(object.left, right, scope_path),
-    novertical = novertical,
     layout = layout,
-  },
-    nil
+  }, nil
 end
 
 M._test = {

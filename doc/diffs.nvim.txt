@@ -391,8 +391,6 @@ highlight-only.
                     context-aware line-number rail.
         ++layout=split (optional) Open the current single-file comparison as
                     paired old/new endpoint windows.
-        ++novertical (optional) Force a horizontal split even under |:vertical|.
-                    Useful in command wrappers.
         {object}    (string, optional) The object to diff against; see
                     |diffs.nvim-diff-objects|. Defaults to the current file in
                     the index.
