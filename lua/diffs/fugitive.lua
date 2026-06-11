@@ -219,7 +219,7 @@ function M.diff_file_under_cursor(vertical)
       )
       return
     end
-    commands.gdiff_section(repo_root, {
+    commands.diff_section(repo_root, {
       vertical = vertical,
       staged = section == 'staged',
     })
@@ -243,7 +243,7 @@ function M.diff_file_under_cursor(vertical)
     hunk_position and tostring(hunk_position.offset) or 'none'
   )
 
-  commands.gdiff_file(filepath, {
+  commands.diff_file(filepath, {
     vertical = vertical,
     staged = section == 'staged',
     untracked = section == 'untracked',

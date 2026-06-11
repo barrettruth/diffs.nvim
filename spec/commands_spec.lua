@@ -447,63 +447,63 @@ describe('commands', function()
 
   describe('Diff command dispatch', function()
     local function capture_dispatch(args, vertical)
-      local saved_gdiff = commands.gdiff
-      local saved_greview = commands.greview_command
+      local saved_diff = commands.diff
+      local saved_review = commands.review_command
       local captured = {}
-      commands.gdiff = function(a, v, o)
-        captured.gdiff = { args = a, vertical = v, opts = o }
+      commands.diff = function(a, v, o)
+        captured.diff = { args = a, vertical = v, opts = o }
       end
-      commands.greview_command = function(a, v, o)
-        captured.greview = { args = a, vertical = v, opts = o }
+      commands.review_command = function(a, v, o)
+        captured.review = { args = a, vertical = v, opts = o }
       end
       commands.diff_command(args, vertical)
-      commands.gdiff = saved_gdiff
-      commands.greview_command = saved_greview
+      commands.diff = saved_diff
+      commands.review_command = saved_review
       return captured
     end
 
     it('routes plain arguments to the current-file diff', function()
       local captured = capture_dispatch('HEAD~3', false)
-      assert.is_nil(captured.greview)
+      assert.is_nil(captured.review)
       assert.are.same(
         { args = 'HEAD~3', vertical = false, opts = { warn_vertical_split = false } },
-        captured.gdiff
+        captured.diff
       )
     end)
 
     it('threads the :vertical modifier and the split warning into the diff path', function()
       local captured = capture_dispatch(nil, true)
-      assert.is_nil(captured.greview)
+      assert.is_nil(captured.review)
       assert.are.same(
         { args = nil, vertical = true, opts = { warn_vertical_split = true } },
-        captured.gdiff
+        captured.diff
       )
     end)
 
     it('routes a leading review subcommand to the review surface', function()
       local captured = capture_dispatch('review origin/main', true)
-      assert.is_nil(captured.gdiff)
+      assert.is_nil(captured.diff)
       assert.are.same(
         { args = 'origin/main', vertical = true, opts = { warn_vertical_split = true } },
-        captured.greview
+        captured.review
       )
     end)
 
     it('treats a bare review subcommand as a review with no spec', function()
       local captured = capture_dispatch('review', false)
-      assert.is_nil(captured.gdiff)
+      assert.is_nil(captured.diff)
       assert.are.same(
         { args = nil, vertical = false, opts = { warn_vertical_split = false } },
-        captured.greview
+        captured.review
       )
     end)
 
     it('only treats review as the subcommand when it is the first token', function()
       local captured = capture_dispatch('++layout=split review', false)
-      assert.is_nil(captured.greview)
+      assert.is_nil(captured.review)
       assert.are.same(
         { args = '++layout=split review', vertical = false, opts = { warn_vertical_split = false } },
-        captured.gdiff
+        captured.diff
       )
     end)
   end)
@@ -784,7 +784,7 @@ describe('commands', function()
     end)
   end)
 
-  describe('Gdiff DiffSpec rendering', function()
+  describe('diff DiffSpec rendering', function()
     local function create_split_source(opts)
       opts = opts or {}
       local filepath = opts.filepath or '/tmp/repo/lua/foo.lua'
@@ -839,7 +839,7 @@ describe('commands', function()
       return left_win, right_win, left_index, right_index
     end
 
-    it('opens default :Gdiff as an unstaged index to worktree diff', function()
+    it('opens default :Diff as an unstaged index to worktree diff', function()
       local source_buf = vim.api.nvim_create_buf(false, true)
       table.insert(test_buffers, source_buf)
       vim.api.nvim_buf_set_name(source_buf, '/tmp/repo/lua/foo.lua')
@@ -872,7 +872,7 @@ describe('commands', function()
       mock_runtime_attach(function() end)
       mock_view_config({ prefix = true, change_bar = '▏', rail_separator = '|' })
 
-      commands.gdiff(nil, false)
+      commands.diff(nil, false)
 
       local diff_buf = vim.api.nvim_get_current_buf()
       table.insert(test_buffers, diff_buf)
@@ -949,7 +949,7 @@ describe('commands', function()
         },
       })
 
-      commands.gdiff(nil, false)
+      commands.diff(nil, false)
 
       local diff_buf = vim.api.nvim_get_current_buf()
       table.insert(test_buffers, diff_buf)
@@ -963,12 +963,12 @@ describe('commands', function()
       assert.are.equal(diff_buf, loc[1].bufnr)
     end)
 
-    it('opens stacked :Gdiff as a generated buffer with single rails', function()
+    it('opens stacked :Diff as a generated buffer with single rails', function()
       mock_runtime_attach(function() end)
       mock_view_config({ prefix = true, change_bar = '▏', rail_separator = '|' })
       create_split_source()
 
-      commands.gdiff('++layout=stacked', false)
+      commands.diff('++layout=stacked', false)
 
       local diff_buf = vim.api.nvim_get_current_buf()
       table.insert(test_buffers, diff_buf)
@@ -993,7 +993,7 @@ describe('commands', function()
       end
     end)
 
-    it('opens default :Gdiff for untracked files as index to worktree additions', function()
+    it('opens default :Diff for untracked files as index to worktree additions', function()
       local source_buf = vim.api.nvim_create_buf(false, true)
       table.insert(test_buffers, source_buf)
       vim.api.nvim_buf_set_name(source_buf, '/tmp/repo/lua/new.lua')
@@ -1017,7 +1017,7 @@ describe('commands', function()
       end)
       mock_runtime_attach(function() end)
 
-      commands.gdiff(nil, false)
+      commands.diff(nil, false)
 
       local diff_buf = vim.api.nvim_get_current_buf()
       table.insert(test_buffers, diff_buf)
@@ -1034,13 +1034,13 @@ describe('commands', function()
       assert.is_true(text:find('+local M = {}', 1, true) ~= nil)
     end)
 
-    it('opens opt-in split :Gdiff as paired endpoint windows', function()
+    it('opens opt-in split :Diff as paired endpoint windows', function()
       local saved_splitright = vim.o.splitright
       vim.o.splitright = false
       local ok, err = pcall(function()
         mock_view_config({ prefix = true, change_bar = '┃', rail_separator = '│' })
         create_split_source()
-        commands.gdiff('++layout=split', false)
+        commands.diff('++layout=split', false)
       end)
       vim.o.splitright = saved_splitright
       assert.is_true(ok, err)
@@ -1137,7 +1137,7 @@ describe('commands', function()
         index_lines = { 'function f()', '  return 111', '  log()', 'end' },
         worktree_lines = { 'function f()', '  return 222', '  log()', 'end' },
       })
-      commands.gdiff('++layout=split', false)
+      commands.diff('++layout=split', false)
 
       local right_buf = vim.api.nvim_get_current_buf()
       local left_buf = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer')
@@ -1185,7 +1185,7 @@ describe('commands', function()
         index_lines = { 'function f()', '  return 111', '  log()', 'end' },
         worktree_lines = { 'function f()', '  return 222', '  log()', 'end' },
       })
-      commands.gdiff('++layout=split', false)
+      commands.diff('++layout=split', false)
 
       local right_buf = vim.api.nvim_get_current_buf()
       local left_buf = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer')
@@ -1201,7 +1201,7 @@ describe('commands', function()
     it('leaves split panes untouched when attach_diff re-runs', function()
       mock_view_config({ prefix = true, change_bar = '┃', rail_separator = '│' })
       create_split_source()
-      commands.gdiff('++layout=split', false)
+      commands.diff('++layout=split', false)
 
       local right_buf = vim.api.nvim_get_current_buf()
       local left_buf = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer')
@@ -1223,7 +1223,7 @@ describe('commands', function()
         index_lines = { 'a', 'b', 'c', 'd' },
         worktree_lines = { 'X', 'a', 'b', 'c', 'd' },
       })
-      commands.gdiff('++layout=split', false)
+      commands.diff('++layout=split', false)
 
       local right_buf = vim.api.nvim_get_current_buf()
       local left_buf = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer')
@@ -1310,7 +1310,7 @@ describe('commands', function()
           'line 12',
         },
       })
-      commands.gdiff('++layout=split', false)
+      commands.diff('++layout=split', false)
 
       local right_buf = vim.api.nvim_get_current_buf()
       local left_buf = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer')
@@ -1381,7 +1381,7 @@ describe('commands', function()
         },
         worktree_lines = {},
       })
-      commands.gdiff('++layout=split', false)
+      commands.diff('++layout=split', false)
 
       local right_buf = vim.api.nvim_get_current_buf()
       local left_buf = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer')
@@ -1424,7 +1424,7 @@ describe('commands', function()
     it('opens the worktree split endpoint in an existing source window', function()
       local notifications = capture_notifications()
       local source_buf = create_split_source()
-      commands.gdiff('++layout=split', false)
+      commands.diff('++layout=split', false)
 
       local right_buf = vim.api.nvim_get_current_buf()
       local left_buf = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer')
@@ -1460,7 +1460,7 @@ describe('commands', function()
         vim.api.nvim_set_option_value('cursorbind', false, { win = 0 })
         vim.api.nvim_set_option_value('foldenable', true, { win = 0 })
 
-        commands.gdiff('++layout=split', false)
+        commands.diff('++layout=split', false)
 
         local right_buf = vim.api.nvim_get_current_buf()
         local left_buf = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer')
@@ -1488,7 +1488,7 @@ describe('commands', function()
 
     it('cleans up the peer endpoint when one split buffer is wiped', function()
       create_split_source()
-      commands.gdiff('++layout=split', false)
+      commands.diff('++layout=split', false)
 
       local right_buf = vim.api.nvim_get_current_buf()
       local left_buf = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer')
@@ -1508,7 +1508,7 @@ describe('commands', function()
     it('tears down the pair when a pane window is closed', function()
       create_split_source()
       vim.cmd('split')
-      commands.gdiff('++layout=split', false)
+      commands.diff('++layout=split', false)
 
       local right_buf = vim.api.nvim_get_current_buf()
       local left_buf = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer')
@@ -1532,7 +1532,7 @@ describe('commands', function()
 
     it('tears down the pair when :only is run on a pane', function()
       create_split_source()
-      commands.gdiff('++layout=split', false)
+      commands.diff('++layout=split', false)
 
       local right_buf = vim.api.nvim_get_current_buf()
       local left_buf = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer')
@@ -1554,7 +1554,7 @@ describe('commands', function()
     it('closes paired split endpoint buffers with q and can reopen the same split', function()
       local source_buf = create_split_source()
 
-      commands.gdiff('++layout=split', false)
+      commands.diff('++layout=split', false)
 
       local right_buf = vim.api.nvim_get_current_buf()
       local left_buf = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer')
@@ -1570,7 +1570,7 @@ describe('commands', function()
 
       vim.api.nvim_set_current_buf(source_buf)
       assert.has_no.errors(function()
-        commands.gdiff('++layout=split', false)
+        commands.diff('++layout=split', false)
       end)
 
       local reopened_right_buf = vim.api.nvim_get_current_buf()
@@ -1590,7 +1590,7 @@ describe('commands', function()
 
     it('reopens stale split endpoint buffers from the invoking source window', function()
       local source_buf = create_split_source()
-      commands.gdiff('++layout=split', false)
+      commands.diff('++layout=split', false)
 
       local old_right_buf = vim.api.nvim_get_current_buf()
       local old_left_buf = vim.api.nvim_buf_get_var(old_right_buf, 'diffs_split_peer')
@@ -1607,7 +1607,7 @@ describe('commands', function()
       local invoking_win = vim.api.nvim_get_current_win()
       vim.api.nvim_win_set_buf(invoking_win, source_buf)
 
-      commands.gdiff('++layout=split', false)
+      commands.diff('++layout=split', false)
 
       local reopened_right_buf = vim.api.nvim_get_current_buf()
       local reopened_left_buf = vim.api.nvim_buf_get_var(reopened_right_buf, 'diffs_split_peer')
@@ -1650,7 +1650,7 @@ describe('commands', function()
       end)
       mock_runtime_attach(function() end)
 
-      commands.gdiff('HEAD~3', false)
+      commands.diff('HEAD~3', false)
 
       local diff_buf = vim.api.nvim_get_current_buf()
       table.insert(test_buffers, diff_buf)
@@ -1677,7 +1677,7 @@ describe('commands', function()
     end)
   end)
 
-  describe('Gdiff real repository rendering', function()
+  describe('diff real repository rendering', function()
     it('reports no unstaged changes for staged-only tracked files', function()
       local repo_root = create_repo()
       local filepath = repo_root .. '/file.txt'
@@ -1687,7 +1687,7 @@ describe('commands', function()
       local notifications = capture_notifications()
       mock_runtime_attach(function() end)
 
-      commands.gdiff(nil, false)
+      commands.diff(nil, false)
 
       assert.are.equal(source_buf, vim.api.nvim_get_current_buf())
       assert.is_true(
@@ -1705,7 +1705,7 @@ describe('commands', function()
       local notifications = capture_notifications()
       mock_runtime_attach(function() end)
 
-      commands.gdiff(nil, false)
+      commands.diff(nil, false)
 
       assert.are.equal(source_buf, vim.api.nvim_get_current_buf())
       assert.is_true(
@@ -1722,7 +1722,7 @@ describe('commands', function()
       local notifications = capture_notifications()
       mock_runtime_attach(function() end)
 
-      commands.gdiff(nil, false)
+      commands.diff(nil, false)
 
       assert.are.equal(source_buf, vim.api.nvim_get_current_buf())
       assert.is_true(
@@ -1740,7 +1740,7 @@ describe('commands', function()
       edit_file(filepath)
       mock_runtime_attach(function() end)
 
-      commands.gdiff(nil, false)
+      commands.diff(nil, false)
 
       local diff_buf = vim.api.nvim_get_current_buf()
       table.insert(test_buffers, diff_buf)
@@ -1759,7 +1759,7 @@ describe('commands', function()
 
       assert.is_false(vim.bo[source_buf].endofline)
 
-      commands.gdiff(nil, false)
+      commands.diff(nil, false)
 
       local diff_buf = vim.api.nvim_get_current_buf()
       table.insert(test_buffers, diff_buf)
@@ -1777,13 +1777,13 @@ describe('commands', function()
       local notifications = capture_notifications()
       mock_runtime_attach(function() end)
 
-      commands.gdiff(nil, false)
+      commands.diff(nil, false)
 
       assert.are.equal(source_buf, vim.api.nvim_get_current_buf())
       assert.are.equal(vim.log.levels.ERROR, notifications[#notifications].level)
       assert.is_true(
         notifications[#notifications].message:find(
-          'Gdiff does not support mode-only changes',
+          'diff does not support mode-only changes',
           1,
           true
         ) ~= nil
@@ -1797,12 +1797,12 @@ describe('commands', function()
       local notifications = capture_notifications()
       mock_runtime_attach(function() end)
 
-      commands.gdiff_file(filepath)
+      commands.diff_file(filepath)
 
       assert.are.equal(vim.log.levels.ERROR, notifications[#notifications].level)
       assert.is_true(
         notifications[#notifications].message:find(
-          'Gdiff does not support mode-only changes',
+          'diff does not support mode-only changes',
           1,
           true
         ) ~= nil
@@ -1819,11 +1819,11 @@ describe('commands', function()
       local notifications = capture_notifications()
       mock_runtime_attach(function() end)
 
-      commands.gdiff_file(filepath)
+      commands.diff_file(filepath)
 
       assert.are.equal(vim.log.levels.ERROR, notifications[#notifications].level)
       assert.is_true(
-        notifications[#notifications].message:find('Gdiff does not support binary files', 1, true)
+        notifications[#notifications].message:find('diff does not support binary files', 1, true)
           ~= nil
       )
     end)
@@ -1840,12 +1840,12 @@ describe('commands', function()
       local notifications = capture_notifications()
       mock_runtime_attach(function() end)
 
-      commands.gdiff_file(submodule_path, { staged = true })
+      commands.diff_file(submodule_path, { staged = true })
 
       assert.are.equal(vim.log.levels.ERROR, notifications[#notifications].level)
       assert.is_true(
         notifications[#notifications].message:find(
-          'Gdiff does not support submodule changes',
+          'diff does not support submodule changes',
           1,
           true
         ) ~= nil
@@ -1861,7 +1861,7 @@ describe('commands', function()
       local notifications = capture_notifications()
       mock_runtime_attach(function() end)
 
-      commands.gdiff_file(new_filepath, { staged = true, old_filepath = old_filepath })
+      commands.diff_file(new_filepath, { staged = true, old_filepath = old_filepath })
 
       assert.are.equal(source_buf, vim.api.nvim_get_current_buf())
       assert.are.equal(vim.log.levels.INFO, notifications[#notifications].level)
@@ -1890,7 +1890,7 @@ describe('commands', function()
       git_cmd(repo_root, { 'add', 'renamed.txt' })
       mock_runtime_attach(function() end)
 
-      commands.gdiff_file(new_filepath, { staged = true, old_filepath = old_filepath })
+      commands.diff_file(new_filepath, { staged = true, old_filepath = old_filepath })
 
       local diff_buf = vim.api.nvim_get_current_buf()
       table.insert(test_buffers, diff_buf)
@@ -1928,7 +1928,7 @@ describe('commands', function()
       vim.fn.writefile({ 'line 1', 'line 2 staged', 'line 3 unstaged' }, repo_root .. '/file.txt')
       mock_runtime_attach(function() end)
 
-      commands.gdiff_section(repo_root, { staged = true })
+      commands.diff_section(repo_root, { staged = true })
       local staged_buf = vim.api.nvim_get_current_buf()
       table.insert(test_buffers, staged_buf)
       assert.are.equal('diffs://staged:all', vim.api.nvim_buf_get_name(staged_buf))
@@ -1941,7 +1941,7 @@ describe('commands', function()
         section = 'staged',
       }, vim.api.nvim_buf_get_var(staged_buf, 'diffs_source'))
 
-      commands.gdiff_section(repo_root)
+      commands.diff_section(repo_root)
       local unstaged_buf = vim.api.nvim_get_current_buf()
       table.insert(test_buffers, unstaged_buf)
       assert.are.equal('diffs://unstaged:all', vim.api.nvim_buf_get_name(unstaged_buf))
@@ -2013,7 +2013,7 @@ describe('commands', function()
       assert.is_true(rejected)
     end)
 
-    it('routes direct :Gdiff on unmerged files to the generated unmerged view', function()
+    it('routes direct :Diff on unmerged files to the generated unmerged view', function()
       local repo_root, filepath = create_conflicted_repo()
       edit_file(filepath)
       local source_win = vim.api.nvim_get_current_win()
@@ -2025,7 +2025,7 @@ describe('commands', function()
 
       assert.is_true(git.is_unmerged(filepath))
 
-      commands.gdiff(nil, false)
+      commands.diff(nil, false)
 
       local diff_buf = vim.api.nvim_get_current_buf()
       table.insert(test_buffers, diff_buf)
@@ -2072,7 +2072,7 @@ describe('commands', function()
       helpers.delete_buffer(diff_buf)
 
       vim.api.nvim_set_current_win(source_win)
-      commands.gdiff('++layout=stacked', false)
+      commands.diff('++layout=stacked', false)
 
       local stacked_unmerged_buf = vim.api.nvim_get_current_buf()
       table.insert(test_buffers, stacked_unmerged_buf)
@@ -2089,7 +2089,7 @@ describe('commands', function()
 
       for _, object in ipairs({ ':%', ':0:%' }) do
         vim.api.nvim_set_current_win(source_win)
-        commands.gdiff(object, false)
+        commands.diff(object, false)
 
         local explicit_index_buf = vim.api.nvim_get_current_buf()
         table.insert(test_buffers, explicit_index_buf)
@@ -2098,7 +2098,7 @@ describe('commands', function()
       end
 
       vim.api.nvim_set_current_win(source_win)
-      commands.gdiff('HEAD', false)
+      commands.diff('HEAD', false)
 
       local revision_buf = vim.api.nvim_get_current_buf()
       table.insert(test_buffers, revision_buf)
@@ -2120,7 +2120,7 @@ describe('commands', function()
     end)
   end)
 
-  describe('gdiff_file DiffSpec metadata', function()
+  describe('diff_file DiffSpec metadata', function()
     it('marks fugitive-style staged file diffs as HEAD to index buffers', function()
       mock_git_method('get_relative_path', function(filepath)
         if filepath == '/tmp/repo/lua/foo.lua' then
@@ -2143,7 +2143,7 @@ describe('commands', function()
       end)
       mock_runtime_attach(function() end)
 
-      commands.gdiff_file('/tmp/repo/lua/foo.lua', { staged = true })
+      commands.diff_file('/tmp/repo/lua/foo.lua', { staged = true })
 
       local diff_buf = vim.api.nvim_get_current_buf()
       table.insert(test_buffers, diff_buf)
@@ -2183,7 +2183,7 @@ describe('commands', function()
       end)
       mock_runtime_attach(function() end)
 
-      commands.gdiff_file('/tmp/repo/lua/foo.lua')
+      commands.diff_file('/tmp/repo/lua/foo.lua')
 
       local diff_buf = vim.api.nvim_get_current_buf()
       table.insert(test_buffers, diff_buf)
@@ -2223,7 +2223,7 @@ describe('commands', function()
       end)
       mock_runtime_attach(function() end)
 
-      commands.gdiff_file('/tmp/repo/lua/new.lua', { untracked = true })
+      commands.diff_file('/tmp/repo/lua/new.lua', { untracked = true })
 
       local diff_buf = vim.api.nvim_get_current_buf()
       table.insert(test_buffers, diff_buf)
@@ -2268,7 +2268,7 @@ describe('commands', function()
       end)
       mock_runtime_attach(function() end)
 
-      commands.gdiff_file('/tmp/repo/lua/new.lua', { staged = true })
+      commands.diff_file('/tmp/repo/lua/new.lua', { staged = true })
 
       local diff_buf = vim.api.nvim_get_current_buf()
       table.insert(test_buffers, diff_buf)
@@ -2313,7 +2313,7 @@ describe('commands', function()
       end)
       mock_runtime_attach(function() end)
 
-      commands.gdiff_file('/tmp/repo/lua/deleted.lua', { staged = true })
+      commands.diff_file('/tmp/repo/lua/deleted.lua', { staged = true })
 
       local diff_buf = vim.api.nvim_get_current_buf()
       table.insert(test_buffers, diff_buf)
@@ -2535,7 +2535,7 @@ describe('commands', function()
         {
           label = 'unstaged file',
           open = function()
-            commands.gdiff_file('/tmp/repo/lua/unstaged.lua')
+            commands.diff_file('/tmp/repo/lua/unstaged.lua')
           end,
           buffer_name = 'diffs://unstaged:lua/unstaged.lua',
           diff_spec = diffspec.index_to_worktree('lua/unstaged.lua'),
@@ -2556,7 +2556,7 @@ describe('commands', function()
         {
           label = 'staged file',
           open = function()
-            commands.gdiff_file('/tmp/repo/lua/staged.lua', { staged = true })
+            commands.diff_file('/tmp/repo/lua/staged.lua', { staged = true })
           end,
           buffer_name = 'diffs://staged:lua/staged.lua',
           diff_spec = diffspec.head_to_index('lua/staged.lua'),
@@ -2577,7 +2577,7 @@ describe('commands', function()
         {
           label = 'untracked file',
           open = function()
-            commands.gdiff_file('/tmp/repo/lua/new.lua', { untracked = true })
+            commands.diff_file('/tmp/repo/lua/new.lua', { untracked = true })
           end,
           buffer_name = 'diffs://untracked:lua/new.lua',
           diff_spec = diffspec.index_to_worktree('lua/new.lua'),
@@ -2598,7 +2598,7 @@ describe('commands', function()
         {
           label = 'unstaged section',
           open = function()
-            commands.gdiff_section('/tmp/repo')
+            commands.diff_section('/tmp/repo')
           end,
           buffer_name = 'diffs://unstaged:all',
           source = {
@@ -2612,7 +2612,7 @@ describe('commands', function()
         {
           label = 'review',
           open = function()
-            commands.greview({
+            commands.review({
               base = 'origin/main',
               target = 'refs/forge/pr/42',
               mode = 'merge-base',
@@ -2655,7 +2655,7 @@ describe('commands', function()
     end)
   end)
 
-  describe('Greview helpers', function()
+  describe('review helpers', function()
     it('parses base-only review args', function()
       local spec = commands._test.parse_review_arg('origin/main')
       assert.are.same({ base = 'origin/main' }, spec)
@@ -2679,9 +2679,9 @@ describe('commands', function()
       }, spec)
     end)
 
-    it('parses Greview command layout options', function()
+    it('parses review command layout options', function()
       local parsed =
-        commands._test.parse_greview_command('++layout=split origin/main...refs/pull/42/head')
+        commands._test.parse_review_command('++layout=split origin/main...refs/pull/42/head')
 
       assert.are.same({
         layout = 'split',
@@ -2693,9 +2693,9 @@ describe('commands', function()
       }, parsed)
     end)
 
-    it('parses Greview command stacked layout option', function()
+    it('parses review command stacked layout option', function()
       local parsed =
-        commands._test.parse_greview_command('++layout=stacked origin/main...refs/pull/42/head')
+        commands._test.parse_review_command('++layout=stacked origin/main...refs/pull/42/head')
 
       assert.are.same({
         layout = 'stacked',
@@ -2707,23 +2707,23 @@ describe('commands', function()
       }, parsed)
     end)
 
-    it('rejects unsupported Greview command layout options', function()
-      local parsed, err = commands._test.parse_greview_command('++layout=tiled origin/main')
+    it('rejects unsupported review command layout options', function()
+      local parsed, err = commands._test.parse_review_command('++layout=tiled origin/main')
 
       assert.is_nil(parsed)
       assert.are.equal('unsupported layout tiled', err)
     end)
 
-    it('rejects repeated Greview command layout options', function()
+    it('rejects repeated review command layout options', function()
       local parsed, err =
-        commands._test.parse_greview_command('++layout=split ++layout=unified origin/main')
+        commands._test.parse_review_command('++layout=split ++layout=unified origin/main')
 
       assert.is_nil(parsed)
       assert.are.equal('repeated ++layout option', err)
     end)
 
-    it('treats non-layout plus-prefixed Greview args as review specs', function()
-      local parsed, err = commands._test.parse_greview_command('++topic')
+    it('treats non-layout plus-prefixed review args as review specs', function()
+      local parsed, err = commands._test.parse_review_command('++topic')
 
       assert.is_nil(err)
       assert.are.same({
@@ -2732,8 +2732,8 @@ describe('commands', function()
       }, parsed)
     end)
 
-    it('rejects multiple Greview command specs', function()
-      local parsed, err = commands._test.parse_greview_command('origin/main feature/topic')
+    it('rejects multiple review command specs', function()
+      local parsed, err = commands._test.parse_review_command('origin/main feature/topic')
 
       assert.is_nil(parsed)
       assert.are.equal('expected at most one review spec', err)
@@ -2756,7 +2756,7 @@ describe('commands', function()
         return {}
       end)
 
-      local review = commands._test.normalize_greview({ repo = '/tmp/repo' })
+      local review = commands._test.normalize_review({ repo = '/tmp/repo' })
 
       assert.are.equal('/tmp/repo', review.repo_root)
       assert.are.equal('origin/main', review.base)
@@ -2789,7 +2789,7 @@ describe('commands', function()
         return { 'origin/main', 'refs/forge/pr/42', 'refs/forge/pr/43' }
       end)
 
-      local matches = commands._test.complete_greview('origin/main...refs/forge/pr/4')
+      local matches = commands._test.complete_review('origin/main...refs/forge/pr/4')
 
       assert.are.same({
         'origin/main...refs/forge/pr/42',
@@ -2805,7 +2805,7 @@ describe('commands', function()
         return { 'origin/main', 'feature/a', 'feature/b' }
       end)
 
-      local matches = commands._test.complete_greview('origin/main..feature/')
+      local matches = commands._test.complete_review('origin/main..feature/')
 
       assert.are.same({ 'origin/main..feature/a', 'origin/main..feature/b' }, matches)
     end)
@@ -2871,7 +2871,7 @@ describe('commands', function()
     end)
   end)
 
-  describe('greview', function()
+  describe('review', function()
     it('reports a missing base ref before rendering', function()
       local called_diff = false
       local notifications = capture_notifications()
@@ -2889,7 +2889,7 @@ describe('commands', function()
         return {}
       end)
 
-      local bufnr = commands.greview({
+      local bufnr = commands.review({
         base = 'missing/ref',
         repo = '/tmp/repo',
       })
@@ -2899,7 +2899,7 @@ describe('commands', function()
       assert.are.equal(vim.log.levels.ERROR, notifications[#notifications].level)
       assert.is_true(
         notifications[#notifications].message:find(
-          'Greview base ref not found: missing/ref (spec: missing/ref)',
+          'review base ref not found: missing/ref (spec: missing/ref)',
           1,
           true
         ) ~= nil
@@ -2925,7 +2925,7 @@ describe('commands', function()
         return {}
       end)
 
-      local bufnr = commands.greview({
+      local bufnr = commands.review({
         base = 'HEAD',
         target = 'missing/target',
         mode = 'merge-base',
@@ -2938,7 +2938,7 @@ describe('commands', function()
       assert.are.equal(vim.log.levels.ERROR, notifications[#notifications].level)
       assert.is_true(
         notifications[#notifications].message:find(
-          'Greview target ref not found: missing/target (spec: HEAD...missing/target)',
+          'review target ref not found: missing/target (spec: HEAD...missing/target)',
           1,
           true
         ) ~= nil
@@ -2961,7 +2961,7 @@ describe('commands', function()
         return {}
       end)
 
-      local bufnr = commands.greview({
+      local bufnr = commands.review({
         base = 'HEAD',
         target = 'other',
         mode = 'merge-base',
@@ -2973,7 +2973,7 @@ describe('commands', function()
       assert.are.equal(vim.log.levels.ERROR, notifications[#notifications].level)
       assert.is_true(
         notifications[#notifications].message:find(
-          'Greview merge base not found for spec: HEAD...other',
+          'review merge base not found for spec: HEAD...other',
           1,
           true
         ) ~= nil
@@ -3008,7 +3008,7 @@ describe('commands', function()
       end)
       mock_runtime_attach(function() end)
 
-      local bufnr = commands.greview({
+      local bufnr = commands.review({
         base = 'origin/main',
         target = 'refs/forge/pr/42',
         mode = 'merge-base',
@@ -3063,7 +3063,7 @@ describe('commands', function()
 
       local repo = create_review_repo({ named_refs = true })
       local ok, bufnr = pcall(function()
-        return commands.greview({
+        return commands.review({
           base = repo.base,
           target = repo.target,
           mode = 'merge-base',
@@ -3089,7 +3089,7 @@ describe('commands', function()
       local repo = create_current_state_review_repo()
       mock_runtime_attach(function() end)
 
-      local bufnr = commands.greview({
+      local bufnr = commands.review({
         base = repo.base,
         repo = repo.repo_root,
       })
@@ -3121,13 +3121,13 @@ describe('commands', function()
       assert.are.equal('unstaged:lua/dup.lua', qf[5].user_data.diffs.key)
     end)
 
-    it('opens Greview stacked layout as a single generated review map with single rails', function()
+    it('opens review stacked layout as a single generated review map with single rails', function()
       local repo = create_current_state_review_repo()
       edit_file(repo.repo_root .. '/lua/branch.lua')
       mock_runtime_attach(function() end)
       mock_view_config({ prefix = true, change_bar = '▏', rail_separator = '|' })
 
-      local bufnr = commands.greview_command(('++layout=stacked %s'):format(repo.base))
+      local bufnr = commands.review_command(('++layout=stacked %s'):format(repo.base))
       assert.is_not_nil(bufnr)
       table.insert(test_buffers, bufnr)
 
@@ -3244,13 +3244,13 @@ describe('commands', function()
       return repo_root
     end
 
-    it('opens Greview layout split as exactly two visible surfaces', function()
+    it('opens review layout split as exactly two visible surfaces', function()
       local repo_root = create_repo()
       vim.fn.writefile({ 'line 1', 'line 2 changed' }, repo_root .. '/file.txt')
       edit_file(repo_root .. '/file.txt')
       mock_runtime_attach(function() end)
 
-      local left_buf = commands.greview_command('++layout=split HEAD')
+      local left_buf = commands.review_command('++layout=split HEAD')
       local panes = track_panes(left_buf)
 
       assert.are.equal(
@@ -3305,7 +3305,7 @@ describe('commands', function()
       local notifications = capture_notifications()
 
       local left_buf =
-        commands.greview_command('++layout=split HEAD', true, { warn_vertical_split = true })
+        commands.review_command('++layout=split HEAD', true, { warn_vertical_split = true })
       track_panes(left_buf)
 
       local warned = false
@@ -3322,7 +3322,7 @@ describe('commands', function()
       local repo = create_review_repo()
       mock_runtime_attach(function() end)
 
-      local review_buf = commands.greview({
+      local review_buf = commands.review({
         base = repo.base,
         target = repo.target,
         mode = 'direct',
@@ -3337,7 +3337,7 @@ describe('commands', function()
       local source_buf = edit_file(repo.repo_root .. '/lua/one.lua')
       local source_win = vim.api.nvim_get_current_win()
 
-      local left_buf = commands.greview_split({ bufnr = review_buf })
+      local left_buf = commands.review_split({ bufnr = review_buf })
       local panes = track_panes(left_buf)
 
       assert.are.equal(review_win, panes.left_win)
@@ -3352,7 +3352,7 @@ describe('commands', function()
       local notifications = capture_notifications()
       mock_runtime_attach(function() end)
 
-      local review_buf = commands.greview({
+      local review_buf = commands.review({
         base = repo.base,
         target = repo.target,
         mode = 'direct',
@@ -3365,20 +3365,17 @@ describe('commands', function()
       local source_buf = edit_file(repo.repo_root .. '/lua/one.lua')
       local source_win = vim.api.nvim_get_current_win()
 
-      local opened = commands.greview_split({ bufnr = review_buf })
+      local opened = commands.review_split({ bufnr = review_buf })
 
       assert.is_nil(opened)
       assert.are.equal(source_buf, vim.api.nvim_win_get_buf(source_win))
       assert.is_true(
-        notifications[#notifications].message:find(
-          'selected Greview buffer is not visible',
-          1,
-          true
-        ) ~= nil
+        notifications[#notifications].message:find('selected review buffer is not visible', 1, true)
+          ~= nil
       )
     end)
 
-    it('closes an existing Greview split workspace before opening another spec', function()
+    it('closes an existing review split workspace before opening another spec', function()
       local repo = create_review_repo()
       mock_repo_root(function()
         return repo.repo_root
@@ -3386,13 +3383,13 @@ describe('commands', function()
       mock_runtime_attach(function() end)
 
       local first =
-        commands.greview_command(('++layout=split %s..%s'):format(repo.base, repo.target))
+        commands.review_command(('++layout=split %s..%s'):format(repo.base, repo.target))
       local first_panes = track_panes(first)
       local first_left = first_panes.left_buf
       local first_right = first_panes.right_buf
 
       local second =
-        commands.greview_command(('++layout=split %s...%s'):format(repo.base, repo.target))
+        commands.review_command(('++layout=split %s...%s'):format(repo.base, repo.target))
       local second_panes = track_panes(second)
 
       assert.is_false(vim.api.nvim_buf_is_valid(first_left))
@@ -3409,7 +3406,7 @@ describe('commands', function()
       edit_file(repo_root .. '/zzz-changed.lua')
       mock_runtime_attach(function() end)
 
-      local left_buf = commands.greview_command('++layout=split mode-base..mode-topic')
+      local left_buf = commands.review_command('++layout=split mode-base..mode-topic')
       local panes = track_panes(left_buf)
 
       assert.are.same(
@@ -3429,7 +3426,7 @@ describe('commands', function()
       mock_runtime_attach(function() end)
 
       local function open_section(header, expected_spec)
-        local review_buf = commands.greview({
+        local review_buf = commands.review({
           base = repo.base,
           repo = repo.repo_root,
         })
@@ -3441,7 +3438,7 @@ describe('commands', function()
         assert.is_not_nil(line)
         vim.api.nvim_win_set_cursor(0, { line, 0 })
 
-        local left_buf = commands.greview_split({ bufnr = review_buf })
+        local left_buf = commands.review_split({ bufnr = review_buf })
         local panes = track_panes(left_buf)
         assert.are.same(expected_spec, vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec'))
         assert.are.same(expected_spec, vim.api.nvim_buf_get_var(panes.right_buf, 'diffs_spec'))
@@ -3463,7 +3460,7 @@ describe('commands', function()
       mock_runtime_attach(function() end)
 
       local left_buf =
-        commands.greview_command(('++layout=split %s..%s'):format(repo.base, repo.target))
+        commands.review_command(('++layout=split %s..%s'):format(repo.base, repo.target))
       local panes = track_panes(left_buf)
       assert.are.same(
         diffspec.rev_to_rev(repo.base, repo.target, 'lua/one.lua'),
@@ -3529,7 +3526,7 @@ describe('commands', function()
       mock_runtime_attach(function() end)
 
       local left_buf =
-        commands.greview_command(('++layout=split %s..%s'):format(repo.base, repo.target))
+        commands.review_command(('++layout=split %s..%s'):format(repo.base, repo.target))
       local panes = track_panes(left_buf)
       assert.are.equal('lua/one.lua', panes.state.selected_file)
 
@@ -3553,13 +3550,13 @@ describe('commands', function()
       assert.is_true(vim.api.nvim_buf_is_valid(panes.right_buf))
     end)
 
-    it('closes both Greview split surfaces from the generated diff buffer', function()
+    it('closes both review split surfaces from the generated diff buffer', function()
       local repo_root = create_repo()
       vim.fn.writefile({ 'line 1', 'line 2 changed' }, repo_root .. '/file.txt')
       edit_file(repo_root .. '/file.txt')
       mock_runtime_attach(function() end)
 
-      local left_buf = commands.greview_command('++layout=split HEAD')
+      local left_buf = commands.review_command('++layout=split HEAD')
       local panes = track_panes(left_buf)
 
       vim.api.nvim_set_current_win(panes.right_win)
@@ -3577,7 +3574,7 @@ describe('commands', function()
       write_binary_file(repo_root .. '/bin.dat', 'binary\\000new')
       mock_runtime_attach(function() end)
 
-      local bufnr = commands.greview({
+      local bufnr = commands.review({
         base = 'HEAD',
         repo = repo_root,
       })
@@ -3599,7 +3596,7 @@ describe('commands', function()
       local repo_root = create_conflicted_repo()
       mock_runtime_attach(function() end)
 
-      local bufnr = commands.greview({
+      local bufnr = commands.review({
         base = 'HEAD',
         repo = repo_root,
       })
@@ -3620,7 +3617,7 @@ describe('commands', function()
       local header_line = find_buffer_line(bufnr, '# Unstaged:')
       assert.is_not_nil(header_line)
       vim.api.nvim_win_set_cursor(0, { header_line, 0 })
-      local left_buf = commands.greview_split({ bufnr = bufnr })
+      local left_buf = commands.review_split({ bufnr = bufnr })
       local panes = track_panes(left_buf)
 
       assert.are.same(
@@ -3640,7 +3637,7 @@ describe('commands', function()
       edit_file(repo.repo_root .. '/lua/two.lua')
       mock_runtime_attach(function() end)
 
-      local left_buf = commands.greview_command(('++layout=split %s'):format(repo.base))
+      local left_buf = commands.review_command(('++layout=split %s'):format(repo.base))
       local panes = track_panes(left_buf)
 
       assert.are.same(
@@ -3659,7 +3656,7 @@ describe('commands', function()
       mock_runtime_attach(function() end)
 
       local left_buf =
-        commands.greview_command(('++layout=split %s...%s'):format(repo.base, repo.target))
+        commands.review_command(('++layout=split %s...%s'):format(repo.base, repo.target))
       local panes = track_panes(left_buf)
 
       assert.are.same(
@@ -3677,7 +3674,7 @@ describe('commands', function()
       local notifications = capture_notifications()
       mock_runtime_attach(function() end)
 
-      local bufnr = commands.greview({
+      local bufnr = commands.review({
         base = repo.base,
         target = repo.target,
         mode = 'direct',
@@ -3690,7 +3687,7 @@ describe('commands', function()
       assert.is_not_nil(mode_line)
       vim.api.nvim_win_set_cursor(0, { mode_line, 0 })
 
-      local opened = commands.greview_split({ bufnr = bufnr })
+      local opened = commands.review_split({ bufnr = bufnr })
 
       assert.is_nil(opened)
       assert.is_true(
@@ -3728,7 +3725,7 @@ describe('commands', function()
       end)
       mock_runtime_attach(function() end)
 
-      local bufnr = commands.greview({
+      local bufnr = commands.review({
         base = 'origin/main',
         target = 'refs/forge/pr/42',
         mode = 'merge-base',

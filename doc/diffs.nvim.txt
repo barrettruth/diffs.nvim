@@ -586,13 +586,13 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
 <
 
     Lua command helper: >lua
-        require('diffs.commands').greview({
+        require('diffs.commands').review({
           base = 'origin/main',
           target = 'refs/forge/pr/42',
           repo = '/path/to/repo',
         })
 
-        require('diffs.commands').greview_split()
+        require('diffs.commands').review_split()
 <
     Fields: ~
         {base}    (string, optional) Base ref for the review. Defaults to the
@@ -607,7 +607,7 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
         {vertical} (boolean, optional) Open the review in a vertical split.
 
     Utilities: ~
-        `require('diffs.commands').greview_split()` opens the currently
+        `require('diffs.commands').review_split()` opens the currently
         selected |:Diff-review| file in the same paired side-by-side diff used
         by `:Diff review ++layout=split`. It uses the review buffer cursor,
         quickfix item, or loclist item as the file selection, and the review
@@ -619,30 +619,30 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
 ==============================================================================
 MAPPINGS                                                 *diffs.nvim-mappings*
 
-                                                         *<Plug>(diffs-gdiff)*
-<Plug>(diffs-gdiff)     Show index-to-worktree unified diff in a horizontal
+                                                         *<Plug>(diffs-diff)*
+<Plug>(diffs-diff)     Show index-to-worktree unified diff in a horizontal
                         split. Equivalent to |:Diff| with no arguments.
 
-                                                        *<Plug>(diffs-gvdiff)*
-<Plug>(diffs-gvdiff)    Show index-to-worktree unified diff in a vertical
+                                                        *<Plug>(diffs-diff-vertical)*
+<Plug>(diffs-diff-vertical)    Show index-to-worktree unified diff in a vertical
                         split. Equivalent to `:vertical Diff` with no
                         arguments.
 
-                                             *<Plug>(diffs-gdiff-open-source)*
-<Plug>(diffs-gdiff-open-source)
+                                             *<Plug>(diffs-diff-open-source)*
+<Plug>(diffs-diff-open-source)
                         Open the real worktree file at the current |:Diff|
                         hunk location. `diffs://` buffers map this to
                         <CR> by default.
 
-                                            *<Plug>(diffs-greview-open-split)*
-<Plug>(diffs-greview-open-split)
+                                            *<Plug>(diffs-review-open-split)*
+<Plug>(diffs-review-open-split)
                         Open the currently selected |:Diff-review| file as a
                         paired side-by-side diff: the old/removed endpoint on
                         the left, the new/added endpoint on the right.
 
 Example configuration: >lua
-    vim.keymap.set('n', '<leader>gd', '<Plug>(diffs-gdiff)')
-    vim.keymap.set('n', '<leader>gD', '<Plug>(diffs-gvdiff)')
+    vim.keymap.set('n', '<leader>gd', '<Plug>(diffs-diff)')
+    vim.keymap.set('n', '<leader>gD', '<Plug>(diffs-diff-vertical)')
 <
 
                                                  *<Plug>(diffs-conflict-ours)*

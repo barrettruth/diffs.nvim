@@ -55,7 +55,7 @@ function M.raw_hunks(bufnr)
 end
 
 ---@param bufnr integer
----@return diffs.GdiffHunk[]
+---@return diffs.DiffHunk[]
 function M.hunks(bufnr)
   local ok, parsed = M.raw_hunks(bufnr)
   if ok and type(parsed) == 'table' then
@@ -65,7 +65,7 @@ function M.hunks(bufnr)
 end
 
 ---@param bufnr integer
----@param hunks diffs.GdiffHunk[]
+---@param hunks diffs.DiffHunk[]
 function M.set_hunks(bufnr, hunks)
   vim.api.nvim_buf_set_var(bufnr, 'diffs_hunks', hunks)
 end
@@ -91,7 +91,7 @@ end
 ---@field path? string
 ---@field old_path? string
 ---@field section? "staged"|"unstaged"
----@field review? diffs.GreviewSpec
+---@field review? diffs.ReviewSpec
 ---@field working_path? string
 ---@field side? "left"|"right"
 ---@field filetype? string
@@ -232,7 +232,7 @@ function M.unmerged_source(repo_root, path, working_path)
 end
 
 ---@param repo_root string
----@param review diffs.GreviewSpec
+---@param review diffs.ReviewSpec
 ---@return diffs.GeneratedBufferSource
 function M.review_source(repo_root, review)
   return {

@@ -278,15 +278,15 @@ function M.file(diff_spec, repo_root, opts)
   local old_mode = file_mode(diff_spec.left, old_filepath)
   local new_mode = file_mode(diff_spec.right, new_filepath)
   if old_mode == '160000' or new_mode == '160000' then
-    return nil, 'Gdiff does not support submodule changes'
+    return nil, 'diff does not support submodule changes'
   end
 
   if has_renamed_or_copied_path(diff_spec, repo_root, path) then
-    return nil, 'Gdiff does not support rename or copy changes'
+    return nil, 'diff does not support rename or copy changes'
   end
 
   if has_binary_changes(diff_spec, repo_root, path) then
-    return nil, 'Gdiff does not support binary files'
+    return nil, 'diff does not support binary files'
   end
 
   local old_lines, old_err, old_missing = M.read_endpoint(diff_spec.left, old_filepath, {
@@ -306,7 +306,7 @@ function M.file(diff_spec, repo_root, opts)
   end
 
   if M.has_binary_lines(old_lines) or M.has_binary_lines(new_lines) then
-    return nil, 'Gdiff does not support binary files'
+    return nil, 'diff does not support binary files'
   end
 
   local diff_lines = M.unified_lines(old_lines, new_lines, old_path, new_path, {
@@ -316,7 +316,7 @@ function M.file(diff_spec, repo_root, opts)
     deleted_mode = old_mode,
   })
   if #diff_lines == 0 and has_raw_changes(diff_spec, repo_root, path) then
-    return nil, 'Gdiff does not support mode-only changes'
+    return nil, 'diff does not support mode-only changes'
   end
 
   return diff_lines, nil

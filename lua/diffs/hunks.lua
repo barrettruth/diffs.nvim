@@ -3,12 +3,12 @@ local M = {}
 local diffspec = require('diffs.spec')
 local notify = require('diffs.log').notify
 
----@class diffs.GdiffHunkRange
+---@class diffs.DiffHunkRange
 ---@field start integer
 ---@field count integer
 ---@field finish integer
 
----@class diffs.GdiffHunkLine
+---@class diffs.DiffHunkLine
 ---@field lnum integer
 ---@field kind "header"|"add"|"delete"|"context"|"meta"
 ---@field text string
@@ -18,14 +18,14 @@ local notify = require('diffs.log').notify
 ---@field source_lnum integer?
 ---@field hunk_index integer
 
----@class diffs.GdiffHunk
+---@class diffs.DiffHunk
 ---@field index integer
 ---@field file string?
 ---@field path string?
----@field old_range diffs.GdiffHunkRange
----@field new_range diffs.GdiffHunkRange
----@field buffer_range diffs.GdiffHunkRange
----@field file_header_range diffs.GdiffHunkRange?
+---@field old_range diffs.DiffHunkRange
+---@field new_range diffs.DiffHunkRange
+---@field buffer_range diffs.DiffHunkRange
+---@field file_header_range diffs.DiffHunkRange?
 ---@field file_header_lines string[]
 ---@field header string
 ---@field generated_key string?
@@ -38,7 +38,7 @@ local notify = require('diffs.log').notify
 ---@field actionable boolean
 ---@field mutation_target "index"|"worktree"|nil
 ---@field source_lnum integer
----@field lines diffs.GdiffHunkLine[]
+---@field lines diffs.DiffHunkLine[]
 
 ---@param value integer
 ---@return integer
@@ -48,7 +48,7 @@ end
 
 ---@param start integer
 ---@param count integer
----@return diffs.GdiffHunkRange
+---@return diffs.DiffHunkRange
 local function range(start, count)
   return {
     start = start,
@@ -67,7 +67,7 @@ local function parse_count(text)
 end
 
 ---@param line string
----@return diffs.GdiffHunkRange?, diffs.GdiffHunkRange?
+---@return diffs.DiffHunkRange?, diffs.DiffHunkRange?
 local function parse_header_ranges(line)
   local old_start, old_count, new_start, new_count =
     line:match('^@@ %-(%d+),?(%d*) %+(%d+),?(%d*) @@')
@@ -140,7 +140,7 @@ end
 
 ---@param diff_lines string[]
 ---@param diff_spec? diffs.DiffSpec
----@return diffs.GdiffHunk[]
+---@return diffs.DiffHunk[]
 function M.parse(diff_lines, diff_spec)
   local spec = normalize_spec(diff_spec)
   local hunks = {}
@@ -180,8 +180,8 @@ function M.parse(diff_lines, diff_spec)
     current_file_header_lines[#current_file_header_lines + 1] = line
   end
 
-  ---@param hunk diffs.GdiffHunk
-  ---@param line diffs.GdiffHunkLine
+  ---@param hunk diffs.DiffHunk
+  ---@param line diffs.DiffHunkLine
   local function add_line(hunk, line)
     hunk.lines[#hunk.lines + 1] = line
   end
@@ -303,7 +303,7 @@ function M.parse(diff_lines, diff_spec)
   return M.decorate_actionability(hunks, spec)
 end
 
----@param hunk diffs.GdiffHunk
+---@param hunk diffs.DiffHunk
 ---@param spec diffs.DiffSpec?
 ---@param target "index"|"worktree"|nil
 ---@param can_put boolean
@@ -323,9 +323,9 @@ local function decorate_hunk_actionability(hunk, spec, target, can_put, can_obta
   hunk.mutation_target = target
 end
 
----@param hunks diffs.GdiffHunk[]
+---@param hunks diffs.DiffHunk[]
 ---@param diff_spec? diffs.DiffSpec
----@return diffs.GdiffHunk[]
+---@return diffs.DiffHunk[]
 function M.decorate_actionability(hunks, diff_spec)
   local spec = normalize_spec(diff_spec)
   local target = spec and diffspec.mutation_target(spec) or nil
@@ -339,9 +339,9 @@ function M.decorate_actionability(hunks, diff_spec)
   return hunks
 end
 
----@param hunks diffs.GdiffHunk[]?
+---@param hunks diffs.DiffHunk[]?
 ---@param lnum integer
----@return diffs.GdiffHunk?
+---@return diffs.DiffHunk?
 function M.hunk_at_line(hunks, lnum)
   for _, hunk in ipairs(hunks or {}) do
     if lnum >= hunk.buffer_range.start and lnum <= hunk.buffer_range.finish then
@@ -351,9 +351,9 @@ function M.hunk_at_line(hunks, lnum)
   return nil
 end
 
----@param hunks diffs.GdiffHunk[]?
+---@param hunks diffs.DiffHunk[]?
 ---@param lnum integer
----@return diffs.GdiffHunkLine?
+---@return diffs.DiffHunkLine?
 function M.line_at(hunks, lnum)
   local hunk = M.hunk_at_line(hunks, lnum)
   if not hunk then
@@ -367,9 +367,9 @@ function M.line_at(hunks, lnum)
   return nil
 end
 
----@param hunks diffs.GdiffHunk[]?
+---@param hunks diffs.DiffHunk[]?
 ---@param lnum integer
----@return diffs.GdiffHunk?
+---@return diffs.DiffHunk?
 function M.next_hunk(hunks, lnum)
   for _, hunk in ipairs(hunks or {}) do
     if hunk.buffer_range.start > lnum then
@@ -379,9 +379,9 @@ function M.next_hunk(hunks, lnum)
   return nil
 end
 
----@param hunks diffs.GdiffHunk[]?
+---@param hunks diffs.DiffHunk[]?
 ---@param lnum integer
----@return diffs.GdiffHunk?
+---@return diffs.DiffHunk?
 function M.prev_hunk(hunks, lnum)
   for i = #(hunks or {}), 1, -1 do
     local hunk = hunks[i]
@@ -392,7 +392,7 @@ function M.prev_hunk(hunks, lnum)
   return nil
 end
 
----@param item diffs.GdiffHunk|diffs.GdiffHunkLine|nil
+---@param item diffs.DiffHunk|diffs.DiffHunkLine|nil
 ---@return { path: string, lnum: integer }?
 function M.source_line_for(item)
   if not item then
@@ -410,7 +410,7 @@ function M.source_line_for(item)
 end
 
 ---@param bufnr integer
----@return diffs.GdiffHunk[]
+---@return diffs.DiffHunk[]
 local function buffer_hunks(bufnr)
   local ok, parsed = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_hunks')
   if ok and type(parsed) == 'table' then
@@ -471,10 +471,10 @@ function M.source_at_cursor(bufnr)
   end
 
   if spec.right.kind == diffspec.endpoint_kind.index then
-    return nil, 'cannot open index-backed Gdiff hunk as a worktree file'
+    return nil, 'cannot open index-backed diff hunk as a worktree file'
   end
   if spec.right.kind ~= diffspec.endpoint_kind.worktree then
-    return nil, 'cannot open read-only tree-backed Gdiff hunk as a worktree file'
+    return nil, 'cannot open read-only tree-backed diff hunk as a worktree file'
   end
 
   local source = M.source_line_for(M.line_at(parsed, cursor_line)) or M.source_line_for(hunk)

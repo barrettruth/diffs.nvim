@@ -17,7 +17,7 @@ local FILLER = ''
 
 ---@param old_lines string[]
 ---@param new_lines string[]
----@param hunks diffs.GdiffHunk[]
+---@param hunks diffs.DiffHunk[]
 ---@return diffs.SplitAlignment
 function M.align(old_lines, new_lines, hunks)
   local left_lines, right_lines = {}, {}
