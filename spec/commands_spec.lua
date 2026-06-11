@@ -1595,6 +1595,52 @@ describe('commands', function()
       assert.is_false(vim.api.nvim_buf_is_valid(right_buf))
     end)
 
+    it('tears down the pair when a pane window is closed', function()
+      create_split_source()
+      vim.cmd('split')
+      commands.gdiff('++layout=split', false)
+
+      local right_buf = vim.api.nvim_get_current_buf()
+      local left_buf = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer')
+      table.insert(test_buffers, left_buf)
+      table.insert(test_buffers, right_buf)
+      local _, right_win = find_split_windows(left_buf, right_buf)
+
+      vim.api.nvim_win_close(right_win, false)
+      vim.wait(200, function()
+        return not vim.api.nvim_buf_is_valid(left_buf)
+      end)
+
+      assert.is_false(vim.api.nvim_buf_is_valid(left_buf))
+      assert.is_false(vim.api.nvim_buf_is_valid(right_buf))
+      for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.api.nvim_buf_is_valid(buf) then
+          assert.is_nil(vim.api.nvim_buf_get_name(buf):match('diffs://split:'))
+        end
+      end
+    end)
+
+    it('tears down the pair when :only is run on a pane', function()
+      create_split_source()
+      commands.gdiff('++layout=split', false)
+
+      local right_buf = vim.api.nvim_get_current_buf()
+      local left_buf = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer')
+      table.insert(test_buffers, left_buf)
+      table.insert(test_buffers, right_buf)
+      local left_win = find_split_windows(left_buf, right_buf)
+
+      vim.api.nvim_set_current_win(left_win)
+      vim.cmd('only')
+      vim.wait(200, function()
+        return not vim.api.nvim_buf_is_valid(right_buf)
+      end)
+
+      assert.is_false(vim.api.nvim_buf_is_valid(left_buf))
+      assert.is_false(vim.api.nvim_buf_is_valid(right_buf))
+      assert.is_true(#vim.api.nvim_tabpage_list_wins(0) >= 1)
+    end)
+
     it('closes paired split endpoint buffers with q and can reopen the same split', function()
       local source_buf = create_split_source()
 
