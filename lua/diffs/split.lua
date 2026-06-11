@@ -20,6 +20,9 @@ local cleanup_autocmds = {}
 local peer_buffers = {}
 ---@type table<integer, table<string, any>>
 local pair_window_options = {}
+---@type table<integer, integer>
+local split_windows = {}
+local win_closed_registered = false
 
 ---@class diffs.SplitPaneInfo
 ---@field rows diffs.SplitRow[]
@@ -504,7 +507,7 @@ local function ensure_pair_cleanup(bufnr)
       local peer = peer_buffers[bufnr] or split_peer(bufnr)
       cleanup_autocmds[bufnr] = nil
       peer_buffers[bufnr] = nil
-      if closing_buffers[bufnr] or not peer then
+      if closing_buffers[bufnr] or not peer or vim.v.exiting ~= vim.NIL then
         return
       end
       vim.schedule(function()
@@ -514,6 +517,41 @@ local function ensure_pair_cleanup(bufnr)
       end)
     end,
   })
+end
+
+local function register_win_closed()
+  if win_closed_registered then
+    return
+  end
+  win_closed_registered = true
+  vim.api.nvim_create_autocmd('WinClosed', {
+    callback = function(args)
+      local win = tonumber(args.match)
+      if not win then
+        return
+      end
+      local bufnr = split_windows[win]
+      split_windows[win] = nil
+      if not bufnr or vim.v.exiting ~= vim.NIL then
+        return
+      end
+      if closing_buffers[bufnr] or not vim.api.nvim_buf_is_valid(bufnr) then
+        return
+      end
+      vim.schedule(function()
+        if vim.api.nvim_buf_is_valid(bufnr) and not closing_buffers[bufnr] then
+          M.close_pair(bufnr)
+        end
+      end)
+    end,
+  })
+end
+
+---@param win integer
+---@param bufnr integer
+local function track_split_window(win, bufnr)
+  register_win_closed()
+  split_windows[win] = bufnr
 end
 
 ---@param left_buf integer
@@ -536,6 +574,11 @@ local function clear_pair_tracking(bufnr, keep_closing)
   end
   peer_buffers[bufnr] = nil
   pane_info[bufnr] = nil
+  for win, win_buf in pairs(split_windows) do
+    if win_buf == bufnr then
+      split_windows[win] = nil
+    end
+  end
   if not keep_closing then
     closing_buffers[bufnr] = nil
   end
@@ -928,6 +971,8 @@ function M.open(opts)
   vim.api.nvim_win_set_buf(left_win, left_buf)
   vim.api.nvim_win_set_buf(right_win, right_buf)
   set_peers(left_buf, right_buf)
+  track_split_window(left_win, left_buf)
+  track_split_window(right_win, right_buf)
 
   set_pair_window_options(left_win)
   set_pair_window_options(right_win)
@@ -1061,8 +1106,17 @@ function M.close_pair(bufnr)
     return false
   end
 
+  for buf in pairs(buffers) do
+    if closing_buffers[buf] then
+      return false
+    end
+  end
+
   local pair_wins, non_pair_wins = tab_windows_for_buffers(buffers)
 
+  for _, win in ipairs(pair_wins) do
+    split_windows[win] = nil
+  end
   for buf in pairs(buffers) do
     closing_buffers[buf] = true
   end
