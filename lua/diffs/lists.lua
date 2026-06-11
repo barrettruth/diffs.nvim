@@ -852,38 +852,37 @@ function M.set_loclist_for_buffer(bufnr, diff_lines, opts)
 end
 
 ---@param hunk diffs.GdiffHunk
----@param side "left"|"right"
+---@param anchors integer[]?
 ---@return integer
-local function split_hunk_lnum(hunk, side)
-  local range = side == 'left' and hunk.old_range or hunk.new_range
-  return math.max(1, range.start)
+local function split_anchor_lnum(hunk, anchors)
+  return (anchors and anchors[hunk.index]) or 1
 end
 
 ---@param hunk diffs.GdiffHunk
 ---@param side "left"|"right"
----@return "left"|"right", integer
-local function split_target(hunk, side)
+---@param left_buf integer
+---@param right_buf integer
+---@return integer
+local function split_target_buf(hunk, side, left_buf, right_buf)
   local range = side == 'left' and hunk.old_range or hunk.new_range
   if range.count > 0 then
-    return side, split_hunk_lnum(hunk, side)
+    return side == 'left' and left_buf or right_buf
   end
-
-  local fallback_side = side == 'left' and 'right' or 'left'
-  return fallback_side, split_hunk_lnum(hunk, fallback_side)
+  return side == 'left' and right_buf or left_buf
 end
 
 ---@param left_buf integer
 ---@param right_buf integer
 ---@param hunks diffs.GdiffHunk[]
+---@param anchors integer[]?
 ---@param side "left"|"right"
 ---@return table[]
-local function split_loclist_items(left_buf, right_buf, hunks, side)
+local function split_loclist_items(left_buf, right_buf, hunks, anchors, side)
   local items = {}
   for i, hunk in ipairs(hunks) do
-    local target_side, target_lnum = split_target(hunk, side)
     items[#items + 1] = {
-      bufnr = target_side == 'left' and left_buf or right_buf,
-      lnum = target_lnum,
+      bufnr = split_target_buf(hunk, side, left_buf, right_buf),
+      lnum = split_anchor_lnum(hunk, anchors),
       col = 1,
       text = ('%s (hunk %d) %s'):format(hunk_file(hunk), i, hunk.header),
       user_data = {
@@ -899,7 +898,7 @@ local function split_loclist_items(left_buf, right_buf, hunks, side)
   return items
 end
 
----@param opts { left_buf: integer, right_buf: integer, hunks: diffs.GdiffHunk[] }
+---@param opts { left_buf: integer, right_buf: integer, hunks: diffs.GdiffHunk[], anchors: integer[]? }
 ---@return table[]
 local function split_quickfix_items(opts)
   local entries = file_entries(opts.hunks)
@@ -907,14 +906,15 @@ local function split_quickfix_items(opts)
   local items = {}
   for _, entry in ipairs(entries) do
     local first_hunk = entry.hunks[1]
-    local target_side = 'right'
-    local target_lnum = entry.lnum
+    local lnum = entry.lnum
+    local target_buf = opts.right_buf
     if first_hunk then
-      target_side, target_lnum = split_target(first_hunk, 'right')
+      lnum = split_anchor_lnum(first_hunk, opts.anchors)
+      target_buf = split_target_buf(first_hunk, 'right', opts.left_buf, opts.right_buf)
     end
     items[#items + 1] = {
-      bufnr = target_side == 'left' and opts.left_buf or opts.right_buf,
-      lnum = target_lnum,
+      bufnr = target_buf,
+      lnum = lnum,
       col = 1,
       text = entry.text,
       user_data = {
@@ -928,7 +928,7 @@ local function split_quickfix_items(opts)
   return items
 end
 
----@param opts { title: string, loclist_title?: string, left_buf: integer, right_buf: integer, left_win?: integer, right_win?: integer, hunks: diffs.GdiffHunk[], quickfix?: boolean }
+---@param opts { title: string, loclist_title?: string, left_buf: integer, right_buf: integer, left_win?: integer, right_win?: integer, hunks: diffs.GdiffHunk[], anchors?: integer[], quickfix?: boolean }
 function M.set_for_split_pair(opts)
   local title = opts.title
   local loclist_title = opts.loclist_title or (title .. ' hunks')
@@ -940,14 +940,14 @@ function M.set_for_split_pair(opts)
     set_loclist(
       win,
       loclist_title,
-      split_loclist_items(opts.left_buf, opts.right_buf, opts.hunks, 'left')
+      split_loclist_items(opts.left_buf, opts.right_buf, opts.hunks, opts.anchors, 'left')
     )
   end
   for _, win in ipairs(opts.right_win and { opts.right_win } or windows_for_buffer(opts.right_buf)) do
     set_loclist(
       win,
       loclist_title,
-      split_loclist_items(opts.left_buf, opts.right_buf, opts.hunks, 'right')
+      split_loclist_items(opts.left_buf, opts.right_buf, opts.hunks, opts.anchors, 'right')
     )
   end
 end
