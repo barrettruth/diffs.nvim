@@ -27,10 +27,10 @@ local split_intra_ns = vim.api.nvim_create_namespace('diffs_split_intra')
 local default_change_bar = '▏'
 
 local split_winhighlight = table.concat({
-  'DiffAdd:DiffsDiffAdd',
+  'DiffAdd:DiffsClear',
+  'DiffChange:DiffsClear',
+  'DiffText:DiffsClear',
   'DiffDelete:DiffsDiffDelete',
-  'DiffChange:DiffsDiffChange',
-  'DiffText:DiffsDiffChange',
 }, ',')
 
 ---@type fun(bufnr: integer)
@@ -148,24 +148,34 @@ end
 ---@param source diffs.SplitEndpointSource
 ---@param split_hunks? diffs.GdiffHunk[]
 ---@param change_bar? string
-local function set_split_change_bars(bufnr, source, split_hunks, change_bar)
+local function set_split_line_decorations(bufnr, source, split_hunks, change_bar)
   vim.api.nvim_buf_clear_namespace(bufnr, split_bar_ns, 0, -1)
+  local line_bg_priority = require('diffs.runtime').get_highlight_opts().highlights.priorities.line_bg
+  local side = source.side
+  local line_count = vim.api.nvim_buf_line_count(bufnr)
   for _, hunk in ipairs(split_hunks or {}) do
     for _, line in ipairs(hunk.lines or {}) do
-      local lnum
-      local hl_group
-      if source.side == 'left' and line.kind == 'delete' then
-        lnum = line.old_lnum
-        hl_group = 'DiffsDeleteBar'
-      elseif source.side == 'right' and line.kind == 'add' then
-        lnum = line.new_lnum
-        hl_group = 'DiffsAddBar'
+      local lnum, bar_hl, line_hl, number_hl
+      if side == 'left' and line.kind == 'delete' then
+        lnum, bar_hl, line_hl, number_hl =
+          line.old_lnum, 'DiffsDeleteBar', 'DiffsDelete', 'DiffsDeleteRailNr'
+      elseif side == 'right' and line.kind == 'add' then
+        lnum, bar_hl, line_hl, number_hl =
+          line.new_lnum, 'DiffsAddBar', 'DiffsAdd', 'DiffsAddRailNr'
       end
 
-      if lnum and lnum >= 1 and lnum <= vim.api.nvim_buf_line_count(bufnr) then
+      if lnum and lnum >= 1 and lnum <= line_count then
+        pcall(vim.api.nvim_buf_set_extmark, bufnr, split_bar_ns, lnum - 1, 0, {
+          end_row = lnum,
+          end_col = 0,
+          hl_group = line_hl,
+          hl_eol = true,
+          priority = line_bg_priority,
+        })
         pcall(vim.api.nvim_buf_set_extmark, bufnr, split_bar_ns, lnum - 1, 0, {
           sign_text = change_bar or default_change_bar,
-          sign_hl_group = hl_group,
+          sign_hl_group = bar_hl,
+          number_hl_group = number_hl,
           priority = 210,
         })
       end
@@ -313,7 +323,7 @@ local function create_buffer(source, lines, split_hunks, change_bar)
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
   vim.api.nvim_buf_set_name(bufnr, buffer_name(source))
   set_source_vars(bufnr, source, split_hunks)
-  set_split_change_bars(bufnr, source, split_hunks, change_bar)
+  set_split_line_decorations(bufnr, source, split_hunks, change_bar)
   set_split_intra(bufnr, source, split_hunks)
   set_buffer_options(bufnr, source.filetype)
   set_keymaps(bufnr)
@@ -342,7 +352,18 @@ local function remember_pair_window_options(win)
     foldcolumn = vim.api.nvim_get_option_value('foldcolumn', { win = win }),
     signcolumn = vim.api.nvim_get_option_value('signcolumn', { win = win }),
     winhighlight = vim.api.nvim_get_option_value('winhighlight', { win = win }),
+    number = vim.api.nvim_get_option_value('number', { win = win }),
+    relativenumber = vim.api.nvim_get_option_value('relativenumber', { win = win }),
+    numberwidth = vim.api.nvim_get_option_value('numberwidth', { win = win }),
+    colorcolumn = vim.api.nvim_get_option_value('colorcolumn', { win = win }),
   }
+end
+
+---@param win integer
+---@return integer
+local function rail_numberwidth(win)
+  local count = vim.api.nvim_buf_line_count(vim.api.nvim_win_get_buf(win))
+  return math.max(3, math.min(20, #tostring(count) + 1))
 end
 
 ---@param win integer
@@ -350,6 +371,10 @@ local function set_pair_window_options(win)
   vim.api.nvim_set_option_value('scrollbind', true, { win = win })
   vim.api.nvim_set_option_value('cursorbind', true, { win = win })
   vim.api.nvim_set_option_value('signcolumn', 'yes:1', { win = win })
+  vim.api.nvim_set_option_value('number', true, { win = win })
+  vim.api.nvim_set_option_value('relativenumber', false, { win = win })
+  vim.api.nvim_set_option_value('numberwidth', rail_numberwidth(win), { win = win })
+  vim.api.nvim_set_option_value('colorcolumn', '', { win = win })
   vim.api.nvim_set_option_value('winhighlight', split_winhighlight, { win = win })
   disable_diff_folds(win)
 end
@@ -370,6 +395,10 @@ local function clear_pair_window_options(win)
   pcall(vim.api.nvim_set_option_value, 'diff', false, { win = win })
   pcall(vim.api.nvim_set_option_value, 'foldenable', true, { win = win })
   pcall(vim.api.nvim_set_option_value, 'winhighlight', '', { win = win })
+  pcall(vim.api.nvim_set_option_value, 'number', false, { win = win })
+  pcall(vim.api.nvim_set_option_value, 'relativenumber', false, { win = win })
+  pcall(vim.api.nvim_set_option_value, 'numberwidth', 4, { win = win })
+  pcall(vim.api.nvim_set_option_value, 'colorcolumn', '', { win = win })
 end
 
 ---@param win integer
@@ -753,7 +782,7 @@ local function apply_buffer_lines(bufnr, source, lines, split_hunks, change_bar)
   vim.api.nvim_set_option_value('modifiable', true, { buf = bufnr })
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
   set_source_vars(bufnr, source, split_hunks)
-  set_split_change_bars(bufnr, source, split_hunks, change_bar)
+  set_split_line_decorations(bufnr, source, split_hunks, change_bar)
   set_split_intra(bufnr, source, split_hunks)
   set_buffer_options(bufnr, source.filetype)
   set_keymaps(bufnr)

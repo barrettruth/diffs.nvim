@@ -1261,13 +1261,95 @@ describe('commands', function()
       assert.is_true(
         vim.api
           .nvim_get_option_value('winhighlight', { win = left_win })
-          :find('DiffText:DiffsDiffChange', 1, true) ~= nil
+          :find('DiffText:DiffsClear', 1, true) ~= nil
       )
       assert.is_true(
         vim.api
           .nvim_get_option_value('winhighlight', { win = right_win })
-          :find('DiffText:DiffsDiffChange', 1, true) ~= nil
+          :find('DiffText:DiffsClear', 1, true) ~= nil
       )
+    end)
+
+    it('paints a continuous line background and rail number on changed split lines', function()
+      mock_view_config({ prefix = true, change_bar = '┃', rail_separator = '│' })
+      create_split_source({
+        index_lines = { 'function f()', '  return 111', '  log()', 'end' },
+        worktree_lines = { 'function f()', '  return 222', '  log()', 'end' },
+      })
+      commands.gdiff('++layout=split', false)
+
+      local right_buf = vim.api.nvim_get_current_buf()
+      local left_buf = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer')
+      table.insert(test_buffers, left_buf)
+      table.insert(test_buffers, right_buf)
+      local left_win, right_win = find_split_windows(left_buf, right_buf)
+
+      local bar_ns = vim.api.nvim_get_namespaces().diffs_split_change_bar
+      local function details_at(bufnr, row)
+        local found = {}
+        for _, mark in
+          ipairs(vim.api.nvim_buf_get_extmarks(bufnr, bar_ns, 0, -1, { details = true }))
+        do
+          if mark[2] == row then
+            found[#found + 1] = mark[4]
+          end
+        end
+        return found
+      end
+      local function has(marks, key, value)
+        for _, d in ipairs(marks) do
+          if d[key] == value then
+            return true
+          end
+        end
+        return false
+      end
+
+      local left_changed = details_at(left_buf, 1)
+      assert.is_true(has(left_changed, 'hl_group', 'DiffsDelete'))
+      assert.is_true(has(left_changed, 'hl_eol', true))
+      assert.is_true(has(left_changed, 'number_hl_group', 'DiffsDeleteRailNr'))
+
+      local right_changed = details_at(right_buf, 1)
+      assert.is_true(has(right_changed, 'hl_group', 'DiffsAdd'))
+      assert.is_true(has(right_changed, 'hl_eol', true))
+      assert.is_true(has(right_changed, 'number_hl_group', 'DiffsAddRailNr'))
+
+      assert.are.equal(0, #details_at(left_buf, 0))
+      assert.are.equal(0, #details_at(right_buf, 0))
+
+      assert.is_true(vim.api.nvim_get_option_value('number', { win = left_win }))
+      assert.is_true(vim.api.nvim_get_option_value('number', { win = right_win }))
+    end)
+
+    it('decorates the added side and leaves the empty side bare for a pure-add file', function()
+      mock_view_config({ prefix = true, change_bar = '┃', rail_separator = '│' })
+      create_split_source({
+        index_lines = {},
+        worktree_lines = { 'local M = {}', 'return M' },
+      })
+      commands.gdiff('++layout=split', false)
+
+      local right_buf = vim.api.nvim_get_current_buf()
+      local left_buf = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer')
+      table.insert(test_buffers, left_buf)
+      table.insert(test_buffers, right_buf)
+
+      local bar_ns = vim.api.nvim_get_namespaces().diffs_split_change_bar
+      local function line_bg_count(bufnr)
+        local n = 0
+        for _, mark in
+          ipairs(vim.api.nvim_buf_get_extmarks(bufnr, bar_ns, 0, -1, { details = true }))
+        do
+          if mark[4].hl_group == 'DiffsAdd' or mark[4].hl_group == 'DiffsDelete' then
+            n = n + 1
+          end
+        end
+        return n
+      end
+
+      assert.are.equal(2, line_bg_count(right_buf))
+      assert.are.equal(0, line_bg_count(left_buf))
     end)
 
     it('skips the intra overlay when highlights.intra is disabled', function()
@@ -1308,12 +1390,12 @@ describe('commands', function()
       assert.is_true(
         vim.api
           .nvim_get_option_value('winhighlight', { win = left_win })
-          :find('DiffText:DiffsDiffChange', 1, true) ~= nil
+          :find('DiffText:DiffsClear', 1, true) ~= nil
       )
       assert.is_true(
         vim.api
           .nvim_get_option_value('winhighlight', { win = right_win })
-          :find('DiffText:DiffsDiffChange', 1, true) ~= nil
+          :find('DiffText:DiffsClear', 1, true) ~= nil
       )
     end)
 
