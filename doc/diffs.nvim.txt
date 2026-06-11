@@ -513,13 +513,10 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     windows: the old/removed endpoint on the left, the new/added endpoint on the
     right. Endpoint buffers are read-only `diffs://` views; edits happen in
     real source buffers opened from the view. Native `&diff` aligns rows and the
-    windows are scroll- and cursor-bound, but diff folds are disabled. Native
-    diff coloring is suppressed; the panes are painted with the same palette as
-    generated buffers, so each changed line gets a continuous background across
-    its gutter (change bar, line-number rail) and text, plus the intra-line
-    word-diff highlighting that honors `highlights.intra` (including the
-    `vscode` algorithm). Each pane shows its own side's line numbers. A custom
-    `statuscolumn` that paints its own background is left as-is.
+    windows are scroll- and cursor-bound, but diff folds are disabled. Changed
+    regions within a line carry the same intra-line word-diff highlighting as
+    generated buffers, honoring `highlights.intra` (including the `vscode`
+    algorithm).
 
     `q` closes the pair. `:edit` refreshes the same comparison. `]c`/`[c`
     navigate hunks from either side. `<CR>` opens a real worktree file only when
