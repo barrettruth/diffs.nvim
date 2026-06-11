@@ -33,7 +33,7 @@ local pane_info = {}
 local split_line_ns = vim.api.nvim_create_namespace('diffs_split_line')
 local split_intra_ns = vim.api.nvim_create_namespace('diffs_split_intra')
 local default_change_bar = '▏'
-local split_statuscolumn = "%{%v:lua.require'diffs.split'.statuscolumn()%}"
+local split_statuscolumn = "%!v:lua.require'diffs.split'.statuscolumn()"
 
 ---@class diffs.SplitReuseWins
 ---@field left integer
@@ -155,7 +155,7 @@ local function rail_segment(info, lnum)
   if not row or row.kind == 'filler' then
     return '%#DiffsRail#' .. string.rep(' ', width + 2)
   end
-  local number = row.old_lnum or row.new_lnum
+  local number = info.side == 'left' and row.old_lnum or row.new_lnum
   local numstr = number and ('%' .. width .. 'd'):format(number) or string.rep(' ', width)
   local changed = (info.side == 'left' and row.kind == 'delete')
     or (info.side == 'right' and row.kind == 'add')
@@ -186,7 +186,8 @@ function M.statuscolumn()
   if not info then
     return ''
   end
-  return rail_segment(info, vim.v.lnum)
+  local rendered_ok, rendered = pcall(rail_segment, info, vim.v.lnum)
+  return rendered_ok and rendered or ''
 end
 
 ---@param bufnr integer

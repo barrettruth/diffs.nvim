@@ -1303,6 +1303,39 @@ describe('commands', function()
       assert.is_true(vim.api.nvim_get_option_value('statuscolumn', { win = right_win }) ~= '')
     end)
 
+    it('renders real per-side line numbers through the statuscolumn rail', function()
+      mock_view_config({ prefix = true, change_bar = '┃', rail_separator = '│' })
+      create_split_source({
+        index_lines = { 'a', 'b', 'c', 'd' },
+        worktree_lines = { 'X', 'a', 'b', 'c', 'd' },
+      })
+      commands.gdiff('++layout=split', false)
+
+      local right_buf = vim.api.nvim_get_current_buf()
+      local left_buf = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer')
+      table.insert(test_buffers, left_buf)
+      table.insert(test_buffers, right_buf)
+      local left_win, right_win = find_split_windows(left_buf, right_buf)
+
+      local function rail(win, lnum)
+        local sc = vim.api.nvim_get_option_value('statuscolumn', { win = win })
+        return vim.api.nvim_eval_statusline(
+          sc,
+          { winid = win, use_statuscol_lnum = lnum, highlights = false }
+        ).str
+      end
+
+      assert.are.equal(
+        vim.api.nvim_buf_line_count(left_buf),
+        vim.api.nvim_buf_line_count(right_buf)
+      )
+      assert.is_true(#rail(right_win, 1) > 0)
+      assert.is_true(rail(right_win, 1):find('1', 1, true) ~= nil)
+      assert.is_true(rail(left_win, 2):find('1', 1, true) ~= nil)
+      assert.is_true(rail(right_win, 2):find('2', 1, true) ~= nil)
+      assert.is_true(rail(right_win, 2):find('1', 1, true) == nil)
+    end)
+
     it('warns and still opens the split when :vertical Diff ++layout=split is used', function()
       local notifications = capture_notifications()
       local saved_splitright = vim.o.splitright
