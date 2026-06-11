@@ -21,10 +21,12 @@ describe('split_align.align', function()
   it('keeps both panes equal length and weaves unchanged context whole-file', function()
     local old_lines = { 'a', 'OLD', 'c' }
     local new_lines = { 'a', 'NEW', 'c' }
-    local hunks = { hunk(1, 2, 2, {
-      { kind = 'delete', old_lnum = 2 },
-      { kind = 'add', new_lnum = 2 },
-    }) }
+    local hunks = {
+      hunk(1, 2, 2, {
+        { kind = 'delete', old_lnum = 2 },
+        { kind = 'add', new_lnum = 2 },
+      }),
+    }
 
     local r = align.align(old_lines, new_lines, hunks)
     assert.are.same({ 'a', 'OLD', 'c' }, r.left_lines)
@@ -40,13 +42,15 @@ describe('split_align.align', function()
   it('top-aligns an unequal change and pads the shorter side with fillers', function()
     local old_lines = { 'a', 'O1', 'O2', 'd' }
     local new_lines = { 'a', 'N1', 'N2', 'N3', 'd' }
-    local hunks = { hunk(1, 2, 2, {
-      { kind = 'delete', old_lnum = 2 },
-      { kind = 'delete', old_lnum = 3 },
-      { kind = 'add', new_lnum = 2 },
-      { kind = 'add', new_lnum = 3 },
-      { kind = 'add', new_lnum = 4 },
-    }) }
+    local hunks = {
+      hunk(1, 2, 2, {
+        { kind = 'delete', old_lnum = 2 },
+        { kind = 'delete', old_lnum = 3 },
+        { kind = 'add', new_lnum = 2 },
+        { kind = 'add', new_lnum = 3 },
+        { kind = 'add', new_lnum = 4 },
+      }),
+    }
 
     local r = align.align(old_lines, new_lines, hunks)
     assert.are.same({ 'a', 'O1', 'O2', '', 'd' }, r.left_lines)
@@ -57,10 +61,16 @@ describe('split_align.align', function()
   end)
 
   it('handles a pure-add file as all fillers on the left', function()
-    local r = align.align({}, { 'x', 'y' }, { hunk(1, 1, 1, {
-      { kind = 'add', new_lnum = 1 },
-      { kind = 'add', new_lnum = 2 },
-    }) })
+    local r = align.align(
+      {},
+      { 'x', 'y' },
+      {
+        hunk(1, 1, 1, {
+          { kind = 'add', new_lnum = 1 },
+          { kind = 'add', new_lnum = 2 },
+        }),
+      }
+    )
     assert.are.same({ '', '' }, r.left_lines)
     assert.are.same({ 'x', 'y' }, r.right_lines)
     assert.are.same({ 'filler', 'filler' }, kinds(r.left_rows))
@@ -68,10 +78,16 @@ describe('split_align.align', function()
   end)
 
   it('handles a pure-delete file as all fillers on the right', function()
-    local r = align.align({ 'x', 'y' }, {}, { hunk(1, 1, 1, {
-      { kind = 'delete', old_lnum = 1 },
-      { kind = 'delete', old_lnum = 2 },
-    }) })
+    local r = align.align(
+      { 'x', 'y' },
+      {},
+      {
+        hunk(1, 1, 1, {
+          { kind = 'delete', old_lnum = 1 },
+          { kind = 'delete', old_lnum = 2 },
+        }),
+      }
+    )
     assert.are.same({ 'x', 'y' }, r.left_lines)
     assert.are.same({ '', '' }, r.right_lines)
     assert.are.same({ 'delete', 'delete' }, kinds(r.left_rows))

@@ -1259,7 +1259,9 @@ describe('commands', function()
 
       local line_ns = vim.api.nvim_get_namespaces().diffs_split_line
       assert.is_true(#vim.api.nvim_buf_get_extmarks(left_buf, line_ns, { 1, 0 }, { 1, -1 }, {}) > 0)
-      assert.is_true(#vim.api.nvim_buf_get_extmarks(right_buf, line_ns, { 1, 0 }, { 1, -1 }, {}) > 0)
+      assert.is_true(
+        #vim.api.nvim_buf_get_extmarks(right_buf, line_ns, { 1, 0 }, { 1, -1 }, {}) > 0
+      )
     end)
 
     it('skips the intra overlay when highlights.intra is disabled', function()

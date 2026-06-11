@@ -32,17 +32,22 @@ function M.align(old_lines, new_lines, hunks)
   end
 
   local function push_context(old_lnum, new_lnum, hunk_index)
-    push(old_lines[old_lnum] or '', {
-      kind = 'context',
-      old_lnum = old_lnum,
-      new_lnum = new_lnum,
-      hunk_index = hunk_index,
-    }, new_lines[new_lnum] or '', {
-      kind = 'context',
-      old_lnum = old_lnum,
-      new_lnum = new_lnum,
-      hunk_index = hunk_index,
-    })
+    push(
+      old_lines[old_lnum] or '',
+      {
+        kind = 'context',
+        old_lnum = old_lnum,
+        new_lnum = new_lnum,
+        hunk_index = hunk_index,
+      },
+      new_lines[new_lnum] or '',
+      {
+        kind = 'context',
+        old_lnum = old_lnum,
+        new_lnum = new_lnum,
+        hunk_index = hunk_index,
+      }
+    )
   end
 
   local function flush_change(dels, adds, hunk_index)
