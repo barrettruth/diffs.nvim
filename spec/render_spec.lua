@@ -244,7 +244,7 @@ describe('diffs.render', function()
     local lines, err = render.file(diffspec.head_to_index('renamed.txt'), repo_root)
 
     assert.is_nil(lines)
-    assert.are.equal('Gdiff does not support rename or copy changes', err)
+    assert.are.equal('diff does not support rename or copy changes', err)
   end)
 
   it('rejects mode-only changes because there are no text hunks to apply', function()
@@ -254,7 +254,7 @@ describe('diffs.render', function()
     local lines, err = render.file(diffspec.index_to_worktree('file.txt'), repo_root)
 
     assert.is_nil(lines)
-    assert.are.equal('Gdiff does not support mode-only changes', err)
+    assert.are.equal('diff does not support mode-only changes', err)
   end)
 
   it('rejects binary files before treating bytes as text hunks', function()
@@ -267,7 +267,7 @@ describe('diffs.render', function()
     local lines, err = render.file(diffspec.index_to_worktree('bin.dat'), repo_root)
 
     assert.is_nil(lines)
-    assert.are.equal('Gdiff does not support binary files', err)
+    assert.are.equal('diff does not support binary files', err)
   end)
 
   it('rejects submodule gitlinks before rendering pseudo text hunks', function()
@@ -282,6 +282,6 @@ describe('diffs.render', function()
     local lines, err = render.file(diffspec.head_to_index('submodule'), repo_root)
 
     assert.is_nil(lines)
-    assert.are.equal('Gdiff does not support submodule changes', err)
+    assert.are.equal('diff does not support submodule changes', err)
   end)
 end)

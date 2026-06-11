@@ -1,13 +1,13 @@
 require('spec.helpers')
 
+local diffargs = require('diffs.diffargs')
 local diffspec = require('diffs.spec')
-local gdiff = require('diffs.gdiff')
 
-describe('diffs.gdiff', function()
+describe('diffs.diffargs', function()
   local path = 'lua/foo.lua'
 
   local function parse(args, current)
-    local result, err = gdiff.parse(args, {
+    local result, err = diffargs.parse(args, {
       path = path,
       current = current or diffspec.worktree(),
     })
@@ -15,7 +15,7 @@ describe('diffs.gdiff', function()
     return result
   end
 
-  it('maps default worktree :Gdiff to index -> worktree', function()
+  it('maps default worktree :Diff to index -> worktree', function()
     local result = parse(nil)
 
     assert.are.same(diffspec.index_to_worktree(path), result.spec)
@@ -93,35 +93,35 @@ describe('diffs.gdiff', function()
   end)
 
   it('rejects repeated layout options', function()
-    local result, err = gdiff.parse('++layout=split ++layout=unified HEAD', { path = path })
+    local result, err = diffargs.parse('++layout=split ++layout=unified HEAD', { path = path })
 
     assert.is_nil(result)
     assert.are.equal('repeated ++layout option', err)
   end)
 
   it('rejects unsupported layouts', function()
-    local result, err = gdiff.parse('++layout=tiled HEAD', { path = path })
+    local result, err = diffargs.parse('++layout=tiled HEAD', { path = path })
 
     assert.is_nil(result)
     assert.are.equal('unsupported layout tiled', err)
   end)
 
   it('rejects unknown ++ options', function()
-    local result, err = gdiff.parse('++bogus HEAD', { path = path })
+    local result, err = diffargs.parse('++bogus HEAD', { path = path })
 
     assert.is_nil(result)
     assert.are.equal('unknown option ++bogus', err)
   end)
 
   it('rejects --staged as an unsupported flag', function()
-    local result, err = gdiff.parse('--staged', { path = path })
+    local result, err = diffargs.parse('--staged', { path = path })
 
     assert.is_nil(result)
     assert.are.equal('unsupported option --staged', err)
   end)
 
   it('rejects multiple objects', function()
-    local result, err = gdiff.parse('HEAD :0:%', { path = path })
+    local result, err = diffargs.parse('HEAD :0:%', { path = path })
 
     assert.is_nil(result)
     assert.are.equal('expected at most one Fugitive object', err)
@@ -192,7 +192,7 @@ describe('diffs.gdiff', function()
 
   for _, case in ipairs(rejected) do
     it('rejects ' .. case.object, function()
-      local result, err = gdiff.parse(case.object, { path = path })
+      local result, err = diffargs.parse(case.object, { path = path })
 
       assert.is_nil(result)
       assert.are.equal(case.err, err)

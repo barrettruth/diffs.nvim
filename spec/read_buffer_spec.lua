@@ -838,7 +838,7 @@ describe('read_buffer', function()
       assert.are.equal(vim.log.levels.WARN, notification.level)
       assert.is_true(
         notification.message:find(
-          'Greview base ref not found: missing/ref (spec: missing/ref)',
+          'review base ref not found: missing/ref (spec: missing/ref)',
           1,
           true
         ) ~= nil
@@ -884,7 +884,7 @@ describe('read_buffer', function()
       assert.are.equal(vim.log.levels.WARN, notification.level)
       assert.is_true(
         notification.message:find(
-          'Greview base ref not found: missing/ref (spec: missing/ref)',
+          'review base ref not found: missing/ref (spec: missing/ref)',
           1,
           true
         ) ~= nil

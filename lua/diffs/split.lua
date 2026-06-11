@@ -121,7 +121,7 @@ end
 
 ---@param diff_lines string[]?
 ---@param spec diffs.DiffSpec
----@return diffs.GdiffHunk[]
+---@return diffs.DiffHunk[]
 local function split_hunks_for(diff_lines, spec)
   if not diff_lines then
     return {}
@@ -131,7 +131,7 @@ end
 
 ---@param bufnr integer
 ---@param source diffs.SplitEndpointSource
----@param split_hunks? diffs.GdiffHunk[]
+---@param split_hunks? diffs.DiffHunk[]
 local function set_source_vars(bufnr, source, split_hunks)
   generated.set_repo_root(bufnr, source.repo_root)
   generated.set_spec(bufnr, source.spec)
@@ -238,7 +238,7 @@ end
 
 ---@param bufnr integer
 ---@param info diffs.SplitPaneInfo
----@param hunks diffs.GdiffHunk[]
+---@param hunks diffs.DiffHunk[]
 local function set_split_intra(bufnr, info, hunks)
   vim.api.nvim_buf_clear_namespace(bufnr, split_intra_ns, 0, -1)
   if not hunks or #hunks == 0 then
@@ -267,7 +267,7 @@ local function set_split_intra(bufnr, info, hunks)
   for _, hunk in ipairs(hunks) do
     ---@type string[]
     local texts = {}
-    ---@type diffs.GdiffHunkLine[]
+    ---@type diffs.DiffHunkLine[]
     local refs = {}
     for _, line in ipairs(hunk.lines or {}) do
       if line.kind ~= 'header' then
@@ -381,7 +381,7 @@ end
 ---@param bufnr integer
 ---@param source diffs.SplitEndpointSource
 ---@param info diffs.SplitPaneInfo
----@param hunks diffs.GdiffHunk[]
+---@param hunks diffs.DiffHunk[]
 local function paint_pane(bufnr, source, info, hunks)
   pane_info[bufnr] = info
   set_source_vars(bufnr, source, hunks)
@@ -392,7 +392,7 @@ end
 ---@param source diffs.SplitEndpointSource
 ---@param lines string[]
 ---@param info diffs.SplitPaneInfo
----@param hunks diffs.GdiffHunk[]
+---@param hunks diffs.DiffHunk[]
 ---@return integer
 local function create_buffer(source, lines, info, hunks)
   local bufnr = vim.api.nvim_create_buf(false, true)
@@ -722,7 +722,7 @@ end
 ---@param source diffs.SplitEndpointSource
 ---@param lines string[]
 ---@param info diffs.SplitPaneInfo
----@param hunks diffs.GdiffHunk[]
+---@param hunks diffs.DiffHunk[]
 local function apply_buffer_lines(bufnr, source, lines, info, hunks)
   vim.api.nvim_set_option_value('modifiable', true, { buf = bufnr })
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
@@ -880,7 +880,7 @@ end
 
 ---@param old_lines string[]
 ---@param new_lines string[]
----@param hunks diffs.GdiffHunk[]
+---@param hunks diffs.DiffHunk[]
 ---@param change_bar? string
 ---@return diffs.SplitAlignment, diffs.SplitPaneInfo, diffs.SplitPaneInfo
 local function build_pane_infos(old_lines, new_lines, hunks, change_bar)

@@ -48,7 +48,7 @@ local function format_lnum(value, width)
   return string.format('%' .. width .. 'd', value)
 end
 
----@param line diffs.GdiffHunkLine?
+---@param line diffs.DiffHunkLine?
 ---@return integer?
 local function old_lnum(line)
   if line and (line.kind == 'context' or line.kind == 'delete') then
@@ -57,7 +57,7 @@ local function old_lnum(line)
   return nil
 end
 
----@param line diffs.GdiffHunkLine?
+---@param line diffs.DiffHunkLine?
 ---@return integer?
 local function new_lnum(line)
   if line and (line.kind == 'context' or line.kind == 'add') then
@@ -66,7 +66,7 @@ local function new_lnum(line)
   return nil
 end
 
----@param line diffs.GdiffHunkLine?
+---@param line diffs.DiffHunkLine?
 ---@return integer?
 local function single_lnum(line)
   if not line then
@@ -81,7 +81,7 @@ local function single_lnum(line)
   return nil
 end
 
----@param line diffs.GdiffHunkLine?
+---@param line diffs.DiffHunkLine?
 ---@param text string
 ---@return boolean
 local function is_empty_context_line(line, text)
@@ -118,7 +118,7 @@ local function has_rail_number(line, prefix_width, separator_width)
 end
 
 ---@param lines string[]
----@return table<integer, diffs.GdiffHunkLine>, integer
+---@return table<integer, diffs.DiffHunkLine>, integer
 local function collect_lines(lines)
   local by_lnum = {}
   local max_lnum = 0

@@ -45,7 +45,7 @@ end
 ---@param value any
 ---@return boolean
 function M.is_enabled(value)
-  return value == true or type(value) == 'table'
+  return value == true
 end
 
 ---@param opts table

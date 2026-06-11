@@ -2,8 +2,8 @@ local M = {}
 
 local actions = require('diffs.actions')
 local content = require('diffs.content')
+local diff_parser = require('diffs.diffargs')
 local diffspec = require('diffs.spec')
-local gdiff_parser = require('diffs.gdiff')
 local generated = require('diffs.generated')
 local git = require('diffs.git')
 local hunk_model = require('diffs.hunks')
@@ -34,7 +34,7 @@ local hunk_keymap_autocmds = {}
 ---@field right_buf integer
 ---@field left_win integer
 ---@field right_win integer
----@field review diffs.GreviewSpec
+---@field review diffs.ReviewSpec
 ---@field repo_root string
 ---@field display string
 ---@field review_lines string[]
@@ -178,26 +178,26 @@ function M.setup_diff_buf(bufnr)
       if actions.obtain_hunk(bufnr) then
         M.read_buffer(bufnr)
       end
-    end, 'Unstage Gdiff hunk')
+    end, 'Unstage diff hunk')
     set_hunk_keymap(bufnr, 'x', 'do', function()
       local range_start, range_finish = visual_range(bufnr)
       if actions.obtain_range(bufnr, range_start, range_finish) then
         M.read_buffer(bufnr)
       end
-    end, 'Unstage selected Gdiff lines')
+    end, 'Unstage selected diff lines')
   end
   if can_put then
     set_hunk_keymap(bufnr, 'n', 'dp', function()
       if actions.put_hunk(bufnr) then
         M.read_buffer(bufnr)
       end
-    end, 'Stage Gdiff hunk')
+    end, 'Stage diff hunk')
     set_hunk_keymap(bufnr, 'x', 'dp', function()
       local range_start, range_finish = visual_range(bufnr)
       if actions.put_range(bufnr, range_start, range_finish) then
         M.read_buffer(bufnr)
       end
-    end, 'Stage selected Gdiff lines')
+    end, 'Stage selected diff lines')
   end
 
   ensure_hunk_keymap_cleanup(bufnr)
@@ -235,7 +235,7 @@ end
 
 ---@param diff_spec diffs.DiffSpec
 ---@return string
-local function gdiff_buffer_label(diff_spec)
+local function diff_buffer_label(diff_spec)
   diff_spec = diffspec.new(diff_spec)
   local left = diff_spec.left
   local right = diff_spec.right
@@ -556,11 +556,11 @@ local function file_pair_label(diff_label, rel_path, old_rel_path)
   return diff_label .. ' rename/copy ' .. old_rel_path .. ' -> ' .. rel_path
 end
 
----@param spec? diffs.GreviewSpec
+---@param spec? diffs.ReviewSpec
 ---@param opts? diffs.ReviewDepsOpts
 ---@return integer?
-function M.greview(spec, opts)
-  return review.greview(spec, review_deps(opts))
+function M.review(spec, opts)
+  return review.open(spec, review_deps(opts))
 end
 
 ---@param buf integer
@@ -585,26 +585,6 @@ local function rail_style_for_layout(layout)
   return 'dual'
 end
 
-local legacy_command_replacements = {
-  Gdiff = ':Diff',
-  Gvdiff = ':vertical Diff',
-  Ghdiff = ':Diff',
-  Greview = ':Diff review',
-}
-
----@param command "Gdiff"|"Gvdiff"|"Ghdiff"|"Greview"
-local function warn_legacy_command(command)
-  notify(
-    ':'
-      .. command
-      .. ' is deprecated, use '
-      .. legacy_command_replacements[command]
-      .. ' instead.\n'
-      .. 'Feature will be removed in diffs.nvim 0.4.0. See :help diffs.nvim-deprecated-commands',
-    vim.log.levels.WARN
-  )
-end
-
 local function warn_vertical_split_ignored()
   notify(
     '++layout=split ignores the :vertical modifier; the split layout manages its own windows',
@@ -615,7 +595,7 @@ end
 -- Always-available object literals offered in completion. Merge-stage objects
 -- (`:1:%`/`:2:%`/`:3:%`) are valid only during a conflict, so they are accepted
 -- by the parser but not advertised here.
-local gdiff_objects = {
+local diff_objects = {
   ':',
   ':%',
   ':0:%',
@@ -624,10 +604,6 @@ local gdiff_objects = {
 
 local command_names = {
   Diff = true,
-  Gdiff = true,
-  Gvdiff = true,
-  Ghdiff = true,
-  Greview = true,
 }
 
 ---@param value string
@@ -652,8 +628,8 @@ end
 
 ---@param arglead string
 ---@return string[]
-local function complete_gdiff_object(arglead)
-  local matches = prefix_matches(gdiff_objects, arglead)
+local function complete_diff_object(arglead)
+  local matches = prefix_matches(diff_objects, arglead)
   for _, ref in ipairs(review.complete(arglead)) do
     if not ref:find('..', 1, true) then
       matches[#matches + 1] = ref
@@ -726,7 +702,7 @@ end
 ---@param cmdline? string
 ---@param cursorpos? integer
 ---@return string[]
-local function complete_gdiff_command(arglead, cmdline, cursorpos)
+local function complete_diff_args(arglead, cmdline, cursorpos)
   local context = completion_context(arglead, cmdline, cursorpos)
   if context.has_value then
     return {}
@@ -741,20 +717,8 @@ local function complete_gdiff_command(arglead, cmdline, cursorpos)
   if arglead == '' and not context.has_layout then
     vim.list_extend(matches, layout_options)
   end
-  vim.list_extend(matches, complete_gdiff_object(arglead))
+  vim.list_extend(matches, complete_diff_object(arglead))
   return matches
-end
-
----@param arglead string
----@param cmdline? string
----@param cursorpos? integer
----@return string[]
-local function complete_gdiff_split_command(arglead, cmdline, cursorpos)
-  local context = completion_context(arglead, cmdline, cursorpos)
-  if context.has_value or arglead:match('^%+%+') then
-    return {}
-  end
-  return complete_gdiff_object(arglead)
 end
 
 ---@param arglead string
@@ -784,14 +748,6 @@ end
 ---@param cmdline? string
 ---@param cursorpos? integer
 ---@return string[]
-local function complete_greview_command(arglead, cmdline, cursorpos)
-  return complete_review_args(arglead, completion_context(arglead, cmdline, cursorpos))
-end
-
----@param arglead string
----@param cmdline? string
----@param cursorpos? integer
----@return string[]
 local function complete_diff_command(arglead, cmdline, cursorpos)
   local args = command_arg_tokens(arglead, cmdline, cursorpos)
   if args[1] == 'review' then
@@ -801,18 +757,18 @@ local function complete_diff_command(arglead, cmdline, cursorpos)
   if #args == 0 and not arglead:match('^%+%+') and starts_with('review', arglead) then
     matches[#matches + 1] = 'review'
   end
-  vim.list_extend(matches, complete_gdiff_command(arglead, cmdline, cursorpos))
+  vim.list_extend(matches, complete_diff_args(arglead, cmdline, cursorpos))
   return matches
 end
 
----@type fun(spec?: diffs.GreviewSpec, opts?: { selection?: diffs.GeneratedFileSelection, replace_win?: integer }): integer?
+---@type fun(spec?: diffs.ReviewSpec, opts?: { selection?: diffs.GeneratedFileSelection, replace_win?: integer }): integer?
 local open_review_split
 
 ---@param args? string
 ---@param vertical? boolean
 ---@param opts? { warn_vertical_split?: boolean }
 ---@return integer?
-function M.greview_command(args, vertical, opts)
+function M.review_command(args, vertical, opts)
   opts = opts or {}
   local parsed, err = review.parse_command_args(args)
   if not parsed then
@@ -828,7 +784,7 @@ function M.greview_command(args, vertical, opts)
   end
 
   parsed.spec.vertical = vertical or false
-  local bufnr = M.greview(parsed.spec, {
+  local bufnr = M.review(parsed.spec, {
     rail_style = rail_style_for_layout(parsed.layout),
   })
   return bufnr
@@ -845,14 +801,14 @@ function M.diff_command(args, vertical)
   if args then
     local sub, remainder = args:match('^%s*(%S+)%s*(.*)$')
     if sub == 'review' then
-      return M.greview_command(
+      return M.review_command(
         remainder ~= '' and remainder or nil,
         vertical,
         { warn_vertical_split = vertical }
       )
     end
   end
-  return M.gdiff(args, vertical, { warn_vertical_split = vertical })
+  return M.diff(args, vertical, { warn_vertical_split = vertical })
 end
 
 ---@param repo_root string
@@ -882,20 +838,20 @@ local function restore_window(win)
   end
 end
 
----@class diffs.GreviewSplitOpts
+---@class diffs.ReviewSplitOpts
 ---@field bufnr? integer
 ---@field lnum? integer
 ---@field item? table
 
----@class diffs.GreviewSplitContext
+---@class diffs.ReviewSplitContext
 ---@field review_buf integer
 ---@field replace_win integer
 ---@field selected diffs.GeneratedFileSelection
 ---@field repo_root string
 
----@param opts? diffs.GreviewSplitOpts
----@return diffs.GreviewSplitContext?, string?, integer?, integer?
-local function greview_split_context(opts)
+---@param opts? diffs.ReviewSplitOpts
+---@return diffs.ReviewSplitContext?, string?, integer?, integer?
+local function review_split_context(opts)
   opts = opts or {}
 
   ---@type diffs.GeneratedFileSelectionOpts
@@ -906,12 +862,12 @@ local function greview_split_context(opts)
   }
   local selected, select_err = lists.selected_generated_file(selection_opts)
   if not selected then
-    return nil, select_err or 'no Greview file selected', vim.log.levels.WARN, nil
+    return nil, select_err or 'no review file selected', vim.log.levels.WARN, nil
   end
 
   local review_buf = selected.bufnr
   if not vim.api.nvim_buf_is_valid(review_buf) then
-    return nil, 'selected Greview buffer is no longer valid', vim.log.levels.WARN, review_buf
+    return nil, 'selected review buffer is no longer valid', vim.log.levels.WARN, review_buf
   end
 
   local source, source_err = get_source_var(review_buf)
@@ -922,13 +878,13 @@ local function greview_split_context(opts)
       review_buf
   end
   if not source or source.kind ~= 'review' then
-    return nil, 'selected file is not from a Greview buffer', vim.log.levels.WARN, nil
+    return nil, 'selected file is not from a review buffer', vim.log.levels.WARN, nil
   end
 
   local review_win = first_window_for_buffer(review_buf)
   if not review_win then
     return nil,
-      'selected Greview buffer is not visible; open the review buffer before splitting it',
+      'selected review buffer is not visible; open the review buffer before splitting it',
       vim.log.levels.WARN,
       review_buf
   end
@@ -944,8 +900,8 @@ local function greview_split_context(opts)
     review_buf
 end
 
----@param normalized diffs.NormalizedGreview
----@return diffs.GreviewSpec
+---@param normalized diffs.NormalizedReview
+---@return diffs.ReviewSpec
 local function stored_review_spec(normalized)
   return {
     base = normalized.base,
@@ -954,27 +910,27 @@ local function stored_review_spec(normalized)
   }
 end
 
----@param review_spec diffs.GreviewSpec
+---@param review_spec diffs.ReviewSpec
 ---@param repo_root string
 ---@param selected diffs.GeneratedFileSelection
----@return diffs.DiffSpec?, diffs.NormalizedGreview?, string?
+---@return diffs.DiffSpec?, diffs.NormalizedReview?, string?
 local function selected_review_diff_spec(review_spec, repo_root, selected)
   return review.diff_spec_for_file(review_spec, repo_root, selected.file, selected)
 end
 
----@param review_spec diffs.GreviewSpec
+---@param review_spec diffs.ReviewSpec
 ---@param repo_root string
 ---@param selected diffs.GeneratedFileSelection
 ---@return diffs.DiffSpec?, string[]?, string?, integer?
 local function render_review_file_selection(review_spec, repo_root, selected)
   local diff_spec, _, spec_err = selected_review_diff_spec(review_spec, repo_root, selected)
   if not diff_spec then
-    return nil, nil, spec_err or 'cannot build Greview split diff spec', vim.log.levels.ERROR
+    return nil, nil, spec_err or 'cannot build review split diff spec', vim.log.levels.ERROR
   end
 
   local diff_lines, render_err = render.file(diff_spec, repo_root, { empty_on_missing = true })
   if not diff_lines then
-    return nil, nil, render_err or 'cannot render Greview split file', vim.log.levels.ERROR
+    return nil, nil, render_err or 'cannot render review split file', vim.log.levels.ERROR
   end
   if #diff_lines == 0 then
     return nil, nil, 'no changes for ' .. diffspec.label(diff_spec), vim.log.levels.INFO
@@ -992,7 +948,7 @@ local function review_generated_list_opts(list_opts)
   }
 end
 
----@param review_spec diffs.GreviewSpec
+---@param review_spec diffs.ReviewSpec
 ---@param repo_root string
 ---@param review_lines string[]
 ---@param list_opts table?
@@ -1015,7 +971,7 @@ local function first_renderable_review_file(review_spec, repo_root, review_lines
   return nil,
     nil,
     nil,
-    last_err or 'no renderable Greview file selected',
+    last_err or 'no renderable review file selected',
     last_level or vim.log.levels.INFO
 end
 
@@ -1172,7 +1128,7 @@ local function close_existing_review_splits()
   end
 end
 
----@param spec diffs.GreviewSpec?
+---@param spec diffs.ReviewSpec?
 ---@param opts? { selection?: diffs.GeneratedFileSelection, replace_win?: integer }
 ---@return integer?
 open_review_split = function(spec, opts)
@@ -1267,11 +1223,11 @@ open_review_split = function(spec, opts)
   return opened.left_buf
 end
 
----@param opts? diffs.GreviewSplitOpts
+---@param opts? diffs.ReviewSplitOpts
 ---@return integer?
-function M.greview_split(opts)
+function M.review_split(opts)
   local restore_win = vim.api.nvim_get_current_win()
-  local context, err, level = greview_split_context(opts)
+  local context, err, level = review_split_context(opts)
   if not context then
     restore_window(restore_win)
     notify(err or 'cannot open review split', level or vim.log.levels.WARN)
@@ -1300,7 +1256,7 @@ end
 ---@param args? string
 ---@param vertical? boolean
 ---@param opts? { warn_vertical_split?: boolean }
-function M.gdiff(args, vertical, opts)
+function M.diff(args, vertical, opts)
   opts = opts or {}
   local bufnr = vim.api.nvim_get_current_buf()
   local filepath = vim.api.nvim_buf_get_name(bufnr)
@@ -1316,7 +1272,7 @@ function M.gdiff(args, vertical, opts)
     return
   end
 
-  local parsed, parse_err = gdiff_parser.parse(args, {
+  local parsed, parse_err = diff_parser.parse(args, {
     path = rel_path,
     current = diffspec.worktree(),
   })
@@ -1335,7 +1291,7 @@ function M.gdiff(args, vertical, opts)
 
   local rail_style = rail_style_for_layout(parsed.layout)
   local diff_spec = parsed.spec
-  local diff_label = gdiff_buffer_label(diff_spec)
+  local diff_label = diff_buffer_label(diff_spec)
   local diff_path = diff_spec.scope.path
   local repo_root = git.get_repo_root(filepath)
   if not repo_root then
@@ -1358,10 +1314,10 @@ function M.gdiff(args, vertical, opts)
     and git.is_unmerged(filepath)
   then
     if parsed.layout == 'split' then
-      notify('split Gdiff does not support unmerged files yet', vim.log.levels.ERROR)
+      notify('split diff does not support unmerged files yet', vim.log.levels.ERROR)
       return
     end
-    M.gdiff_file(filepath, {
+    M.diff_file(filepath, {
       vertical = vertical,
       unmerged = true,
       rail_style = rail_style,
@@ -1395,7 +1351,7 @@ function M.gdiff(args, vertical, opts)
       change_bar = runtime.get_view_config().change_bar,
     })
     if not opened then
-      notify(split_err or 'cannot open split Gdiff', vim.log.levels.ERROR)
+      notify(split_err or 'cannot open split diff', vim.log.levels.ERROR)
     end
     return
   end
@@ -1416,7 +1372,7 @@ function M.gdiff(args, vertical, opts)
   dbg('opened diff buffer %d for %s (%s)', diff_buf, diff_path, diffspec.label(diff_spec))
 end
 
----@class diffs.GdiffFileOpts
+---@class diffs.DiffFileOpts
 ---@field vertical? boolean
 ---@field staged? boolean
 ---@field untracked? boolean
@@ -1426,8 +1382,8 @@ end
 ---@field rail_style? diffs.RailStyle
 
 ---@param filepath string
----@param opts? diffs.GdiffFileOpts
-function M.gdiff_file(filepath, opts)
+---@param opts? diffs.DiffFileOpts
+function M.diff_file(filepath, opts)
   opts = opts or {}
 
   local rel_path = git.get_relative_path(filepath)
@@ -1557,13 +1513,13 @@ function M.gdiff_file(filepath, opts)
   dbg('opened diff buffer %d for %s (%s)', diff_buf, rel_path, diff_label)
 end
 
----@class diffs.GdiffSectionOpts
+---@class diffs.DiffSectionOpts
 ---@field vertical? boolean
 ---@field staged? boolean
 
 ---@param repo_root string
----@param opts? diffs.GdiffSectionOpts
-function M.gdiff_section(repo_root, opts)
+---@param opts? diffs.DiffSectionOpts
+function M.diff_section(repo_root, opts)
   opts = opts or {}
 
   local cmd = { 'git', '-C', repo_root, 'diff', '--no-ext-diff', '--no-color' }
@@ -1737,63 +1693,21 @@ function M.setup()
     complete = complete_diff_command,
     desc = 'Show a current-file diff, or a repository review with :Diff review',
   })
-
-  vim.api.nvim_create_user_command('Gdiff', function(opts)
-    warn_legacy_command('Gdiff')
-    M.gdiff(opts.args ~= '' and opts.args or nil, false)
-  end, {
-    nargs = '*',
-    bar = true,
-    complete = complete_gdiff_command,
-    desc = 'Deprecated alias for :Diff',
-  })
-
-  vim.api.nvim_create_user_command('Gvdiff', function(opts)
-    warn_legacy_command('Gvdiff')
-    M.gdiff(opts.args ~= '' and opts.args or nil, true)
-  end, {
-    nargs = '*',
-    bar = true,
-    complete = complete_gdiff_split_command,
-    desc = 'Deprecated alias for :vertical Diff',
-  })
-
-  vim.api.nvim_create_user_command('Ghdiff', function(opts)
-    warn_legacy_command('Ghdiff')
-    M.gdiff(opts.args ~= '' and opts.args or nil, false)
-  end, {
-    nargs = '*',
-    bar = true,
-    complete = complete_gdiff_split_command,
-    desc = 'Deprecated alias for :Diff',
-  })
-
-  vim.api.nvim_create_user_command('Greview', function(opts)
-    warn_legacy_command('Greview')
-    M.greview_command(opts.args ~= '' and opts.args or nil)
-  end, {
-    nargs = '*',
-    bar = true,
-    complete = complete_greview_command,
-    desc = 'Deprecated alias for :Diff review',
-  })
 end
 
 M._test = {
   complete_diff = complete_diff_command,
-  complete_gdiff = complete_gdiff_command,
-  complete_gdiff_object = complete_gdiff_object,
-  complete_gdiff_split = complete_gdiff_split_command,
-  complete_greview = review.complete,
-  complete_greview_command = complete_greview_command,
+  complete_diff_args = complete_diff_args,
+  complete_diff_object = complete_diff_object,
+  complete_review = review.complete,
   create_generated_diff_buffer = create_generated_diff_buffer,
-  gdiff_buffer_label = gdiff_buffer_label,
+  diff_buffer_label = diff_buffer_label,
   replace_generated_diff_buffer_lines = replace_generated_diff_buffer_lines,
   review_split_state = function(bufnr)
     return review_split_states[bufnr]
   end,
-  normalize_greview = review.normalize,
-  parse_greview_command = review.parse_command_args,
+  normalize_review = review.normalize,
+  parse_review_command = review.parse_command_args,
   parse_review_arg = review.parse_arg,
 }
 
