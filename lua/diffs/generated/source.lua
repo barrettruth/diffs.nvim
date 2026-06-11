@@ -84,7 +84,7 @@ end
 
 ---@class diffs.GeneratedBufferSource
 ---@field version integer
----@field kind "file"|"file_pair"|"section"|"review"|"review_file"|"unmerged"|"split_endpoint"
+---@field kind "file"|"file_pair"|"section"|"review"|"unmerged"|"split_endpoint"
 ---@field repo_root string
 ---@field spec? diffs.DiffSpec
 ---@field edge? "staged"|"unstaged"
@@ -92,9 +92,6 @@ end
 ---@field old_path? string
 ---@field section? "staged"|"unstaged"
 ---@field review? diffs.GreviewSpec
----@field review_display? string
----@field selected_key? string
----@field selected_file? string
 ---@field working_path? string
 ---@field side? "left"|"right"
 ---@field filetype? string
@@ -146,17 +143,6 @@ function M.normalize_source(source)
   elseif source.kind == 'review' then
     if type(source.review) ~= 'table' then
       error('expected review spec')
-    end
-  elseif source.kind == 'review_file' then
-    if type(source.review) ~= 'table' then
-      error('expected review file spec')
-    end
-    if source.spec == nil then
-      error('expected review file diff spec')
-    end
-    source.spec = diffspec.new(source.spec)
-    if type(source.path) ~= 'string' or source.path == '' then
-      error('expected review file path')
     end
   elseif source.kind == 'unmerged' then
     if type(source.path) ~= 'string' or source.path == '' then
@@ -254,22 +240,6 @@ function M.review_source(repo_root, review)
     kind = 'review',
     repo_root = repo_root,
     review = review,
-  }
-end
-
----@param opts { repo_root: string, review: diffs.GreviewSpec, review_display?: string, selected_key?: string, selected_file?: string, path: string, spec: diffs.DiffSpec }
----@return diffs.GeneratedBufferSource
-function M.review_file_source(opts)
-  return {
-    version = 1,
-    kind = 'review_file',
-    repo_root = opts.repo_root,
-    review = opts.review,
-    review_display = opts.review_display,
-    selected_key = opts.selected_key,
-    selected_file = opts.selected_file,
-    path = opts.path,
-    spec = opts.spec,
   }
 end
 

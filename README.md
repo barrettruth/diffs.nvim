@@ -15,7 +15,7 @@ highlighting driven by treesitter.
   more!
 - Character-level intra-line diff highlighting
 - Word-level diff highlighting
-- `:Diff` unified diff against any revision
+- `:Diff` for [pierre-style](https://diffs.com) unified, stacked, or split diffs against any revision
 - `:Diff review` full-repo review diff with qflist/loclist navigation
 - Inline merge conflict detection, highlighting, and resolution
 - Email quoting/patch syntax support (`> diff ...`)

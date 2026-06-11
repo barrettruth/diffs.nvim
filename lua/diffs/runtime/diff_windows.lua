@@ -9,6 +9,13 @@ local WINHIGHLIGHT = table.concat({
   'DiffText:DiffsDiffText',
 }, ',')
 
+---@param win integer
+---@return boolean
+local function is_split_pane(win)
+  local buf = vim.api.nvim_win_get_buf(win)
+  return pcall(vim.api.nvim_buf_get_var, buf, 'diffs_split_side')
+end
+
 ---@param diff_windows table<integer, boolean>
 function M.attach(diff_windows)
   local tabpage = vim.api.nvim_get_current_tabpage()
@@ -17,7 +24,7 @@ function M.attach(diff_windows)
   local diff_wins = {}
 
   for _, win in ipairs(wins) do
-    if vim.api.nvim_win_is_valid(win) and vim.wo[win].diff then
+    if vim.api.nvim_win_is_valid(win) and vim.wo[win].diff and not is_split_pane(win) then
       table.insert(diff_wins, win)
     end
   end

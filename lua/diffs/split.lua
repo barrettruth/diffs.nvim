@@ -1,5 +1,6 @@
 local M = {}
 
+local diff = require('diffs.diff')
 local diffspec = require('diffs.spec')
 local generated = require('diffs.generated')
 local hunk_model = require('diffs.hunks')
@@ -8,26 +9,35 @@ local log = require('diffs.log')
 local render = require('diffs.render')
 
 local notify = log.notify
-local schedule = vim.schedule
+
+local split_align = require('diffs.split_align')
 
 ---@type table<integer, boolean>
 local closing_buffers = {}
 ---@type table<integer, integer>
 local cleanup_autocmds = {}
 ---@type table<integer, integer>
-local cursor_sync_autocmds = {}
----@type table<integer, integer>
 local peer_buffers = {}
 ---@type table<integer, table<string, any>>
 local pair_window_options = {}
-local syncing_cursor = false
-local split_bar_ns = vim.api.nvim_create_namespace('diffs_split_change_bar')
-local default_change_bar = '▏'
 
----@type fun(bufnr: integer)
-local clear_cursor_sync
----@type fun(bufnr: integer)
-local ensure_cursor_sync
+---@class diffs.SplitPaneInfo
+---@field rows diffs.SplitRow[]
+---@field side "left"|"right"
+---@field rail_width integer
+---@field change_bar string
+---@field anchors integer[]
+
+---@type table<integer, diffs.SplitPaneInfo>
+local pane_info = {}
+local split_line_ns = vim.api.nvim_create_namespace('diffs_split_line')
+local split_intra_ns = vim.api.nvim_create_namespace('diffs_split_intra')
+local default_change_bar = '▏'
+local split_statuscolumn = "%!v:lua.require'diffs.split'.statuscolumn()"
+
+---@class diffs.SplitReuseWins
+---@field left integer
+---@field right integer
 
 ---@class diffs.SplitOpenOpts
 ---@field spec diffs.DiffSpec
@@ -38,6 +48,8 @@ local ensure_cursor_sync
 ---@field hunk_index? integer
 ---@field quickfix? boolean
 ---@field change_bar? string
+---@field title? string
+---@field reuse_wins? diffs.SplitReuseWins
 
 ---@class diffs.SplitEndpointSource
 ---@field version integer
@@ -129,30 +141,160 @@ local function set_source_vars(bufnr, source, split_hunks)
   end
 end
 
----@param bufnr integer
----@param source diffs.SplitEndpointSource
----@param split_hunks? diffs.GdiffHunk[]
----@param change_bar? string
-local function set_split_change_bars(bufnr, source, split_hunks, change_bar)
-  vim.api.nvim_buf_clear_namespace(bufnr, split_bar_ns, 0, -1)
-  for _, hunk in ipairs(split_hunks or {}) do
-    for _, line in ipairs(hunk.lines or {}) do
-      local lnum
-      local hl_group
-      if source.side == 'left' and line.kind == 'delete' then
-        lnum = line.old_lnum
-        hl_group = 'DiffsDeleteBar'
-      elseif source.side == 'right' and line.kind == 'add' then
-        lnum = line.new_lnum
-        hl_group = 'DiffsAddBar'
-      end
+---@class diffs.SplitSideConfig
+---@field kind "delete"|"add"
+---@field lnum "old_lnum"|"new_lnum"
+---@field spans "del_spans"|"add_spans"
+---@field line_hl string
+---@field text_hl string
+---@field bar_hl string
+---@field nr_hl string
 
-      if lnum and lnum >= 1 and lnum <= vim.api.nvim_buf_line_count(bufnr) then
-        pcall(vim.api.nvim_buf_set_extmark, bufnr, split_bar_ns, lnum - 1, 0, {
-          sign_text = change_bar or default_change_bar,
-          sign_hl_group = hl_group,
-          priority = 210,
-        })
+---@type table<"left"|"right", diffs.SplitSideConfig>
+local side_config = {
+  left = {
+    kind = 'delete',
+    lnum = 'old_lnum',
+    spans = 'del_spans',
+    line_hl = 'DiffsDelete',
+    text_hl = 'DiffsDeleteText',
+    bar_hl = 'DiffsDeleteBar',
+    nr_hl = 'DiffsDeleteRailNr',
+  },
+  right = {
+    kind = 'add',
+    lnum = 'new_lnum',
+    spans = 'add_spans',
+    line_hl = 'DiffsAdd',
+    text_hl = 'DiffsAddText',
+    bar_hl = 'DiffsAddBar',
+    nr_hl = 'DiffsAddRailNr',
+  },
+}
+
+---@param info diffs.SplitPaneInfo
+---@param lnum integer
+---@return string
+local function rail_segment(info, lnum)
+  local row = info.rows[lnum]
+  local width = info.rail_width
+  if not row or row.kind == 'filler' then
+    return '%#DiffsRail#' .. string.rep(' ', width + 2)
+  end
+  local cfg = side_config[info.side]
+  local number = row[cfg.lnum]
+  local numstr = number and ('%' .. width .. 'd'):format(number) or string.rep(' ', width)
+  if row.kind == cfg.kind then
+    return ('%%#%s#%s%%#%s#%s%%#%s# '):format(
+      cfg.bar_hl,
+      info.change_bar,
+      cfg.nr_hl,
+      numstr,
+      cfg.line_hl
+    )
+  end
+  return ('%%#DiffsRailNr# %s '):format(numstr)
+end
+
+---@return string
+function M.statuscolumn()
+  local win = vim.g.statusline_winid
+  if not win or win == 0 then
+    return ''
+  end
+  local ok, bufnr = pcall(vim.api.nvim_win_get_buf, win)
+  if not ok then
+    return ''
+  end
+  local info = pane_info[bufnr]
+  if not info then
+    return ''
+  end
+  local rendered_ok, rendered = pcall(rail_segment, info, vim.v.lnum)
+  return rendered_ok and rendered or ''
+end
+
+---@param bufnr integer
+---@param info diffs.SplitPaneInfo
+local function set_split_line_bg(bufnr, info)
+  vim.api.nvim_buf_clear_namespace(bufnr, split_line_ns, 0, -1)
+  local priorities = require('diffs.runtime').get_highlight_opts().highlights.priorities
+  local cfg = side_config[info.side]
+  for lnum, row in ipairs(info.rows) do
+    if row.kind == cfg.kind then
+      pcall(vim.api.nvim_buf_set_extmark, bufnr, split_line_ns, lnum - 1, 0, {
+        end_row = lnum,
+        end_col = 0,
+        hl_group = cfg.line_hl,
+        hl_eol = true,
+        priority = priorities.line_bg,
+      })
+    end
+  end
+end
+
+---@param bufnr integer
+---@param info diffs.SplitPaneInfo
+---@param hunks diffs.GdiffHunk[]
+local function set_split_intra(bufnr, info, hunks)
+  vim.api.nvim_buf_clear_namespace(bufnr, split_intra_ns, 0, -1)
+  if not hunks or #hunks == 0 then
+    return
+  end
+
+  local opts = require('diffs.runtime').get_highlight_opts()
+  local intra_cfg = opts.highlights.intra
+  if not intra_cfg or not intra_cfg.enabled then
+    return
+  end
+
+  local cfg = side_config[info.side]
+  local priority = opts.highlights.priorities.char_bg
+
+  ---@type table<integer, integer>
+  local lnum_to_row = {}
+  for row_index, row in ipairs(info.rows) do
+    local source_lnum = row[cfg.lnum]
+    if source_lnum then
+      lnum_to_row[source_lnum] = row_index
+    end
+  end
+  local line_count = vim.api.nvim_buf_line_count(bufnr)
+
+  for _, hunk in ipairs(hunks) do
+    ---@type string[]
+    local texts = {}
+    ---@type diffs.GdiffHunkLine[]
+    local refs = {}
+    for _, line in ipairs(hunk.lines or {}) do
+      if line.kind ~= 'header' then
+        texts[#texts + 1] = line.text
+        refs[#refs + 1] = line
+      end
+    end
+
+    if #texts > 0 and #texts <= intra_cfg.max_lines then
+      local intra = diff.compute_intra_hunks(texts, intra_cfg.algorithm)
+      local spans = intra and intra[cfg.spans] or {}
+      for _, span in ipairs(spans) do
+        local ref = refs[span.line]
+        local source_lnum = ref and ref.kind == cfg.kind and ref[cfg.lnum]
+        local buf_row = source_lnum and lnum_to_row[source_lnum]
+        local col_start = span.col_start - 1
+        local col_end = span.col_end - 1
+        if
+          buf_row
+          and buf_row >= 1
+          and buf_row <= line_count
+          and col_start >= 0
+          and col_end > col_start
+        then
+          pcall(vim.api.nvim_buf_set_extmark, bufnr, split_intra_ns, buf_row - 1, col_start, {
+            end_col = col_end,
+            hl_group = cfg.text_hl,
+            priority = priority,
+          })
+        end
       end
     end
   end
@@ -233,27 +375,30 @@ local function buffer_name(source)
   return 'diffs://split:' .. source.side .. ':' .. endpoint_name(endpoint) .. ':' .. source.path
 end
 
+---@param bufnr integer
+---@param source diffs.SplitEndpointSource
+---@param info diffs.SplitPaneInfo
+---@param hunks diffs.GdiffHunk[]
+local function paint_pane(bufnr, source, info, hunks)
+  pane_info[bufnr] = info
+  set_source_vars(bufnr, source, hunks)
+  set_split_line_bg(bufnr, info)
+  set_split_intra(bufnr, info, hunks)
+end
+
 ---@param source diffs.SplitEndpointSource
 ---@param lines string[]
----@param split_hunks? diffs.GdiffHunk[]
----@param change_bar? string
+---@param info diffs.SplitPaneInfo
+---@param hunks diffs.GdiffHunk[]
 ---@return integer
-local function create_buffer(source, lines, split_hunks, change_bar)
+local function create_buffer(source, lines, info, hunks)
   local bufnr = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
   vim.api.nvim_buf_set_name(bufnr, buffer_name(source))
-  set_source_vars(bufnr, source, split_hunks)
-  set_split_change_bars(bufnr, source, split_hunks, change_bar)
+  paint_pane(bufnr, source, info, hunks)
   set_buffer_options(bufnr, source.filetype)
   set_keymaps(bufnr)
   return bufnr
-end
-
----@param win integer
-local function disable_diff_folds(win)
-  vim.api.nvim_set_option_value('foldmethod', 'manual', { win = win })
-  vim.api.nvim_set_option_value('foldenable', false, { win = win })
-  vim.api.nvim_set_option_value('foldcolumn', '0', { win = win })
 end
 
 ---@param win integer
@@ -263,22 +408,33 @@ local function remember_pair_window_options(win)
   end
 
   pair_window_options[win] = {
-    diff = vim.api.nvim_get_option_value('diff', { win = win }),
     scrollbind = vim.api.nvim_get_option_value('scrollbind', { win = win }),
     cursorbind = vim.api.nvim_get_option_value('cursorbind', { win = win }),
+    wrap = vim.api.nvim_get_option_value('wrap', { win = win }),
+    number = vim.api.nvim_get_option_value('number', { win = win }),
+    relativenumber = vim.api.nvim_get_option_value('relativenumber', { win = win }),
     foldmethod = vim.api.nvim_get_option_value('foldmethod', { win = win }),
     foldenable = vim.api.nvim_get_option_value('foldenable', { win = win }),
     foldcolumn = vim.api.nvim_get_option_value('foldcolumn', { win = win }),
     signcolumn = vim.api.nvim_get_option_value('signcolumn', { win = win }),
+    statuscolumn = vim.api.nvim_get_option_value('statuscolumn', { win = win }),
+    winhighlight = vim.api.nvim_get_option_value('winhighlight', { win = win }),
   }
 end
 
 ---@param win integer
 local function set_pair_window_options(win)
+  remember_pair_window_options(win)
   vim.api.nvim_set_option_value('scrollbind', true, { win = win })
   vim.api.nvim_set_option_value('cursorbind', true, { win = win })
-  vim.api.nvim_set_option_value('signcolumn', 'yes:1', { win = win })
-  disable_diff_folds(win)
+  vim.api.nvim_set_option_value('wrap', false, { win = win })
+  vim.api.nvim_set_option_value('number', false, { win = win })
+  vim.api.nvim_set_option_value('relativenumber', false, { win = win })
+  vim.api.nvim_set_option_value('signcolumn', 'no', { win = win })
+  vim.api.nvim_set_option_value('statuscolumn', split_statuscolumn, { win = win })
+  vim.api.nvim_set_option_value('foldmethod', 'manual', { win = win })
+  vim.api.nvim_set_option_value('foldenable', false, { win = win })
+  vim.api.nvim_set_option_value('foldcolumn', '0', { win = win })
 end
 
 ---@param win integer
@@ -294,16 +450,8 @@ local function clear_pair_window_options(win)
 
   pcall(vim.api.nvim_set_option_value, 'scrollbind', false, { win = win })
   pcall(vim.api.nvim_set_option_value, 'cursorbind', false, { win = win })
-  pcall(vim.api.nvim_set_option_value, 'diff', false, { win = win })
   pcall(vim.api.nvim_set_option_value, 'foldenable', true, { win = win })
-end
-
----@param win integer
-local function enable_diff(win)
-  remember_pair_window_options(win)
-  vim.api.nvim_set_current_win(win)
-  vim.cmd.diffthis()
-  set_pair_window_options(win)
+  pcall(vim.api.nvim_set_option_value, 'statuscolumn', '', { win = win })
 end
 
 ---@param bufnr integer
@@ -387,6 +535,7 @@ local function clear_pair_tracking(bufnr, keep_closing)
     cleanup_autocmds[bufnr] = nil
   end
   peer_buffers[bufnr] = nil
+  pane_info[bufnr] = nil
   if not keep_closing then
     closing_buffers[bufnr] = nil
   end
@@ -402,10 +551,8 @@ local function clear_split_state(bufnr)
   pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_split_peer')
   pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_split_hunks')
   pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_split_side')
-  vim.api.nvim_buf_clear_namespace(bufnr, split_bar_ns, 0, -1)
-  if clear_cursor_sync then
-    clear_cursor_sync(bufnr)
-  end
+  vim.api.nvim_buf_clear_namespace(bufnr, split_line_ns, 0, -1)
+  vim.api.nvim_buf_clear_namespace(bufnr, split_intra_ns, 0, -1)
   clear_owned_split_keymaps(bufnr)
 end
 
@@ -416,16 +563,6 @@ local function detach_split_endpoint(bufnr)
   if peer and peer ~= bufnr and vim.api.nvim_buf_is_valid(peer) then
     clear_split_state(peer)
   end
-end
-
----@param bufnr integer
----@return diffs.GdiffHunk[]
-local function buffer_split_hunks(bufnr)
-  local ok, parsed = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_split_hunks')
-  if ok and type(parsed) == 'table' then
-    return parsed
-  end
-  return {}
 end
 
 ---@param bufnr integer
@@ -463,39 +600,15 @@ local function clamp_lnum(bufnr, lnum)
   return math.max(1, math.min(lnum, vim.api.nvim_buf_line_count(bufnr)))
 end
 
----@param hunk diffs.GdiffHunk
----@param side "left"|"right"
----@return integer
-local function hunk_target_lnum(hunk, side)
-  local range = side == 'left' and hunk.old_range or hunk.new_range
-  return math.max(1, range.start)
-end
-
----@param hunks diffs.GdiffHunk[]
----@param side "left"|"right"
----@param lnum integer
----@return diffs.GdiffHunk?
-local function next_hunk(hunks, side, lnum)
-  for _, hunk in ipairs(hunks) do
-    if hunk_target_lnum(hunk, side) > lnum then
-      return hunk
-    end
+---@param anchors integer[]
+---@return integer[]
+local function sorted_anchors(anchors)
+  local rows = {}
+  for _, row in pairs(anchors or {}) do
+    rows[#rows + 1] = row
   end
-  return hunks[1]
-end
-
----@param hunks diffs.GdiffHunk[]
----@param side "left"|"right"
----@param lnum integer
----@return diffs.GdiffHunk?
-local function prev_hunk(hunks, side, lnum)
-  for i = #hunks, 1, -1 do
-    local hunk = hunks[i]
-    if hunk_target_lnum(hunk, side) < lnum then
-      return hunk
-    end
-  end
-  return hunks[#hunks]
+  table.sort(rows)
+  return rows
 end
 
 ---@param win integer
@@ -508,177 +621,69 @@ local function set_window_lnum(win, lnum)
   vim.api.nvim_win_set_cursor(win, { clamp_lnum(bufnr, lnum), 0 })
 end
 
----@param callback function
-local function with_cursor_sync_suppressed(callback)
-  local was_syncing = syncing_cursor
-  syncing_cursor = true
-  local ok, err = pcall(callback)
-  syncing_cursor = was_syncing
-  if not ok then
-    error(err, 0)
-  end
-end
-
----@param wins integer[]
----@param callback function
-local function with_window_bindings_disabled(wins, callback)
-  local saved = {}
-  local ordered = {}
-  for _, win in ipairs(wins) do
-    if not saved[win] and vim.api.nvim_win_is_valid(win) then
-      ordered[#ordered + 1] = win
-      saved[win] = {
-        cursorbind = vim.api.nvim_get_option_value('cursorbind', { win = win }),
-        scrollbind = vim.api.nvim_get_option_value('scrollbind', { win = win }),
-      }
-      vim.api.nvim_set_option_value('cursorbind', false, { win = win })
-      vim.api.nvim_set_option_value('scrollbind', false, { win = win })
-    end
-  end
-
-  local ok, err = pcall(callback)
-
-  local current_win = vim.api.nvim_get_current_win()
-  if saved[current_win] and vim.api.nvim_win_is_valid(current_win) then
-    local value = saved[current_win]
-    vim.api.nvim_set_option_value('scrollbind', value.scrollbind, { win = current_win })
-    vim.api.nvim_set_option_value('cursorbind', value.cursorbind, { win = current_win })
-  end
-
-  for _, win in ipairs(ordered) do
-    local value = saved[win]
-    if win ~= current_win and vim.api.nvim_win_is_valid(win) then
-      vim.api.nvim_set_option_value('scrollbind', value.scrollbind, { win = win })
-      vim.api.nvim_set_option_value('cursorbind', value.cursorbind, { win = win })
-    end
-  end
-
-  if not ok then
-    error(err, 0)
-  end
-end
-
 ---@param bufnr integer
----@param hunk diffs.GdiffHunk
-local function move_pair_to_hunk(bufnr, hunk)
-  local source = buffer_source(bufnr)
-  if not source then
-    return
+---@param row integer
+local function move_pair_to_row(bufnr, row)
+  for _, win in ipairs(windows_for_buffer(bufnr)) do
+    set_window_lnum(win, row)
   end
-
-  local current_win = vim.api.nvim_get_current_win()
-  local own_wins = windows_for_buffer(bufnr)
   local peer = split_peer(bufnr)
-  local peer_source = peer and buffer_source(peer) or nil
-  local peer_wins = peer and windows_for_buffer(peer) or {}
-  local all_wins = vim.list_extend(vim.deepcopy(own_wins), peer_wins)
-
-  with_cursor_sync_suppressed(function()
-    with_window_bindings_disabled(all_wins, function()
-      for _, win in ipairs(own_wins) do
-        set_window_lnum(win, hunk_target_lnum(hunk, source.side))
-      end
-
-      if peer and peer_source then
-        for _, win in ipairs(peer_wins) do
-          set_window_lnum(win, hunk_target_lnum(hunk, peer_source.side))
-        end
-      end
-    end)
-  end)
-
-  if vim.api.nvim_win_is_valid(current_win) then
-    vim.api.nvim_set_current_win(current_win)
-  end
-end
-
----@param hunks diffs.GdiffHunk[]
----@param side "left"|"right"
----@param lnum integer
----@return diffs.GdiffHunk?
-local function hunk_at_target_lnum(hunks, side, lnum)
-  for _, hunk in ipairs(hunks) do
-    if hunk_target_lnum(hunk, side) == lnum then
-      return hunk
+  if peer then
+    for _, win in ipairs(windows_for_buffer(peer)) do
+      set_window_lnum(win, row)
     end
   end
-  return nil
 end
 
 ---@param bufnr integer
-local function sync_cursor_to_hunk(bufnr)
-  if syncing_cursor then
+---@param direction integer
+local function goto_anchor(bufnr, direction)
+  local info = pane_info[bufnr]
+  if not info then
     return
   end
-
-  local source = buffer_source(bufnr)
-  local hunks = buffer_split_hunks(bufnr)
-  if not source or #hunks == 0 then
+  local anchors = sorted_anchors(info.anchors)
+  if #anchors == 0 then
     return
   end
-
-  local win = current_or_first_window_for_buffer(bufnr)
-  if not win then
-    return
+  local win = current_or_first_window_for_buffer(bufnr) or vim.api.nvim_get_current_win()
+  local row = vim.api.nvim_win_get_cursor(win)[1]
+  local target
+  if direction > 0 then
+    for _, anchor in ipairs(anchors) do
+      if anchor > row then
+        target = anchor
+        break
+      end
+    end
+    if not target then
+      target = anchors[1]
+      notify('wrapped to first hunk', vim.log.levels.INFO)
+    end
+  else
+    for i = #anchors, 1, -1 do
+      if anchors[i] < row then
+        target = anchors[i]
+        break
+      end
+    end
+    if not target then
+      target = anchors[#anchors]
+      notify('wrapped to last hunk', vim.log.levels.INFO)
+    end
   end
-  local hunk = hunk_at_target_lnum(hunks, source.side, vim.api.nvim_win_get_cursor(win)[1])
-  if not hunk then
-    return
-  end
-
-  move_pair_to_hunk(bufnr, hunk)
-end
-
-clear_cursor_sync = function(bufnr)
-  if cursor_sync_autocmds[bufnr] then
-    pcall(vim.api.nvim_del_autocmd, cursor_sync_autocmds[bufnr])
-    cursor_sync_autocmds[bufnr] = nil
-  end
-end
-
-ensure_cursor_sync = function(bufnr)
-  if cursor_sync_autocmds[bufnr] then
-    return
-  end
-
-  local target_buf = bufnr
-  cursor_sync_autocmds[bufnr] = vim.api.nvim_create_autocmd(
-    { 'BufEnter', 'CursorMoved', 'WinEnter' },
-    {
-      callback = function(args)
-        if not vim.api.nvim_buf_is_valid(target_buf) then
-          clear_cursor_sync(target_buf)
-          return
-        end
-        if vim.api.nvim_get_current_buf() ~= target_buf then
-          return
-        end
-        if args.event == 'BufEnter' then
-          vim.defer_fn(function()
-            schedule(function()
-              if vim.api.nvim_buf_is_valid(target_buf) then
-                sync_cursor_to_hunk(target_buf)
-              end
-            end)
-          end, 0)
-          return
-        end
-        sync_cursor_to_hunk(target_buf)
-      end,
-    }
-  )
+  move_pair_to_row(bufnr, target)
 end
 
 ---@param bufnr integer
 ---@param source diffs.SplitEndpointSource
 ---@param lines string[]
----@param split_hunks? diffs.GdiffHunk[]
----@param change_bar? string
-local function apply_buffer_lines(bufnr, source, lines, split_hunks, change_bar)
+---@param info diffs.SplitPaneInfo
+---@param hunks diffs.GdiffHunk[]
+local function apply_buffer_lines(bufnr, source, lines, info, hunks)
   vim.api.nvim_set_option_value('modifiable', true, { buf = bufnr })
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
-  set_source_vars(bufnr, source, split_hunks)
-  set_split_change_bars(bufnr, source, split_hunks, change_bar)
+  paint_pane(bufnr, source, info, hunks)
   set_buffer_options(bufnr, source.filetype)
   set_keymaps(bufnr)
   ensure_pair_cleanup(bufnr)
@@ -686,18 +691,12 @@ end
 
 ---@param bufnr integer
 local function refresh_visible_pair_options(bufnr)
-  local peer = split_peer(bufnr)
-  local current_win = vim.api.nvim_get_current_win()
-  for _, buf in ipairs({ bufnr, peer }) do
+  for _, buf in ipairs({ bufnr, split_peer(bufnr) }) do
     if buf and vim.api.nvim_buf_is_valid(buf) then
       for _, win in ipairs(windows_for_buffer(buf)) do
-        enable_diff(win)
+        set_pair_window_options(win)
       end
     end
-  end
-  if vim.api.nvim_win_is_valid(current_win) then
-    vim.api.nvim_set_current_win(current_win)
-    pcall(vim.cmd.diffupdate)
   end
 end
 
@@ -836,6 +835,33 @@ local function delete_pair_buffers(buffers)
   end
 end
 
+---@param old_lines string[]
+---@param new_lines string[]
+---@param hunks diffs.GdiffHunk[]
+---@param change_bar? string
+---@return diffs.SplitAlignment, diffs.SplitPaneInfo, diffs.SplitPaneInfo
+local function build_pane_infos(old_lines, new_lines, hunks, change_bar)
+  local alignment = split_align.align(old_lines, new_lines, hunks)
+  local max_lnum = math.max(#old_lines, #new_lines, 1)
+  local rail_width = math.max(2, #tostring(max_lnum))
+  local bar = change_bar or default_change_bar
+  local left_info = {
+    rows = alignment.left_rows,
+    side = 'left',
+    rail_width = rail_width,
+    change_bar = bar,
+    anchors = alignment.anchors,
+  }
+  local right_info = {
+    rows = alignment.right_rows,
+    side = 'right',
+    rail_width = rail_width,
+    change_bar = bar,
+    anchors = alignment.anchors,
+  }
+  return alignment, left_info, right_info
+end
+
 ---@param opts diffs.SplitOpenOpts
 ---@return { left_buf: integer, right_buf: integer, left_win: integer, right_win: integer }?, string?
 function M.open(opts)
@@ -854,53 +880,79 @@ function M.open(opts)
     generated.split_endpoint_source(vim.tbl_extend('force', base_source, { side = 'left' }))
   local right_source =
     generated.split_endpoint_source(vim.tbl_extend('force', base_source, { side = 'right' }))
-  local left_lines, left_err = endpoint_lines(left_source, { worktree_lines = opts.worktree_lines })
-  if not left_lines then
+  local old_content, left_err =
+    endpoint_lines(left_source, { worktree_lines = opts.worktree_lines })
+  if not old_content then
     return nil, left_err
   end
-  local right_lines, right_err =
+  local new_content, right_err =
     endpoint_lines(right_source, { worktree_lines = opts.worktree_lines })
-  if not right_lines then
+  if not new_content then
     return nil, right_err
   end
   local split_hunks = split_hunks_for(opts.diff_lines, spec)
+  local alignment, left_info, right_info =
+    build_pane_infos(old_content, new_content, split_hunks, opts.change_bar)
 
+  local reuse = opts.reuse_wins
   local invoking_win = vim.api.nvim_get_current_win()
+
   delete_existing_pair_buffers(left_source, right_source)
-  if vim.api.nvim_win_is_valid(invoking_win) then
-    vim.api.nvim_set_current_win(invoking_win)
+
+  local reusing = reuse ~= nil
+    and vim.api.nvim_win_is_valid(reuse.left)
+    and vim.api.nvim_win_is_valid(reuse.right)
+
+  ---@type integer[]
+  local stale_buffers = {}
+  local left_win, right_win
+  if reusing then
+    left_win, right_win = reuse.left, reuse.right
+    for _, win in ipairs({ left_win, right_win }) do
+      local buf = vim.api.nvim_win_get_buf(win)
+      stale_buffers[#stale_buffers + 1] = buf
+      closing_buffers[buf] = true
+    end
+  else
+    if vim.api.nvim_win_is_valid(invoking_win) then
+      vim.api.nvim_set_current_win(invoking_win)
+    end
+    left_win = vim.api.nvim_get_current_win()
+    vim.cmd('rightbelow vsplit')
+    right_win = vim.api.nvim_get_current_win()
   end
 
-  local left_buf = create_buffer(left_source, left_lines, split_hunks, opts.change_bar)
-  local right_buf = create_buffer(right_source, right_lines, split_hunks, opts.change_bar)
-  local left_win = vim.api.nvim_get_current_win()
-  vim.cmd('rightbelow vsplit')
-  local right_win = vim.api.nvim_get_current_win()
+  local left_buf = create_buffer(left_source, alignment.left_lines, left_info, split_hunks)
+  local right_buf = create_buffer(right_source, alignment.right_lines, right_info, split_hunks)
 
   vim.api.nvim_win_set_buf(left_win, left_buf)
   vim.api.nvim_win_set_buf(right_win, right_buf)
   set_peers(left_buf, right_buf)
-  ensure_cursor_sync(left_buf)
-  ensure_cursor_sync(right_buf)
 
-  enable_diff(left_win)
-  enable_diff(right_win)
-  vim.api.nvim_set_current_win(right_win)
-  vim.cmd.diffupdate()
   set_pair_window_options(left_win)
   set_pair_window_options(right_win)
+  vim.api.nvim_set_current_win(right_win)
   lists.set_for_split_pair({
-    title = 'diff: ' .. diffspec.label(spec),
+    title = opts.title or ('diff: ' .. diffspec.label(spec)),
     left_buf = left_buf,
     right_buf = right_buf,
     left_win = left_win,
     right_win = right_win,
     hunks = split_hunks,
+    anchors = alignment.anchors,
     quickfix = opts.quickfix,
   })
 
-  if opts.hunk_index and split_hunks[opts.hunk_index] then
-    move_pair_to_hunk(right_buf, split_hunks[opts.hunk_index])
+  if opts.hunk_index and alignment.anchors[opts.hunk_index] then
+    move_pair_to_row(right_buf, alignment.anchors[opts.hunk_index])
+  end
+
+  for _, buf in ipairs(stale_buffers) do
+    clear_pair_tracking(buf, true)
+    if buf ~= left_buf and buf ~= right_buf and vim.api.nvim_buf_is_valid(buf) then
+      pcall(vim.api.nvim_buf_delete, buf, { force = true })
+    end
+    closing_buffers[buf] = nil
   end
 
   log.dbg('opened split diff buffers %d/%d for %s', left_buf, right_buf, diffspec.label(spec))
@@ -971,25 +1023,31 @@ function M.read_buffer(bufnr, source, opts)
     split_hunks = split_hunks_for(diff_lines, source.spec)
   end
 
-  apply_buffer_lines(bufnr, source, current_lines, split_hunks, opts.change_bar)
-  if peer and peer_source and peer_lines then
-    apply_buffer_lines(peer, peer_source, peer_lines, split_hunks, opts.change_bar)
-    if source.side == 'left' then
-      set_peers(bufnr, peer)
-    else
-      set_peers(peer, bufnr)
-    end
-    ensure_cursor_sync(bufnr)
-    ensure_cursor_sync(peer)
-    refresh_visible_pair_options(bufnr)
-    lists.set_for_split_pair({
-      title = 'diff: ' .. diffspec.label(source.spec),
-      left_buf = source.side == 'left' and bufnr or peer,
-      right_buf = source.side == 'right' and bufnr or peer,
-      hunks = split_hunks,
-      quickfix = source.quickfix,
-    })
+  if not (peer_source and peer_lines) then
+    return false, 'cannot reload split pair without peer content'
   end
+
+  local left_buf = source.side == 'left' and bufnr or peer
+  local right_buf = source.side == 'right' and bufnr or peer
+  local left_source = source.side == 'left' and source or peer_source
+  local right_source = source.side == 'right' and source or peer_source
+  local old_content = source.side == 'left' and current_lines or peer_lines
+  local new_content = source.side == 'right' and current_lines or peer_lines
+
+  local alignment, left_info, right_info =
+    build_pane_infos(old_content, new_content, split_hunks or {}, opts.change_bar)
+  apply_buffer_lines(left_buf, left_source, alignment.left_lines, left_info, split_hunks or {})
+  apply_buffer_lines(right_buf, right_source, alignment.right_lines, right_info, split_hunks or {})
+  set_peers(left_buf, right_buf)
+  refresh_visible_pair_options(left_buf)
+  lists.set_for_split_pair({
+    title = 'diff: ' .. diffspec.label(source.spec),
+    left_buf = left_buf,
+    right_buf = right_buf,
+    hunks = split_hunks,
+    anchors = alignment.anchors,
+    quickfix = source.quickfix,
+  })
   return true, nil
 end
 
@@ -1056,6 +1114,24 @@ function M.release_pair_window_options(win)
   return true
 end
 
+---@param rows diffs.SplitRow[]
+---@param cursor_row integer
+---@param lnum_field "old_lnum"|"new_lnum"
+---@return diffs.SplitRow?
+local function nearest_non_filler_row(rows, cursor_row, lnum_field)
+  for offset = 0, #rows do
+    local above = rows[cursor_row - offset]
+    if above and above.kind ~= 'filler' and above[lnum_field] then
+      return above
+    end
+    local below = rows[cursor_row + offset]
+    if below and below.kind ~= 'filler' and below[lnum_field] then
+      return below
+    end
+  end
+  return nil
+end
+
 ---@param bufnr integer
 ---@return boolean
 function M.open_source(bufnr)
@@ -1085,7 +1161,14 @@ function M.open_source(bufnr)
   end
 
   local filepath = resolve_worktree_path(source.repo_root, source.path)
-  local target_lnum = vim.api.nvim_win_get_cursor(source_win)[1]
+  local cursor_row = vim.api.nvim_win_get_cursor(source_win)[1]
+  local info = pane_info[bufnr]
+  local target_lnum = cursor_row
+  if info and info.rows then
+    local lnum_field = side_config[source.side].lnum
+    local row = nearest_non_filler_row(info.rows, cursor_row, lnum_field)
+    target_lnum = (row and row[lnum_field]) or cursor_row
+  end
   local existing_win = find_window_for_file(filepath)
   if existing_win then
     vim.api.nvim_set_current_win(existing_win)
@@ -1105,42 +1188,12 @@ end
 
 ---@param bufnr integer
 function M.goto_next(bufnr)
-  local source = buffer_source(bufnr)
-  local hunks = buffer_split_hunks(bufnr)
-  if not source or #hunks == 0 then
-    return
-  end
-
-  local win = current_or_first_window_for_buffer(bufnr) or vim.api.nvim_get_current_win()
-  local cursor_line = vim.api.nvim_win_get_cursor(win)[1]
-  local hunk = next_hunk(hunks, source.side, cursor_line)
-  if not hunk then
-    return
-  end
-  if hunk == hunks[1] and hunk_target_lnum(hunk, source.side) <= cursor_line then
-    notify('wrapped to first hunk', vim.log.levels.INFO)
-  end
-  move_pair_to_hunk(bufnr, hunk)
+  goto_anchor(bufnr, 1)
 end
 
 ---@param bufnr integer
 function M.goto_prev(bufnr)
-  local source = buffer_source(bufnr)
-  local hunks = buffer_split_hunks(bufnr)
-  if not source or #hunks == 0 then
-    return
-  end
-
-  local win = current_or_first_window_for_buffer(bufnr) or vim.api.nvim_get_current_win()
-  local cursor_line = vim.api.nvim_win_get_cursor(win)[1]
-  local hunk = prev_hunk(hunks, source.side, cursor_line)
-  if not hunk then
-    return
-  end
-  if hunk == hunks[#hunks] and hunk_target_lnum(hunk, source.side) >= cursor_line then
-    notify('wrapped to last hunk', vim.log.levels.INFO)
-  end
-  move_pair_to_hunk(bufnr, hunk)
+  goto_anchor(bufnr, -1)
 end
 
 ---@param bufnr integer
@@ -1151,17 +1204,24 @@ function M.move_pair_to_hunk_index(bufnr, hunk_index)
     return false
   end
 
-  local hunks = buffer_split_hunks(bufnr)
-  local hunk = hunks[hunk_index]
-  if not hunk then
+  local info = pane_info[bufnr]
+  local row = info and info.anchors and info.anchors[hunk_index]
+  if not row then
     return false
   end
 
-  move_pair_to_hunk(bufnr, hunk)
+  move_pair_to_row(bufnr, row)
   return true
 end
 
-M.sync_cursor_to_hunk = sync_cursor_to_hunk
+---@param bufnr integer
+function M.sync_cursor_to_hunk(bufnr)
+  local win = current_or_first_window_for_buffer(bufnr)
+  if not win then
+    return
+  end
+  move_pair_to_row(bufnr, vim.api.nvim_win_get_cursor(win)[1])
+end
 
 M._test = {
   buffer_name = buffer_name,

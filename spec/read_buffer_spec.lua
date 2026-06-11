@@ -422,14 +422,13 @@ describe('read_buffer', function()
 
       commands.read_buffer(left_buf)
 
-      assert.are.same(
-        { 'local M = {}', 'return M' },
-        vim.api.nvim_buf_get_lines(left_buf, 0, -1, false)
-      )
-      assert.are.same(
-        { 'local M = {}', 'local x = 1', 'return M' },
-        vim.api.nvim_buf_get_lines(right_buf, 0, -1, false)
-      )
+      local left_lines = vim.api.nvim_buf_get_lines(left_buf, 0, -1, false)
+      local right_lines = vim.api.nvim_buf_get_lines(right_buf, 0, -1, false)
+      assert.are.equal(#left_lines, #right_lines)
+      assert.are.equal('local M = {}', left_lines[1])
+      assert.are.equal('local M = {}', right_lines[1])
+      assert.are.equal('local x = 1', right_lines[2])
+      assert.is_true(vim.tbl_contains(left_lines, ''))
       assert.are.equal(right_buf, vim.api.nvim_buf_get_var(left_buf, 'diffs_split_peer'))
       assert.are.equal(left_buf, vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer'))
       assert.are.equal(1, #vim.api.nvim_buf_get_var(left_buf, 'diffs_split_hunks'))
