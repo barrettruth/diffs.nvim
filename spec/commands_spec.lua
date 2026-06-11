@@ -1046,6 +1046,51 @@ describe('commands', function()
       assert.is_true(loc[1].text:find('lua/foo.lua', 1, true) ~= nil)
     end)
 
+    it('leaves an existing user quickfix list untouched for a single-file diff', function()
+      local source_buf = vim.api.nvim_create_buf(false, true)
+      table.insert(test_buffers, source_buf)
+      vim.api.nvim_buf_set_name(source_buf, '/tmp/repo/lua/foo.lua')
+      vim.api.nvim_buf_set_lines(source_buf, 0, -1, false, {
+        'local M = {}',
+        'local x = 1',
+        'return M',
+      })
+      vim.api.nvim_set_current_buf(source_buf)
+
+      mock_git_method('get_relative_path', function()
+        return 'lua/foo.lua'
+      end)
+      mock_git_method('get_index_content', function()
+        return { 'local M = {}', 'return M' }
+      end)
+      mock_repo_root(function()
+        return '/tmp/repo'
+      end)
+      mock_runtime_attach(function() end)
+      mock_view_config({ prefix = true, change_bar = '▏', rail_separator = '|' })
+
+      vim.fn.setqflist({}, ' ', {
+        title = 'user list',
+        items = {
+          { filename = '/tmp/repo/other.lua', lnum = 3, text = 'grep hit' },
+          { filename = '/tmp/repo/more.lua', lnum = 7, text = 'grep hit two' },
+        },
+      })
+
+      commands.gdiff(nil, false)
+
+      local diff_buf = vim.api.nvim_get_current_buf()
+      table.insert(test_buffers, diff_buf)
+
+      local qf = vim.fn.getqflist({ title = 0, items = 0 })
+      assert.are.equal('user list', qf.title)
+      assert.are.equal(2, #qf.items)
+
+      local loc = loclist_items()
+      assert.is_true(#loc >= 1)
+      assert.are.equal(diff_buf, loc[1].bufnr)
+    end)
+
     it('opens stacked :Gdiff as a generated buffer with single rails', function()
       mock_runtime_attach(function() end)
       mock_view_config({ prefix = true, change_bar = '▏', rail_separator = '|' })
