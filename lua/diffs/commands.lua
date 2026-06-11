@@ -1027,7 +1027,7 @@ local function review_selection_from_item(item)
     return nil
   end
   local data = item.user_data.diffs
-  if type(data) ~= 'table' or type(data.file) ~= 'string' or data.file == '' then
+  if type(data) ~= 'table' or data.kind ~= 'file' or type(data.file) ~= 'string' or data.file == '' then
     return nil
   end
   return {

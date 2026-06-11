@@ -510,9 +510,13 @@ Stacked generated layout: ~                        *diffs.nvim-stacked-layout*
 Paired-window behavior: ~                          *diffs.nvim-paired-windows*
 
     `++layout=split` opens a single-file comparison as paired old/new endpoint
-    windows. Endpoint buffers are read-only `diffs://` views; edits happen in
-    real source buffers opened from the view. Native `&diff` aligns rows, but
-    diff folds are disabled.
+    windows: the old/removed endpoint on the left, the new/added endpoint on the
+    right. Endpoint buffers are read-only `diffs://` views; edits happen in
+    real source buffers opened from the view. Native `&diff` aligns rows and the
+    windows are scroll- and cursor-bound, but diff folds are disabled. Changed
+    regions within a line carry the same intra-line word-diff highlighting as
+    generated buffers, honoring `highlights.intra` (including the `vscode`
+    algorithm).
 
     `q` closes the pair. `:edit` refreshes the same comparison. `]c`/`[c`
     navigate hunks from either side. `<CR>` opens a real worktree file only when
@@ -548,17 +552,19 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     already exists in the current tabpage, the new diff replaces its buffer
     instead of creating another split.
 
-    With `++layout=split`, |:Diff-review| opens a two-surface review workspace
-    instead of the full review map. The left window is a read-only generated
-    diff for one review file. The right window is the real editable worktree
-    file when possible; otherwise it is a read-only tree or index target.
+    With `++layout=split`, |:Diff-review| opens one review file as a paired
+    side-by-side diff instead of the full review map: the old/removed endpoint
+    on the left, the new/added endpoint on the right. Both panes are read-only
+    `diffs://` endpoint views aligned with native Vim `&diff` and bound for
+    synchronized scrolling and cursor movement, with the same intra-line
+    word-diff highlighting as generated buffers (see |diffs.nvim-paired-windows|).
 
     In split layout, the quickfix list remains the repo-wide review file index
-    and the location list is the active file's hunk index. Selecting quickfix
-    or location-list entries with the |diffs.nvim| mapped <CR> updates the
-    existing workspace. Saving the right-side worktree buffer refreshes the
-    generated diff on the left. Native Vim `&diff` mode is not used for
-    |:Diff-review| split workspaces, and the windows are not scroll-bound.
+    and the location list is the active file's hunk index. Selecting a quickfix
+    entry with the |diffs.nvim| mapped <CR> swaps the displayed pair to that
+    file in place, reusing the two windows; the review file index is preserved.
+    `]c`/`[c` navigate hunks within the active file across both panes, and `q`
+    closes the pair.
 
     Prefix with |:vertical| to open the generated `unified` and `stacked`
     review maps in a vertical split (`:vertical Diff review`). As with |:Diff|,
@@ -570,8 +576,8 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
                        old and new line-number rails.
         ++layout=stacked (optional) Open a generated review map with one
                        context-aware line-number rail.
-        ++layout=split (optional) Open the two-surface split workspace for the
-                       first renderable changed review file.
+        ++layout=split (optional) Open the first renderable changed review file
+                       as a paired side-by-side endpoint diff.
         {review-spec}  (string, optional) One of:
                        - empty: review current repo state against the repo
                          default branch
@@ -616,7 +622,7 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
 
     Utilities: ~
         `require('diffs.commands').greview_split()` opens the currently
-        selected |:Diff-review| file in the same two-surface split workspace used
+        selected |:Diff-review| file in the same paired side-by-side diff used
         by `:Diff review ++layout=split`. It uses the review buffer cursor,
         quickfix item, or loclist item as the file selection, and the review
         quickfix list remains the authoritative file list.
@@ -662,10 +668,9 @@ MAPPINGS                                                 *diffs.nvim-mappings*
 
                                             *<Plug>(diffs-greview-open-split)*
 <Plug>(diffs-greview-open-split)
-                        Open the currently selected |:Diff-review| file in a
-                        two-surface split workspace: generated per-file diff on
-                        the left, editable worktree or read-only target view on
-                        the right.
+                        Open the currently selected |:Diff-review| file as a
+                        paired side-by-side diff: the old/removed endpoint on
+                        the left, the new/added endpoint on the right.
 
 Example configuration: >lua
     vim.keymap.set('n', '<leader>gd', '<Plug>(diffs-gdiff)')
