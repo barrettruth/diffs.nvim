@@ -33,7 +33,7 @@ With `vim.pack` (Neovim 0.12+):
 
 ```lua
 vim.pack.add({
-  'https://git.barrettruth.com/barrettruth/diffs.nvim',
+  'https://github.com/barrettruth/diffs.nvim',
 })
 ```
 
