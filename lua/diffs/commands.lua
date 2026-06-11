@@ -1711,6 +1711,7 @@ function M.read_buffer(bufnr)
     debug_label = debug_label or ((label or '?') .. ':' .. (path or '?'))
   end
 
+  local is_review = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_review_base')
   replace_generated_diff_buffer_lines(bufnr, diff_lines, stored_spec)
   lists.set_for_unified_buffer(bufnr, diff_lines, {
     title = 'diff: ' .. (debug_label or name:gsub('^diffs://', '')),
@@ -1718,6 +1719,7 @@ function M.read_buffer(bufnr)
     metadata_for_line = list_opts and list_opts.metadata_for_line,
     sections = list_opts and list_opts.sections,
     store_hunks = list_opts and list_opts.store_hunks,
+    quickfix = is_review or nil,
   })
   M.setup_diff_buf(bufnr)
 
