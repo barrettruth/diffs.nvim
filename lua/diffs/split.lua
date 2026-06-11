@@ -38,6 +38,10 @@ local clear_cursor_sync
 ---@type fun(bufnr: integer)
 local ensure_cursor_sync
 
+---@class diffs.SplitReuseWins
+---@field left integer
+---@field right integer
+
 ---@class diffs.SplitOpenOpts
 ---@field spec diffs.DiffSpec
 ---@field repo_root string
@@ -47,6 +51,8 @@ local ensure_cursor_sync
 ---@field hunk_index? integer
 ---@field quickfix? boolean
 ---@field change_bar? string
+---@field title? string
+---@field reuse_wins? diffs.SplitReuseWins
 
 ---@class diffs.SplitEndpointSource
 ---@field version integer
@@ -933,17 +939,35 @@ function M.open(opts)
   end
   local split_hunks = split_hunks_for(opts.diff_lines, spec)
 
+  local reuse = opts.reuse_wins
+  local reusing = reuse ~= nil
+    and vim.api.nvim_win_is_valid(reuse.left)
+    and vim.api.nvim_win_is_valid(reuse.right)
   local invoking_win = vim.api.nvim_get_current_win()
+
   delete_existing_pair_buffers(left_source, right_source)
-  if vim.api.nvim_win_is_valid(invoking_win) then
-    vim.api.nvim_set_current_win(invoking_win)
+
+  ---@type integer[]
+  local stale_buffers = {}
+  local left_win, right_win
+  if reusing then
+    left_win, right_win = reuse.left, reuse.right
+    for _, win in ipairs({ left_win, right_win }) do
+      local buf = vim.api.nvim_win_get_buf(win)
+      stale_buffers[#stale_buffers + 1] = buf
+      closing_buffers[buf] = true
+    end
+  else
+    if vim.api.nvim_win_is_valid(invoking_win) then
+      vim.api.nvim_set_current_win(invoking_win)
+    end
+    left_win = vim.api.nvim_get_current_win()
+    vim.cmd('rightbelow vsplit')
+    right_win = vim.api.nvim_get_current_win()
   end
 
   local left_buf = create_buffer(left_source, left_lines, split_hunks, opts.change_bar)
   local right_buf = create_buffer(right_source, right_lines, split_hunks, opts.change_bar)
-  local left_win = vim.api.nvim_get_current_win()
-  vim.cmd('rightbelow vsplit')
-  local right_win = vim.api.nvim_get_current_win()
 
   vim.api.nvim_win_set_buf(left_win, left_buf)
   vim.api.nvim_win_set_buf(right_win, right_buf)
@@ -958,7 +982,7 @@ function M.open(opts)
   set_pair_window_options(left_win)
   set_pair_window_options(right_win)
   lists.set_for_split_pair({
-    title = 'diff: ' .. diffspec.label(spec),
+    title = opts.title or ('diff: ' .. diffspec.label(spec)),
     left_buf = left_buf,
     right_buf = right_buf,
     left_win = left_win,
@@ -969,6 +993,14 @@ function M.open(opts)
 
   if opts.hunk_index and split_hunks[opts.hunk_index] then
     move_pair_to_hunk(right_buf, split_hunks[opts.hunk_index])
+  end
+
+  for _, buf in ipairs(stale_buffers) do
+    clear_pair_tracking(buf, true)
+    if buf ~= left_buf and buf ~= right_buf and vim.api.nvim_buf_is_valid(buf) then
+      pcall(vim.api.nvim_buf_delete, buf, { force = true })
+    end
+    closing_buffers[buf] = nil
   end
 
   log.dbg('opened split diff buffers %d/%d for %s', left_buf, right_buf, diffspec.label(spec))
