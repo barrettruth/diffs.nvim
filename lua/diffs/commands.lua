@@ -1090,17 +1090,16 @@ end
 ---@param selected diffs.GeneratedFileSelection
 ---@return boolean
 local function switch_review_split_file(state, selected)
-  if
-    not vim.api.nvim_win_is_valid(state.left_win)
-    or not vim.api.nvim_win_is_valid(state.right_win)
-  then
-    return false
-  end
-
   local diff_spec, diff_lines, err, level =
     render_review_file_selection(state.review, state.repo_root, selected)
   if not diff_spec or not diff_lines then
     notify(err or 'cannot render review split file', level or vim.log.levels.WARN)
+    return false
+  end
+
+  local left_win = first_window_for_buffer(state.left_buf)
+  local right_win = first_window_for_buffer(state.right_buf)
+  if not left_win or not right_win then
     return false
   end
 
@@ -1113,7 +1112,7 @@ local function switch_review_split_file(state, selected)
     change_bar = runtime.get_view_config().change_bar,
     title = 'review: ' .. state.display,
     hunk_index = selected.hunk_index or 1,
-    reuse_wins = { left = state.left_win, right = state.right_win },
+    reuse_wins = { left = left_win, right = right_win },
   })
   if not opened then
     notify(split_err or 'cannot open review split', vim.log.levels.ERROR)

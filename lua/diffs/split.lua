@@ -940,12 +940,13 @@ function M.open(opts)
   local split_hunks = split_hunks_for(opts.diff_lines, spec)
 
   local reuse = opts.reuse_wins
-  local reusing = reuse ~= nil
-    and vim.api.nvim_win_is_valid(reuse.left)
-    and vim.api.nvim_win_is_valid(reuse.right)
   local invoking_win = vim.api.nvim_get_current_win()
 
   delete_existing_pair_buffers(left_source, right_source)
+
+  local reusing = reuse ~= nil
+    and vim.api.nvim_win_is_valid(reuse.left)
+    and vim.api.nvim_win_is_valid(reuse.right)
 
   ---@type integer[]
   local stale_buffers = {}
