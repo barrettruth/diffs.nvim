@@ -792,7 +792,11 @@ function M.set_for_unified_buffer(bufnr, diff_lines, opts)
   }
   ensure_generated_autocmds(bufnr)
 
-  if opts.quickfix ~= false then
+  local want_quickfix = opts.quickfix
+  if want_quickfix == nil then
+    want_quickfix = #state.entries > 1
+  end
+  if want_quickfix then
     set_quickfix(title, quickfix_items(bufnr, state.entries))
   end
   for _, win in ipairs(windows_for_buffer(bufnr)) do
@@ -933,8 +937,9 @@ function M.set_for_split_pair(opts)
   local title = opts.title
   local loclist_title = opts.loclist_title or (title .. ' hunks')
 
-  if opts.quickfix ~= false then
-    set_quickfix(title, split_quickfix_items(opts))
+  local quickfix_entries = split_quickfix_items(opts)
+  if opts.quickfix ~= false and #quickfix_entries > 1 then
+    set_quickfix(title, quickfix_entries)
   end
   for _, win in ipairs(opts.left_win and { opts.left_win } or windows_for_buffer(opts.left_buf)) do
     set_loclist(

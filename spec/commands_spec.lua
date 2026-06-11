@@ -426,6 +426,7 @@ describe('commands', function()
     restore_mocks()
     cleanup_buffers()
     cleanup_repos()
+    pcall(vim.fn.setqflist, {}, 'f')
     for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
       pcall(vim.api.nvim_set_option_value, 'winhighlight', '', { win = win })
     end
@@ -1036,10 +1037,7 @@ describe('commands', function()
       assert.is_true(table.concat(display_lines, '\n'):find('    2 | +local x = 1', 1, true) ~= nil)
 
       local qf = quickfix_items()
-      assert.are.equal(1, #qf)
-      assert.are.equal(diff_buf, qf[1].bufnr)
-      assert.are.equal(1, qf[1].lnum)
-      assert.is_true(qf[1].text:find('lua/foo.lua', 1, true) ~= nil)
+      assert.are.equal(0, #qf)
 
       local loc = loclist_items()
       assert.are.equal(1, #loc)
@@ -1206,10 +1204,7 @@ describe('commands', function()
       assert.is_true(rail:find('┃', 1, true) ~= nil)
 
       local qf = quickfix_items()
-      assert.are.equal(1, #qf)
-      assert.are.equal(right_buf, qf[1].bufnr)
-      assert.are.equal(2, qf[1].lnum)
-      assert.is_true(qf[1].text:find('lua/foo.lua', 1, true) ~= nil)
+      assert.are.equal(0, #qf)
 
       local left_loc = loclist_items(left_win)
       local right_loc = loclist_items(right_win)
@@ -1460,7 +1455,7 @@ describe('commands', function()
       )
     end)
 
-    it('targets the old endpoint for split deleted hunks in qf and loclist', function()
+    it('targets the old endpoint for split deleted hunks in the loclist', function()
       create_split_source({
         index_lines = {
           'line 1',
@@ -1482,9 +1477,7 @@ describe('commands', function()
       assert.are.equal(0, hunks[1].new_range.count)
 
       local qf = quickfix_items()
-      assert.are.equal(1, #qf)
-      assert.are.equal(left_buf, qf[1].bufnr)
-      assert.are.equal(hunks[1].old_range.start, qf[1].lnum)
+      assert.are.equal(0, #qf)
 
       local right_loc = loclist_items(right_win)
       assert.are.equal(1, #right_loc)
@@ -2002,10 +1995,7 @@ describe('commands', function()
       }, vim.api.nvim_buf_get_var(diff_buf, 'diffs_source'))
 
       local qf = quickfix_items()
-      assert.are.equal(1, #qf)
-      assert.are.equal(diff_buf, qf[1].bufnr)
-      assert.are.equal(1, qf[1].lnum)
-      assert.is_true(qf[1].text:find('renamed.txt', 1, true) ~= nil)
+      assert.are.equal(0, #qf)
 
       local loc = loclist_items()
       assert.are.equal(1, #loc)
@@ -2607,9 +2597,13 @@ describe('commands', function()
       assert.is_false(vim.tbl_contains(lines, 'stale lifecycle content'))
 
       local qf = quickfix_items()
-      assert.is_true(#qf >= 1, case.label)
-      assert.are.equal(bufnr, qf[1].bufnr, case.label)
-      assert.are.equal(1, qf[1].lnum, case.label)
+      if case.review then
+        assert.is_true(#qf >= 1, case.label)
+        assert.are.equal(bufnr, qf[1].bufnr, case.label)
+        assert.are.equal(1, qf[1].lnum, case.label)
+      else
+        assert.are.equal(0, #qf, case.label)
+      end
 
       local loc = loclist_items()
       assert.is_true(#loc >= 1, case.label)
