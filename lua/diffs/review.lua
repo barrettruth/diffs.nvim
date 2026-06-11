@@ -1,5 +1,6 @@
 local M = {}
 
+local diffopt = require('diffs.diffopt')
 local diffspec = require('diffs.spec')
 local generated = require('diffs.generated')
 local git = require('diffs.git')
@@ -293,6 +294,7 @@ end
 ---@return string[]
 function M.build_cmd(review)
   local cmd = { 'git', '-C', review.repo_root, 'diff', '--no-ext-diff', '--no-color' }
+  vim.list_extend(cmd, diffopt.git_flags())
   vim.list_extend(cmd, review.exec_args)
   return cmd
 end
@@ -373,13 +375,11 @@ end
 ---@param base_rev string
 ---@return string[]?, string?
 local function branch_lines(review, base_rev)
-  return git_lines(review.repo_root, {
-    'diff',
-    '--no-ext-diff',
-    '--no-color',
-    base_rev,
-    'HEAD',
-  })
+  local args = { 'diff', '--no-ext-diff', '--no-color' }
+  vim.list_extend(args, diffopt.git_flags())
+  args[#args + 1] = base_rev
+  args[#args + 1] = 'HEAD'
+  return git_lines(review.repo_root, args)
 end
 
 ---@param review diffs.NormalizedReview
@@ -387,6 +387,7 @@ end
 ---@return string[]?, string?
 local function worktree_edge_lines(review, cached)
   local args = { 'diff', '--no-ext-diff', '--no-color' }
+  vim.list_extend(args, diffopt.git_flags())
   if cached then
     args[#args + 1] = '--cached'
   end
