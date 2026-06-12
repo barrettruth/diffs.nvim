@@ -397,6 +397,8 @@ local function selection_from_entry(state, entry)
     lnum = entry.lnum,
     hunk = hunk,
     hunk_index = file_hunk_index(state.hunks, hunk),
+    added = entry.adds,
+    removed = entry.dels,
   }
 end
 
@@ -646,6 +648,8 @@ end
 ---@field lnum integer?
 ---@field hunk? diffs.DiffHunk
 ---@field hunk_index? integer
+---@field added? integer
+---@field removed? integer
 
 ---@param opts? diffs.GeneratedFileSelectionOpts
 ---@return diffs.GeneratedFileSelection?, string?
