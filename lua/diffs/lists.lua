@@ -6,8 +6,6 @@ local hunk_model = require('diffs.hunks')
 local generated_list_autocmds = {}
 local generated_list_state = {}
 local quickfix_keymap_autocmd
----@type fun(item: table?)?
-local generated_jump_callback
 local quickfix_enter_desc = 'Open quickfix item'
 
 local group = vim.api.nvim_create_augroup('diffs_generated_lists', { clear = false })
@@ -631,14 +629,6 @@ local function jump_current_quickfix_item()
     vim.cmd(command .. ' ' .. row)
   end
   sync_split_item(item)
-  if generated_jump_callback then
-    generated_jump_callback(item)
-  end
-end
-
----@param callback fun(item: table?)?
-function M.set_generated_jump_callback(callback)
-  generated_jump_callback = callback
 end
 
 ---@class diffs.GeneratedFileSelectionOpts
@@ -826,16 +816,6 @@ function M.generated_files(diff_lines, opts)
     files[#files + 1] = selection_from_entry(state, entry)
   end
   return files
-end
-
----@param bufnr integer
----@param diff_lines string[]
----@param opts? diffs.GeneratedListOptions
-function M.set_review_workspace_quickfix(bufnr, diff_lines, opts)
-  opts = opts or {}
-  local title = opts.title or 'review'
-  local state = list_state(diff_lines, opts)
-  set_quickfix(title, quickfix_items(bufnr, state.entries))
 end
 
 ---@param bufnr integer

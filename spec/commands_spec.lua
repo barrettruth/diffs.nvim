@@ -319,16 +319,6 @@ local function find_window_for_buffer(bufnr)
   return nil
 end
 
-local function find_quickfix_window()
-  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-    local buf = vim.api.nvim_win_get_buf(win)
-    if vim.api.nvim_get_option_value('buftype', { buf = buf }) == 'quickfix' then
-      return win
-    end
-  end
-  return nil
-end
-
 ---@param win integer
 ---@return integer?
 local function find_loclist_window_for_window(win)
@@ -3294,10 +3284,7 @@ describe('commands', function()
       assert.is_true(vim.api.nvim_get_option_value('scrollbind', { win = panes.left_win }))
       assert.is_true(vim.api.nvim_get_option_value('scrollbind', { win = panes.right_win }))
 
-      local qf = quickfix_items()
-      assert.are.equal(1, #qf)
-      assert.are.equal(panes.left_buf, qf[1].bufnr)
-      assert.is_true(qf[1].text:find('file.txt', 1, true) ~= nil)
+      assert.are.equal(0, #quickfix_items())
 
       local loc = loclist_items(panes.left_win)
       assert.are.equal(1, #loc)
@@ -3462,7 +3449,7 @@ describe('commands', function()
       open_section('# Unstaged:', diffspec.index_to_worktree('lua/dup.lua'))
     end)
 
-    it('uses quickfix for review files and loclist for active-file hunks', function()
+    it('uses ]f/[f to switch review files and loclist for active-file hunks', function()
       local repo = create_review_repo()
       edit_file(repo.repo_root .. '/lua/one.lua')
       mock_runtime_attach(function() end)
@@ -3475,22 +3462,14 @@ describe('commands', function()
         vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
       )
 
-      local qf = quickfix_items()
-      assert.are.equal(2, #qf)
-      assert.are.equal(panes.left_buf, qf[1].bufnr)
-      assert.are.equal(panes.left_buf, qf[2].bufnr)
+      assert.are.equal(0, #quickfix_items())
+      assert.is_true(helpers.has_keymap(panes.left_buf, ']f'))
+      assert.is_true(helpers.has_keymap(panes.right_buf, ']f'))
+      assert.is_true(helpers.has_keymap(panes.left_buf, '[f'))
+      assert.is_true(helpers.has_keymap(panes.right_buf, '[f'))
 
-      vim.cmd('copen')
-      local qf_win = find_quickfix_window()
-      assert.is_not_nil(qf_win)
-      vim.api.nvim_set_current_win(qf_win)
-      vim.api.nvim_win_set_cursor(qf_win, { 2, 0 })
-      vim.cmd('normal \r')
-
-      vim.wait(100, function()
-        return panes.state.selected_file == 'lua/two.lua'
-      end)
-
+      vim.api.nvim_set_current_win(panes.right_win)
+      commands.review_next_file()
       panes = track_panes(panes.state.left_buf)
       assert.are.same(
         diffspec.rev_to_rev(repo.base, repo.target, 'lua/two.lua'),
@@ -3501,11 +3480,23 @@ describe('commands', function()
         vim.api.nvim_buf_get_var(panes.right_buf, 'diffs_spec')
       )
       assert.is_true(buffer_text(panes.right_buf):find('line 11 changed', 1, true) ~= nil)
+      assert.are.equal(0, #quickfix_items())
 
-      local new_qf = quickfix_items()
-      assert.are.equal(2, #new_qf)
-      assert.are.equal(panes.left_buf, new_qf[1].bufnr)
-      assert.are.equal(panes.left_buf, new_qf[2].bufnr)
+      vim.api.nvim_set_current_win(panes.right_win)
+      commands.review_next_file()
+      panes = track_panes(panes.state.left_buf)
+      assert.are.same(
+        diffspec.rev_to_rev(repo.base, repo.target, 'lua/one.lua'),
+        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
+      )
+
+      vim.api.nvim_set_current_win(panes.right_win)
+      commands.review_prev_file()
+      panes = track_panes(panes.state.left_buf)
+      assert.are.same(
+        diffspec.rev_to_rev(repo.base, repo.target, 'lua/two.lua'),
+        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
+      )
 
       assert_target_at_hunk(panes, 1)
 
