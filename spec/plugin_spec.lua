@@ -116,4 +116,46 @@ describe('plugin bootstrap', function()
     assert.matches('Error in ', output, 1, true)
     assert.matches('diffs: hide_prefix has been removed; use view.prefix', output, 1, true)
   end)
+
+  it('enhances native diff windows opened at startup with nvim -d', function()
+    local tmpdir = vim.fn.tempname()
+    assert.are.equal(1, vim.fn.mkdir(tmpdir, 'p'))
+    local file_a = tmpdir .. '/a.txt'
+    local file_b = tmpdir .. '/b.txt'
+    vim.fn.writefile({ 'local x = 1', 'local y = 2' }, file_a)
+    vim.fn.writefile({ 'local x = 1', 'local y = 3' }, file_b)
+
+    local init_file = tmpdir .. '/init.lua'
+    vim.fn.writefile({
+      ('vim.opt.runtimepath:prepend(%s)'):format(vim.inspect(vim.fn.getcwd())),
+    }, init_file)
+
+    local check = table.concat({
+      'lua vim.schedule(function()',
+      'local parts = {}',
+      'for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do',
+      'if vim.wo[win].diff then parts[#parts + 1] = vim.wo[win].winhighlight end',
+      'end',
+      "print('DIFF_WINHL=' .. table.concat(parts, '||'))",
+      "vim.cmd('qa!')",
+      'end)',
+    }, ' ')
+
+    local output = vim.fn.system({
+      vim.v.progpath,
+      '--headless',
+      '--clean',
+      '-u',
+      init_file,
+      '-d',
+      file_a,
+      file_b,
+      '-c',
+      check,
+    })
+    vim.fn.delete(tmpdir, 'rf')
+
+    assert.matches('DIFF_WINHL=', output, 1, true)
+    assert.matches('DiffAdd:DiffsDiffAdd', output, 1, true)
+  end)
 end)
