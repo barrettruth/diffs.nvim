@@ -3519,6 +3519,74 @@ describe('commands', function()
       assert_target_at_hunk(panes, 1)
     end)
 
+    it('exposes review_files/current/goto, the gO map, and the b:diffs_review marker', function()
+      local repo = create_review_repo()
+      edit_file(repo.repo_root .. '/lua/one.lua')
+      mock_runtime_attach(function() end)
+
+      local left_buf =
+        commands.review_command(('++layout=split %s..%s'):format(repo.base, repo.target))
+      local panes = track_panes(left_buf)
+
+      for _, buf in ipairs({ panes.left_buf, panes.right_buf }) do
+        local marker = vim.b[buf].diffs_review
+        assert.is_table(marker)
+        assert.are.equal('split', marker.layout)
+        assert.is_true(helpers.has_keymap(buf, 'gO'))
+      end
+
+      local files = commands.review_files(panes.left_buf)
+      assert.are.equal(2, #files)
+      assert.are.equal('lua/one.lua', files[1].path)
+      assert.are.equal('lua/two.lua', files[2].path)
+      assert.is_string(files[1].key)
+      assert.is_number(files[1].added)
+      assert.is_number(files[1].removed)
+
+      local current = commands.review_current(panes.left_buf)
+      assert.are.equal(1, current.index)
+      assert.are.equal(2, current.count)
+      assert.are.equal('lua/one.lua', current.file.path)
+
+      assert.is_true(commands.review_goto(files[2].key, panes.left_buf))
+      panes = track_panes(panes.state.left_buf)
+      assert.are.same(
+        diffspec.rev_to_rev(repo.base, repo.target, 'lua/two.lua'),
+        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
+      )
+      assert.are.equal(2, commands.review_current(panes.left_buf).index)
+
+      assert.is_false(commands.review_goto('does/not/exist', panes.left_buf))
+      local scratch = vim.api.nvim_create_buf(false, true)
+      table.insert(test_buffers, scratch)
+      assert.is_nil(commands.review_files(scratch))
+      assert.is_false(commands.review_goto(files[1].key, scratch))
+    end)
+
+    it('select_review_file jumps to the chosen file via vim.ui.select', function()
+      local repo = create_review_repo()
+      edit_file(repo.repo_root .. '/lua/one.lua')
+      mock_runtime_attach(function() end)
+
+      local left_buf =
+        commands.review_command(('++layout=split %s..%s'):format(repo.base, repo.target))
+      local panes = track_panes(left_buf)
+
+      local original = vim.ui.select
+      vim.ui.select = function(items, _, on_choice)
+        on_choice(items[2])
+      end
+      local ok, err = pcall(commands.select_review_file, panes.left_buf)
+      vim.ui.select = original
+      assert.is_true(ok, err)
+
+      panes = track_panes(panes.state.left_buf)
+      assert.are.same(
+        diffspec.rev_to_rev(repo.base, repo.target, 'lua/two.lua'),
+        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
+      )
+    end)
+
     it('navigates loclist hunks without switching the active review file', function()
       local repo = create_review_repo()
       edit_file(repo.repo_root .. '/lua/one.lua')

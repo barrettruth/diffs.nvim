@@ -560,10 +560,10 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     maps use one context-aware line-number rail as described at
     |diffs.nvim-stacked-layout|. These layouts populate the quickfix list with
     file entries (one per changed file, with `+N`/`-M` stats) and the location
-    list with hunk entries (one per `@@` header, with filename and hunk number).
-    All entries point into the diff buffer, so `:cnext`/`:cprev` navigate
-    between files and `:lnext`/`:lprev` navigate between hunks within the
-    buffer.
+    list with the hunk entries of the file under the cursor (one per `@@`
+    header), refreshed as you move between files. All entries point into the
+    diff buffer, so `:cnext`/`:cprev` navigate between files and `:lnext`/
+    `:lprev` navigate between hunks of the current file.
 
     Reloading with `:edit` refreshes the same review. If a `diffs://` window
     already exists in the current tabpage, the new diff replaces its buffer
@@ -583,7 +583,9 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     position in the review, for example `[diffs]: (2 of 5): [Unstaged]
     lua/rate.lua`. These are buffer-local defaults backed by
     |<Plug>(diffs-review-next-file)| and |<Plug>(diffs-review-prev-file)|, set
-    only when you have not already mapped those keys. The split no longer drives
+    only when you have not already mapped those keys. `gO` opens
+    |vim.ui.select()| to jump to any file in the review
+    (see |<Plug>(diffs-review-select-file)|). The split no longer drives
     file navigation through the quickfix list; the location list still holds the
     active file's hunks (`:lnext`/`:lprev`). A quickfix from another surface
     (such as an open review map) is left untouched, so `:cnext`/`:cprev` follow
@@ -728,6 +730,14 @@ MAPPINGS                                                 *diffs.nvim-mappings*
 <Plug>(diffs-review-prev-file)
                         As |<Plug>(diffs-review-next-file)|, but the previous
                         changed file. Mapped to `[f` by default.
+
+                                          *<Plug>(diffs-review-select-file)*
+<Plug>(diffs-review-select-file)
+                        In a |:Diff-review| split, prompt with |vim.ui.select()|
+                        for one of the review's files and jump to it. Mapped to
+                        `gO` by default in the split panes — a review's files are
+                        its table of contents — unless `gO` is already mapped in
+                        that buffer. See |diffs.nvim.select_review_file()|.
 
                                           *<Plug>(diffs-toggle-whitespace)*
 <Plug>(diffs-toggle-whitespace)
@@ -1216,6 +1226,76 @@ refresh({bufnr})                                        *diffs.nvim.refresh()*
     Parameters: ~
         {bufnr}  (integer, optional) Buffer number. Defaults to current buffer.
 
+The review-split navigation API below is buffer-centric and split-scoped: each
+function resolves the review split that {bufnr} (default: current buffer)
+belongs to, and is a no-op (`nil`/`false`) elsewhere. The stacked review map is
+self-sufficient through the |quickfix| list and is not covered here. Navigation
+is only meaningful inside an open review; nothing here opens one.
+
+                                                            *diffs.ReviewFile*
+A `diffs.ReviewFile` describes one changed file in a review: ~
+    {path}           (string) Repo-relative path, e.g. `lua/rate.lua`.
+    {key}            (string) Stable identifier; a path can recur across
+                     sections, e.g. `unstaged:lua/rate.lua`.
+    {section}        (string|nil) Section id, e.g. `unstaged`.
+    {section_label}  (string|nil) Display label, e.g. `Unstaged`.
+    {added}          (integer) Added line count.
+    {removed}        (integer) Removed line count.
+
+review_files({bufnr})                              *diffs.nvim.review_files()*
+    List the changed files in the review split {bufnr} belongs to, as
+    |diffs.ReviewFile| items, or `nil` when {bufnr} is not a review split.
+
+    Parameters: ~
+        {bufnr}  (integer, optional) Buffer number. Defaults to current buffer.
+
+review_current({bufnr})                          *diffs.nvim.review_current()*
+    Return `{ index, count, file }` for the file currently shown in the review
+    split {bufnr} belongs to (`file` is a |diffs.ReviewFile|), or `nil`
+    otherwise. Handy for statuslines.
+
+    Parameters: ~
+        {bufnr}  (integer, optional) Buffer number. Defaults to current buffer.
+
+review_goto({target}, {bufnr})                      *diffs.nvim.review_goto()*
+    Switch the review split {bufnr} belongs to so it shows {target}, swapping
+    both panes in place. Returns `true` on success, `false` when {bufnr} is not
+    a review split or no file matches. Never opens a split.
+
+    Parameters: ~
+        {target} (string) A |diffs.ReviewFile| `key` (preferred) or path.
+        {bufnr}  (integer, optional) Buffer number. Defaults to current buffer.
+
+review_next_file()                              *diffs.nvim.review_next_file()*
+review_prev_file()                              *diffs.nvim.review_prev_file()*
+    Step the current review split to the next/previous changed file, wrapping
+    at the ends. Backing functions for `]f`/`[f`,
+    |<Plug>(diffs-review-next-file)|, and |<Plug>(diffs-review-prev-file)|.
+
+select_review_file({bufnr})                  *diffs.nvim.select_review_file()*
+    Prompt with |vim.ui.select()| over the review split's files and jump to the
+    chosen one. Backing function for |<Plug>(diffs-review-select-file)| (`gO`).
+    It uses whatever |vim.ui.select()| backend you have configured, so no extra
+    dependency is required. To build a bespoke picker, call the data and action
+    functions directly, capturing the review buffer before the picker opens: >lua
+        local diffs = require('diffs')
+        local bufnr = vim.api.nvim_get_current_buf()
+        local files = diffs.review_files(bufnr)
+        if files then
+          vim.ui.select(files, {
+            format_item = function(f)
+              return ('[%s] %s'):format(f.section_label or '', f.path)
+            end,
+          }, function(choice)
+            if choice then
+              diffs.review_goto(choice.key, bufnr)
+            end
+          end)
+        end
+<
+    Parameters: ~
+        {bufnr}  (integer, optional) Buffer number. Defaults to current buffer.
+
 ------------------------------------------------------------------------------
 PLUGIN AUTHORS                                     *diffs.nvim-plugin-authors*
 
@@ -1239,8 +1319,13 @@ Configuration: >lua
     require('diffs').attach(bufnr)
 <
 
-`b:diffs_repo_root` is the only supported `b:diffs_*` variable for external
-buffers. Other `b:diffs_*` variables, generated `diffs://` buffer names,
+`b:diffs_repo_root` is the only supported `b:diffs_*` variable to set on
+external buffers. On its own review-split panes |diffs.nvim| also exposes a
+read-only `b:diffs_review` table — `{ display = <review>, layout = "split" }` —
+so statuslines and other plugins can detect and identify a review buffer
+without calling the API. Treat it as identity only; live position and the file
+list come from |diffs.nvim.review_current()| and |diffs.nvim.review_files()|.
+Other `b:diffs_*` variables, generated `diffs://` buffer names,
 hunk/spec/source metadata, quickfix/location-list `user_data`, and non-root
 `lua/diffs/` modules are internal unless documented here.
 

@@ -1184,14 +1184,23 @@ local function forget_review_split(state)
 end
 
 ---@param state diffs.ReviewSplitState
-local function set_review_split_keymaps(state)
+local function setup_review_split_panes(state)
   for _, buf in ipairs({ state.left_buf, state.right_buf }) do
     if vim.api.nvim_buf_is_valid(buf) then
+      vim.b[buf].diffs_review = { display = state.display, layout = 'split' }
       if not get_buffer_keymap(buf, 'n', ']f') then
         vim.keymap.set('n', ']f', '<Plug>(diffs-review-next-file)', { buffer = buf, remap = true })
       end
       if not get_buffer_keymap(buf, 'n', '[f') then
         vim.keymap.set('n', '[f', '<Plug>(diffs-review-prev-file)', { buffer = buf, remap = true })
+      end
+      if not get_buffer_keymap(buf, 'n', 'gO') then
+        vim.keymap.set(
+          'n',
+          'gO',
+          '<Plug>(diffs-review-select-file)',
+          { buffer = buf, remap = true }
+        )
       end
     end
   end
@@ -1200,7 +1209,7 @@ end
 ---@param state diffs.ReviewSplitState
 local function attach_review_split_autocmds(state)
   clear_review_split_autocmds(state)
-  set_review_split_keymaps(state)
+  setup_review_split_panes(state)
   for _, buf in ipairs({ state.left_buf, state.right_buf }) do
     state.autocmds[#state.autocmds + 1] = vim.api.nvim_create_autocmd('BufWipeout', {
       group = review_split_group,
@@ -1263,6 +1272,24 @@ local function switch_review_split_file(state, selected)
   return true
 end
 
+---@param state diffs.ReviewSplitState
+---@return diffs.GeneratedFileSelection[]
+local function review_split_files(state)
+  return lists.generated_files(state.review_lines, review_generated_list_opts(state.list_opts))
+end
+
+---@param files diffs.GeneratedFileSelection[]
+---@param state diffs.ReviewSplitState
+---@return integer
+local function review_index_of_current(files, state)
+  for i, selection in ipairs(files) do
+    if selection.key == state.selected_key or selection.file == state.selected_file then
+      return i
+    end
+  end
+  return 1
+end
+
 ---@param selection diffs.GeneratedFileSelection
 ---@param index integer
 ---@param count integer
@@ -1275,25 +1302,29 @@ local function announce_review_file(selection, index, count)
 end
 
 ---@param state diffs.ReviewSplitState
+---@param selection diffs.GeneratedFileSelection
+---@param index integer
+---@param count integer
+---@return boolean
+local function goto_selection(state, selection, index, count)
+  if switch_review_split_file(state, selection) then
+    announce_review_file(selection, index, count)
+    return true
+  end
+  return false
+end
+
+---@param state diffs.ReviewSplitState
 ---@param delta integer
 local function step_review_split_file(state, delta)
-  local files =
-    lists.generated_files(state.review_lines, review_generated_list_opts(state.list_opts))
+  local files = review_split_files(state)
   local count = #files
   if count < 2 then
     return
   end
-  local current = 1
-  for i, selection in ipairs(files) do
-    if selection.key == state.selected_key or selection.file == state.selected_file then
-      current = i
-      break
-    end
-  end
+  local current = review_index_of_current(files, state)
   local target = ((current - 1 + delta) % count) + 1
-  if switch_review_split_file(state, files[target]) then
-    announce_review_file(files[target], target, count)
-  end
+  goto_selection(state, files[target], target, count)
 end
 
 ---@param delta integer
@@ -1310,6 +1341,104 @@ end
 
 function M.review_prev_file()
   step_current_review_split(-1)
+end
+
+---@class diffs.ReviewFile
+---@field path string
+---@field key string
+---@field section? string
+---@field section_label? string
+---@field added integer
+---@field removed integer
+
+---@param selection diffs.GeneratedFileSelection
+---@return diffs.ReviewFile
+local function project_review_file(selection)
+  return {
+    path = selection.file,
+    key = selection.key or selection.file,
+    section = selection.section,
+    section_label = selection.section_label,
+    added = selection.added or 0,
+    removed = selection.removed or 0,
+  }
+end
+
+---@param bufnr integer?
+---@return diffs.ReviewSplitState?
+local function resolve_review_split(bufnr)
+  return review_split_states[bufnr or vim.api.nvim_get_current_buf()]
+end
+
+---@param bufnr integer? Defaults to the current buffer.
+---@return diffs.ReviewFile[]? files Nil when the buffer is not a review split.
+function M.review_files(bufnr)
+  local state = resolve_review_split(bufnr)
+  if not state then
+    return nil
+  end
+  local files = {}
+  for _, selection in ipairs(review_split_files(state)) do
+    files[#files + 1] = project_review_file(selection)
+  end
+  return files
+end
+
+---@param bufnr integer? Defaults to the current buffer.
+---@return { index: integer, count: integer, file: diffs.ReviewFile }?
+function M.review_current(bufnr)
+  local state = resolve_review_split(bufnr)
+  if not state then
+    return nil
+  end
+  local files = review_split_files(state)
+  if #files == 0 then
+    return nil
+  end
+  local index = review_index_of_current(files, state)
+  return { index = index, count = #files, file = project_review_file(files[index]) }
+end
+
+---@param target string A review file key (preferred) or path.
+---@param bufnr integer? Defaults to the current buffer.
+---@return boolean switched
+function M.review_goto(target, bufnr)
+  local state = resolve_review_split(bufnr)
+  if not state then
+    return false
+  end
+  local files = review_split_files(state)
+  for i, selection in ipairs(files) do
+    if selection.key == target or selection.file == target then
+      if selection.key == state.selected_key or selection.file == state.selected_file then
+        return true
+      end
+      return goto_selection(state, selection, i, #files)
+    end
+  end
+  return false
+end
+
+---@param bufnr integer? Defaults to the current buffer.
+function M.select_review_file(bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  local files = M.review_files(bufnr)
+  if not files or #files == 0 then
+    return
+  end
+  vim.ui.select(files, {
+    prompt = 'Review file:',
+    format_item = function(file)
+      local label = (file.section_label and file.section_label ~= '')
+          and ('[%s] %s'):format(file.section_label, file.path)
+        or file.path
+      return ('%s  +%d -%d'):format(label, file.added, file.removed)
+    end,
+  }, function(choice)
+    if choice then
+      M.review_goto(choice.key, bufnr)
+    end
+  end)
 end
 
 local function close_existing_review_splits()
