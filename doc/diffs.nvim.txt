@@ -1235,9 +1235,11 @@ is only meaningful inside an open review; nothing here opens one.
                                                             *diffs.ReviewFile*
 A `diffs.ReviewFile` describes one changed file in a review: ~
     {path}           (string) Repo-relative path, e.g. `lua/rate.lua`.
-    {key}            (string) Stable identifier; a path can recur across
-                     sections, e.g. `unstaged:lua/rate.lua`.
-    {section}        (string|nil) Section id, e.g. `unstaged`.
+    {key}            (string) Opaque, stable identifier; pass it to
+                     |diffs.nvim.review_goto()|. Prefer it over {path} as a
+                     target, since a path can recur across sections. Do not
+                     parse it; read {section}/{path} from the fields instead.
+    {section}        (string|nil) Section id for logic, e.g. `unstaged`.
     {section_label}  (string|nil) Display label, e.g. `Unstaged`.
     {added}          (integer) Added line count.
     {removed}        (integer) Removed line count.
