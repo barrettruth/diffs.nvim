@@ -5,6 +5,7 @@ local content = require('diffs.content')
 local diff_parser = require('diffs.diffargs')
 local diffopt = require('diffs.diffopt')
 local diffspec = require('diffs.spec')
+local difftastic = require('diffs.difftastic')
 local generated = require('diffs.generated')
 local git = require('diffs.git')
 local hunk_model = require('diffs.hunks')
@@ -19,6 +20,45 @@ local split = require('diffs.split')
 local dbg = log.dbg
 local notify = log.notify
 local review_split_group = vim.api.nvim_create_augroup('diffs_review_split', { clear = false })
+
+--- Paint difftastic structural intra spans onto a generated unified buffer and
+--- emit the formatting-only notice when difft saw no structural change.
+---@param diff_buf integer
+---@param diff_lines string[]
+---@param diff_spec diffs.DiffSpec?
+---@param lhs table<integer, table[]>
+---@param rhs table<integer, table[]>
+local function paint_difft_unified(diff_buf, diff_lines, diff_spec, lhs, rhs)
+  difftastic.apply_unified(
+    diff_buf,
+    lhs,
+    rhs,
+    diff_lines,
+    diff_spec,
+    rails.width_for_buffer(diff_buf)
+  )
+  if not difftastic.has_changes(lhs, rhs) then
+    notify('difftastic: no structural changes (formatting only)', vim.log.levels.INFO)
+  end
+end
+
+--- Apply difftastic to a generated unified buffer built from two content
+--- arrays. No-op when difftastic is disabled/unavailable or content is missing.
+---@param diff_buf integer
+---@param diff_lines string[]
+---@param diff_spec diffs.DiffSpec?
+---@param old_lines string[]?
+---@param new_lines string[]?
+---@param relpath string
+local function apply_difft_unified(diff_buf, diff_lines, diff_spec, old_lines, new_lines, relpath)
+  if not difftastic.available() or not old_lines or not new_lines then
+    return
+  end
+  local lhs, rhs = difftastic.span_maps_for_content(old_lines, new_lines, relpath)
+  if lhs and rhs then
+    paint_difft_unified(diff_buf, diff_lines, diff_spec, lhs, rhs)
+  end
+end
 
 ---@class diffs.HunkKeymap
 ---@field mode string
@@ -407,6 +447,7 @@ end
 ---@param opts? { rail_style?: diffs.RailStyle }
 local function replace_generated_diff_buffer_lines(bufnr, diff_lines, diff_spec, opts)
   opts = opts or {}
+  difftastic.clear_active(bufnr)
   local display_lines, rail_info = rails.annotate(diff_lines, {
     rail_separator = runtime.get_view_config().rail_separator,
     rail_style = opts.rail_style or rails.style_for_buffer(bufnr),
@@ -951,6 +992,14 @@ function M.diff_files(left, right, opts)
     title = 'diff: files ' .. left_name .. ' -> ' .. right_name,
   })
   attach_generated_diff_buffer(diff_buf)
+
+  if difftastic.available() then
+    local lhs, rhs = difftastic.span_maps_for_paths(left_abs, right_abs)
+    if lhs and rhs then
+      paint_difft_unified(diff_buf, diff_lines, nil, lhs, rhs)
+    end
+  end
+
   dbg('opened files diff buffer %d (%s -> %s)', diff_buf, left_name, right_name)
   return diff_buf
 end
@@ -1509,6 +1558,17 @@ function M.diff(args, vertical, opts)
     title = 'diff: ' .. diffspec.label(diff_spec),
   })
   attach_generated_diff_buffer(diff_buf)
+
+  if difftastic.available() then
+    local abs = repo_root and (repo_root .. '/' .. diff_path) or diff_path
+    local old_lines = render.read_endpoint(diff_spec.left, abs, { empty_on_missing = true })
+    local new_lines = render.read_endpoint(diff_spec.right, abs, {
+      worktree_lines = worktree_lines,
+      empty_on_missing = true,
+    })
+    apply_difft_unified(diff_buf, diff_lines, diff_spec, old_lines, new_lines, diff_path)
+  end
+
   dbg('opened diff buffer %d for %s (%s)', diff_buf, diff_path, diffspec.label(diff_spec))
 end
 
@@ -1642,6 +1702,19 @@ function M.diff_file(filepath, opts)
   })
 
   attach_generated_diff_buffer(diff_buf)
+
+  if difftastic.available() and diff_label ~= 'unmerged' then
+    ---@type diffs.ContentLines|string[]|nil
+    local dold = old_lines
+    ---@type diffs.ContentLines|string[]|nil
+    local dnew = new_lines
+    if (not dold or not dnew) and diff_spec then
+      local abs = repo_root .. '/' .. rel_path
+      dold = render.read_endpoint(diff_spec.left, abs, { empty_on_missing = true })
+      dnew = render.read_endpoint(diff_spec.right, abs, { empty_on_missing = true })
+    end
+    apply_difft_unified(diff_buf, diff_lines, diff_spec, dold, dnew, rel_path)
+  end
 
   if diff_label == 'unmerged' then
     vim.api.nvim_buf_set_var(diff_buf, 'diffs_unmerged', true)
@@ -1852,7 +1925,7 @@ function M.refresh_visible()
   local done = {}
   for _, entry in ipairs(views) do
     local buf = vim.api.nvim_win_is_valid(entry.win) and vim.api.nvim_win_get_buf(entry.win)
-    if buf and not done[buf] then
+    if buf and not done[buf] and not difftastic.is_active(buf) then
       done[buf] = true
       local ok, peer = pcall(vim.api.nvim_buf_get_var, buf, 'diffs_split_peer')
       if ok and type(peer) == 'number' then
@@ -1892,6 +1965,10 @@ end
 --- re-render the visible diffs:// buffers. The setting is global, so it also
 --- affects native diff windows on their next update.
 function M.toggle_whitespace()
+  if difftastic.is_active(vim.api.nvim_get_current_buf()) then
+    notify('whitespace toggle does not apply to difftastic structural diffs', vim.log.levels.WARN)
+    return
+  end
   if diffopt_has('iwhiteall') then
     vim.opt.diffopt:remove('iwhiteall')
     vim.api.nvim_echo({ { '[diffs] diffopt -iwhiteall (showing whitespace)' } }, false, {})

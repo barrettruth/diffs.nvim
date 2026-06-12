@@ -175,6 +175,12 @@ function M.get_view_config()
   return config.view
 end
 
+---@return boolean|diffs.DifftasticConfig|nil
+function M.get_difftastic_config()
+  init()
+  return config.integrations.difftastic
+end
+
 ---@return diffs.HunkOpts
 function M.get_highlight_opts()
   init()

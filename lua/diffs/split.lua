@@ -2,6 +2,7 @@ local M = {}
 
 local diff = require('diffs.diff')
 local diffspec = require('diffs.spec')
+local difftastic = require('diffs.difftastic')
 local generated = require('diffs.generated')
 local hunk_model = require('diffs.hunks')
 local lists = require('diffs.lists')
@@ -30,6 +31,7 @@ local win_closed_registered = false
 ---@field rail_width integer
 ---@field change_bar string
 ---@field anchors integer[]
+---@field difft_intra? table<integer, {col_start: integer, col_end: integer}[]>
 
 ---@type table<integer, diffs.SplitPaneInfo>
 local pane_info = {}
@@ -238,9 +240,36 @@ end
 
 ---@param bufnr integer
 ---@param info diffs.SplitPaneInfo
+local function set_split_intra_difft(bufnr, info)
+  local opts = require('diffs.runtime').get_highlight_opts()
+  local intra_cfg = opts.highlights.intra
+  if not intra_cfg or not intra_cfg.enabled then
+    return
+  end
+  local cfg = side_config[info.side]
+  local priority = opts.highlights.priorities.char_bg
+  local line_count = vim.api.nvim_buf_line_count(bufnr)
+  for row_index, spans in pairs(info.difft_intra) do
+    if row_index >= 1 and row_index <= line_count then
+      for _, span in ipairs(spans) do
+        pcall(vim.api.nvim_buf_set_extmark, bufnr, split_intra_ns, row_index - 1, span.col_start, {
+          end_col = span.col_end,
+          hl_group = cfg.text_hl,
+          priority = priority,
+        })
+      end
+    end
+  end
+end
+
+---@param bufnr integer
+---@param info diffs.SplitPaneInfo
 ---@param hunks diffs.DiffHunk[]
 local function set_split_intra(bufnr, info, hunks)
   vim.api.nvim_buf_clear_namespace(bufnr, split_intra_ns, 0, -1)
+  if info.difft_intra then
+    return set_split_intra_difft(bufnr, info)
+  end
   if not hunks or #hunks == 0 then
     return
   end
@@ -388,6 +417,9 @@ end
 local function paint_pane(bufnr, source, info, hunks)
   pane_info[bufnr] = info
   set_source_vars(bufnr, source, hunks)
+  if info.difft_intra then
+    difftastic.mark_active(bufnr)
+  end
   set_split_line_bg(bufnr, info)
   set_split_intra(bufnr, info, hunks)
 end
@@ -881,13 +913,27 @@ local function delete_pair_buffers(buffers)
   end
 end
 
+---@param spec diffs.DiffSpec
+---@param old_lines string[]
+---@param new_lines string[]
+---@return diffs.DifftAlignment? difftastic alignment when enabled/available, else nil
+local function difft_alignment(spec, old_lines, new_lines)
+  if not difftastic.available() then
+    return nil
+  end
+  local relpath = (spec and spec.scope and spec.scope.path) or 'file'
+  return (difftastic.align(old_lines, new_lines, relpath))
+end
+
 ---@param old_lines string[]
 ---@param new_lines string[]
 ---@param hunks diffs.DiffHunk[]
 ---@param change_bar? string
+---@param difft? diffs.DifftAlignment precomputed difftastic alignment
 ---@return diffs.SplitAlignment, diffs.SplitPaneInfo, diffs.SplitPaneInfo
-local function build_pane_infos(old_lines, new_lines, hunks, change_bar)
-  local alignment = split_align.align(old_lines, new_lines, hunks)
+local function build_pane_infos(old_lines, new_lines, hunks, change_bar, difft)
+  local use_difft = difft ~= nil and difft.changed
+  local alignment = use_difft and difft or split_align.align(old_lines, new_lines, hunks)
   local max_lnum = math.max(#old_lines, #new_lines, 1)
   local rail_width = math.max(2, #tostring(max_lnum))
   local bar = change_bar or default_change_bar
@@ -897,6 +943,7 @@ local function build_pane_infos(old_lines, new_lines, hunks, change_bar)
     rail_width = rail_width,
     change_bar = bar,
     anchors = alignment.anchors,
+    difft_intra = use_difft and difft.left_intra or nil,
   }
   local right_info = {
     rows = alignment.right_rows,
@@ -904,6 +951,7 @@ local function build_pane_infos(old_lines, new_lines, hunks, change_bar)
     rail_width = rail_width,
     change_bar = bar,
     anchors = alignment.anchors,
+    difft_intra = use_difft and difft.right_intra or nil,
   }
   return alignment, left_info, right_info
 end
@@ -937,8 +985,12 @@ function M.open(opts)
     return nil, right_err
   end
   local split_hunks = split_hunks_for(opts.diff_lines, spec)
+  local difft = difft_alignment(spec, old_content, new_content)
+  if difft and not difft.changed then
+    log.notify('difftastic: no structural changes (formatting only)', vim.log.levels.INFO)
+  end
   local alignment, left_info, right_info =
-    build_pane_infos(old_content, new_content, split_hunks, opts.change_bar)
+    build_pane_infos(old_content, new_content, split_hunks, opts.change_bar, difft)
 
   local reuse = opts.reuse_wins
   local invoking_win = vim.api.nvim_get_current_win()
@@ -1082,8 +1134,9 @@ function M.read_buffer(bufnr, source, opts)
   local old_content = source.side == 'left' and current_lines or peer_lines
   local new_content = source.side == 'right' and current_lines or peer_lines
 
+  local difft = difft_alignment(source.spec, old_content, new_content)
   local alignment, left_info, right_info =
-    build_pane_infos(old_content, new_content, split_hunks or {}, opts.change_bar)
+    build_pane_infos(old_content, new_content, split_hunks or {}, opts.change_bar, difft)
   apply_buffer_lines(left_buf, left_source, alignment.left_lines, left_info, split_hunks or {})
   apply_buffer_lines(right_buf, right_source, alignment.right_lines, right_info, split_hunks or {})
   set_peers(left_buf, right_buf)

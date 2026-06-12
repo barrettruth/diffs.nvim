@@ -21,6 +21,7 @@ highlighting driven by treesitter.
 - Inline merge conflict detection, highlighting, and resolution
 - Email quoting/patch syntax support (`> diff ...`)
 - Vim syntax fallback
+- [Difftastic](https://difftastic.wilfred.me.uk/) highlight support
 - Configurable highlighting blend
 
 ## Requirements
