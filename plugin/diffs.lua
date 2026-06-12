@@ -71,6 +71,14 @@ vim.api.nvim_create_autocmd('OptionSet', {
   end,
 })
 
+vim.api.nvim_create_autocmd('VimEnter', {
+  callback = function()
+    if vim.wo.diff then
+      runtime.attach_diff()
+    end
+  end,
+})
+
 local cmds = require('diffs.commands')
 vim.keymap.set('n', '<Plug>(diffs-diff)', function()
   cmds.diff(nil, false)
