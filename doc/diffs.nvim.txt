@@ -44,6 +44,7 @@ CONTENTS                                                 *diffs.nvim-contents*
        Gitsigns ........................................ |diffs.nvim-gitsigns|
        Committia ...................................... |diffs.nvim-committia|
        Telescope ...................................... |diffs.nvim-telescope|
+       Difftastic .................................... |diffs.nvim-difftastic|
   8. Conflict Resolution ............................... |diffs.nvim-conflict|
   9. Merge Diff Resolution ................................ |diffs.nvim-merge|
  10. API .................................................... |diffs.nvim-api|
@@ -188,6 +189,11 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
             {telescope}      (boolean, default: false)
                              Enable telescope.nvim preview support. See
                              |diffs.nvim-telescope|.
+
+            {difftastic}     (boolean|table, default: false)
+                             Enable structural diffing via the `difft` binary.
+                             Use `{ args = {...} }` to forward flags. See
+                             |diffs.nvim-difftastic|.
 
         {extra_filetypes}    (table, default: {})
                              Additional filetypes to attach to, beyond the
@@ -965,6 +971,44 @@ Known issue: Telescope's previewer may render the first line of the preview
 buffer with a black background regardless of colorscheme. This is a Telescope
 artifact unrelated to diffs.nvim. Tracked upstream:
 https://github.com/nvim-telescope/telescope.nvim/issues/3626
+
+------------------------------------------------------------------------------
+DIFFTASTIC                                             *diffs.nvim-difftastic*
+
+Enable structural diffing via difftastic
+(https://github.com/Wilfred/difftastic). This integration is different from the
+others: difftastic is not a plugin whose buffers are decorated, but an external
+`difft` binary used as a structural diff engine. >lua
+    vim.g.diffs = { integrations = { difftastic = true } }
+    vim.g.diffs = { integrations = { difftastic = { args = { '--ignore-comments' } } } }
+<
+
+The `difft` binary must be installed and on `PATH`. When it is missing,
+disabled, errors, or times out, diffs.nvim silently falls back to its normal
+git/intra rendering. The table form forwards `args` to difft verbatim; do not
+pass output-format flags (`--display`, `--color`), which diffs.nvim controls.
+
+When enabled, difftastic augments the diffs you explicitly open — |:Diff|,
+`:Diff ++layout=split`, `:Diff files`, and staged/untracked file diffs — with:
+
+  - structural intra-line token highlighting (the actual edited tokens, with
+    reformatting/reindentation recognized as unchanged), and
+  - structural side-by-side row alignment in the split layout.
+
+It deliberately does not touch the live/ambient surfaces (fugitive, neogit, the
+builtin `diff` filetype), the multi-file review map, conflicts, or binary
+files; those render unchanged. In the unified layouts difftastic only refines
+the token layer (the +/- line structure stays git's), so its line-level
+structural wins appear in the split layout.
+
+difftastic runs synchronously when you open the diff, with an internal timeout.
+It is independent of |diffs.nvim-config| `highlights.intra`, which configures
+the built-in engine and is the fallback when difftastic is off. When difftastic
+finds no structural change (e.g. a reformat-only edit), it emits an
+informational message and renders no token highlights. Whitespace toggling
+(`gw`) does not apply to a structural diff and is a no-op on such buffers.
+
+Run |:checkhealth| diffs to confirm `difft` is detected.
 
 ==============================================================================
 CONFLICT RESOLUTION                                      *diffs.nvim-conflict*
