@@ -1,3 +1,4 @@
+local integrations = require('diffs.integrations')
 local log = require('diffs.log')
 
 local M = {}
@@ -148,6 +149,14 @@ function M.apply(config, is_default)
     'DiffsConflictBaseNr',
     { default = dflt, fg = blended_base_nr, bg = blended_base }
   )
+
+  -- Neogit's word-diff highlights changed words with these groups; when our
+  -- integration owns the buffer we paint intra-line ourselves, so clear them.
+  -- https://github.com/NeogitOrg/neogit/blob/99326a1310fb2d616b455d2fd16d01bf00682f06/lua/neogit/lib/diff_highlights.lua#L232-L233
+  if integrations.is_enabled(config.integrations.neogit) then
+    vim.api.nvim_set_hl(0, 'NeogitDiffAddInline', {})
+    vim.api.nvim_set_hl(0, 'NeogitDiffDeleteInline', {})
+  end
 
   if config.highlights.overrides then
     for group, hl in pairs(config.highlights.overrides) do
