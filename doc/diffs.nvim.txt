@@ -388,7 +388,8 @@ highlight-only.
     A single-file |:Diff| populates the window's |location-list| with that
     file's hunks and leaves the global |quickfix| list untouched. The quickfix
     list is taken over as a repo-wide file index only for multi-file views and
-    |:Diff-review|.
+    the |:Diff-review| maps, not the review split layout, which navigates files
+    itself and leaves the quickfix list untouched.
 
     Parameters: ~
         ++layout=unified (optional) Open the default generated `diffs://` view
@@ -576,12 +577,18 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     intra-line word-diff highlighting as generated buffers
     (see |diffs.nvim-paired-windows|).
 
-    In split layout, the quickfix list remains the repo-wide review file index
-    and the location list is the active file's hunk index. Selecting a quickfix
-    entry with the |diffs.nvim| mapped <CR> swaps the displayed pair to that
-    file in place, reusing the two windows; the review file index is preserved.
-    `]c`/`[c` navigate hunks within the active file across both panes, and `q`
-    closes the pair.
+    In split layout, `]f`/`[f` step to the next/previous changed file in the
+    review (wrapping at the ends), swapping the displayed pair in place and
+    reusing the two windows. Each step (and the initial open) echoes the file's
+    position in the review, for example `[diffs]: (2 of 5): [Unstaged]
+    lua/rate.lua`. These are buffer-local defaults backed by
+    |<Plug>(diffs-review-next-file)| and |<Plug>(diffs-review-prev-file)|, set
+    only when you have not already mapped those keys. The split no longer drives
+    file navigation through the quickfix list; the location list still holds the
+    active file's hunks (`:lnext`/`:lprev`). A quickfix from another surface
+    (such as an open review map) is left untouched, so `:cnext`/`:cprev` follow
+    that list, not the split. `]c`/`[c` navigate hunks within the active file
+    across both panes, and `q` closes the pair.
 
     Prefix with |:vertical| to open the generated `unified` and `stacked`
     review maps in a vertical split (`:vertical Diff review`). As with |:Diff|,
@@ -641,8 +648,8 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
         `require('diffs.commands').review_split()` opens the currently
         selected |:Diff-review| file in the same paired side-by-side diff used
         by `:Diff review ++layout=split`. It uses the review buffer cursor,
-        quickfix item, or loclist item as the file selection, and the review
-        quickfix list remains the authoritative file list.
+        quickfix item, or loclist item as the file selection. Once the split is
+        open, `]f`/`[f` step between the review's files.
 
     These helpers are command integration helpers for |:Diff-review|. The stable
     root Lua API remains the small surface documented at |diffs.nvim-api|.
@@ -709,6 +716,18 @@ MAPPINGS                                                 *diffs.nvim-mappings*
                         Open the currently selected |:Diff-review| file as a
                         paired side-by-side diff: the old/removed endpoint on
                         the left, the new/added endpoint on the right.
+
+                                            *<Plug>(diffs-review-next-file)*
+<Plug>(diffs-review-next-file)
+                        In a |:Diff-review| split, swap the displayed pair to
+                        the next changed file, wrapping at the end. Mapped to
+                        `]f` by default in the split panes, unless `]f` is
+                        already mapped in that buffer.
+
+                                            *<Plug>(diffs-review-prev-file)*
+<Plug>(diffs-review-prev-file)
+                        As |<Plug>(diffs-review-next-file)|, but the previous
+                        changed file. Mapped to `[f` by default.
 
                                           *<Plug>(diffs-toggle-whitespace)*
 <Plug>(diffs-toggle-whitespace)

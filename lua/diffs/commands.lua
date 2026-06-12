@@ -1168,33 +1168,6 @@ local function first_renderable_review_file(review_spec, repo_root, review_lines
     last_level or vim.log.levels.INFO
 end
 
----@param item table?
----@return diffs.GeneratedFileSelection?
-local function review_selection_from_item(item)
-  if type(item) ~= 'table' or type(item.user_data) ~= 'table' then
-    return nil
-  end
-  local data = item.user_data.diffs
-  if
-    type(data) ~= 'table'
-    or data.kind ~= 'file'
-    or type(data.file) ~= 'string'
-    or data.file == ''
-  then
-    return nil
-  end
-  return {
-    bufnr = item.bufnr,
-    file = data.file,
-    key = data.key or data.file,
-    section = data.section,
-    section_label = data.section_label,
-    diff_spec = data.diff_spec,
-    lnum = item.lnum,
-    hunk_index = data.hunk,
-  }
-end
-
 ---@param state diffs.ReviewSplitState
 local function clear_review_split_autocmds(state)
   for _, id in ipairs(state.autocmds or {}) do
@@ -1211,19 +1184,23 @@ local function forget_review_split(state)
 end
 
 ---@param state diffs.ReviewSplitState
-local function review_split_quickfix(state)
-  lists.set_review_workspace_quickfix(state.left_buf, state.review_lines, {
-    title = 'review: ' .. state.display,
-    loclist_title = 'review hunks: ' .. state.display,
-    metadata_for_line = state.list_opts and state.list_opts.metadata_for_line,
-    sections = state.list_opts and state.list_opts.sections,
-    store_hunks = state.list_opts and state.list_opts.store_hunks,
-  })
+local function set_review_split_keymaps(state)
+  for _, buf in ipairs({ state.left_buf, state.right_buf }) do
+    if vim.api.nvim_buf_is_valid(buf) then
+      if not get_buffer_keymap(buf, 'n', ']f') then
+        vim.keymap.set('n', ']f', '<Plug>(diffs-review-next-file)', { buffer = buf, remap = true })
+      end
+      if not get_buffer_keymap(buf, 'n', '[f') then
+        vim.keymap.set('n', '[f', '<Plug>(diffs-review-prev-file)', { buffer = buf, remap = true })
+      end
+    end
+  end
 end
 
 ---@param state diffs.ReviewSplitState
 local function attach_review_split_autocmds(state)
   clear_review_split_autocmds(state)
+  set_review_split_keymaps(state)
   for _, buf in ipairs({ state.left_buf, state.right_buf }) do
     state.autocmds[#state.autocmds + 1] = vim.api.nvim_create_autocmd('BufWipeout', {
       group = review_split_group,
@@ -1282,27 +1259,57 @@ local function switch_review_split_file(state, selected)
   state.selected_diff_spec = diff_spec
   review_split_states[state.left_buf] = state
   review_split_states[state.right_buf] = state
-  review_split_quickfix(state)
   attach_review_split_autocmds(state)
   return true
 end
 
-local function register_review_split_jump()
-  lists.set_generated_jump_callback(function(item)
-    local selected = review_selection_from_item(item)
-    if not selected or type(selected.bufnr) ~= 'number' then
-      return
+---@param selection diffs.GeneratedFileSelection
+---@param index integer
+---@param count integer
+local function announce_review_file(selection, index, count)
+  local label = selection.section_label
+  local entry = (type(label) == 'string' and label ~= '')
+      and ('[%s] %s'):format(label, selection.file)
+    or selection.file
+  vim.api.nvim_echo({ { ('[diffs]: (%d of %d): %s'):format(index, count, entry) } }, false, {})
+end
+
+---@param state diffs.ReviewSplitState
+---@param delta integer
+local function step_review_split_file(state, delta)
+  local files =
+    lists.generated_files(state.review_lines, review_generated_list_opts(state.list_opts))
+  local count = #files
+  if count < 2 then
+    return
+  end
+  local current = 1
+  for i, selection in ipairs(files) do
+    if selection.key == state.selected_key or selection.file == state.selected_file then
+      current = i
+      break
     end
-    local state = review_split_states[selected.bufnr]
-    if not state then
-      return
-    end
-    vim.schedule(function()
-      if review_split_states[selected.bufnr] == state then
-        switch_review_split_file(state, selected)
-      end
-    end)
-  end)
+  end
+  local target = ((current - 1 + delta) % count) + 1
+  if switch_review_split_file(state, files[target]) then
+    announce_review_file(files[target], target, count)
+  end
+end
+
+---@param delta integer
+local function step_current_review_split(delta)
+  local state = review_split_states[vim.api.nvim_get_current_buf()]
+  if state then
+    step_review_split_file(state, delta)
+  end
+end
+
+function M.review_next_file()
+  step_current_review_split(1)
+end
+
+function M.review_prev_file()
+  step_current_review_split(-1)
 end
 
 local function close_existing_review_splits()
@@ -1408,9 +1415,17 @@ open_review_split = function(spec, opts)
   }
   review_split_states[opened.left_buf] = state
   review_split_states[opened.right_buf] = state
-  review_split_quickfix(state)
-  register_review_split_jump()
   attach_review_split_autocmds(state)
+
+  local files = lists.generated_files(review_lines, review_generated_list_opts(list_opts))
+  local index = 1
+  for i, selection in ipairs(files) do
+    if selection.key == state.selected_key or selection.file == state.selected_file then
+      index = i
+      break
+    end
+  end
+  announce_review_file(first, index, #files)
 
   dbg('opened review split %d/%d (%s)', opened.left_buf, opened.right_buf, normalized.display)
   return opened.left_buf
@@ -1971,10 +1986,10 @@ function M.toggle_whitespace()
   end
   if diffopt_has('iwhiteall') then
     vim.opt.diffopt:remove('iwhiteall')
-    vim.api.nvim_echo({ { '[diffs] diffopt -iwhiteall (showing whitespace)' } }, false, {})
+    vim.api.nvim_echo({ { '[diffs]: diffopt -iwhiteall (showing whitespace)' } }, false, {})
   else
     vim.opt.diffopt:append('iwhiteall')
-    vim.api.nvim_echo({ { '[diffs] diffopt +iwhiteall (ignoring whitespace)' } }, false, {})
+    vim.api.nvim_echo({ { '[diffs]: diffopt +iwhiteall (ignoring whitespace)' } }, false, {})
   end
   M.refresh_visible()
 end
