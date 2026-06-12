@@ -20,6 +20,10 @@ end
 function M.attach(opts, bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
 
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return
+  end
+
   if opts.attached_buffers[bufnr] then
     return
   end

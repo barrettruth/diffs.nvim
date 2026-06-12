@@ -188,3 +188,65 @@ describe('diffs.diffargs', function()
     end)
   end
 end)
+
+describe('diffs.diffargs.parse_files', function()
+  it('parses a single path as the old side with the current buffer as new', function()
+    local result = diffargs.parse_files('old.lua')
+
+    assert.are.equal('old.lua', result.left)
+    assert.is_nil(result.right)
+    assert.are.equal('unified', result.layout)
+  end)
+
+  it('parses two paths as old and new', function()
+    local result = diffargs.parse_files('old.lua new.lua')
+
+    assert.are.equal('old.lua', result.left)
+    assert.are.equal('new.lua', result.right)
+    assert.are.equal('unified', result.layout)
+  end)
+
+  it('parses a leading layout before the paths', function()
+    local result = diffargs.parse_files('++layout=stacked old.lua new.lua')
+
+    assert.are.equal('old.lua', result.left)
+    assert.are.equal('new.lua', result.right)
+    assert.are.equal('stacked', result.layout)
+  end)
+
+  it('accepts ++layout=split at parse time (rejected by the command)', function()
+    local result = diffargs.parse_files('++layout=split old.lua new.lua')
+
+    assert.are.equal('split', result.layout)
+  end)
+
+  it('requires at least one path', function()
+    for _, args in ipairs({ nil, '', '++layout=unified' }) do
+      local result, err = diffargs.parse_files(args)
+
+      assert.is_nil(result)
+      assert.are.equal(':Diff files expects one or two file paths', err)
+    end
+  end)
+
+  it('rejects more than two paths', function()
+    local result, err = diffargs.parse_files('a.lua b.lua c.lua')
+
+    assert.is_nil(result)
+    assert.are.equal('expected at most two file paths', err)
+  end)
+
+  it('rejects repeated and unsupported layouts and unknown options', function()
+    local repeated, repeated_err = diffargs.parse_files('++layout=unified ++layout=split a.lua')
+    assert.is_nil(repeated)
+    assert.are.equal('repeated ++layout option', repeated_err)
+
+    local bad_layout, bad_layout_err = diffargs.parse_files('++layout=tiled a.lua')
+    assert.is_nil(bad_layout)
+    assert.are.equal('unsupported layout tiled', bad_layout_err)
+
+    local unknown, unknown_err = diffargs.parse_files('++bogus a.lua')
+    assert.is_nil(unknown)
+    assert.are.equal('unknown option ++bogus', unknown_err)
+  end)
+end)

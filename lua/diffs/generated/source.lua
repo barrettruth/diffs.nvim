@@ -84,8 +84,8 @@ end
 
 ---@class diffs.GeneratedBufferSource
 ---@field version integer
----@field kind "file"|"file_pair"|"section"|"review"|"unmerged"|"split_endpoint"
----@field repo_root string
+---@field kind "file"|"file_pair"|"section"|"review"|"unmerged"|"split_endpoint"|"files"
+---@field repo_root? string
 ---@field spec? diffs.DiffSpec
 ---@field edge? "staged"|"unstaged"
 ---@field path? string
@@ -96,6 +96,10 @@ end
 ---@field side? "left"|"right"
 ---@field filetype? string
 ---@field quickfix? boolean
+---@field left_path? string
+---@field right_path? string
+---@field left_name? string
+---@field right_name? string
 
 ---@param source table
 ---@return diffs.GeneratedBufferSource?
@@ -106,8 +110,10 @@ function M.normalize_source(source)
   if source.version ~= 1 then
     error('expected version 1')
   end
-  if type(source.repo_root) ~= 'string' or source.repo_root == '' then
-    error('expected repo_root')
+  if source.kind ~= 'files' then
+    if type(source.repo_root) ~= 'string' or source.repo_root == '' then
+      error('expected repo_root')
+    end
   end
 
   if source.kind == 'file' then
@@ -147,6 +153,13 @@ function M.normalize_source(source)
   elseif source.kind == 'unmerged' then
     if type(source.path) ~= 'string' or source.path == '' then
       error('expected unmerged path')
+    end
+  elseif source.kind == 'files' then
+    if type(source.left_path) ~= 'string' or source.left_path == '' then
+      error('expected files left_path')
+    end
+    if type(source.right_path) ~= 'string' or source.right_path == '' then
+      error('expected files right_path')
     end
   else
     error('unknown source kind')
@@ -228,6 +241,22 @@ function M.unmerged_source(repo_root, path, working_path)
     repo_root = repo_root,
     path = path,
     working_path = working_path,
+  }
+end
+
+---@param left_path string # absolute path of the old/left side
+---@param right_path string # absolute path of the new/right side
+---@param left_name string # display name for the old/left side
+---@param right_name string # display name for the new/right side
+---@return diffs.GeneratedBufferSource
+function M.files_source(left_path, right_path, left_name, right_name)
+  return {
+    version = 1,
+    kind = 'files',
+    left_path = left_path,
+    right_path = right_path,
+    left_name = left_name,
+    right_name = right_name,
   }
 end
 

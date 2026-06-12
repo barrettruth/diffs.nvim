@@ -620,7 +620,7 @@ describe('commands', function()
   end)
 
   describe('command completion', function()
-    it('completes the Diff review subcommand, layout options, objects, and refs', function()
+    it('completes the Diff subcommands, layout options, objects, and refs', function()
       mock_repo_root(function()
         return '/tmp/repo'
       end)
@@ -630,6 +630,7 @@ describe('commands', function()
 
       assert.are.same({
         'review',
+        'files',
         '++layout=unified',
         '++layout=stacked',
         '++layout=split',
@@ -642,6 +643,13 @@ describe('commands', function()
       }, commands._test.complete_diff('', 'Diff ', #'Diff '))
 
       assert.are.same({ 'review' }, commands._test.complete_diff('rev', 'Diff rev', #'Diff rev'))
+
+      assert.are.same({ 'files' }, commands._test.complete_diff('fil', 'Diff fil', #'Diff fil'))
+
+      assert.are.same({
+        '++layout=unified',
+        '++layout=stacked',
+      }, commands._test.complete_diff('++l', 'Diff files ++l', #'Diff files ++l'))
 
       assert.are.same({
         '++layout=unified',

@@ -17,6 +17,7 @@ highlighting driven by treesitter.
 - Word-level diff highlighting
 - `:Diff` for [pierre-style](https://diffs.com) unified, stacked, or split diffs against any revision
 - `:Diff review` full-repo review diff with qflist/loclist navigation
+- `:Diff files {a} {b}` to diff two arbitrary files
 - Inline merge conflict detection, highlighting, and resolution
 - Email quoting/patch syntax support (`> diff ...`)
 - Vim syntax fallback
