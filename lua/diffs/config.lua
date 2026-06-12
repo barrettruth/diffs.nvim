@@ -52,6 +52,9 @@ local integration_metadata = require('diffs.integrations')
 ---@field show_actions boolean
 ---@field keymaps diffs.ConflictKeymaps|false
 
+---@class diffs.DifftasticConfig
+---@field args? string[]
+
 ---@class diffs.IntegrationsConfig
 ---@field fugitive boolean
 ---@field neogit boolean
@@ -59,6 +62,7 @@ local integration_metadata = require('diffs.integrations')
 ---@field gitsigns boolean
 ---@field committia boolean
 ---@field telescope boolean
+---@field difftastic? boolean|diffs.DifftasticConfig
 
 ---@class diffs.Config
 ---@field debug boolean|string
@@ -158,6 +162,15 @@ function M.validate(opts)
   local integrations = opts.integrations or {}
   for _, key in ipairs(integration_metadata.keys()) do
     vim.validate('integrations.' .. key, integrations[key], 'boolean', true)
+  end
+  vim.validate('integrations.difftastic', integrations.difftastic, function(v)
+    return v == nil or type(v) == 'boolean' or type(v) == 'table'
+  end, 'boolean or table')
+  if type(integrations.difftastic) == 'table' then
+    vim.validate('integrations.difftastic.args', integrations.difftastic.args, 'table', true)
+    for i, arg in ipairs(integrations.difftastic.args or {}) do
+      vim.validate('integrations.difftastic.args[' .. i .. ']', arg, 'string')
+    end
   end
   vim.validate('extra_filetypes', opts.extra_filetypes, 'table', true)
   vim.validate('highlights', opts.highlights, 'table', true)

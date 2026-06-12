@@ -695,10 +695,12 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
   ---@type diffs.IntraChanges?
   local intra = nil
   local intra_cfg = opts.highlights.intra
+  local difft_active = vim.b[bufnr].diffs_difft_active == true
   if
     not opts.syntax_only
     and intra_cfg
     and intra_cfg.enabled
+    and not difft_active
     and pw == 1
     and (hunk._hl_line_count or #hunk.lines) <= intra_cfg.max_lines
   then
