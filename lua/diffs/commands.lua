@@ -509,6 +509,21 @@ local function render_source(source)
     return diff_lines, source.spec, diffspec.label(source.spec), nil
   end
 
+  if source.kind == 'files' then
+    local old_lines = git.get_working_content(source.left_path)
+    if not old_lines then
+      return nil, nil, source.left_name .. ': file not readable', nil
+    end
+    local new_lines = git.get_working_content(source.right_path)
+    if not new_lines then
+      return nil, nil, source.right_name .. ': file not readable', nil
+    end
+    return render.unified_lines(old_lines, new_lines, source.left_name, source.right_name),
+      nil,
+      'files:' .. source.left_name .. ' -> ' .. source.right_name,
+      nil
+  end
+
   if source.kind == 'file_pair' then
     local abs_path = source.repo_root .. '/' .. source.path
     local old_abs_path = source.repo_root .. '/' .. source.old_path
@@ -749,6 +764,20 @@ local function complete_review_args(arglead, context)
   return matches
 end
 
+local files_layout_options = {
+  '++layout=unified',
+  '++layout=stacked',
+}
+
+---@param arglead string
+---@return string[]
+local function complete_files_args(arglead)
+  if arglead:match('^%+%+') then
+    return prefix_matches(files_layout_options, arglead)
+  end
+  return vim.fn.getcompletion(arglead, 'file')
+end
+
 ---@param arglead string
 ---@param cmdline? string
 ---@param cursorpos? integer
@@ -758,9 +787,17 @@ local function complete_diff_command(arglead, cmdline, cursorpos)
   if args[1] == 'review' then
     return complete_review_args(arglead, args_context(args, 2))
   end
+  if args[1] == 'files' then
+    return complete_files_args(arglead)
+  end
   local matches = {}
-  if #args == 0 and not arglead:match('^%+%+') and starts_with('review', arglead) then
-    matches[#matches + 1] = 'review'
+  if #args == 0 and not arglead:match('^%+%+') then
+    if starts_with('review', arglead) then
+      matches[#matches + 1] = 'review'
+    end
+    if starts_with('files', arglead) then
+      matches[#matches + 1] = 'files'
+    end
   end
   vim.list_extend(matches, complete_diff_args(arglead, cmdline, cursorpos))
   return matches
@@ -812,8 +849,110 @@ function M.diff_command(args, vertical)
         { warn_vertical_split = vertical }
       )
     end
+    if sub == 'files' then
+      return M.diff_files_command(remainder ~= '' and remainder or nil, vertical)
+    end
   end
   return M.diff(args, vertical, { warn_vertical_split = vertical })
+end
+
+---@param args? string
+---@param vertical? boolean
+---@return integer?
+function M.diff_files_command(args, vertical)
+  local parsed, err = diff_parser.parse_files(args)
+  if not parsed then
+    notify(err, vim.log.levels.ERROR)
+    return nil
+  end
+
+  local layout = parsed.layout
+  if layout == 'split' then
+    notify(
+      'split layout is not supported for :Diff files; use nvim -d or :diffsplit for side-by-side',
+      vim.log.levels.ERROR
+    )
+    return nil
+  end
+
+  return M.diff_files(parsed.left, parsed.right, {
+    layout = layout,
+    vertical = vertical,
+  })
+end
+
+---@class diffs.DiffFilesViewOpts
+---@field layout "unified"|"stacked"|"split"
+---@field vertical? boolean
+
+---@param left string
+---@param right string?
+---@param opts? diffs.DiffFilesViewOpts
+---@return integer?
+function M.diff_files(left, right, opts)
+  opts = opts or {}
+
+  local right_input = right
+  if not right_input then
+    local current = vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf())
+    if current == '' then
+      notify('cannot diff unnamed buffer', vim.log.levels.ERROR)
+      return nil
+    end
+    right_input = current
+  end
+
+  local left_abs = vim.fn.fnamemodify(vim.fn.expand(left), ':p')
+  local right_abs = vim.fn.fnamemodify(vim.fn.expand(right_input), ':p')
+  local left_name = vim.fn.fnamemodify(left_abs, ':~:.')
+  if left_name == '' then
+    left_name = left_abs
+  end
+  local right_name = vim.fn.fnamemodify(right_abs, ':~:.')
+  if right_name == '' then
+    right_name = right_abs
+  end
+
+  for _, side in ipairs({
+    { abs = left_abs, name = left_name },
+    { abs = right_abs, name = right_name },
+  }) do
+    if vim.fn.isdirectory(side.abs) == 1 then
+      notify(side.name .. ' is a directory; :Diff files compares two files', vim.log.levels.ERROR)
+      return nil
+    end
+    if vim.fn.filereadable(side.abs) ~= 1 then
+      notify(side.name .. ': file not readable', vim.log.levels.ERROR)
+      return nil
+    end
+  end
+
+  local old_lines = git.get_working_content(left_abs) or {}
+  local new_lines = git.get_working_content(right_abs) or {}
+  if render.has_binary_lines(old_lines) or render.has_binary_lines(new_lines) then
+    notify('diff does not support binary files', vim.log.levels.ERROR)
+    return nil
+  end
+
+  local diff_lines = render.unified_lines(old_lines, new_lines, left_name, right_name)
+  if #diff_lines == 0 then
+    notify('no changes between ' .. left_name .. ' and ' .. right_name, vim.log.levels.INFO)
+    return nil
+  end
+
+  local diff_buf = create_generated_diff_buffer({
+    name = 'diffs://files:' .. left_name .. ' -> ' .. right_name,
+    lines = diff_lines,
+    source = generated.files_source(left_abs, right_abs, left_name, right_name),
+    rail_style = rail_style_for_layout(opts.layout),
+  })
+  show_generated_diff_buffer(diff_buf, opts.vertical)
+  lists.set_for_unified_buffer(diff_buf, diff_lines, {
+    title = 'diff: files ' .. left_name .. ' -> ' .. right_name,
+  })
+  attach_generated_diff_buffer(diff_buf)
+  dbg('opened files diff buffer %d (%s -> %s)', diff_buf, left_name, right_name)
+  return diff_buf
 end
 
 ---@param repo_root string
@@ -1571,12 +1710,6 @@ function M.read_buffer(bufnr)
     return
   end
 
-  local repo_root = source and source.repo_root or generated.repo_root(bufnr)
-  if not repo_root then
-    notify('cannot reload diffs:// buffer without diffs_repo_root', vim.log.levels.WARN)
-    return
-  end
-
   if source and source.kind == 'split_endpoint' then
     local ok, err = split.read_buffer(bufnr, source, {
       change_bar = runtime.get_view_config().change_bar,
@@ -1602,6 +1735,11 @@ function M.read_buffer(bufnr)
     end
     debug_label = render_err
   else
+    local repo_root = generated.repo_root(bufnr)
+    if not repo_root then
+      notify('cannot reload diffs:// buffer without diffs_repo_root', vim.log.levels.WARN)
+      return
+    end
     local spec_err
     stored_spec, spec_err = get_diff_spec_var(bufnr)
     if spec_err then
@@ -1771,7 +1909,7 @@ function M.setup()
     nargs = '*',
     bar = true,
     complete = complete_diff_command,
-    desc = 'Show a current-file diff, or a repository review with :Diff review',
+    desc = 'Show a current-file diff, a repository review with :Diff review, or two files with :Diff files',
   })
 end
 
