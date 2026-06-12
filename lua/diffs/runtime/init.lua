@@ -130,6 +130,18 @@ function M.refresh(bufnr)
   cache:invalidate(bufnr)
 end
 
+--- Eagerly clear and re-arm every attached buffer's highlights so the next
+--- redraw repaints them. Used when a global change (such as 'diffopt') affects
+--- how all surfaces are highlighted. The clear is done eagerly rather than via
+--- the lazy pending_clear flag because the decoration provider's on_buf hook
+--- (which would process that flag) is not invoked by a bare redraw.
+function M.invalidate_attached()
+  init()
+  for bufnr, _ in pairs(attached_buffers) do
+    cache:reset_highlights(bufnr)
+  end
+end
+
 function M.attach_diff()
   init()
   diff_windows_mod.attach(diff_windows)

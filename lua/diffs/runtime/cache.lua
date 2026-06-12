@@ -412,6 +412,17 @@ function Cache:process_pending_clear(bufnr)
 end
 
 ---@param bufnr integer
+function Cache:reset_highlights(bufnr)
+  local entry = self.hunk_cache[bufnr]
+  if not entry or not vim.api.nvim_buf_is_valid(bufnr) then
+    return
+  end
+  vim.api.nvim_buf_clear_namespace(bufnr, self.ns, 0, -1)
+  entry.highlighted = {}
+  entry.pending_clear = false
+end
+
+---@param bufnr integer
 function Cache:delete(bufnr)
   self.hunk_cache[bufnr] = nil
   self.ft_retry_pending[bufnr] = nil

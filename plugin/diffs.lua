@@ -79,6 +79,13 @@ vim.api.nvim_create_autocmd('VimEnter', {
   end,
 })
 
+vim.api.nvim_create_autocmd('OptionSet', {
+  pattern = 'diffopt',
+  callback = function()
+    require('diffs.commands').on_diffopt_changed()
+  end,
+})
+
 local cmds = require('diffs.commands')
 vim.keymap.set('n', '<Plug>(diffs-diff)', function()
   cmds.diff(nil, false)
@@ -101,9 +108,6 @@ end, { desc = 'Previous file in review split' })
 vim.keymap.set('n', '<Plug>(diffs-review-select-file)', function()
   cmds.select_review_file()
 end, { desc = 'Pick a file in the review split' })
-vim.keymap.set('n', '<Plug>(diffs-toggle-whitespace)', function()
-  cmds.toggle_whitespace()
-end, { desc = 'Toggle ignoring whitespace in diffs' })
 vim.keymap.set('n', '<Plug>(diffs-refresh)', function()
   cmds.refresh()
 end, { desc = 'Re-render the current diff buffer' })
