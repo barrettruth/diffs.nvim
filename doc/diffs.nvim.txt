@@ -395,8 +395,8 @@ highlight-only.
                     |diffs.nvim-diff-objects|. Defaults to the current file in
                     the index.
 
-    Completion covers `++layout=...`, the `review` subcommand, supported object
-    forms, and git refs.
+    Completion covers `++layout=...`, the `review` and `files` subcommands,
+    supported object forms, and git refs.
 
     Examples: >vim
         :Diff           " diff against the index
@@ -406,6 +406,7 @@ highlight-only.
         :Diff abc123    " diff against specific commit
         :Diff ++layout=stacked
         :vertical Diff  " open the generated diff in a vertical split
+        :Diff files old.lua new.lua  " diff two arbitrary files
 <
     Edge cases: ~
     - Untracked and added files render as all-added files.
@@ -456,6 +457,32 @@ Diff objects: ~                                       *diffs.nvim-diff-objects*
         - `{a}..{b}`, `{a}...{b}`     ranges; use |:Diff-review| instead
         - `{rev}:`                    tree objects
         - `-`                         the previous object
+
+Diff files: ~                                            *diffs.nvim-diff-files*
+
+    `:Diff files {left} [{right}]` opens a read-only generated diff of two
+    arbitrary files. Neither file has to be tracked by git, and the command
+    works outside a repository. It is the file-path counterpart to a plain
+    |:Diff| object: the first path names the old (left) side, and the second
+    names the new (right) side. With a single path the new side defaults to the
+    current buffer's file, mirroring |:diffsplit| and `:Diff {rev}`.
+
+    Examples: >vim
+        :Diff files old.lua new.lua   " old.lua (old) vs new.lua (new)
+        :Diff files other.lua         " other.lua (old) vs current file (new)
+        :Diff files ++layout=stacked a.txt b.txt
+<
+    The `++layout=unified` and `++layout=stacked` layouts and the |:vertical|
+    modifier apply as they do for |:Diff|. `++layout=split` is not supported for
+    two arbitrary files; use native diff mode (`nvim -d` or |:diffsplit|) for a
+    side-by-side comparison. The view is read-only, so the hunk-staging maps
+    (`do`/`dp`) are not available.
+
+    Errors: ~
+    - With no path, or more than two, the command reports the expected count.
+    - A path that is a directory, missing, unreadable, or binary is refused and
+      named; directories are intentionally unsupported.
+    - Two identical files report no changes without opening a buffer.
 
 Stacked generated layout: ~                        *diffs.nvim-stacked-layout*
 

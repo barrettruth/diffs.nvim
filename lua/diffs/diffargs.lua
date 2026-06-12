@@ -27,6 +27,30 @@ local function split_args(args)
   return vim.split(args, '%s+', { trimempty = true })
 end
 
+---@param tokens string[]
+---@return ("unified"|"stacked"|"split")?, string?
+local function take_layout(tokens)
+  local layout = 'unified'
+  local has_layout = false
+  while tokens[1] and tokens[1]:match('^%+%+') do
+    if tokens[1]:match('^%+%+layout=') then
+      if has_layout then
+        return nil, 'repeated ++layout option'
+      end
+      local value = tokens[1]:match('^%+%+layout=(.+)$')
+      if value ~= 'unified' and value ~= 'stacked' and value ~= 'split' then
+        return nil, 'unsupported layout ' .. tostring(value)
+      end
+      has_layout = true
+      layout = value
+      table.remove(tokens, 1)
+    else
+      return nil, 'unknown option ' .. tokens[1]
+    end
+  end
+  return layout
+end
+
 ---@param endpoint diffs.Endpoint
 ---@return boolean
 local function is_index(endpoint)
@@ -162,24 +186,9 @@ function M.parse(args, context)
 
   local current = context.current and diffspec.endpoint(context.current) or diffspec.worktree()
   local tokens = split_args(args)
-  local layout = 'unified'
-  local has_layout = false
-
-  while tokens[1] and tokens[1]:match('^%+%+') do
-    if tokens[1]:match('^%+%+layout=') then
-      if has_layout then
-        return nil, 'repeated ++layout option'
-      end
-      local value = tokens[1]:match('^%+%+layout=(.+)$')
-      if value ~= 'unified' and value ~= 'stacked' and value ~= 'split' then
-        return nil, 'unsupported layout ' .. tostring(value)
-      end
-      has_layout = true
-      layout = value
-      table.remove(tokens, 1)
-    else
-      return nil, 'unknown option ' .. tokens[1]
-    end
+  local layout, layout_err = take_layout(tokens)
+  if not layout then
+    return nil, layout_err
   end
 
   if tokens[1] and tokens[1]:match('^%-%-') then
@@ -206,6 +215,34 @@ function M.parse(args, context)
   local right = object.right_worktree and diffspec.worktree() or current
   return {
     spec = diffspec.file(object.left, right, scope_path),
+    layout = layout,
+  }, nil
+end
+
+---@class diffs.DiffFilesParseResult
+---@field left string # old/left side path, as typed
+---@field right? string # new/right side path, as typed; nil means the current buffer
+---@field layout "unified"|"stacked"|"split"
+
+---@param args? string
+---@return diffs.DiffFilesParseResult?, string?
+function M.parse_files(args)
+  local tokens = split_args(args)
+  local layout, layout_err = take_layout(tokens)
+  if not layout then
+    return nil, layout_err
+  end
+
+  if #tokens == 0 then
+    return nil, ':Diff files expects one or two file paths'
+  end
+  if #tokens > 2 then
+    return nil, 'expected at most two file paths'
+  end
+
+  return {
+    left = tokens[1],
+    right = tokens[2],
     layout = layout,
   }, nil
 end
