@@ -54,7 +54,7 @@ local function version_path()
   return lib_dir() .. '/version'
 end
 
-local EXPECTED_VERSION = '2.18.0'
+local EXPECTED_VERSION = '2.49.2'
 
 ---@return boolean
 function M.has_lib()
@@ -146,6 +146,8 @@ function M.load()
     );
 
     void free_lines_diff(DiffsLinesDiff* diff);
+
+    const char* get_version(void);
   ]])
 
   local ok, handle = pcall(ffi.load, path)
