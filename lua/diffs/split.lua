@@ -177,20 +177,35 @@ local side_config = {
   },
 }
 
+---@param source integer? diff-mapped source line number for this row
+---@param width integer
+---@param number boolean
+---@return string
+local function rail_number(source, width, number)
+  if not number then
+    return ''
+  end
+  if not source then
+    return string.rep(' ', width)
+  end
+  return ('%' .. width .. 'd'):format(source)
+end
+
 ---@param info diffs.SplitPaneInfo
 ---@param lnum integer
+---@param number boolean
 ---@return string
-local function rail_segment(info, lnum)
-  local row = info.rows[lnum]
+local function rail_segment(info, lnum, number)
   local width = info.rail_width
+  local row = info.rows[lnum]
   if not row or row.kind == 'filler' then
-    return '%#DiffsRail#' .. string.rep(' ', width + 2)
+    local pad = number and width + 2 or 2
+    return '%C%s%#DiffsRail#' .. string.rep(' ', pad)
   end
   local cfg = side_config[info.side]
-  local number = row[cfg.lnum]
-  local numstr = number and ('%' .. width .. 'd'):format(number) or string.rep(' ', width)
+  local numstr = rail_number(row[cfg.lnum], width, number)
   if row.kind == cfg.kind then
-    return ('%%#%s#%s%%#%s#%s%%#%s# '):format(
+    return ('%%C%%s%%#%s#%s%%#%s#%s%%#%s# '):format(
       cfg.bar_hl,
       info.change_bar,
       cfg.nr_hl,
@@ -198,7 +213,7 @@ local function rail_segment(info, lnum)
       cfg.line_hl
     )
   end
-  return ('%%#DiffsRailNr# %s '):format(numstr)
+  return ('%%C%%s%%#DiffsRailNr# %s '):format(numstr)
 end
 
 ---@return string
@@ -215,7 +230,8 @@ function M.statuscolumn()
   if not info then
     return ''
   end
-  local rendered_ok, rendered = pcall(rail_segment, info, vim.v.lnum)
+  local number = vim.api.nvim_get_option_value('number', { win = win })
+  local rendered_ok, rendered = pcall(rail_segment, info, vim.v.lnum, number)
   return rendered_ok and rendered or ''
 end
 
@@ -446,12 +462,8 @@ local function remember_pair_window_options(win)
     scrollbind = vim.api.nvim_get_option_value('scrollbind', { win = win }),
     cursorbind = vim.api.nvim_get_option_value('cursorbind', { win = win }),
     wrap = vim.api.nvim_get_option_value('wrap', { win = win }),
-    number = vim.api.nvim_get_option_value('number', { win = win }),
-    relativenumber = vim.api.nvim_get_option_value('relativenumber', { win = win }),
     foldmethod = vim.api.nvim_get_option_value('foldmethod', { win = win }),
     foldenable = vim.api.nvim_get_option_value('foldenable', { win = win }),
-    foldcolumn = vim.api.nvim_get_option_value('foldcolumn', { win = win }),
-    signcolumn = vim.api.nvim_get_option_value('signcolumn', { win = win }),
     statuscolumn = vim.api.nvim_get_option_value('statuscolumn', { win = win }),
     winhighlight = vim.api.nvim_get_option_value('winhighlight', { win = win }),
   }
@@ -463,13 +475,9 @@ local function set_pair_window_options(win)
   vim.api.nvim_set_option_value('scrollbind', true, { win = win })
   vim.api.nvim_set_option_value('cursorbind', true, { win = win })
   vim.api.nvim_set_option_value('wrap', false, { win = win })
-  vim.api.nvim_set_option_value('number', false, { win = win })
-  vim.api.nvim_set_option_value('relativenumber', false, { win = win })
-  vim.api.nvim_set_option_value('signcolumn', 'no', { win = win })
   vim.api.nvim_set_option_value('statuscolumn', split_statuscolumn, { win = win })
   vim.api.nvim_set_option_value('foldmethod', 'manual', { win = win })
   vim.api.nvim_set_option_value('foldenable', false, { win = win })
-  vim.api.nvim_set_option_value('foldcolumn', '0', { win = win })
 end
 
 ---@param win integer
