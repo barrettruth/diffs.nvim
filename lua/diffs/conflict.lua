@@ -97,16 +97,38 @@ local function parse_buffer(bufnr)
   return M.parse(lines)
 end
 
----@param side string
+---@type table<'ours'|'base'|'theirs', string>
+local default_labels = { ours = 'current', base = 'base', theirs = 'incoming' }
+
+---@param side 'ours'|'base'|'theirs'
 ---@param config diffs.ConflictConfig
 ---@return string?
 local function get_virtual_text_label(side, config)
   if config.format_virtual_text then
-    local keymap = side == 'ours' and keymaps.get_conflict_keymap(config, 'ours')
-      or keymaps.get_conflict_keymap(config, 'theirs')
+    local keymap = (side == 'ours' or side == 'theirs')
+        and keymaps.get_conflict_keymap(config, side)
+      or false
     return config.format_virtual_text(side, keymap)
   end
-  return side == 'ours' and 'current' or 'incoming'
+  return default_labels[side]
+end
+
+---@param bufnr integer
+---@param row integer
+---@param side 'ours'|'base'|'theirs'
+---@param config diffs.ConflictConfig
+local function apply_marker_label(bufnr, row, side, config)
+  if not config.show_virtual_text then
+    return
+  end
+  local label = get_virtual_text_label(side, config)
+  if not label then
+    return
+  end
+  pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, row, 0, {
+    virt_text = { { ' (' .. label .. ')', 'DiffsConflictMarker' } },
+    virt_text_pos = 'eol',
+  })
 end
 
 local setup_keymaps
@@ -125,15 +147,7 @@ local function apply_highlights(bufnr, regions, config)
       priority = CONFLICT_PRIORITY,
     })
 
-    if config.show_virtual_text then
-      local ours_label = get_virtual_text_label('ours', config)
-      if ours_label then
-        pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, region.marker_ours, 0, {
-          virt_text = { { ' (' .. ours_label .. ')', 'DiffsConflictMarker' } },
-          virt_text_pos = 'eol',
-        })
-      end
-    end
+    apply_marker_label(bufnr, region.marker_ours, 'ours', config)
 
     if config.show_actions then
       local parts = {}
@@ -180,6 +194,8 @@ local function apply_highlights(bufnr, regions, config)
         priority = CONFLICT_PRIORITY,
       })
 
+      apply_marker_label(bufnr, region.marker_base, 'base', config)
+
       for line = region.base_start, region.base_end - 1 do
         pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, line, 0, {
           end_row = line + 1,
@@ -221,15 +237,7 @@ local function apply_highlights(bufnr, regions, config)
       priority = CONFLICT_PRIORITY,
     })
 
-    if config.show_virtual_text then
-      local theirs_label = get_virtual_text_label('theirs', config)
-      if theirs_label then
-        pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, region.marker_theirs, 0, {
-          virt_text = { { ' (' .. theirs_label .. ')', 'DiffsConflictMarker' } },
-          virt_text_pos = 'eol',
-        })
-      end
-    end
+    apply_marker_label(bufnr, region.marker_theirs, 'theirs', config)
   end
 end
 
