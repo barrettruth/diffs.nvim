@@ -48,7 +48,7 @@ local integration_metadata = require('diffs.integrations')
 ---@field enabled boolean
 ---@field disable_diagnostics boolean
 ---@field show_virtual_text boolean
----@field format_virtual_text? fun(side: string, keymap: string|false): string?
+---@field format_virtual_text? fun(side: 'ours'|'base'|'theirs', keymap: string|false): string?
 ---@field show_actions boolean
 ---@field keymaps diffs.ConflictKeymaps|false
 
