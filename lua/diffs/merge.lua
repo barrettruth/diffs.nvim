@@ -156,18 +156,19 @@ local function add_resolved_virtual_text(diff_bufnr, hunk)
   })
 end
 
----@param bufnr integer
+---@param diff_bufnr integer
 ---@param config diffs.ConflictConfig
-function M.resolve_ours(bufnr, config)
-  local hunk = M.find_hunk_at_cursor(bufnr)
+---@param side 'ours'|'theirs'|'both'|'none'
+local function resolve(diff_bufnr, config, side)
+  local hunk = M.find_hunk_at_cursor(diff_bufnr)
   if not hunk then
     return
   end
-  if M.is_resolved(bufnr, hunk.index) then
+  if M.is_resolved(diff_bufnr, hunk.index) then
     notify('hunk already resolved', vim.log.levels.INFO)
     return
   end
-  local working_bufnr = M.get_or_load_working_buf(bufnr)
+  local working_bufnr = M.get_or_load_working_buf(diff_bufnr)
   if not working_bufnr then
     return
   end
@@ -176,177 +177,95 @@ function M.resolve_ours(bufnr, config)
     notify('hunk does not correspond to a conflict region', vim.log.levels.INFO)
     return
   end
-  local lines = vim.api.nvim_buf_get_lines(working_bufnr, region.ours_start, region.ours_end, false)
-  conflict.replace_region(working_bufnr, region, lines)
+  conflict.replace_region(
+    working_bufnr,
+    region,
+    conflict.replacement_lines(working_bufnr, region, side)
+  )
   conflict.refresh(working_bufnr, config)
-  mark_resolved(bufnr, hunk.index)
-  add_resolved_virtual_text(bufnr, hunk)
+  mark_resolved(diff_bufnr, hunk.index)
+  add_resolved_virtual_text(diff_bufnr, hunk)
+end
+
+---@param bufnr integer
+---@param config diffs.ConflictConfig
+function M.resolve_ours(bufnr, config)
+  resolve(bufnr, config, 'ours')
 end
 
 ---@param bufnr integer
 ---@param config diffs.ConflictConfig
 function M.resolve_theirs(bufnr, config)
-  local hunk = M.find_hunk_at_cursor(bufnr)
-  if not hunk then
-    return
-  end
-  if M.is_resolved(bufnr, hunk.index) then
-    notify('hunk already resolved', vim.log.levels.INFO)
-    return
-  end
-  local working_bufnr = M.get_or_load_working_buf(bufnr)
-  if not working_bufnr then
-    return
-  end
-  local region = M.match_hunk_to_conflict(hunk, working_bufnr)
-  if not region then
-    notify('hunk does not correspond to a conflict region', vim.log.levels.INFO)
-    return
-  end
-  local lines =
-    vim.api.nvim_buf_get_lines(working_bufnr, region.theirs_start, region.theirs_end, false)
-  conflict.replace_region(working_bufnr, region, lines)
-  conflict.refresh(working_bufnr, config)
-  mark_resolved(bufnr, hunk.index)
-  add_resolved_virtual_text(bufnr, hunk)
+  resolve(bufnr, config, 'theirs')
 end
 
 ---@param bufnr integer
 ---@param config diffs.ConflictConfig
 function M.resolve_both(bufnr, config)
-  local hunk = M.find_hunk_at_cursor(bufnr)
-  if not hunk then
-    return
-  end
-  if M.is_resolved(bufnr, hunk.index) then
-    notify('hunk already resolved', vim.log.levels.INFO)
-    return
-  end
-  local working_bufnr = M.get_or_load_working_buf(bufnr)
-  if not working_bufnr then
-    return
-  end
-  local region = M.match_hunk_to_conflict(hunk, working_bufnr)
-  if not region then
-    notify('hunk does not correspond to a conflict region', vim.log.levels.INFO)
-    return
-  end
-  local ours = vim.api.nvim_buf_get_lines(working_bufnr, region.ours_start, region.ours_end, false)
-  local theirs =
-    vim.api.nvim_buf_get_lines(working_bufnr, region.theirs_start, region.theirs_end, false)
-  local combined = {}
-  for _, l in ipairs(ours) do
-    table.insert(combined, l)
-  end
-  for _, l in ipairs(theirs) do
-    table.insert(combined, l)
-  end
-  conflict.replace_region(working_bufnr, region, combined)
-  conflict.refresh(working_bufnr, config)
-  mark_resolved(bufnr, hunk.index)
-  add_resolved_virtual_text(bufnr, hunk)
+  resolve(bufnr, config, 'both')
 end
 
 ---@param bufnr integer
 ---@param config diffs.ConflictConfig
 function M.resolve_none(bufnr, config)
-  local hunk = M.find_hunk_at_cursor(bufnr)
-  if not hunk then
+  resolve(bufnr, config, 'none')
+end
+
+---@param bufnr integer
+---@param forward boolean
+local function goto_hunk(bufnr, forward)
+  local hunks = M.parse_hunks(bufnr)
+  if #hunks == 0 then
     return
   end
-  if M.is_resolved(bufnr, hunk.index) then
-    notify('hunk already resolved', vim.log.levels.INFO)
-    return
-  end
+
   local working_bufnr = M.get_or_load_working_buf(bufnr)
   if not working_bufnr then
     return
   end
-  local region = M.match_hunk_to_conflict(hunk, working_bufnr)
-  if not region then
-    notify('hunk does not correspond to a conflict region', vim.log.levels.INFO)
+
+  local candidates = {}
+  for _, hunk in ipairs(hunks) do
+    if not M.is_resolved(bufnr, hunk.index) and M.match_hunk_to_conflict(hunk, working_bufnr) then
+      table.insert(candidates, hunk)
+    end
+  end
+
+  if #candidates == 0 then
     return
   end
-  conflict.replace_region(working_bufnr, region, {})
-  conflict.refresh(working_bufnr, config)
-  mark_resolved(bufnr, hunk.index)
-  add_resolved_virtual_text(bufnr, hunk)
+
+  local cursor_line = vim.api.nvim_win_get_cursor(0)[1] - 1
+
+  if forward then
+    for _, hunk in ipairs(candidates) do
+      if hunk.start_line > cursor_line then
+        vim.api.nvim_win_set_cursor(0, { hunk.start_line + 1, 0 })
+        return
+      end
+    end
+    notify('wrapped to first hunk', vim.log.levels.INFO)
+    vim.api.nvim_win_set_cursor(0, { candidates[1].start_line + 1, 0 })
+  else
+    for i = #candidates, 1, -1 do
+      if candidates[i].start_line < cursor_line then
+        vim.api.nvim_win_set_cursor(0, { candidates[i].start_line + 1, 0 })
+        return
+      end
+    end
+    notify('wrapped to last hunk', vim.log.levels.INFO)
+    vim.api.nvim_win_set_cursor(0, { candidates[#candidates].start_line + 1, 0 })
+  end
 end
 
 ---@param bufnr integer
 function M.goto_next(bufnr)
-  local hunks = M.parse_hunks(bufnr)
-  if #hunks == 0 then
-    return
-  end
-
-  local working_bufnr = M.get_or_load_working_buf(bufnr)
-  if not working_bufnr then
-    return
-  end
-
-  local cursor_line = vim.api.nvim_win_get_cursor(0)[1] - 1
-
-  local candidates = {}
-  for _, hunk in ipairs(hunks) do
-    if not M.is_resolved(bufnr, hunk.index) then
-      if M.match_hunk_to_conflict(hunk, working_bufnr) then
-        table.insert(candidates, hunk)
-      end
-    end
-  end
-
-  if #candidates == 0 then
-    return
-  end
-
-  for _, hunk in ipairs(candidates) do
-    if hunk.start_line > cursor_line then
-      vim.api.nvim_win_set_cursor(0, { hunk.start_line + 1, 0 })
-      return
-    end
-  end
-
-  notify('wrapped to first hunk', vim.log.levels.INFO)
-  vim.api.nvim_win_set_cursor(0, { candidates[1].start_line + 1, 0 })
+  goto_hunk(bufnr, true)
 end
 
 ---@param bufnr integer
 function M.goto_prev(bufnr)
-  local hunks = M.parse_hunks(bufnr)
-  if #hunks == 0 then
-    return
-  end
-
-  local working_bufnr = M.get_or_load_working_buf(bufnr)
-  if not working_bufnr then
-    return
-  end
-
-  local cursor_line = vim.api.nvim_win_get_cursor(0)[1] - 1
-
-  local candidates = {}
-  for _, hunk in ipairs(hunks) do
-    if not M.is_resolved(bufnr, hunk.index) then
-      if M.match_hunk_to_conflict(hunk, working_bufnr) then
-        table.insert(candidates, hunk)
-      end
-    end
-  end
-
-  if #candidates == 0 then
-    return
-  end
-
-  for i = #candidates, 1, -1 do
-    if candidates[i].start_line < cursor_line then
-      vim.api.nvim_win_set_cursor(0, { candidates[i].start_line + 1, 0 })
-      return
-    end
-  end
-
-  notify('wrapped to last hunk', vim.log.levels.INFO)
-  vim.api.nvim_win_set_cursor(0, { candidates[#candidates].start_line + 1, 0 })
+  goto_hunk(bufnr, false)
 end
 
 ---@param bufnr integer
