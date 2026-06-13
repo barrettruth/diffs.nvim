@@ -69,7 +69,7 @@ end
 ---@param line string
 ---@return string?
 local function diff_file(line)
-  local old_path, new_path = line:match('^diff %-%-git a/(.-) b/(.+)$')
+  local old_path, new_path = line:match('^diff %-%-git %a/(.-) %a/(.+)$')
   return new_path or old_path
 end
 

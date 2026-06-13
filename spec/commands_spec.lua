@@ -3034,8 +3034,6 @@ describe('commands', function()
         'diff',
         '--no-ext-diff',
         '--no-color',
-        '--src-prefix=a/',
-        '--dst-prefix=b/',
         '--merge-base',
         'origin/main',
         'refs/forge/pr/42',
