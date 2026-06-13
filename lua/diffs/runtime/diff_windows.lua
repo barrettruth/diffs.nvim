@@ -9,11 +9,29 @@ local WINHIGHLIGHT = table.concat({
   'DiffText:DiffsDiffText',
 }, ',')
 
+local CONFLICT_WINHIGHLIGHT = table.concat({
+  'DiffAdd:DiffsDiffOff',
+  'DiffDelete:DiffsDiffOff',
+  'DiffChange:DiffsDiffOff',
+  'DiffText:DiffsDiffOff',
+}, ',')
+
 ---@param win integer
 ---@return boolean
 local function is_split_pane(win)
   local buf = vim.api.nvim_win_get_buf(win)
   return pcall(vim.api.nvim_buf_get_var, buf, 'diffs_split_side')
+end
+
+---@param buf integer
+---@return boolean
+local function has_conflict_markers(buf)
+  for _, line in ipairs(vim.api.nvim_buf_get_lines(buf, 0, -1, false)) do
+    if line:match('^<<<<<<<') then
+      return true
+    end
+  end
+  return false
 end
 
 ---@param diff_windows table<integer, boolean>
@@ -34,7 +52,9 @@ function M.attach(diff_windows)
   end
 
   for _, win in ipairs(diff_wins) do
-    vim.api.nvim_set_option_value('winhighlight', WINHIGHLIGHT, { win = win })
+    local buf = vim.api.nvim_win_get_buf(win)
+    local winhighlight = has_conflict_markers(buf) and CONFLICT_WINHIGHLIGHT or WINHIGHLIGHT
+    vim.api.nvim_set_option_value('winhighlight', winhighlight, { win = win })
     diff_windows[win] = true
     log.dbg('applied diff winhighlight to window %d', win)
   end
