@@ -1229,6 +1229,9 @@ describe('commands', function()
       table.insert(test_buffers, right_buf)
       local left_win, right_win = find_split_windows(left_buf, right_buf)
 
+      vim.wo[left_win].number = true
+      vim.wo[right_win].number = true
+
       local function rail(win, lnum)
         local sc = vim.api.nvim_get_option_value('statuscolumn', { win = win })
         return vim.api.nvim_eval_statusline(
@@ -1246,6 +1249,12 @@ describe('commands', function()
       assert.is_true(rail(left_win, 2):find('1', 1, true) ~= nil)
       assert.is_true(rail(right_win, 2):find('2', 1, true) ~= nil)
       assert.is_true(rail(right_win, 2):find('1', 1, true) == nil)
+
+      vim.wo[right_win].relativenumber = true
+      assert.is_true(rail(right_win, 2):find('2', 1, true) ~= nil)
+
+      vim.wo[right_win].number = false
+      assert.is_nil(rail(right_win, 2):find('%d'))
     end)
 
     it('warns and still opens the split when :vertical Diff ++layout=split is used', function()
