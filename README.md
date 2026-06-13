@@ -13,16 +13,15 @@ highlighting driven by treesitter.
   [vim-fugitive](https://github.com/tpope/vim-fugitive),
   [Neogit](https://github.com/NeogitOrg/neogit), builtin `diff` filetype, and
   more!
-- Character-level intra-line diff highlighting
-- Word-level diff highlighting
+- Word and chatacer-level diff highlighting
 - `:Diff` for [pierre-style](https://diffs.com) unified, stacked, or split diffs against any revision
 - `:Diff review` full-repo review diff with qflist/loclist navigation
 - `:Diff files {a} {b}` to diff two arbitrary files
-- Inline merge conflict detection, highlighting, and resolution
+- Inline and 3-way merge conflict detection, highlighting, and resolution
 - Email quoting/patch syntax support (`> diff ...`)
 - Vim syntax fallback
 - [Difftastic](https://difftastic.wilfred.me.uk/) highlight support
-- Configurable highlighting blend
+- Configurable highlighting
 
 ## Requirements
 
