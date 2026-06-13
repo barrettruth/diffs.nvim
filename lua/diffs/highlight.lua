@@ -738,6 +738,17 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     end
   end
 
+  ---@type table<integer, boolean>
+  local ws_only = {}
+  if
+    not opts.syntax_only
+    and not difft_active
+    and pw == 1
+    and (hunk._hl_line_count or #hunk.lines) <= (intra_cfg and intra_cfg.max_lines or 500)
+  then
+    ws_only = diff.whitespace_only_lines(hunk.lines)
+  end
+
   if
     (qw > 0 or pw > 1)
     and hunk.header_start_line
@@ -817,9 +828,12 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     local has_add = prefix:find('+', 1, true) ~= nil
     local has_del = prefix:find('-', 1, true) ~= nil
     local is_diff_line = has_add or has_del
+    local dehl = ws_only[i] == true
     local line_hl = is_diff_line and (has_add and 'DiffsAdd' or 'DiffsDelete') or nil
     local prefix_hl = is_diff_line and (has_add and '@diff.plus' or '@diff.minus') or nil
     local bar_hl = is_diff_line and (has_add and 'DiffsAddBar' or 'DiffsDeleteBar') or nil
+    local dim_hl = is_diff_line and 'DiffsDim' or nil
+    local bg_hl = (dehl and dim_hl) or line_hl
 
     local is_marker = false
     if pw > 1 and line_hl and not prefix:find('[^+]') then
@@ -832,7 +846,7 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
 
     if not opts.syntax_only then
       if opts.hide_prefix and (not hunk.rail_width or is_diff_line) then
-        local virt_hl = (opts.highlights.background and line_hl) or nil
+        local virt_hl = (opts.highlights.background and bg_hl) or nil
         local rail_width = hunk.rail_width or 0
         local hide_width = math.max(0, pw + qw - rail_width)
         if hide_width > 0 then
@@ -883,7 +897,7 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
             end
           end
           local rail_nr_start, rail_nr_end, rail_nr_hl
-          if (has_del or has_add) and rail_number_ranges then
+          if (has_del or has_add) and rail_number_ranges and not dehl then
             local first_range = rail_number_ranges[1]
             local last_range = rail_style == 'single' and first_range
               or rail_number_ranges[#rail_number_ranges]
@@ -928,7 +942,7 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
         })
       end
 
-      if hunk.rail_width and is_diff_line and opts.highlights.background then
+      if hunk.rail_width and is_diff_line and opts.highlights.background and not dehl then
         pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
           virt_text = { { opts.change_bar or default_change_bar, bar_hl } },
           virt_text_pos = 'overlay',
@@ -941,7 +955,7 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
         pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
           end_row = buf_line + 1,
           end_col = 0,
-          hl_group = line_hl,
+          hl_group = bg_hl,
           hl_eol = true,
           priority = p.line_bg,
         })
@@ -955,7 +969,7 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
         })
       end
 
-      if char_spans_by_line[i] then
+      if char_spans_by_line[i] and not dehl then
         local char_hl = has_add and 'DiffsAddText' or 'DiffsDeleteText'
         for _, span in ipairs(char_spans_by_line[i]) do
           dbg(

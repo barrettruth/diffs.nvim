@@ -165,31 +165,6 @@ describe('diffs.difftastic', function()
     end)
   end)
 
-  describe('whitespace toggle guard', function()
-    it('warns and does nothing on a difftastic-active buffer', function()
-      local buf = vim.api.nvim_create_buf(false, true)
-      vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'x' })
-      difftastic.mark_active(buf)
-      assert.is_true(difftastic.is_active(buf))
-
-      vim.cmd('botright split')
-      vim.api.nvim_win_set_buf(0, buf)
-      local before = vim.api.nvim_get_option_value('diffopt', {})
-      local warned
-      local orig_notify = vim.notify
-      vim.notify = function(msg)
-        warned = msg
-      end
-
-      require('diffs.commands').toggle_whitespace()
-
-      vim.notify = orig_notify
-      assert.is_truthy(warned and warned:match('difftastic'))
-      assert.are.equal(before, vim.api.nvim_get_option_value('diffopt', {}))
-      vim.cmd('close')
-    end)
-  end)
-
   describe('integration (difft-gated)', function()
     if vim.fn.executable('difft') ~= 1 then
       return

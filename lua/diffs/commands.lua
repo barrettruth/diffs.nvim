@@ -191,9 +191,6 @@ function M.setup_diff_buf(bufnr)
   if not get_buffer_keymap(bufnr, 'n', 'q') then
     vim.keymap.set('n', 'q', '<cmd>close<CR>', { buffer = bufnr })
   end
-  if not get_buffer_keymap(bufnr, 'n', 'gw') then
-    vim.keymap.set('n', 'gw', '<Plug>(diffs-toggle-whitespace)', { buffer = bufnr, remap = true })
-  end
   local has_hunks, parsed_hunks = generated.raw_hunks(bufnr)
   if not has_hunks then
     clear_hunk_keymaps(bufnr)
@@ -2041,20 +2038,9 @@ function M.read_buffer(bufnr)
   runtime.attach(bufnr)
 end
 
----@param flag string
----@return boolean
-local function diffopt_has(flag)
-  for _, item in ipairs(vim.split(vim.o.diffopt, ',', { plain = true })) do
-    if item == flag then
-      return true
-    end
-  end
-  return false
-end
-
 --- Re-render every visible diffs:// buffer in place, preserving each window's
---- view. Used after a global change such as toggling whitespace, so the new
---- setting is reflected consistently across all open diff surfaces.
+--- view. Used after a global change such as 'diffopt', so the new setting is
+--- reflected consistently across all open diff surfaces.
 function M.refresh_visible()
   ---@type { win: integer, view: table }[]
   local views = {}
@@ -2105,22 +2091,19 @@ function M.refresh(bufnr)
   end
 end
 
---- Toggle ignoring all whitespace (iwhiteall) in the global 'diffopt' and
---- re-render the visible diffs:// buffers. The setting is global, so it also
---- affects native diff windows on their next update.
-function M.toggle_whitespace()
-  if difftastic.is_active(vim.api.nvim_get_current_buf()) then
-    notify('whitespace toggle does not apply to difftastic structural diffs', vim.log.levels.WARN)
-    return
-  end
-  if diffopt_has('iwhiteall') then
-    vim.opt.diffopt:remove('iwhiteall')
-    vim.api.nvim_echo({ { '[diffs]: diffopt -iwhiteall (showing whitespace)' } }, false, {})
-  else
-    vim.opt.diffopt:append('iwhiteall')
-    vim.api.nvim_echo({ { '[diffs]: diffopt +iwhiteall (ignoring whitespace)' } }, false, {})
-  end
-  M.refresh_visible()
+--- React to a runtime change of the global 'diffopt'. Generated diffs:// buffers
+--- regenerate (their content honors the whitespace/algorithm flags), attached
+--- repaint surfaces are invalidated so whitespace-only lines are re-classified,
+--- and native &diff windows are refreshed so they pick up the new options
+--- immediately. Deferred so buffer rewrites do not run inside the OptionSet
+--- callback, then a redraw flushes the new highlighting.
+function M.on_diffopt_changed()
+  vim.schedule(function()
+    M.refresh_visible()
+    runtime.invalidate_attached()
+    pcall(vim.cmd.diffupdate)
+    vim.cmd.redraw({ bang = true })
+  end)
 end
 
 function M.setup()
