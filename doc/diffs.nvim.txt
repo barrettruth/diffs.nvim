@@ -1103,18 +1103,22 @@ Configuration: ~
                              diagnostics alone.
 
         {show_virtual_text}  (boolean, default: true)
-                             Show `(current)` and `(incoming)` labels at
-                             the end of `<<<<<<<` and `>>>>>>>` marker
-                             lines. Also controls hunk hints in merge
-                             diff views.
+                             Show `(current)`, `(base)`, and `(incoming)`
+                             labels at the end of `<<<<<<<`, `|||||||`, and
+                             `>>>>>>>` marker lines. The `(base)` label only
+                             appears in `diff3`/`zdiff3` conflicts, which
+                             include the `|||||||` ancestor section. Also
+                             controls hunk hints in merge diff views.
 
         {format_virtual_text} (function|nil, default: nil)
                              Custom formatter for virtual text labels.
                              Receives `(side, keymap)` where `side` is
-                             `"ours"` or `"theirs"` and `keymap` is the
-                             configured keymap string or `false`. Return
-                             a string (label text without parens) or
-                             `nil` to hide the label. Example: >lua
+                             `"ours"`, `"base"`, or `"theirs"` and `keymap`
+                             is the configured keymap string, or `false`
+                             (always `false` for `"base"`, which has no
+                             resolution keymap). Return a string (label text
+                             without parens) or `nil` to hide the label.
+                             Example: >lua
                                  format_virtual_text = function(side, keymap)
                                    if keymap then
                                      return side .. ' [' .. keymap .. ']'

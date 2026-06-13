@@ -97,19 +97,102 @@ local function parse_buffer(bufnr)
   return M.parse(lines)
 end
 
----@param side string
+---@type table<'ours'|'base'|'theirs', string>
+local default_labels = { ours = 'current', base = 'base', theirs = 'incoming' }
+
+---@param side 'ours'|'base'|'theirs'
 ---@param config diffs.ConflictConfig
 ---@return string?
 local function get_virtual_text_label(side, config)
   if config.format_virtual_text then
-    local keymap = side == 'ours' and keymaps.get_conflict_keymap(config, 'ours')
-      or keymaps.get_conflict_keymap(config, 'theirs')
+    ---@type string|false
+    local keymap = false
+    if side == 'ours' then
+      keymap = keymaps.get_conflict_keymap(config, 'ours')
+    elseif side == 'theirs' then
+      keymap = keymaps.get_conflict_keymap(config, 'theirs')
+    end
     return config.format_virtual_text(side, keymap)
   end
-  return side == 'ours' and 'current' or 'incoming'
+  return default_labels[side]
+end
+
+---@param bufnr integer
+---@param row integer
+---@param side 'ours'|'base'|'theirs'
+---@param config diffs.ConflictConfig
+local function apply_marker_label(bufnr, row, side, config)
+  if not config.show_virtual_text then
+    return
+  end
+  local label = get_virtual_text_label(side, config)
+  if not label then
+    return
+  end
+  pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, row, 0, {
+    virt_text = { { ' (' .. label .. ')', 'DiffsConflictMarker' } },
+    virt_text_pos = 'eol',
+  })
 end
 
 local setup_keymaps
+
+---@param bufnr integer
+---@param row integer
+---@param hl_group string
+local function mark_line(bufnr, row, hl_group)
+  pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, row, 0, {
+    end_row = row + 1,
+    hl_group = hl_group,
+    hl_eol = true,
+    priority = CONFLICT_PRIORITY,
+  })
+end
+
+---@param bufnr integer
+---@param start_row integer
+---@param end_row integer
+---@param hl_group string
+---@param number_hl_group string
+local function mark_section(bufnr, start_row, end_row, hl_group, number_hl_group)
+  for row = start_row, end_row - 1 do
+    mark_line(bufnr, row, hl_group)
+    pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, row, 0, {
+      number_hl_group = number_hl_group,
+      priority = CONFLICT_PRIORITY,
+    })
+  end
+end
+
+---@param bufnr integer
+---@param region diffs.ConflictRegion
+---@param config diffs.ConflictConfig
+local function apply_action_hints(bufnr, region, config)
+  if not config.show_actions then
+    return
+  end
+  local parts = {}
+  local actions = {
+    { 'Current', keymaps.get_conflict_keymap(config, 'ours') },
+    { 'Incoming', keymaps.get_conflict_keymap(config, 'theirs') },
+    { 'Both', keymaps.get_conflict_keymap(config, 'both') },
+    { 'None', keymaps.get_conflict_keymap(config, 'none') },
+  }
+  for _, action in ipairs(actions) do
+    if action[2] then
+      if #parts > 0 then
+        table.insert(parts, { ' \226\148\130 ', 'DiffsConflictActions' })
+      end
+      table.insert(parts, { ('%s (%s)'):format(action[1], action[2]), 'DiffsConflictActions' })
+    end
+  end
+  if #parts > 0 then
+    pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, region.marker_ours, 0, {
+      virt_lines = { parts },
+      virt_lines_above = true,
+    })
+  end
+end
 
 ---@param bufnr integer
 ---@param regions diffs.ConflictRegion[]
@@ -118,118 +201,39 @@ local function apply_highlights(bufnr, regions, config)
   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
 
   for _, region in ipairs(regions) do
-    pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, region.marker_ours, 0, {
-      end_row = region.marker_ours + 1,
-      hl_group = 'DiffsConflictMarker',
-      hl_eol = true,
-      priority = CONFLICT_PRIORITY,
-    })
-
-    if config.show_virtual_text then
-      local ours_label = get_virtual_text_label('ours', config)
-      if ours_label then
-        pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, region.marker_ours, 0, {
-          virt_text = { { ' (' .. ours_label .. ')', 'DiffsConflictMarker' } },
-          virt_text_pos = 'eol',
-        })
-      end
-    end
-
-    if config.show_actions then
-      local parts = {}
-      local actions = {
-        { 'Current', keymaps.get_conflict_keymap(config, 'ours') },
-        { 'Incoming', keymaps.get_conflict_keymap(config, 'theirs') },
-        { 'Both', keymaps.get_conflict_keymap(config, 'both') },
-        { 'None', keymaps.get_conflict_keymap(config, 'none') },
-      }
-      for _, action in ipairs(actions) do
-        if action[2] then
-          if #parts > 0 then
-            table.insert(parts, { ' \226\148\130 ', 'DiffsConflictActions' })
-          end
-          table.insert(parts, { ('%s (%s)'):format(action[1], action[2]), 'DiffsConflictActions' })
-        end
-      end
-      if #parts > 0 then
-        pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, region.marker_ours, 0, {
-          virt_lines = { parts },
-          virt_lines_above = true,
-        })
-      end
-    end
-
-    for line = region.ours_start, region.ours_end - 1 do
-      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, line, 0, {
-        end_row = line + 1,
-        hl_group = 'DiffsConflictOurs',
-        hl_eol = true,
-        priority = CONFLICT_PRIORITY,
-      })
-      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, line, 0, {
-        number_hl_group = 'DiffsConflictOursNr',
-        priority = CONFLICT_PRIORITY,
-      })
-    end
+    mark_line(bufnr, region.marker_ours, 'DiffsConflictMarker')
+    apply_marker_label(bufnr, region.marker_ours, 'ours', config)
+    apply_action_hints(bufnr, region, config)
+    mark_section(
+      bufnr,
+      region.ours_start,
+      region.ours_end,
+      'DiffsConflictOurs',
+      'DiffsConflictOursNr'
+    )
 
     if region.marker_base then
-      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, region.marker_base, 0, {
-        end_row = region.marker_base + 1,
-        hl_group = 'DiffsConflictMarker',
-        hl_eol = true,
-        priority = CONFLICT_PRIORITY,
-      })
-
-      for line = region.base_start, region.base_end - 1 do
-        pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, line, 0, {
-          end_row = line + 1,
-          hl_group = 'DiffsConflictBase',
-          hl_eol = true,
-          priority = CONFLICT_PRIORITY,
-        })
-        pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, line, 0, {
-          number_hl_group = 'DiffsConflictBaseNr',
-          priority = CONFLICT_PRIORITY,
-        })
-      end
+      mark_line(bufnr, region.marker_base, 'DiffsConflictMarker')
+      apply_marker_label(bufnr, region.marker_base, 'base', config)
+      mark_section(
+        bufnr,
+        region.base_start,
+        region.base_end,
+        'DiffsConflictBase',
+        'DiffsConflictBaseNr'
+      )
     end
 
-    pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, region.marker_sep, 0, {
-      end_row = region.marker_sep + 1,
-      hl_group = 'DiffsConflictMarker',
-      hl_eol = true,
-      priority = CONFLICT_PRIORITY,
-    })
-
-    for line = region.theirs_start, region.theirs_end - 1 do
-      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, line, 0, {
-        end_row = line + 1,
-        hl_group = 'DiffsConflictTheirs',
-        hl_eol = true,
-        priority = CONFLICT_PRIORITY,
-      })
-      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, line, 0, {
-        number_hl_group = 'DiffsConflictTheirsNr',
-        priority = CONFLICT_PRIORITY,
-      })
-    end
-
-    pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, region.marker_theirs, 0, {
-      end_row = region.marker_theirs + 1,
-      hl_group = 'DiffsConflictMarker',
-      hl_eol = true,
-      priority = CONFLICT_PRIORITY,
-    })
-
-    if config.show_virtual_text then
-      local theirs_label = get_virtual_text_label('theirs', config)
-      if theirs_label then
-        pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, region.marker_theirs, 0, {
-          virt_text = { { ' (' .. theirs_label .. ')', 'DiffsConflictMarker' } },
-          virt_text_pos = 'eol',
-        })
-      end
-    end
+    mark_line(bufnr, region.marker_sep, 'DiffsConflictMarker')
+    mark_section(
+      bufnr,
+      region.theirs_start,
+      region.theirs_end,
+      'DiffsConflictTheirs',
+      'DiffsConflictTheirsNr'
+    )
+    mark_line(bufnr, region.marker_theirs, 'DiffsConflictMarker')
+    apply_marker_label(bufnr, region.marker_theirs, 'theirs', config)
   end
 end
 
@@ -284,118 +288,104 @@ function M.refresh(bufnr, config)
 end
 
 ---@param bufnr integer
+---@param region diffs.ConflictRegion
+---@param side 'ours'|'theirs'|'both'|'none'
+---@return string[]
+function M.replacement_lines(bufnr, region, side)
+  if side == 'none' then
+    return {}
+  end
+  if side == 'theirs' then
+    return vim.api.nvim_buf_get_lines(bufnr, region.theirs_start, region.theirs_end, false)
+  end
+  local lines = vim.api.nvim_buf_get_lines(bufnr, region.ours_start, region.ours_end, false)
+  if side == 'both' then
+    vim.list_extend(
+      lines,
+      vim.api.nvim_buf_get_lines(bufnr, region.theirs_start, region.theirs_end, false)
+    )
+  end
+  return lines
+end
+
+---@param bufnr integer
 ---@param config diffs.ConflictConfig
-function M.resolve_ours(bufnr, config)
+---@param side 'ours'|'theirs'|'both'|'none'
+local function resolve(bufnr, config, side)
   if not vim.api.nvim_get_option_value('modifiable', { buf = bufnr }) then
     notify('buffer is not modifiable', vim.log.levels.WARN)
     return
   end
   local regions = parse_buffer(bufnr)
-  local cursor = vim.api.nvim_win_get_cursor(0)
-  local region = find_conflict_at_cursor(cursor[1] - 1, regions)
+  local region = find_conflict_at_cursor(vim.api.nvim_win_get_cursor(0)[1] - 1, regions)
   if not region then
     return
   end
-  local lines = vim.api.nvim_buf_get_lines(bufnr, region.ours_start, region.ours_end, false)
-  M.replace_region(bufnr, region, lines)
+  M.replace_region(bufnr, region, M.replacement_lines(bufnr, region, side))
   M.refresh(bufnr, config)
+end
+
+---@param bufnr integer
+---@param config diffs.ConflictConfig
+function M.resolve_ours(bufnr, config)
+  resolve(bufnr, config, 'ours')
 end
 
 ---@param bufnr integer
 ---@param config diffs.ConflictConfig
 function M.resolve_theirs(bufnr, config)
-  if not vim.api.nvim_get_option_value('modifiable', { buf = bufnr }) then
-    notify('buffer is not modifiable', vim.log.levels.WARN)
-    return
-  end
-  local regions = parse_buffer(bufnr)
-  local cursor = vim.api.nvim_win_get_cursor(0)
-  local region = find_conflict_at_cursor(cursor[1] - 1, regions)
-  if not region then
-    return
-  end
-  local lines = vim.api.nvim_buf_get_lines(bufnr, region.theirs_start, region.theirs_end, false)
-  M.replace_region(bufnr, region, lines)
-  M.refresh(bufnr, config)
+  resolve(bufnr, config, 'theirs')
 end
 
 ---@param bufnr integer
 ---@param config diffs.ConflictConfig
 function M.resolve_both(bufnr, config)
-  if not vim.api.nvim_get_option_value('modifiable', { buf = bufnr }) then
-    notify('buffer is not modifiable', vim.log.levels.WARN)
-    return
-  end
-  local regions = parse_buffer(bufnr)
-  local cursor = vim.api.nvim_win_get_cursor(0)
-  local region = find_conflict_at_cursor(cursor[1] - 1, regions)
-  if not region then
-    return
-  end
-  local ours = vim.api.nvim_buf_get_lines(bufnr, region.ours_start, region.ours_end, false)
-  local theirs = vim.api.nvim_buf_get_lines(bufnr, region.theirs_start, region.theirs_end, false)
-  local combined = {}
-  for _, l in ipairs(ours) do
-    table.insert(combined, l)
-  end
-  for _, l in ipairs(theirs) do
-    table.insert(combined, l)
-  end
-  M.replace_region(bufnr, region, combined)
-  M.refresh(bufnr, config)
+  resolve(bufnr, config, 'both')
 end
 
 ---@param bufnr integer
 ---@param config diffs.ConflictConfig
 function M.resolve_none(bufnr, config)
-  if not vim.api.nvim_get_option_value('modifiable', { buf = bufnr }) then
-    notify('buffer is not modifiable', vim.log.levels.WARN)
-    return
-  end
+  resolve(bufnr, config, 'none')
+end
+
+---@param bufnr integer
+---@param forward boolean
+local function goto_conflict(bufnr, forward)
   local regions = parse_buffer(bufnr)
-  local cursor = vim.api.nvim_win_get_cursor(0)
-  local region = find_conflict_at_cursor(cursor[1] - 1, regions)
-  if not region then
+  if #regions == 0 then
     return
   end
-  M.replace_region(bufnr, region, {})
-  M.refresh(bufnr, config)
+  local cursor_line = vim.api.nvim_win_get_cursor(0)[1] - 1
+  if forward then
+    for _, region in ipairs(regions) do
+      if region.marker_ours > cursor_line then
+        vim.api.nvim_win_set_cursor(0, { region.marker_ours + 1, 0 })
+        return
+      end
+    end
+    notify('wrapped to first conflict', vim.log.levels.INFO)
+    vim.api.nvim_win_set_cursor(0, { regions[1].marker_ours + 1, 0 })
+  else
+    for i = #regions, 1, -1 do
+      if regions[i].marker_ours < cursor_line then
+        vim.api.nvim_win_set_cursor(0, { regions[i].marker_ours + 1, 0 })
+        return
+      end
+    end
+    notify('wrapped to last conflict', vim.log.levels.INFO)
+    vim.api.nvim_win_set_cursor(0, { regions[#regions].marker_ours + 1, 0 })
+  end
 end
 
 ---@param bufnr integer
 function M.goto_next(bufnr)
-  local regions = parse_buffer(bufnr)
-  if #regions == 0 then
-    return
-  end
-  local cursor = vim.api.nvim_win_get_cursor(0)
-  local cursor_line = cursor[1] - 1
-  for _, region in ipairs(regions) do
-    if region.marker_ours > cursor_line then
-      vim.api.nvim_win_set_cursor(0, { region.marker_ours + 1, 0 })
-      return
-    end
-  end
-  notify('wrapped to first conflict', vim.log.levels.INFO)
-  vim.api.nvim_win_set_cursor(0, { regions[1].marker_ours + 1, 0 })
+  goto_conflict(bufnr, true)
 end
 
 ---@param bufnr integer
 function M.goto_prev(bufnr)
-  local regions = parse_buffer(bufnr)
-  if #regions == 0 then
-    return
-  end
-  local cursor = vim.api.nvim_win_get_cursor(0)
-  local cursor_line = cursor[1] - 1
-  for i = #regions, 1, -1 do
-    if regions[i].marker_ours < cursor_line then
-      vim.api.nvim_win_set_cursor(0, { regions[i].marker_ours + 1, 0 })
-      return
-    end
-  end
-  notify('wrapped to last conflict', vim.log.levels.INFO)
-  vim.api.nvim_win_set_cursor(0, { regions[#regions].marker_ours + 1, 0 })
+  goto_conflict(bufnr, false)
 end
 
 ---@param bufnr integer

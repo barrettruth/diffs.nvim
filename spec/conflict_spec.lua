@@ -906,6 +906,115 @@ describe('conflict', function()
       helpers.delete_buffer(bufnr)
     end)
 
+    it('labels the base marker in diff3 conflicts', function()
+      local bufnr = create_file_buffer({
+        '<<<<<<< HEAD',
+        'local x = 1',
+        '||||||| base',
+        'local x = 0',
+        '=======',
+        'local x = 2',
+        '>>>>>>> feature',
+      })
+
+      conflict.attach(bufnr, default_config())
+
+      local labels = {}
+      for _, mark in ipairs(get_extmarks(bufnr)) do
+        if mark[4] and mark[4].virt_text then
+          table.insert(labels, mark[4].virt_text[1][1])
+        end
+      end
+      assert.are.same({ ' (current)', ' (base)', ' (incoming)' }, labels)
+
+      helpers.delete_buffer(bufnr)
+    end)
+
+    it('labels the base marker when the base section is empty', function()
+      local bufnr = create_file_buffer({
+        '<<<<<<< HEAD',
+        'a',
+        '||||||| base',
+        '=======',
+        'b',
+        '>>>>>>> feature',
+      })
+
+      conflict.attach(bufnr, default_config())
+
+      local labels = {}
+      for _, mark in ipairs(get_extmarks(bufnr)) do
+        if mark[4] and mark[4].virt_text then
+          table.insert(labels, mark[4].virt_text[1][1])
+        end
+      end
+      assert.are.same({ ' (current)', ' (base)', ' (incoming)' }, labels)
+
+      helpers.delete_buffer(bufnr)
+    end)
+
+    it('passes the base side with no keymap to format_virtual_text', function()
+      local seen = {}
+      local bufnr = create_file_buffer({
+        '<<<<<<< HEAD',
+        'local x = 1',
+        '||||||| base',
+        'local x = 0',
+        '=======',
+        'local x = 2',
+        '>>>>>>> feature',
+      })
+
+      conflict.attach(
+        bufnr,
+        default_config({
+          keymaps = { ours = 'co', theirs = 'ct' },
+          format_virtual_text = function(side, keymap)
+            seen[side] = keymap
+            return side
+          end,
+        })
+      )
+
+      assert.are.equal('co', seen.ours)
+      assert.are.equal('ct', seen.theirs)
+      assert.is_false(seen.base)
+
+      local labels = {}
+      for _, mark in ipairs(get_extmarks(bufnr)) do
+        if mark[4] and mark[4].virt_text then
+          table.insert(labels, mark[4].virt_text[1][1])
+        end
+      end
+      assert.are.same({ ' (ours)', ' (base)', ' (theirs)' }, labels)
+
+      helpers.delete_buffer(bufnr)
+    end)
+
+    it('omits the base label when show_virtual_text is false', function()
+      local bufnr = create_file_buffer({
+        '<<<<<<< HEAD',
+        'local x = 1',
+        '||||||| base',
+        'local x = 0',
+        '=======',
+        'local x = 2',
+        '>>>>>>> feature',
+      })
+
+      conflict.attach(bufnr, default_config({ show_virtual_text = false }))
+
+      local virt_text_count = 0
+      for _, mark in ipairs(get_extmarks(bufnr)) do
+        if mark[4] and mark[4].virt_text then
+          virt_text_count = virt_text_count + 1
+        end
+      end
+      assert.are.equal(0, virt_text_count)
+
+      helpers.delete_buffer(bufnr)
+    end)
+
     it('uses custom format_virtual_text function', function()
       local bufnr = create_file_buffer({
         '<<<<<<< HEAD',
