@@ -374,6 +374,46 @@ describe('diffs.runtime', function()
         close_window(non_diff_win)
         close_window(diff_win)
       end)
+
+      it('neutralizes native diff highlighting on conflicted panes', function()
+        local win, buf = create_diff_window()
+        vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+          '<<<<<<< HEAD',
+          'ours',
+          '=======',
+          'theirs',
+          '>>>>>>> feature',
+        })
+        runtime.attach_diff()
+
+        local whl = vim.api.nvim_get_option_value('winhighlight', { win = win })
+        assert.is_not_nil(whl:match('DiffText:DiffsDiffOff'))
+        assert.is_nil(whl:match('DiffsDiffText'))
+        assert.is_nil(whl:match('DiffsDiffAdd'))
+
+        close_window(win)
+      end)
+
+      it('keeps the diff remap on plain panes next to a conflicted one', function()
+        local conflict_win, conflict_buf = create_diff_window()
+        vim.api.nvim_buf_set_lines(conflict_buf, 0, -1, false, {
+          '<<<<<<< HEAD',
+          'x',
+          '=======',
+          'y',
+          '>>>>>>> feature',
+        })
+        local plain_win, _ = create_diff_window()
+        runtime.attach_diff()
+
+        local conflict_whl = vim.api.nvim_get_option_value('winhighlight', { win = conflict_win })
+        local plain_whl = vim.api.nvim_get_option_value('winhighlight', { win = plain_win })
+        assert.is_not_nil(conflict_whl:match('DiffAdd:DiffsDiffOff'))
+        assert.is_not_nil(plain_whl:match('DiffAdd:DiffsDiffAdd'))
+
+        close_window(conflict_win)
+        close_window(plain_win)
+      end)
     end)
 
     describe('detach_diff', function()

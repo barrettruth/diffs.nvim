@@ -118,6 +118,7 @@ function M.apply(config, is_default)
   )
   vim.api.nvim_set_hl(0, 'DiffsDiffChange', { default = dflt, bg = diff_change.bg })
   vim.api.nvim_set_hl(0, 'DiffsDiffText', { default = dflt, bg = diff_text.bg })
+  vim.api.nvim_set_hl(0, 'DiffsDiffOff', {})
 
   local change_bg = diff_change.bg or 0x3a3a4a
   local text_bg = diff_text.bg or 0x4a4a5a
