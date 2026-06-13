@@ -89,8 +89,7 @@ describe('git-backed diffs honor diffopt whitespace', function()
   end)
 end)
 
-describe('whitespace toggle', function()
-  local commands = require('diffs.commands')
+describe('whitespace-only line classification', function()
   local saved
 
   before_each(function()
@@ -101,12 +100,91 @@ describe('whitespace toggle', function()
     vim.o.diffopt = saved
   end)
 
-  it('flips iwhiteall in the global diffopt', function()
+  it('returns an empty set when no whitespace flag is active', function()
     vim.o.diffopt = 'internal,filler'
-    commands.toggle_whitespace()
-    assert.is_true(vim.tbl_contains(vim.opt.diffopt:get(), 'iwhiteall'))
-    commands.toggle_whitespace()
-    assert.is_false(vim.tbl_contains(vim.opt.diffopt:get(), 'iwhiteall'))
+    assert.are.same({}, diff.whitespace_only_lines({ '-foo bar', '+foo  bar' }))
+  end)
+
+  it('flags a whitespace-only -/+ pair under iwhiteall', function()
+    vim.o.diffopt = 'internal,iwhiteall'
+    assert.are.same(
+      { [1] = true, [2] = true },
+      diff.whitespace_only_lines({ '-foo bar', '+foo  bar' })
+    )
+  end)
+
+  it('does not flag a content change under iwhiteall', function()
+    vim.o.diffopt = 'internal,iwhiteall'
+    assert.are.same({}, diff.whitespace_only_lines({ '-foo', '+bar' }))
+  end)
+
+  it('does not flag a line that mixes content and whitespace', function()
+    vim.o.diffopt = 'internal,iwhiteall'
+    assert.are.same({}, diff.whitespace_only_lines({ '-local x = 1', '+local y = 1  ' }))
+  end)
+
+  it('collapses whitespace runs under iwhite', function()
+    vim.o.diffopt = 'internal,iwhite'
+    assert.are.same(
+      { [1] = true, [2] = true },
+      diff.whitespace_only_lines({ '-foo  bar', '+foo bar' })
+    )
+  end)
+
+  it('flags only trailing differences under iwhiteeol', function()
+    vim.o.diffopt = 'internal,iwhiteeol'
+    assert.are.same({ [1] = true, [2] = true }, diff.whitespace_only_lines({ '-foo', '+foo  ' }))
+    assert.are.same({}, diff.whitespace_only_lines({ '-foo  bar', '+foo bar' }))
+  end)
+
+  it('ignores unpaired additions and deletions', function()
+    vim.o.diffopt = 'internal,iwhiteall'
+    assert.are.same({}, diff.whitespace_only_lines({ ' context', '+added line' }))
+  end)
+
+  it('classifies a reindented multi-line block', function()
+    vim.o.diffopt = 'internal,iwhiteall'
+    assert.are.same(
+      { [1] = true, [2] = true, [3] = true, [4] = true },
+      diff.whitespace_only_lines({
+        '-  function foo()',
+        '-    return 1',
+        '+    function foo()',
+        '+      return 1',
+      })
+    )
+  end)
+
+  it('classifies a reindented multi-line block when linematch is set', function()
+    vim.o.diffopt = 'internal,iwhiteall,linematch:60'
+    assert.are.same(
+      { [1] = true, [2] = true, [3] = true, [4] = true },
+      diff.whitespace_only_lines({
+        '-  function foo()',
+        '-    return 1',
+        '+    function foo()',
+        '+      return 1',
+      })
+    )
+  end)
+
+  it('treats a trailing-only multibyte change as whitespace-only under iwhiteall', function()
+    vim.o.diffopt = 'internal,iwhiteall'
+    assert.are.same(
+      { [1] = true, [2] = true },
+      diff.whitespace_only_lines({ '-café', '+café  ' })
+    )
+  end)
+
+  it('flags a blank-line-only change under iwhiteall', function()
+    vim.o.diffopt = 'internal,iwhiteall'
+    assert.are.same({ [1] = true, [2] = true }, diff.whitespace_only_lines({ '-  ', '+    ' }))
+  end)
+end)
+
+describe('diffopt change handler', function()
+  it('exposes on_diffopt_changed', function()
+    assert.are.equal('function', type(require('diffs.commands').on_diffopt_changed))
   end)
 end)
 

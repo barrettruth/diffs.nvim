@@ -674,16 +674,33 @@ Whitespace handling: ~                                  *diffs.nvim-whitespace*
     The same flags apply to |:Diff|, |:Diff-review|, and every layout, because
     the generated diffs read 'diffopt' as they are rendered.
 
-    Toggle: ~
-        gw          Toggle `iwhiteall` in the global 'diffopt' and re-render the
-                    visible `diffs://` buffers in place. Mapped by default in
-                    every generated diff buffer; remap with
-                    |<Plug>(diffs-toggle-whitespace)|. The toggle flips only
-                    `iwhiteall`; set `iwhite`, `iwhiteeol`, or `iblank` through
-                    'diffopt' directly.
+    Changes to 'diffopt' take effect live: whenever the option changes the
+    generated `diffs://` buffers regenerate, the decorated surfaces repaint, and
+    native |:diffsplit| windows are refreshed with |:diffupdate|. There is no
+    dedicated mapping; toggle whitespace the standard Vim way by adding or
+    removing a flag from 'diffopt' (for example with a small `:set` mapping of
+    your own).
 
-    Because 'diffopt' is global, the toggle also changes native |:diffsplit|
-    windows, which pick it up on their next |:diffupdate|.
+    What an ignored whitespace change looks like depends on the surface,
+    because the plugin removes the noise where it generates the diff and only
+    re-styles it where the text cannot be regenerated:
+
+    - Generated `diffs://` buffers (|:Diff|, the staged/unstaged sections, and
+      |:Diff-review|): regenerated with the matching git/|vim.diff()| flag, so
+      a whitespace-only hunk is dropped entirely and never appears.
+    - Split layout (`++layout=split`): regenerated the same way, so a
+      whitespace-only change shows as plain, uncolored context — both sides
+      stay visible with their own indentation, just without add/delete color.
+    - Decorated, non-generated buffers (`gitcommit` from `git commit -v`,
+      vim-fugitive, Neogit, plain `diff` buffers): the text cannot be
+      regenerated, so a `+`/`-` line whose only change is whitespace is kept
+      but de-emphasized — the prefix and syntax are kept and the intra-line
+      emphasis dropped, while the added/removed background becomes a faint,
+      neutral |DiffsDim|. Lines that mix a real change with whitespace stay
+      fully highlighted.
+    - difftastic-rendered diffs: left unchanged; the 'diffopt' whitespace flags
+      do not apply (see |diffs.nvim-difftastic|).
+    - Native |:diffsplit| windows: whitespace is handled by Neovim itself.
 
     Limitations: ~
     - With `highlights.intra.algorithm = 'vscode'` the intra-line highlighter
@@ -738,13 +755,6 @@ MAPPINGS                                                 *diffs.nvim-mappings*
                         `gO` by default in the split panes — a review's files are
                         its table of contents — unless `gO` is already mapped in
                         that buffer. See |diffs.nvim.select_review_file()|.
-
-                                          *<Plug>(diffs-toggle-whitespace)*
-<Plug>(diffs-toggle-whitespace)
-                        Toggle ignoring whitespace in diffs. Flips `iwhiteall`
-                        in the global |'diffopt'| and re-renders the visible
-                        `diffs://` buffers. Mapped to `gw` by default in every
-                        generated diff buffer. See |diffs.nvim-whitespace|.
 
                                                    *<Plug>(diffs-refresh)*
 <Plug>(diffs-refresh)
@@ -1034,8 +1044,9 @@ difftastic runs synchronously when you open the diff, with an internal timeout.
 It is independent of |diffs.nvim-config| `highlights.intra`, which configures
 the built-in engine and is the fallback when difftastic is off. When difftastic
 finds no structural change (e.g. a reformat-only edit), it emits an
-informational message and renders no token highlights. Whitespace toggling
-(`gw`) does not apply to a structural diff and is a no-op on such buffers.
+informational message and renders no token highlights. The 'diffopt'
+whitespace handling does not apply to a structural diff; such buffers are
+left unchanged.
 
 Run |:checkhealth| diffs to confirm `difft` is detected.
 
@@ -1374,6 +1385,12 @@ Diff and generated rail highlights: ~
 
                                                                  *DiffsDelete*
     DiffsDelete         Background for `-` lines.
+
+                                                                    *DiffsDim*
+    DiffsDim            Faint, neutral background for a whitespace-only changed
+                        line on a decorated (non-generated) surface while
+                        'diffopt' ignores whitespace. See
+                        |diffs.nvim-whitespace|.
 
                                                                    *DiffsRail*
     DiffsRail           Generated line-number rails and separators.

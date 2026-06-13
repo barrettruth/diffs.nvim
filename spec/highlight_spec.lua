@@ -179,6 +179,153 @@ describe('highlight', function()
       delete_buffer(bufnr)
     end)
 
+    it('dims whitespace-only line backgrounds under iwhiteall but keeps real changes', function()
+      local saved = vim.o.diffopt
+      vim.o.diffopt = 'internal,iwhiteall'
+
+      local bufnr = create_buffer({
+        '@@ -1,4 +1,4 @@',
+        ' local function g(a, b)',
+        '-  return a + b',
+        '+    return a + b',
+        '-local total = g(1, 2)',
+        '+local total = g(3, 4)',
+      })
+      local hunk = {
+        filename = 'test.lua',
+        start_line = 1,
+        prefix_width = 1,
+        quote_width = 0,
+        lines = {
+          ' local function g(a, b)',
+          '-  return a + b',
+          '+    return a + b',
+          '-local total = g(1, 2)',
+          '+local total = g(3, 4)',
+        },
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { background = true } })
+      )
+      vim.o.diffopt = saved
+
+      local line_bg = {}
+      local dim_bg = {}
+      local intra = {}
+      local prefix_marks = {}
+      for _, mark in ipairs(get_extmarks(bufnr)) do
+        local d = mark[4]
+        if d and d.hl_eol and (d.hl_group == 'DiffsAdd' or d.hl_group == 'DiffsDelete') then
+          line_bg[mark[2]] = d.hl_group
+        end
+        if d and d.hl_eol and d.hl_group == 'DiffsDim' then
+          dim_bg[mark[2]] = d.hl_group
+        end
+        if d and (d.hl_group == 'DiffsAddText' or d.hl_group == 'DiffsDeleteText') then
+          intra[mark[2]] = true
+        end
+        if d and (d.hl_group == '@diff.plus' or d.hl_group == '@diff.minus') then
+          prefix_marks[mark[2]] = d.hl_group
+        end
+      end
+
+      assert.is_nil(line_bg[2])
+      assert.is_nil(line_bg[3])
+      assert.are.equal('DiffsDim', dim_bg[2])
+      assert.are.equal('DiffsDim', dim_bg[3])
+      assert.is_nil(intra[2])
+      assert.is_nil(intra[3])
+      assert.are.equal('DiffsDelete', line_bg[4])
+      assert.are.equal('DiffsAdd', line_bg[5])
+      assert.are.equal('@diff.minus', prefix_marks[2])
+      assert.are.equal('@diff.plus', prefix_marks[3])
+
+      delete_buffer(bufnr)
+    end)
+
+    it('keeps whitespace-only highlighting on difftastic-active buffers', function()
+      local saved = vim.o.diffopt
+      vim.o.diffopt = 'internal,iwhiteall'
+
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,1 @@',
+        '-  return a + b',
+        '+    return a + b',
+      })
+      vim.b[bufnr].diffs_difft_active = true
+      local hunk = {
+        filename = 'test.lua',
+        start_line = 1,
+        prefix_width = 1,
+        quote_width = 0,
+        lines = { '-  return a + b', '+    return a + b' },
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { background = true } })
+      )
+      vim.o.diffopt = saved
+
+      local line_bg = {}
+      for _, mark in ipairs(get_extmarks(bufnr)) do
+        local d = mark[4]
+        if d and d.hl_eol and (d.hl_group == 'DiffsAdd' or d.hl_group == 'DiffsDelete') then
+          line_bg[mark[2]] = d.hl_group
+        end
+      end
+
+      assert.are.equal('DiffsDelete', line_bg[1])
+      assert.are.equal('DiffsAdd', line_bg[2])
+
+      delete_buffer(bufnr)
+    end)
+
+    it('does not dim whitespace-only lines on combined diffs (prefix_width > 1)', function()
+      local saved = vim.o.diffopt
+      vim.o.diffopt = 'internal,iwhiteall'
+
+      local bufnr = create_buffer({
+        '@@@ -1,1 -1,1 +1,1 @@@',
+        '-   return x',
+        '+     return x',
+      })
+      local hunk = {
+        filename = 'test.lua',
+        start_line = 1,
+        prefix_width = 2,
+        quote_width = 0,
+        lines = {
+          '-   return x',
+          '+     return x',
+        },
+      }
+
+      highlight.highlight_hunk(
+        bufnr,
+        ns,
+        hunk,
+        default_opts({ highlights = { background = true } })
+      )
+      vim.o.diffopt = saved
+
+      local has_dim = false
+      for _, mark in ipairs(get_extmarks(bufnr)) do
+        if mark[4] and mark[4].hl_group == 'DiffsDim' then
+          has_dim = true
+        end
+      end
+      assert.is_false(has_dim)
+
+      delete_buffer(bufnr)
+    end)
+
     it('produces treesitter captures on all lines with split parsing', function()
       local bufnr = create_buffer({
         '@@ -1,3 +1,3 @@',

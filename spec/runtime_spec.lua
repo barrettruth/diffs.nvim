@@ -253,6 +253,32 @@ describe('diffs.runtime', function()
       delete_buffer(bufnr)
     end)
 
+    it('invalidate_attached eagerly clears extmarks and resets highlighted', function()
+      local bufnr = create_buffer({
+        '@@ -1,1 +1,1 @@',
+        '-local x = 1',
+        '+local x = 2',
+      })
+      runtime.attach(bufnr)
+      local ns = vim.api.nvim_create_namespace('diffs')
+      vim.api.nvim_buf_set_extmark(bufnr, ns, 1, 0, {
+        end_row = 2,
+        end_col = 0,
+        hl_group = 'DiffsDelete',
+        hl_eol = true,
+      })
+      local entry = runtime._test.hunk_cache[bufnr]
+      entry.highlighted = { [1] = true }
+      entry.pending_clear = false
+
+      runtime.invalidate_attached()
+
+      assert.are.equal(0, #vim.api.nvim_buf_get_extmarks(bufnr, ns, 0, -1, {}))
+      assert.are.equal(0, vim.tbl_count(runtime._test.hunk_cache[bufnr].highlighted))
+      assert.is_false(runtime._test.hunk_cache[bufnr].pending_clear)
+      delete_buffer(bufnr)
+    end)
+
     it('evicts on buffer wipeout', function()
       local bufnr = create_buffer({})
       runtime.attach(bufnr)

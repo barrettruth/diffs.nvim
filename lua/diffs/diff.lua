@@ -187,29 +187,20 @@ local function char_diff_pair(old_line, new_line, del_idx, add_idx, diff_opts)
   return del_spans, add_spans
 end
 
+---@class diffs.LinePair
+---@field del {idx: integer, text: string}
+---@field add {idx: integer, text: string}
+
+--- Pair up the removed and added lines of a change group so they can be diffed
+--- (or classified) against each other. A 1:1 group pairs directly; larger
+--- groups are line-mapped with a block-level vim.diff() so equal-count runs line
+--- up and unequal-count runs pair as many as possible.
 ---@param group diffs.ChangeGroup
 ---@param diff_opts? diffs.DiffOpts
----@return diffs.CharSpan[], diffs.CharSpan[]
-local function diff_group_native(group, diff_opts)
-  ---@type diffs.CharSpan[]
-  local all_del = {}
-  ---@type diffs.CharSpan[]
-  local all_add = {}
-
-  local del_count = #group.del_lines
-  local add_count = #group.add_lines
-
-  if del_count == 1 and add_count == 1 then
-    local ds, as = char_diff_pair(
-      group.del_lines[1].text,
-      group.add_lines[1].text,
-      group.del_lines[1].idx,
-      group.add_lines[1].idx,
-      diff_opts
-    )
-    vim.list_extend(all_del, ds)
-    vim.list_extend(all_add, as)
-    return all_del, all_add
+---@return diffs.LinePair[]
+local function pair_group_lines(group, diff_opts)
+  if #group.del_lines == 1 and #group.add_lines == 1 then
+    return { { del = group.del_lines[1], add = group.add_lines[1] } }
   end
 
   local old_texts = {}
@@ -224,51 +215,41 @@ local function diff_group_native(group, diff_opts)
   local old_block = table.concat(old_texts, '\n') .. '\n'
   local new_block = table.concat(new_texts, '\n') .. '\n'
 
-  local line_hunks = byte_diff(old_block, new_block, diff_opts)
+  local pair_opts = diff_opts
+  if diff_opts and diff_opts.linematch then
+    pair_opts = { algorithm = diff_opts.algorithm }
+  end
+  local line_hunks = byte_diff(old_block, new_block, pair_opts)
 
-  ---@type table<integer, integer>
-  local old_to_new = {}
+  ---@type diffs.LinePair[]
+  local pairs_out = {}
   for _, lh in ipairs(line_hunks) do
-    if lh.old_count == lh.new_count then
-      for k = 0, lh.old_count - 1 do
-        old_to_new[lh.old_start + k] = lh.new_start + k
+    local count = (lh.old_count == lh.new_count) and lh.old_count
+      or math.min(lh.old_count, lh.new_count)
+    for k = 0, count - 1 do
+      local del = group.del_lines[lh.old_start + k]
+      local add = group.add_lines[lh.new_start + k]
+      if del and add then
+        table.insert(pairs_out, { del = del, add = add })
       end
     end
   end
+  return pairs_out
+end
 
-  for old_i, new_i in pairs(old_to_new) do
-    if group.del_lines[old_i] and group.add_lines[new_i] then
-      local ds, as = char_diff_pair(
-        group.del_lines[old_i].text,
-        group.add_lines[new_i].text,
-        group.del_lines[old_i].idx,
-        group.add_lines[new_i].idx,
-        diff_opts
-      )
-      vim.list_extend(all_del, ds)
-      vim.list_extend(all_add, as)
-    end
-  end
+---@param group diffs.ChangeGroup
+---@param diff_opts? diffs.DiffOpts
+---@return diffs.CharSpan[], diffs.CharSpan[]
+local function diff_group_native(group, diff_opts)
+  ---@type diffs.CharSpan[]
+  local all_del = {}
+  ---@type diffs.CharSpan[]
+  local all_add = {}
 
-  for _, lh in ipairs(line_hunks) do
-    if lh.old_count ~= lh.new_count then
-      local pairs_count = math.min(lh.old_count, lh.new_count)
-      for k = 0, pairs_count - 1 do
-        local oi = lh.old_start + k
-        local ni = lh.new_start + k
-        if group.del_lines[oi] and group.add_lines[ni] then
-          local ds, as = char_diff_pair(
-            group.del_lines[oi].text,
-            group.add_lines[ni].text,
-            group.del_lines[oi].idx,
-            group.add_lines[ni].idx,
-            diff_opts
-          )
-          vim.list_extend(all_del, ds)
-          vim.list_extend(all_add, as)
-        end
-      end
-    end
+  for _, pr in ipairs(pair_group_lines(group, diff_opts)) do
+    local ds, as = char_diff_pair(pr.del.text, pr.add.text, pr.del.idx, pr.add.idx, diff_opts)
+    vim.list_extend(all_del, ds)
+    vim.list_extend(all_add, as)
   end
 
   return all_del, all_add
@@ -427,6 +408,59 @@ function M.compute_intra_hunks(hunk_lines, algorithm)
   end
 
   return { add_spans = all_add, del_spans = all_del }
+end
+
+--- Normalize a line for whitespace-insensitive comparison, following the active
+--- 'diffopt' flags: iwhiteall drops all whitespace, iwhite collapses runs and
+--- trims, iwhiteeol trims only trailing whitespace. iblank has no per-line
+--- counterpart and is not handled here (matching drop_whitespace_spans).
+---@param line string
+---@param diff_opts diffs.DiffOpts
+---@return string
+local function normalize_ws(line, diff_opts)
+  if diff_opts.ignore_whitespace then
+    return (line:gsub('%s+', ''))
+  end
+  if diff_opts.ignore_whitespace_change then
+    return (line:gsub('%s+', ' '):gsub('^%s+', ''):gsub('%s+$', ''))
+  end
+  if diff_opts.ignore_whitespace_change_at_eol then
+    return (line:gsub('%s+$', ''))
+  end
+  return line
+end
+
+--- Classify which hunk lines are whitespace-only changes under the active
+--- 'diffopt' whitespace flags. Returns a set keyed by the 1-based hunk line
+--- index (matching `hunk.lines`). A `+`/`-` line is flagged only when it is
+--- reliably paired with a counterpart that is equal once whitespace is
+--- normalized; unpaired additions/deletions are never flagged. Returns an empty
+--- table immediately when no whitespace flag is active.
+---@param hunk_lines string[]
+---@return table<integer, boolean>
+function M.whitespace_only_lines(hunk_lines)
+  local diff_opts = diffopt.resolve()
+  if
+    not (
+      diff_opts.ignore_whitespace
+      or diff_opts.ignore_whitespace_change
+      or diff_opts.ignore_whitespace_change_at_eol
+    )
+  then
+    return {}
+  end
+
+  ---@type table<integer, boolean>
+  local result = {}
+  for _, group in ipairs(M.extract_change_groups(hunk_lines)) do
+    for _, pr in ipairs(pair_group_lines(group, diff_opts)) do
+      if normalize_ws(pr.del.text, diff_opts) == normalize_ws(pr.add.text, diff_opts) then
+        result[pr.del.idx] = true
+        result[pr.add.idx] = true
+      end
+    end
+  end
+  return result
 end
 
 ---@return boolean
