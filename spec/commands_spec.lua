@@ -211,7 +211,8 @@ local function create_review_repo(opts)
   }
 end
 
-local function create_current_state_review_repo()
+local function create_current_state_review_repo(opts)
+  opts = opts or {}
   local repo_root = vim.fn.tempname()
   vim.fn.mkdir(repo_root, 'p')
   test_repos[#test_repos + 1] = repo_root
@@ -220,6 +221,9 @@ local function create_current_state_review_repo()
   assert.are.equal(0, vim.v.shell_error)
   git_cmd(repo_root, { 'config', 'user.email', 'test@example.com' })
   git_cmd(repo_root, { 'config', 'user.name', 'Test' })
+  if opts.mnemonic_prefix then
+    git_cmd(repo_root, { 'config', 'diff.mnemonicPrefix', 'true' })
+  end
 
   write_repo_file(repo_root, 'lua/branch.lua', { 'branch base' })
   write_repo_file(repo_root, 'lua/dup.lua', { 'dup base' })
@@ -3030,6 +3034,8 @@ describe('commands', function()
         'diff',
         '--no-ext-diff',
         '--no-color',
+        '--src-prefix=a/',
+        '--dst-prefix=b/',
         '--merge-base',
         'origin/main',
         'refs/forge/pr/42',
@@ -3126,6 +3132,31 @@ describe('commands', function()
       assert.are.equal('branch:lua/dup.lua', qf[2].user_data.diffs.key)
       assert.are.equal('staged:lua/dup.lua', qf[3].user_data.diffs.key)
       assert.are.equal('unstaged:lua/dup.lua', qf[5].user_data.diffs.key)
+    end)
+
+    it('renders worktree sections when diff.mnemonicPrefix is enabled', function()
+      local repo = create_current_state_review_repo({ mnemonic_prefix = true })
+      mock_runtime_attach(function() end)
+
+      local bufnr = commands.review({
+        base = repo.base,
+        repo = repo.repo_root,
+      })
+      assert.is_not_nil(bufnr)
+      table.insert(test_buffers, bufnr)
+
+      local text = buffer_text(bufnr)
+      assert.is_true(text:find('# Staged:', 1, true) ~= nil)
+      assert.is_true(text:find('# Unstaged:', 1, true) ~= nil)
+      assert.is_true(text:find('+staged changed', 1, true) ~= nil)
+      assert.is_true(text:find('+unstaged changed', 1, true) ~= nil)
+
+      local qf = quickfix_items()
+      assert.are.equal(7, #qf)
+      assert.is_true(qf[3].text:find('[Staged] lua/dup.lua', 1, true) ~= nil)
+      assert.is_true(qf[4].text:find('[Staged] lua/staged.lua', 1, true) ~= nil)
+      assert.is_true(qf[5].text:find('[Unstaged] lua/dup.lua', 1, true) ~= nil)
+      assert.is_true(qf[6].text:find('[Unstaged] lua/unstaged.lua', 1, true) ~= nil)
     end)
 
     it('opens review stacked layout as a single generated review map with single rails', function()

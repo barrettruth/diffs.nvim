@@ -293,7 +293,16 @@ end
 ---@param review diffs.NormalizedReview
 ---@return string[]
 function M.build_cmd(review)
-  local cmd = { 'git', '-C', review.repo_root, 'diff', '--no-ext-diff', '--no-color' }
+  local cmd = {
+    'git',
+    '-C',
+    review.repo_root,
+    'diff',
+    '--no-ext-diff',
+    '--no-color',
+    '--src-prefix=a/',
+    '--dst-prefix=b/',
+  }
   vim.list_extend(cmd, diffopt.git_flags())
   vim.list_extend(cmd, review.exec_args)
   return cmd
@@ -375,7 +384,7 @@ end
 ---@param base_rev string
 ---@return string[]?, string?
 local function branch_lines(review, base_rev)
-  local args = { 'diff', '--no-ext-diff', '--no-color' }
+  local args = { 'diff', '--no-ext-diff', '--no-color', '--src-prefix=a/', '--dst-prefix=b/' }
   vim.list_extend(args, diffopt.git_flags())
   args[#args + 1] = base_rev
   args[#args + 1] = 'HEAD'
@@ -386,7 +395,7 @@ end
 ---@param cached boolean
 ---@return string[]?, string?
 local function worktree_edge_lines(review, cached)
-  local args = { 'diff', '--no-ext-diff', '--no-color' }
+  local args = { 'diff', '--no-ext-diff', '--no-color', '--src-prefix=a/', '--dst-prefix=b/' }
   vim.list_extend(args, diffopt.git_flags())
   if cached then
     args[#args + 1] = '--cached'

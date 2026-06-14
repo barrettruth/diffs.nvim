@@ -715,7 +715,7 @@ describe('read_buffer', function()
           return {}
         end
         captured_cmds[#captured_cmds + 1] = cmd
-        if cmd[7] == 'base-sha' then
+        if vim.tbl_contains(cmd, 'base-sha') then
           return review_diff_lines()
         end
         return {}
@@ -734,6 +734,8 @@ describe('read_buffer', function()
         'diff',
         '--no-ext-diff',
         '--no-color',
+        '--src-prefix=a/',
+        '--dst-prefix=b/',
         'base-sha',
         'HEAD',
       }, captured_cmds[1])
@@ -774,6 +776,8 @@ describe('read_buffer', function()
         'diff',
         '--no-ext-diff',
         '--no-color',
+        '--src-prefix=a/',
+        '--dst-prefix=b/',
         '--merge-base',
         'origin/main',
         'refs/forge/pr/42',
@@ -805,6 +809,8 @@ describe('read_buffer', function()
         'diff',
         '--no-ext-diff',
         '--no-color',
+        '--src-prefix=a/',
+        '--dst-prefix=b/',
         'origin/main',
         'feature/topic',
       }, captured_cmd)
