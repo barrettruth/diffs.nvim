@@ -87,14 +87,14 @@ local function normalize_path(path, strip_prefix)
     return nil
   end
   path = path:gsub('\t.*$', '')
-  local normalized = strip_prefix and path:gsub('^[ab]/', '') or path
+  local normalized = strip_prefix and path:gsub('^%a/', '') or path
   return normalized
 end
 
 ---@param line string
 ---@return string?, string?
 local function parse_diff_git_paths(line)
-  local old_path, new_path = line:match('^diff %-%-git a/(.-) b/(.+)$')
+  local old_path, new_path = line:match('^diff %-%-git %a/(.-) %a/(.+)$')
   return normalize_path(old_path), normalize_path(new_path)
 end
 

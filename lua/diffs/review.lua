@@ -300,8 +300,6 @@ function M.build_cmd(review)
     'diff',
     '--no-ext-diff',
     '--no-color',
-    '--src-prefix=a/',
-    '--dst-prefix=b/',
   }
   vim.list_extend(cmd, diffopt.git_flags())
   vim.list_extend(cmd, review.exec_args)
@@ -324,7 +322,7 @@ end
 ---@param line string
 ---@return string?
 local function diff_line_file(line)
-  local old_path, new_path = line:match('^diff %-%-git a/(.-) b/(.+)$')
+  local old_path, new_path = line:match('^diff %-%-git %a/(.-) %a/(.+)$')
   return new_path or old_path
 end
 
@@ -384,7 +382,7 @@ end
 ---@param base_rev string
 ---@return string[]?, string?
 local function branch_lines(review, base_rev)
-  local args = { 'diff', '--no-ext-diff', '--no-color', '--src-prefix=a/', '--dst-prefix=b/' }
+  local args = { 'diff', '--no-ext-diff', '--no-color' }
   vim.list_extend(args, diffopt.git_flags())
   args[#args + 1] = base_rev
   args[#args + 1] = 'HEAD'
@@ -395,7 +393,7 @@ end
 ---@param cached boolean
 ---@return string[]?, string?
 local function worktree_edge_lines(review, cached)
-  local args = { 'diff', '--no-ext-diff', '--no-color', '--src-prefix=a/', '--dst-prefix=b/' }
+  local args = { 'diff', '--no-ext-diff', '--no-color' }
   vim.list_extend(args, diffopt.git_flags())
   if cached then
     args[#args + 1] = '--cached'
@@ -810,7 +808,7 @@ end
 function M.file_at_line(buf, lnum)
   local lines = vim.api.nvim_buf_get_lines(buf, 0, lnum, false)
   for i = #lines, 1, -1 do
-    local file = lines[i]:match('^diff %-%-git a/.+ b/(.+)$')
+    local file = lines[i]:match('^diff %-%-git %a/.+ %a/(.+)$')
     if file then
       return file
     end

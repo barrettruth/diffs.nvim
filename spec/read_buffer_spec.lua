@@ -734,8 +734,6 @@ describe('read_buffer', function()
         'diff',
         '--no-ext-diff',
         '--no-color',
-        '--src-prefix=a/',
-        '--dst-prefix=b/',
         'base-sha',
         'HEAD',
       }, captured_cmds[1])
@@ -776,8 +774,6 @@ describe('read_buffer', function()
         'diff',
         '--no-ext-diff',
         '--no-color',
-        '--src-prefix=a/',
-        '--dst-prefix=b/',
         '--merge-base',
         'origin/main',
         'refs/forge/pr/42',
@@ -809,8 +805,6 @@ describe('read_buffer', function()
         'diff',
         '--no-ext-diff',
         '--no-color',
-        '--src-prefix=a/',
-        '--dst-prefix=b/',
         'origin/main',
         'feature/topic',
       }, captured_cmd)
