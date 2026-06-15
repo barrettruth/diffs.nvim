@@ -224,6 +224,9 @@ local function create_current_state_review_repo(opts)
   if opts.mnemonic_prefix then
     git_cmd(repo_root, { 'config', 'diff.mnemonicPrefix', 'true' })
   end
+  if opts.noprefix then
+    git_cmd(repo_root, { 'config', 'diff.noprefix', 'true' })
+  end
 
   write_repo_file(repo_root, 'lua/branch.lua', { 'branch base' })
   write_repo_file(repo_root, 'lua/dup.lua', { 'dup base' })
@@ -563,6 +566,8 @@ describe('commands', function()
           'diff',
           '--no-ext-diff',
           '--no-color',
+          '--src-prefix=a/',
+          '--dst-prefix=b/',
         }, cmd)
         return diff_lines('local reloaded = true')
       end)
@@ -1966,6 +1971,35 @@ describe('commands', function()
       }, vim.api.nvim_buf_get_var(unstaged_buf, 'diffs_source'))
     end)
 
+    it('pins a/ b/ for staged section diffs under diff.noprefix', function()
+      local repo_root = create_repo()
+      git_cmd(repo_root, { 'config', 'diff.noprefix', 'true' })
+      vim.fn.writefile({ 'line 1', 'line 2 staged' }, repo_root .. '/file.txt')
+      git_cmd(repo_root, { 'add', 'file.txt' })
+      mock_runtime_attach(function() end)
+
+      commands.diff_section(repo_root, { staged = true })
+      local staged_buf = vim.api.nvim_get_current_buf()
+      table.insert(test_buffers, staged_buf)
+      assert.is_true(
+        buffer_text(staged_buf):find('diff --git a/file.txt b/file.txt', 1, true) ~= nil
+      )
+    end)
+
+    it('pins a/ b/ for unstaged section diffs under diff.mnemonicPrefix', function()
+      local repo_root = create_repo()
+      git_cmd(repo_root, { 'config', 'diff.mnemonicPrefix', 'true' })
+      vim.fn.writefile({ 'line 1', 'line 2 unstaged' }, repo_root .. '/file.txt')
+      mock_runtime_attach(function() end)
+
+      commands.diff_section(repo_root)
+      local unstaged_buf = vim.api.nvim_get_current_buf()
+      table.insert(test_buffers, unstaged_buf)
+      assert.is_true(
+        buffer_text(unstaged_buf):find('diff --git a/file.txt b/file.txt', 1, true) ~= nil
+      )
+    end)
+
     it('renders an explicit-path object against that path worktree counterpart', function()
       local repo_root = create_repo()
       write_repo_file(repo_root, 'other.lua', { 'local a = 1', 'return a' })
@@ -3034,6 +3068,8 @@ describe('commands', function()
         'diff',
         '--no-ext-diff',
         '--no-color',
+        '--src-prefix=a/',
+        '--dst-prefix=b/',
         '--merge-base',
         'origin/main',
         'refs/forge/pr/42',
@@ -3134,6 +3170,31 @@ describe('commands', function()
 
     it('renders worktree sections when diff.mnemonicPrefix is enabled', function()
       local repo = create_current_state_review_repo({ mnemonic_prefix = true })
+      mock_runtime_attach(function() end)
+
+      local bufnr = commands.review({
+        base = repo.base,
+        repo = repo.repo_root,
+      })
+      assert.is_not_nil(bufnr)
+      table.insert(test_buffers, bufnr)
+
+      local text = buffer_text(bufnr)
+      assert.is_true(text:find('# Staged:', 1, true) ~= nil)
+      assert.is_true(text:find('# Unstaged:', 1, true) ~= nil)
+      assert.is_true(text:find('+staged changed', 1, true) ~= nil)
+      assert.is_true(text:find('+unstaged changed', 1, true) ~= nil)
+
+      local qf = quickfix_items()
+      assert.are.equal(7, #qf)
+      assert.is_true(qf[3].text:find('[Staged] lua/dup.lua', 1, true) ~= nil)
+      assert.is_true(qf[4].text:find('[Staged] lua/staged.lua', 1, true) ~= nil)
+      assert.is_true(qf[5].text:find('[Unstaged] lua/dup.lua', 1, true) ~= nil)
+      assert.is_true(qf[6].text:find('[Unstaged] lua/unstaged.lua', 1, true) ~= nil)
+    end)
+
+    it('renders worktree sections when diff.noprefix is enabled', function()
+      local repo = create_current_state_review_repo({ noprefix = true })
       mock_runtime_attach(function() end)
 
       local bufnr = commands.review({

@@ -1371,6 +1371,17 @@ diffview.nvim, mini.diff, gitsigns.nvim line highlights, and
 git-conflict.nvim. If you see visual conflicts, disable one plugin's
 overlapping diff features.
 
+Prefixless Diff Path Ambiguity ~
+                                                 *diffs.nvim-prefix-ambiguity*
+Diffs that diffs.nvim generates pin git's `a/` and `b/` path prefixes, so they
+are unaffected by `diff.mnemonicPrefix` or `diff.noprefix`. Diffs from other
+sources that diffs.nvim only highlights (fugitive, neogit, an opened patch)
+are parsed as they arrive. When such a diff was produced with `diff.noprefix`,
+a header like `diff --git path path` carries no prefix, and a real top-level
+directory named with a single letter (for example `a` or `i`) cannot be
+distinguished from a stripped prefix. In that narrow case the file may be
+mis-identified, which can degrade its syntax highlighting or hunk navigation.
+
 ==============================================================================
 HIGHLIGHT GROUPS                                       *diffs.nvim-highlights*
 

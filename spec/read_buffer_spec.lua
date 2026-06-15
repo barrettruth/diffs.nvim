@@ -682,6 +682,8 @@ describe('read_buffer', function()
       assert.are.equal('git', captured_cmd[1])
       assert.are.equal('/home/test/repo', captured_cmd[3])
       assert.are.equal('diff', captured_cmd[4])
+      assert.is_truthy(vim.tbl_contains(captured_cmd, '--src-prefix=a/'))
+      assert.is_truthy(vim.tbl_contains(captured_cmd, '--dst-prefix=b/'))
 
       local lines = buffer_lines(bufnr)
       assert.are.equal('diff --git a/file.lua b/file.lua', lines[1])
@@ -734,6 +736,8 @@ describe('read_buffer', function()
         'diff',
         '--no-ext-diff',
         '--no-color',
+        '--src-prefix=a/',
+        '--dst-prefix=b/',
         'base-sha',
         'HEAD',
       }, captured_cmds[1])
@@ -774,6 +778,8 @@ describe('read_buffer', function()
         'diff',
         '--no-ext-diff',
         '--no-color',
+        '--src-prefix=a/',
+        '--dst-prefix=b/',
         '--merge-base',
         'origin/main',
         'refs/forge/pr/42',
@@ -805,6 +811,8 @@ describe('read_buffer', function()
         'diff',
         '--no-ext-diff',
         '--no-color',
+        '--src-prefix=a/',
+        '--dst-prefix=b/',
         'origin/main',
         'feature/topic',
       }, captured_cmd)
