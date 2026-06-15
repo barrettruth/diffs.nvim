@@ -356,6 +356,24 @@ describe('parser', function()
       delete_buffer(bufnr)
     end)
 
+    it('extracts filename from a prefixless diff header (diff.noprefix)', function()
+      local bufnr = create_buffer({
+        'diff --git src/main.lua src/main.lua',
+        'index abc1234..def5678 100644',
+        '--- src/main.lua',
+        '+++ src/main.lua',
+        '@@ -1,1 +1,2 @@',
+        ' local M = {}',
+        '+local y = 2',
+      })
+      local hunks = parser.parse_buffer(bufnr)
+
+      assert.are.equal(1, #hunks)
+      assert.are.equal('src/main.lua', hunks[1].filename)
+      assert.are.equal('lua', hunks[1].lang)
+      delete_buffer(bufnr)
+    end)
+
     it('rejects non-letter prefix in diff header', function()
       local bufnr = create_buffer({
         'diff --git 1/init.lua 2/init.lua',

@@ -520,7 +520,16 @@ end
 ---@param section "staged"|"unstaged"
 ---@return string[]
 local function render_section_source(repo_root, section)
-  local cmd = { 'git', '-C', repo_root, 'diff', '--no-ext-diff', '--no-color' }
+  local cmd = {
+    'git',
+    '-C',
+    repo_root,
+    'diff',
+    '--no-ext-diff',
+    '--no-color',
+    '--src-prefix=a/',
+    '--dst-prefix=b/',
+  }
   vim.list_extend(cmd, diffopt.git_flags())
   if section == 'staged' then
     table.insert(cmd, '--cached')
@@ -1876,7 +1885,16 @@ end
 function M.diff_section(repo_root, opts)
   opts = opts or {}
 
-  local cmd = { 'git', '-C', repo_root, 'diff', '--no-ext-diff', '--no-color' }
+  local cmd = {
+    'git',
+    '-C',
+    repo_root,
+    'diff',
+    '--no-ext-diff',
+    '--no-color',
+    '--src-prefix=a/',
+    '--dst-prefix=b/',
+  }
   vim.list_extend(cmd, diffopt.git_flags())
   if opts.staged then
     table.insert(cmd, '--cached')
