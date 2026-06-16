@@ -660,12 +660,14 @@ describe('commands', function()
         '++layout=unified',
         '++layout=stacked',
         '++layout=split',
+        '++nountracked',
         'origin/main',
         'feature/topic',
       }, commands._test.complete_diff('', 'Diff review ', #'Diff review '))
 
       assert.are.same(
         {
+          '++nountracked',
           'origin/main',
           'feature/topic',
         },
@@ -2673,6 +2675,7 @@ describe('commands', function()
               base = 'origin/main',
               target = 'refs/forge/pr/42',
               mode = 'merge-base',
+              untracked = true,
             },
           },
           review = {
@@ -2784,6 +2787,38 @@ describe('commands', function()
       assert.are.equal('expected at most one review spec', err)
     end)
 
+    it('parses ++nountracked into spec.untracked = false', function()
+      local parsed = commands._test.parse_review_command('++nountracked origin/main')
+
+      assert.are.same({
+        layout = 'unified',
+        spec = { base = 'origin/main', untracked = false },
+      }, parsed)
+    end)
+
+    it('combines ++nountracked with ++layout and a spec', function()
+      local parsed =
+        commands._test.parse_review_command('++layout=split ++nountracked origin/main...feature')
+
+      assert.are.same({
+        layout = 'split',
+        spec = {
+          base = 'origin/main',
+          target = 'feature',
+          mode = 'merge-base',
+          untracked = false,
+        },
+      }, parsed)
+    end)
+
+    it('rejects repeated ++nountracked options', function()
+      local parsed, err =
+        commands._test.parse_review_command('++nountracked ++nountracked origin/main')
+
+      assert.is_nil(parsed)
+      assert.are.equal('repeated ++nountracked option', err)
+    end)
+
     it('normalizes default base inside the resolved repo', function()
       local captured_cmds = {}
       mock_repo_root(function(path)
@@ -2867,12 +2902,14 @@ describe('commands', function()
         '++layout=unified',
         '++layout=stacked',
         '++layout=split',
+        '++nountracked',
         'origin/main',
         'feature/topic',
         '++topic',
       }, commands._test.complete_diff('', 'Diff review ', #'Diff review '))
       assert.are.same(
         {
+          '++nountracked',
           'origin/main',
           'feature/topic',
           '++topic',
@@ -2903,10 +2940,11 @@ describe('commands', function()
         '++layout=unified',
         '++layout=stacked',
         '++layout=split',
+        '++nountracked',
         '++topic',
       }, commands._test.complete_diff('++', 'Diff review ++', #'Diff review ++'))
       assert.are.same(
-        { '++topic' },
+        { '++nountracked', '++topic' },
         commands._test.complete_diff(
           '++',
           'Diff review ++layout=split ++',
@@ -3168,6 +3206,50 @@ describe('commands', function()
       assert.are.equal('unstaged:lua/dup.lua', qf[5].user_data.diffs.key)
     end)
 
+    it('omits the untracked section when spec.untracked is false', function()
+      local repo = create_current_state_review_repo()
+      mock_runtime_attach(function() end)
+
+      local bufnr = commands.review({
+        base = repo.base,
+        repo = repo.repo_root,
+        untracked = false,
+      })
+      assert.is_not_nil(bufnr)
+      table.insert(test_buffers, bufnr)
+
+      local text = buffer_text(bufnr)
+      assert.is_true(text:find('# Branch:', 1, true) ~= nil)
+      assert.is_true(text:find('# Staged:', 1, true) ~= nil)
+      assert.is_true(text:find('# Unstaged:', 1, true) ~= nil)
+      assert.is_nil(text:find('# Untracked:', 1, true))
+      assert.is_nil(text:find('+new file', 1, true))
+
+      local qf = quickfix_items()
+      assert.are.equal(6, #qf)
+      for _, item in ipairs(qf) do
+        assert.is_nil(item.text:find('[Untracked]', 1, true))
+      end
+    end)
+
+    it('preserves untracked=false across reload', function()
+      local repo = create_current_state_review_repo()
+      mock_runtime_attach(function() end)
+
+      local bufnr = commands.review({
+        base = repo.base,
+        repo = repo.repo_root,
+        untracked = false,
+      })
+      assert.is_not_nil(bufnr)
+      table.insert(test_buffers, bufnr)
+
+      commands.read_buffer(bufnr)
+
+      local text = buffer_text(bufnr)
+      assert.is_nil(text:find('# Untracked:', 1, true))
+    end)
+
     it('renders worktree sections when diff.mnemonicPrefix is enabled', function()
       local repo = create_current_state_review_repo({ mnemonic_prefix = true })
       mock_runtime_attach(function() end)
@@ -3389,6 +3471,25 @@ describe('commands', function()
       assert.are.equal(1, #loc)
       assert.are.equal(panes.left_buf, loc[1].bufnr)
       assert.is_true(loc[1].text:find('file.txt', 1, true) ~= nil)
+    end)
+
+    it('excludes untracked files from the split file list with ++nountracked', function()
+      local repo = create_current_state_review_repo()
+      edit_file(repo.repo_root .. '/lua/branch.lua')
+      mock_runtime_attach(function() end)
+
+      local left_buf = commands.review_command('++layout=split ++nountracked ' .. repo.base)
+      assert.is_not_nil(left_buf)
+      local panes = track_panes(left_buf)
+
+      local files = commands.review_files(panes.left_buf)
+      local paths = {}
+      for _, file in ipairs(files) do
+        paths[file.path] = true
+      end
+      assert.is_nil(paths['lua/new.lua'])
+      assert.is_true(paths['lua/staged.lua'])
+      assert.is_true(paths['lua/unstaged.lua'])
     end)
 
     it('warns and still opens the workspace for :vertical Diff review ++layout=split', function()

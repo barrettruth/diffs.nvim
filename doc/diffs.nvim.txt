@@ -540,7 +540,7 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     the current row maps to worktree content.
 
 
-:Diff review [++layout=unified|stacked|split] [review-spec]     *:Diff-review*
+:Diff review [++layout=...] [++nountracked] [review-spec]       *:Diff-review*
     Open a repository review. `review` must be the first argument; a revision
     literally named `review` must be addressed another way (for example
     `refs/heads/review`).
@@ -554,6 +554,14 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     base ref. With `A...B`, reviews explicit target `B` against base `A`
     using merge-base semantics. With `A..B`, reviews explicit target `B`
     against base `A` as a direct two-endpoint comparison.
+
+    A current-state review (no explicit target) ends with an Untracked
+    section listing files not yet tracked by git. Pass `++nountracked` to
+    omit it. To omit it every time, wrap the command, for example: >vim
+        command! Review Diff review ++nountracked
+<
+    Explicit-target reviews (`A...B`, `A..B`) never include untracked files,
+    so the option has no effect there.
 
     `++layout=unified` and `++layout=stacked` both create full generated review
     maps. Unified review maps use old and new line-number rails; stacked review
@@ -604,6 +612,8 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
                        context-aware line-number rail.
         ++layout=split (optional) Open the first renderable changed review file
                        as a paired side-by-side endpoint diff.
+        ++nountracked  (optional) Omit the Untracked section of a
+                       current-state review (shown by default).
         {review-spec}  (string, optional) One of:
                        - empty: review current repo state against the repo
                          default branch
@@ -613,12 +623,13 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
                        - `{base}..{target}`: direct review of explicit target
                          `{target}` against base `{base}`
 
-    Completion covers `++layout=...` and git refs.
+    Completion covers `++layout=...`, `++nountracked`, and git refs.
 
     Examples: >vim
         :Diff review
         :Diff review ++layout=stacked origin/main
         :Diff review ++layout=split
+        :Diff review ++nountracked
         :Diff review origin/main
         :vertical Diff review origin/main
         :Diff review origin/main...refs/forge/pr/42
@@ -645,6 +656,8 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
                   Use this from async/plugin contexts when the current buffer
                   is not a reliable repo hint.
         {vertical} (boolean, optional) Open the review in a vertical split.
+        {untracked} (boolean, optional) Include the Untracked section of a
+                  current-state review. Defaults to true.
 
     Utilities: ~
         `require('diffs.commands').review_split()` opens the currently
