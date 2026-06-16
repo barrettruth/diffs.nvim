@@ -643,6 +643,10 @@ local layout_options = {
   '++layout=split',
 }
 
+local untracked_options = {
+  '++nountracked',
+}
+
 ---@param layout? "unified"|"stacked"|"split"
 ---@return diffs.RailStyle
 local function rail_style_for_layout(layout)
@@ -739,20 +743,24 @@ end
 
 ---@param args string[]
 ---@param from? integer # first argument index to scan (defaults to 1)
----@return { has_layout: boolean, has_value: boolean }
+---@return { has_layout: boolean, has_untracked: boolean, has_value: boolean }
 local function args_context(args, from)
   local has_layout = false
+  local has_untracked = false
   local has_value = false
   for i = from or 1, #args do
     local token = args[i]
     if token:match('^%+%+layout=') then
       has_layout = true
+    elseif token == '++nountracked' then
+      has_untracked = true
     elseif not token:match('^%+%+') then
       has_value = true
     end
   end
   return {
     has_layout = has_layout,
+    has_untracked = has_untracked,
     has_value = has_value,
   }
 end
@@ -760,7 +768,7 @@ end
 ---@param arglead string
 ---@param cmdline? string
 ---@param cursorpos? integer
----@return { has_layout: boolean, has_value: boolean }
+---@return { has_layout: boolean, has_untracked: boolean, has_value: boolean }
 local function completion_context(arglead, cmdline, cursorpos)
   return args_context(command_arg_tokens(arglead, cmdline, cursorpos))
 end
@@ -789,7 +797,7 @@ local function complete_diff_args(arglead, cmdline, cursorpos)
 end
 
 ---@param arglead string
----@param context { has_layout: boolean, has_value: boolean }
+---@param context { has_layout: boolean, has_untracked: boolean, has_value: boolean }
 ---@return string[]
 local function complete_review_args(arglead, context)
   if context.has_value then
@@ -800,12 +808,18 @@ local function complete_review_args(arglead, context)
     if not context.has_layout then
       vim.list_extend(matches, prefix_matches(layout_options, arglead))
     end
+    if not context.has_untracked then
+      vim.list_extend(matches, prefix_matches(untracked_options, arglead))
+    end
     vim.list_extend(matches, review.complete(arglead))
     return matches
   end
   local matches = {}
   if arglead == '' and not context.has_layout then
     vim.list_extend(matches, layout_options)
+  end
+  if arglead == '' and not context.has_untracked then
+    vim.list_extend(matches, untracked_options)
   end
   vim.list_extend(matches, review.complete(arglead))
   return matches
@@ -1106,6 +1120,7 @@ local function stored_review_spec(normalized)
     base = normalized.base,
     target = normalized.target,
     mode = normalized.mode,
+    untracked = normalized.untracked,
   }
 end
 

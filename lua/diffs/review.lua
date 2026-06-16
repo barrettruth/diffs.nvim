@@ -17,6 +17,7 @@ local notify = log.notify
 ---@field repo? string
 ---@field mode? string
 ---@field vertical? boolean
+---@field untracked? boolean
 
 ---@class diffs.ReviewCommandParseResult
 ---@field spec diffs.ReviewSpec
@@ -28,6 +29,7 @@ local notify = log.notify
 ---@field repo_root string
 ---@field mode string?
 ---@field vertical boolean
+---@field untracked boolean
 ---@field display string
 ---@field exec_args string[]
 
@@ -179,17 +181,28 @@ function M.parse_command_args(args)
   local tokens = split_args(args)
   local layout = 'unified'
   local has_layout = false
+  local untracked = nil
+  local has_untracked = false
 
-  while tokens[1] and tokens[1]:match('^%+%+layout=') do
-    if has_layout then
-      return nil, 'repeated ++layout option'
+  while tokens[1] and (tokens[1]:match('^%+%+layout=') or tokens[1] == '++nountracked') do
+    local token = tokens[1]
+    if token:match('^%+%+layout=') then
+      if has_layout then
+        return nil, 'repeated ++layout option'
+      end
+      local value = token:match('^%+%+layout=(.+)$')
+      if value ~= 'unified' and value ~= 'stacked' and value ~= 'split' then
+        return nil, 'unsupported layout ' .. tostring(value)
+      end
+      has_layout = true
+      layout = value
+    else
+      if has_untracked then
+        return nil, 'repeated ++nountracked option'
+      end
+      has_untracked = true
+      untracked = false
     end
-    local value = tokens[1]:match('^%+%+layout=(.+)$')
-    if value ~= 'unified' and value ~= 'stacked' and value ~= 'split' then
-      return nil, 'unsupported layout ' .. tostring(value)
-    end
-    has_layout = true
-    layout = value
     table.remove(tokens, 1)
   end
 
@@ -200,6 +213,9 @@ function M.parse_command_args(args)
   local spec, err = M.parse_arg(tokens[1])
   if not spec then
     return nil, err
+  end
+  if has_untracked then
+    spec.untracked = untracked
   end
 
   return {
@@ -230,6 +246,9 @@ function M.normalize(spec, repo_root_override)
   end
   if spec.vertical ~= nil and type(spec.vertical) ~= 'boolean' then
     error('diffs: review.vertical must be a boolean')
+  end
+  if spec.untracked ~= nil and type(spec.untracked) ~= 'boolean' then
+    error('diffs: review.untracked must be a boolean')
   end
 
   local repo_root = repo_root_override or resolve_repo_root(spec.repo)
@@ -278,12 +297,18 @@ function M.normalize(spec, repo_root_override)
     return nil, ref_err
   end
 
+  local untracked = true
+  if spec.untracked ~= nil then
+    untracked = spec.untracked
+  end
+
   return {
     base = base,
     target = target,
     repo_root = repo_root,
     mode = mode,
     vertical = spec.vertical or false,
+    untracked = untracked,
     display = display,
     exec_args = exec_args,
   },
@@ -575,36 +600,38 @@ local function run_current_state(review, deps)
     lines = unstaged_rendered,
   }, unstaged_specs, state)
 
-  local untracked, untracked_err = untracked_paths(review)
-  if not untracked then
-    return nil,
-      untracked_err ~= '' and untracked_err or 'git ls-files failed for review Untracked section',
-      nil
-  end
-  local untracked_lines = {}
-  local untracked_specs = {}
-  for _, path in ipairs(untracked) do
-    if is_untracked_binary(review.repo_root, path) then
-      dbg('skipping binary untracked %s', path)
-    else
-      local spec = diffspec.index_to_worktree(path)
-      local rendered, render_err = render.file(spec, review.repo_root)
-      if rendered then
-        for _, line in ipairs(rendered) do
-          untracked_lines[#untracked_lines + 1] = line
+  if review.untracked then
+    local untracked, untracked_err = untracked_paths(review)
+    if not untracked then
+      return nil,
+        untracked_err ~= '' and untracked_err or 'git ls-files failed for review Untracked section',
+        nil
+    end
+    local untracked_lines = {}
+    local untracked_specs = {}
+    for _, path in ipairs(untracked) do
+      if is_untracked_binary(review.repo_root, path) then
+        dbg('skipping binary untracked %s', path)
+      else
+        local spec = diffspec.index_to_worktree(path)
+        local rendered, render_err = render.file(spec, review.repo_root)
+        if rendered then
+          for _, line in ipairs(rendered) do
+            untracked_lines[#untracked_lines + 1] = line
+          end
+          untracked_specs[path] = spec
+        elseif render_err then
+          dbg('skipping untracked %s: %s', path, render_err)
         end
-        untracked_specs[path] = spec
-      elseif render_err then
-        dbg('skipping untracked %s: %s', path, render_err)
       end
     end
+    append_section(lines, {
+      id = 'untracked',
+      label = 'Untracked',
+      description = 'empty -> worktree',
+      lines = untracked_lines,
+    }, untracked_specs, state)
   end
-  append_section(lines, {
-    id = 'untracked',
-    label = 'Untracked',
-    description = 'empty -> worktree',
-    lines = untracked_lines,
-  }, untracked_specs, state)
 
   return lines,
     nil,
@@ -779,12 +806,14 @@ function M.open(spec, deps)
       base = review.base,
       target = review.target,
       mode = review.mode,
+      untracked = review.untracked,
     }),
     rail_style = deps.rail_style,
     vars = {
       diffs_review_base = review.base,
       diffs_review_target = review.target,
       diffs_review_mode = review.mode,
+      diffs_review_untracked = review.untracked,
     },
   })
 
@@ -847,6 +876,7 @@ function M.reload(bufnr, repo_root, path, deps)
   local stored_base = get_buf_var(bufnr, 'diffs_review_base')
   local stored_target = get_buf_var(bufnr, 'diffs_review_target')
   local stored_mode = get_buf_var(bufnr, 'diffs_review_mode')
+  local stored_untracked = get_buf_var(bufnr, 'diffs_review_untracked')
 
   local review_spec
   if stored_base then
@@ -854,6 +884,7 @@ function M.reload(bufnr, repo_root, path, deps)
       base = stored_base,
       target = stored_target,
       mode = stored_mode,
+      untracked = stored_untracked,
     }
   else
     local parse_err
