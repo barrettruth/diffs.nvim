@@ -77,6 +77,11 @@ See the documentation for more information.
 Yes. Configure Git to open `$MERGED` with Neovim; diffs.nvim will detect
 conflict markers automatically. See `:help diffs.nvim-git-mergetool`.
 
+**Q: Can I exclude untracked files from `:Diff review`?**
+
+Yes. Run `:Diff review ++nountracked`. To make it the default, wrap it in your
+own command, e.g. `:command! Review Diff review ++nountracked`.
+
 ## Known Limitations
 
 - **Incomplete syntax context**: Treesitter parses each diff hunk in isolation.
