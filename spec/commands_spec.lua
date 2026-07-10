@@ -3423,6 +3423,42 @@ describe('commands', function()
       return repo_root
     end
 
+    local function create_binary_review_repo(opts)
+      opts = opts or {}
+      local repo_root = vim.fn.tempname()
+      vim.fn.mkdir(repo_root, 'p')
+      test_repos[#test_repos + 1] = repo_root
+
+      vim.fn.systemlist({ 'git', 'init', '-q', repo_root })
+      assert.are.equal(0, vim.v.shell_error)
+      git_cmd(repo_root, { 'config', 'user.email', 'test@example.com' })
+      git_cmd(repo_root, { 'config', 'user.name', 'Test' })
+
+      write_repo_file(repo_root, 'aaa-one.lua', { 'old one' })
+      write_binary_file(repo_root .. '/bbb-bin.dat', 'binary\\000old')
+      if opts.trailing ~= false then
+        write_repo_file(repo_root, 'ccc-two.lua', { 'old two' })
+        git_cmd(repo_root, { 'add', 'aaa-one.lua', 'bbb-bin.dat', 'ccc-two.lua' })
+      else
+        git_cmd(repo_root, { 'add', 'aaa-one.lua', 'bbb-bin.dat' })
+      end
+      git_cmd(repo_root, { 'commit', '-qm', 'base' })
+      git_cmd(repo_root, { 'branch', 'binary-base' })
+
+      git_cmd(repo_root, { 'checkout', '-qb', 'binary-topic' })
+      write_repo_file(repo_root, 'aaa-one.lua', { 'new one' })
+      write_binary_file(repo_root .. '/bbb-bin.dat', 'binary\\000new')
+      if opts.trailing ~= false then
+        write_repo_file(repo_root, 'ccc-two.lua', { 'new two' })
+        git_cmd(repo_root, { 'add', 'aaa-one.lua', 'bbb-bin.dat', 'ccc-two.lua' })
+      else
+        git_cmd(repo_root, { 'add', 'aaa-one.lua', 'bbb-bin.dat' })
+      end
+      git_cmd(repo_root, { 'commit', '-qm', 'target' })
+
+      return repo_root
+    end
+
     it('opens review layout split as exactly two visible surfaces', function()
       local repo_root = create_repo()
       vim.fn.writefile({ 'line 1', 'line 2 changed' }, repo_root .. '/file.txt')
@@ -3717,6 +3753,72 @@ describe('commands', function()
       assert_target_at_hunk(panes, 2)
       run_buf_keymap(panes.right_buf, '[c')
       assert_target_at_hunk(panes, 1)
+    end)
+
+    it('skips unsupported files when switching review files', function()
+      local repo_root = create_binary_review_repo()
+      edit_file(repo_root .. '/aaa-one.lua')
+      local notifications = capture_notifications()
+      mock_runtime_attach(function() end)
+
+      local left_buf = commands.review_command('++layout=split binary-base..binary-topic')
+      local panes = track_panes(left_buf)
+      assert.are.same(
+        diffspec.rev_to_rev('binary-base', 'binary-topic', 'aaa-one.lua'),
+        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
+      )
+
+      vim.api.nvim_set_current_win(panes.right_win)
+      commands.review_next_file()
+      panes = track_panes(panes.state.left_buf)
+      assert.are.same(
+        diffspec.rev_to_rev('binary-base', 'binary-topic', 'ccc-two.lua'),
+        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
+      )
+      assert.are.equal(vim.log.levels.INFO, notifications[#notifications].level)
+      assert.are.equal(
+        '[diffs]: review skipped 1 file(s): bbb-bin.dat',
+        notifications[#notifications].message
+      )
+
+      vim.api.nvim_set_current_win(panes.right_win)
+      commands.review_prev_file()
+      panes = track_panes(panes.state.left_buf)
+      assert.are.same(
+        diffspec.rev_to_rev('binary-base', 'binary-topic', 'aaa-one.lua'),
+        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
+      )
+      assert.are.equal(vim.log.levels.INFO, notifications[#notifications].level)
+      assert.are.equal(
+        '[diffs]: review skipped 1 file(s): bbb-bin.dat',
+        notifications[#notifications].message
+      )
+    end)
+
+    it('keeps the skipped-file message when no candidate switches', function()
+      local repo_root = create_binary_review_repo({ trailing = false })
+      edit_file(repo_root .. '/aaa-one.lua')
+      local notifications = capture_notifications()
+      mock_runtime_attach(function() end)
+
+      local left_buf = commands.review_command('++layout=split binary-base..binary-topic')
+      local panes = track_panes(left_buf)
+      assert.are.same(
+        diffspec.rev_to_rev('binary-base', 'binary-topic', 'aaa-one.lua'),
+        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
+      )
+
+      vim.api.nvim_set_current_win(panes.right_win)
+      commands.review_next_file()
+      panes = track_panes(panes.state.left_buf)
+
+      assert.are.same(
+        diffspec.rev_to_rev('binary-base', 'binary-topic', 'aaa-one.lua'),
+        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
+      )
+      assert.are.equal(1, #notifications)
+      assert.are.equal(vim.log.levels.INFO, notifications[1].level)
+      assert.are.equal('[diffs]: review skipped 1 file(s): bbb-bin.dat', notifications[1].message)
     end)
 
     it('exposes review_files/current/goto, the gO map, and the b:diffs_review marker', function()
