@@ -3397,7 +3397,7 @@ describe('commands', function()
       assert.is_true(right_row >= 1)
     end
 
-    local function create_mode_first_review_repo()
+    local function create_binary_first_review_repo()
       local repo_root = vim.fn.tempname()
       vim.fn.mkdir(repo_root, 'p')
       test_repos[#test_repos + 1] = repo_root
@@ -3406,19 +3406,18 @@ describe('commands', function()
       assert.are.equal(0, vim.v.shell_error)
       git_cmd(repo_root, { 'config', 'user.email', 'test@example.com' })
       git_cmd(repo_root, { 'config', 'user.name', 'Test' })
-      git_cmd(repo_root, { 'config', 'core.filemode', 'true' })
 
-      write_repo_file(repo_root, 'aaa-mode.sh', { '#!/bin/sh', 'echo mode' })
+      write_binary_file(repo_root .. '/aaa-bin.dat', 'binary\\000old')
       write_repo_file(repo_root, 'zzz-changed.lua', { 'old' })
-      git_cmd(repo_root, { 'add', 'aaa-mode.sh', 'zzz-changed.lua' })
+      git_cmd(repo_root, { 'add', 'aaa-bin.dat', 'zzz-changed.lua' })
       git_cmd(repo_root, { 'commit', '-qm', 'base' })
-      git_cmd(repo_root, { 'branch', 'mode-base' })
+      git_cmd(repo_root, { 'branch', 'binary-first-base' })
 
-      git_cmd(repo_root, { 'checkout', '-qb', 'mode-topic' })
-      git_cmd(repo_root, { 'update-index', '--chmod=+x', 'aaa-mode.sh' })
+      git_cmd(repo_root, { 'checkout', '-qb', 'binary-first-topic' })
+      write_binary_file(repo_root .. '/aaa-bin.dat', 'binary\\000new')
       write_repo_file(repo_root, 'zzz-changed.lua', { 'new' })
-      git_cmd(repo_root, { 'add', 'aaa-mode.sh', 'zzz-changed.lua' })
-      git_cmd(repo_root, { 'commit', '-qm', 'mode and content' })
+      git_cmd(repo_root, { 'add', 'aaa-bin.dat', 'zzz-changed.lua' })
+      git_cmd(repo_root, { 'commit', '-qm', 'binary and content' })
 
       return repo_root
     end
@@ -3633,23 +3632,49 @@ describe('commands', function()
     end)
 
     it('skips unsupported default review entries when opening direct split workspaces', function()
-      local repo_root = create_mode_first_review_repo()
+      local repo_root = create_binary_first_review_repo()
       edit_file(repo_root .. '/zzz-changed.lua')
+      local notifications = capture_notifications()
       mock_runtime_attach(function() end)
 
-      local left_buf = commands.review_command('++layout=split mode-base..mode-topic')
+      local left_buf =
+        commands.review_command('++layout=split binary-first-base..binary-first-topic')
       local panes = track_panes(left_buf)
 
       assert.are.same(
-        diffspec.rev_to_rev('mode-base', 'mode-topic', 'zzz-changed.lua'),
+        diffspec.rev_to_rev('binary-first-base', 'binary-first-topic', 'zzz-changed.lua'),
         vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
       )
       assert.are.same(
-        diffspec.rev_to_rev('mode-base', 'mode-topic', 'zzz-changed.lua'),
+        diffspec.rev_to_rev('binary-first-base', 'binary-first-topic', 'zzz-changed.lua'),
         vim.api.nvim_buf_get_var(panes.right_buf, 'diffs_spec')
       )
       assert.are.same({ 'old' }, vim.api.nvim_buf_get_lines(panes.left_buf, 0, -1, false))
       assert.are.same({ 'new' }, vim.api.nvim_buf_get_lines(panes.right_buf, 0, -1, false))
+      assert.are.equal('[diffs]: review skipped 1 file(s): aaa-bin.dat', notifications[1].message)
+    end)
+
+    it('marks skipped review files in the quickfix file index', function()
+      local repo_root = create_binary_review_repo()
+      mock_runtime_attach(function() end)
+
+      local bufnr = commands.review({
+        base = 'binary-base',
+        target = 'binary-topic',
+        mode = 'direct',
+        repo = repo_root,
+      })
+      assert.is_not_nil(bufnr)
+      table.insert(test_buffers, bufnr)
+
+      local qf = quickfix_items()
+      assert.are.equal(3, #qf)
+      assert.is_true(qf[1].text:match('^aaa%-one%.lua%s+%+1%s+%-1$') ~= nil)
+      assert.are.equal('bbb-bin.dat (skipped)', qf[2].text)
+      assert.is_true(qf[3].text:match('^ccc%-two%.lua%s+%+1%s+%-1$') ~= nil)
+      assert.is_false(qf[1].user_data.diffs.skipped)
+      assert.is_true(qf[2].user_data.diffs.skipped)
+      assert.is_false(qf[3].user_data.diffs.skipped)
     end)
 
     it('routes current-state duplicate paths by section in the two-surface workspace', function()
@@ -3818,6 +3843,43 @@ describe('commands', function()
       )
       assert.are.equal(1, #notifications)
       assert.are.equal(vim.log.levels.INFO, notifications[1].level)
+      assert.are.equal('[diffs]: review skipped 1 file(s): bbb-bin.dat', notifications[1].message)
+    end)
+
+    it('marks skipped review files for the API and picker', function()
+      local repo_root = create_binary_review_repo()
+      edit_file(repo_root .. '/aaa-one.lua')
+      local notifications = capture_notifications()
+      mock_runtime_attach(function() end)
+
+      local left_buf = commands.review_command('++layout=split binary-base..binary-topic')
+      local panes = track_panes(left_buf)
+      local files = commands.review_files(panes.left_buf)
+      assert.are.equal(3, #files)
+      assert.is_false(files[1].skipped)
+      assert.is_true(files[2].skipped)
+      assert.is_false(files[3].skipped)
+
+      local formatted = {}
+      local original = vim.ui.select
+      vim.ui.select = function(items, opts, on_choice)
+        formatted[1] = opts.format_item(items[1])
+        formatted[2] = opts.format_item(items[2])
+        formatted[3] = opts.format_item(items[3])
+        on_choice(items[2])
+      end
+      local ok, err = pcall(commands.select_review_file, panes.left_buf)
+      vim.ui.select = original
+      assert.is_true(ok, err)
+
+      assert.is_true(formatted[1]:match('^aaa%-one%.lua%s+%+1%s+%-1$') ~= nil)
+      assert.are.equal('bbb-bin.dat (skipped)', formatted[2])
+      assert.is_true(formatted[3]:match('^ccc%-two%.lua%s+%+1%s+%-1$') ~= nil)
+      assert.are.same(
+        diffspec.rev_to_rev('binary-base', 'binary-topic', 'aaa-one.lua'),
+        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
+      )
+      assert.are.equal(1, #notifications)
       assert.are.equal('[diffs]: review skipped 1 file(s): bbb-bin.dat', notifications[1].message)
     end)
 
@@ -4038,7 +4100,7 @@ describe('commands', function()
       )
     end)
 
-    it('reports unsupported selected review files without opening a workspace', function()
+    it('reports skipped selected review files without opening a workspace', function()
       local repo = create_mode_only_review_repo()
       local notifications = capture_notifications()
       mock_runtime_attach(function() end)
@@ -4059,8 +4121,9 @@ describe('commands', function()
       local opened = commands.review_split({ bufnr = bufnr })
 
       assert.is_nil(opened)
-      assert.is_true(
-        notifications[#notifications].message:find('mode-only changes', 1, true) ~= nil
+      assert.are.equal(
+        '[diffs]: review skipped 1 file(s): scripts/tool.sh',
+        notifications[1].message
       )
       assert.is_nil(commands._test.review_split_state(bufnr))
     end)
@@ -4106,10 +4169,12 @@ describe('commands', function()
       assert.are.equal(2, #qf)
       assert.are.equal(bufnr, qf[1].bufnr)
       assert.are.equal(1, qf[1].lnum)
-      assert.is_true(qf[1].text:find('lua/mode.lua', 1, true) ~= nil)
+      assert.is_true(qf[1].text:find('lua/mode.lua (skipped)', 1, true) ~= nil)
+      assert.is_true(qf[1].user_data.diffs.skipped)
       assert.are.equal(bufnr, qf[2].bufnr)
       assert.are.equal(4, qf[2].lnum)
       assert.is_true(qf[2].text:find('lua/changed.lua', 1, true) ~= nil)
+      assert.is_false(qf[2].user_data.diffs.skipped)
 
       assert.are.equal(0, #loclist_items())
 

@@ -18,6 +18,7 @@ local group = vim.api.nvim_create_augroup('diffs_generated_lists', { clear = fal
 ---@field sections? table[]
 ---@field store_hunks? boolean
 ---@field quickfix? boolean
+---@field is_skipped? fun(entry: table): boolean
 
 ---@param bufnr integer
 ---@param name string
@@ -100,6 +101,7 @@ local function ensure_file_entry(entries, by_file, file, lnum, meta)
   local entry = by_file[key]
   if entry then
     entry.lnum = math.min(entry.lnum, lnum)
+    entry.skipped = entry.skipped or meta.skipped == true
     return entry
   end
 
@@ -113,6 +115,7 @@ local function ensure_file_entry(entries, by_file, file, lnum, meta)
     section = meta.section,
     section_label = meta.section_label,
     diff_spec = meta.diff_spec,
+    skipped = meta.skipped == true,
   }
   by_file[key] = entry
   entries[#entries + 1] = entry
@@ -139,10 +142,11 @@ end
 ---@param entry table
 ---@return string
 local function entry_display_file(entry)
+  local file = entry.skipped and (entry.file .. ' (skipped)') or entry.file
   if type(entry.section_label) == 'string' and entry.section_label ~= '' then
-    return ('[%s] %s'):format(entry.section_label, entry.file)
+    return ('[%s] %s'):format(entry.section_label, file)
   end
-  return entry.file
+  return file
 end
 
 ---@param hunk diffs.DiffHunk?
@@ -184,6 +188,18 @@ local function file_entries(hunks, diff_lines, opts)
     end
   end
   return entries
+end
+
+---@param entries table[]
+---@param opts? table
+local function apply_skipped(entries, opts)
+  local is_skipped = opts and opts.is_skipped
+  if type(is_skipped) ~= 'function' then
+    return
+  end
+  for _, entry in ipairs(entries) do
+    entry.skipped = is_skipped(entry) == true
+  end
 end
 
 ---@param entries table[]
@@ -236,6 +252,7 @@ local function quickfix_items(bufnr, entries)
           section = entry.section,
           section_label = entry.section_label,
           diff_spec = entry.diff_spec,
+          skipped = entry.skipped == true,
         },
       },
     }
@@ -399,6 +416,7 @@ local function selection_from_entry(state, entry)
     hunk_index = file_hunk_index(state.hunks, hunk),
     added = entry.adds,
     removed = entry.dels,
+    skipped = entry.skipped == true,
   }
 end
 
@@ -443,6 +461,7 @@ local function selection_from_item(item)
     lnum = item.lnum,
     hunk = hunk,
     hunk_index = state and file_hunk_index(state.hunks, hunk) or nil,
+    skipped = data.skipped == true,
   },
     nil
 end
@@ -482,6 +501,7 @@ local function list_state(diff_lines, opts)
   local diff_spec = opts.diff_spec
   local hunks = hunk_model.parse(diff_lines, diff_spec)
   local entries = file_entries(hunks, diff_lines, opts)
+  apply_skipped(entries, opts)
   local title = opts.title or 'diffs'
   return {
     hunks = hunks,
@@ -650,6 +670,7 @@ end
 ---@field hunk_index? integer
 ---@field added? integer
 ---@field removed? integer
+---@field skipped? boolean
 
 ---@param opts? diffs.GeneratedFileSelectionOpts
 ---@return diffs.GeneratedFileSelection?, string?
@@ -690,6 +711,7 @@ function M.selected_generated_file(opts)
     lnum = lnum,
     hunk = hunk,
     hunk_index = file_hunk_index(state.hunks, hunk),
+    skipped = entry.skipped == true,
   },
     nil
 end
