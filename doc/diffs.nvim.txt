@@ -1271,6 +1271,7 @@ A `diffs.ReviewFile` describes one changed file in a review: ~
     {section_label}  (string|nil) Display label, e.g. `Unstaged`.
     {added}          (integer) Added line count.
     {removed}        (integer) Removed line count.
+    {skipped}        (boolean) True when split review navigation skips this file.
 
 review_files({bufnr})                              *diffs.nvim.review_files()*
     List the changed files in the review split {bufnr} belongs to, as
@@ -1290,7 +1291,7 @@ review_current({bufnr})                          *diffs.nvim.review_current()*
 review_goto({target}, {bufnr})                      *diffs.nvim.review_goto()*
     Switch the review split {bufnr} belongs to so it shows {target}, swapping
     both panes in place. Returns `true` on success, `false` when {bufnr} is not
-    a review split or no file matches. Never opens a split.
+    a review split, no file matches, or {target} is skipped. Never opens a split.
 
     Parameters: ~
         {target} (string) A |diffs.ReviewFile| `key` (preferred) or path.
@@ -1299,12 +1300,13 @@ review_goto({target}, {bufnr})                      *diffs.nvim.review_goto()*
 review_next_file()                              *diffs.nvim.review_next_file()*
 review_prev_file()                              *diffs.nvim.review_prev_file()*
     Step the current review split to the next/previous changed file, wrapping
-    at the ends. Backing functions for `]f`/`[f`,
+    at the ends and skipping unsupported files. Backing functions for `]f`/`[f`,
     |<Plug>(diffs-review-next-file)|, and |<Plug>(diffs-review-prev-file)|.
 
 select_review_file({bufnr})                  *diffs.nvim.select_review_file()*
     Prompt with |vim.ui.select()| over the review split's files and jump to the
-    chosen one. Backing function for |<Plug>(diffs-review-select-file)| (`gO`).
+    chosen one. Skipped files are shown as `(skipped)` and do not jump. Backing
+    function for |<Plug>(diffs-review-select-file)| (`gO`).
     It uses whatever |vim.ui.select()| backend you have configured, so no extra
     dependency is required. To build a bespoke picker, call the data and action
     functions directly, capturing the review buffer before the picker opens: >lua

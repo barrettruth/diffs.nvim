@@ -11,6 +11,12 @@ local render = require('diffs.render')
 local dbg = log.dbg
 local notify = log.notify
 
+---@param entry table
+---@return boolean
+local function is_skipped_entry(entry)
+  return type(entry.hunks) == 'table' and #entry.hunks == 0
+end
+
 ---@class diffs.ReviewSpec
 ---@field base? string
 ---@field target? string
@@ -639,6 +645,7 @@ local function run_current_state(review, deps)
       metadata_for_line = metadata_for_records(state.records),
       sections = state.sections,
       store_hunks = true,
+      is_skipped = is_skipped_entry,
     }
 end
 
@@ -769,7 +776,7 @@ function M.render(review, deps)
   end
 
   local result, err = M.run(review, deps)
-  return result, err, nil
+  return result, err, { is_skipped = is_skipped_entry }
 end
 
 ---@param spec? diffs.ReviewSpec
@@ -824,6 +831,7 @@ function M.open(spec, deps)
     metadata_for_line = list_opts and list_opts.metadata_for_line,
     sections = list_opts and list_opts.sections,
     store_hunks = list_opts and list_opts.store_hunks,
+    is_skipped = list_opts and list_opts.is_skipped,
     quickfix = true,
   })
 

@@ -1159,6 +1159,7 @@ local function review_generated_list_opts(list_opts)
     metadata_for_line = list_opts and list_opts.metadata_for_line,
     sections = list_opts and list_opts.sections,
     store_hunks = list_opts and list_opts.store_hunks,
+    is_skipped = list_opts and list_opts.is_skipped,
   }
 end
 
@@ -1166,27 +1167,34 @@ end
 ---@param repo_root string
 ---@param review_lines string[]
 ---@param list_opts table?
----@return diffs.GeneratedFileSelection?, diffs.DiffSpec?, string[]?, string?, integer?
+---@return diffs.GeneratedFileSelection?, diffs.DiffSpec?, string[]?, string?, integer?, diffs.GeneratedFileSelection[]
 local function first_renderable_review_file(review_spec, repo_root, review_lines, list_opts)
   local last_err
   local last_level
+  local skipped = {}
   for _, selected in
     ipairs(lists.generated_files(review_lines, review_generated_list_opts(list_opts)))
   do
-    local diff_spec, diff_lines, err, level =
-      render_review_file_selection(review_spec, repo_root, selected)
-    if diff_spec and diff_lines then
-      return selected, diff_spec, diff_lines, nil, nil
+    if selected.skipped then
+      skipped[#skipped + 1] = selected
+    else
+      local diff_spec, diff_lines, err, level =
+        render_review_file_selection(review_spec, repo_root, selected)
+      if diff_spec and diff_lines then
+        return selected, diff_spec, diff_lines, nil, nil, skipped
+      end
+      skipped[#skipped + 1] = selected
+      last_err = err
+      last_level = level
     end
-    last_err = err
-    last_level = level
   end
 
   return nil,
     nil,
     nil,
     last_err or 'no renderable review file selected',
-    last_level or vim.log.levels.INFO
+    last_level or vim.log.levels.INFO,
+    skipped
 end
 
 ---@param state diffs.ReviewSplitState
@@ -1366,17 +1374,22 @@ local function step_review_split_file(state, delta)
   local skipped = {}
   for offset = 1, count - 1 do
     local target = ((current - 1 + delta * offset) % count) + 1
-    local switched, unsupported = switch_review_split_file(state, files[target], { quiet = true })
-    if switched then
-      notify_skipped_review_files(skipped)
-      announce_review_file(files[target], target, count)
-      return
+    local selected = files[target]
+    if selected.skipped then
+      skipped[#skipped + 1] = selected
+    else
+      local switched, unsupported = switch_review_split_file(state, selected, { quiet = true })
+      if switched then
+        notify_skipped_review_files(skipped)
+        announce_review_file(selected, target, count)
+        return
+      end
+      if not unsupported then
+        notify_skipped_review_files(skipped)
+        return
+      end
+      skipped[#skipped + 1] = selected
     end
-    if not unsupported then
-      notify_skipped_review_files(skipped)
-      return
-    end
-    skipped[#skipped + 1] = files[target]
   end
   notify_skipped_review_files(skipped)
 end
@@ -1404,6 +1417,7 @@ end
 ---@field section_label? string
 ---@field added integer
 ---@field removed integer
+---@field skipped boolean
 
 ---@param selection diffs.GeneratedFileSelection
 ---@return diffs.ReviewFile
@@ -1415,6 +1429,7 @@ local function project_review_file(selection)
     section_label = selection.section_label,
     added = selection.added or 0,
     removed = selection.removed or 0,
+    skipped = selection.skipped == true,
   }
 end
 
@@ -1467,10 +1482,56 @@ function M.review_goto(target, bufnr)
       if selection.key == state.selected_key or selection.file == state.selected_file then
         return true
       end
+      if selection.skipped then
+        notify_skipped_review_files({ selection })
+        return false
+      end
       return goto_selection(state, selection, i, #files)
     end
   end
   return false
+end
+
+---@param file diffs.ReviewFile
+---@return string
+local function review_file_label(file)
+  local path = file.skipped and (file.path .. ' (skipped)') or file.path
+  if file.section_label and file.section_label ~= '' then
+    return ('[%s] %s'):format(file.section_label, path)
+  end
+  return path
+end
+
+---@param files diffs.ReviewFile[]
+---@return fun(file: diffs.ReviewFile): string
+local function review_file_formatter(files)
+  local labels = {}
+  local max_label, max_add, max_del = 0, 0, 0
+  for _, file in ipairs(files) do
+    local label = review_file_label(file)
+    labels[file.key] = label
+    max_label = math.max(max_label, #label)
+    if file.added > 0 then
+      max_add = math.max(max_add, #tostring(file.added) + 1)
+    end
+    if file.removed > 0 then
+      max_del = math.max(max_del, #tostring(file.removed) + 1)
+    end
+  end
+  return function(file)
+    local label = labels[file.key] or review_file_label(file)
+    local parts = { label .. string.rep(' ', max_label - #label) }
+    if max_add > 0 then
+      parts[#parts + 1] = file.added > 0 and string.format('%' .. max_add .. 's', '+' .. file.added)
+        or string.rep(' ', max_add)
+    end
+    if max_del > 0 then
+      parts[#parts + 1] = file.removed > 0
+          and string.format('%' .. max_del .. 's', '-' .. file.removed)
+        or string.rep(' ', max_del)
+    end
+    return (table.concat(parts, ' '):gsub('%s+$', ''))
+  end
 end
 
 ---@param bufnr integer? Defaults to the current buffer.
@@ -1482,12 +1543,7 @@ function M.select_review_file(bufnr)
   end
   vim.ui.select(files, {
     prompt = 'Review file:',
-    format_item = function(file)
-      local label = (file.section_label and file.section_label ~= '')
-          and ('[%s] %s'):format(file.section_label, file.path)
-        or file.path
-      return ('%s  +%d -%d'):format(label, file.added, file.removed)
-    end,
+    format_item = review_file_formatter(files),
   }, function(choice)
     if choice then
       M.review_goto(choice.key, bufnr)
@@ -1535,7 +1591,12 @@ open_review_split = function(spec, opts)
   local review_spec = stored_review_spec(normalized)
   local first = opts.selection
   local diff_spec, diff_lines
+  local skipped = {}
   if first then
+    if first.skipped then
+      notify_skipped_review_files({ first })
+      return nil
+    end
     local err, level
     diff_spec, diff_lines, err, level =
       render_review_file_selection(review_spec, normalized.repo_root, first)
@@ -1545,10 +1606,13 @@ open_review_split = function(spec, opts)
     end
   else
     local err, level
-    first, diff_spec, diff_lines, err, level =
+    first, diff_spec, diff_lines, err, level, skipped =
       first_renderable_review_file(review_spec, normalized.repo_root, review_lines, list_opts)
     if not first or not diff_spec or not diff_lines then
-      notify(err or 'no review file selected', level or vim.log.levels.INFO)
+      notify_skipped_review_files(skipped)
+      if #skipped == 0 then
+        notify(err or 'no review file selected', level or vim.log.levels.INFO)
+      end
       return nil
     end
   end
@@ -1608,6 +1672,7 @@ open_review_split = function(spec, opts)
       break
     end
   end
+  notify_skipped_review_files(skipped)
   announce_review_file(first, index, #files)
 
   dbg('opened review split %d/%d (%s)', opened.left_buf, opened.right_buf, normalized.display)
