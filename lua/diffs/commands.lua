@@ -1326,25 +1326,55 @@ end
 ---@param selection diffs.GeneratedFileSelection
 ---@param index integer
 ---@param count integer
-local function announce_review_file(selection, index, count)
+---@return string
+local function review_file_message(selection, index, count)
   local label = selection.section_label
   local entry = (type(label) == 'string' and label ~= '')
       and ('[%s] %s'):format(label, selection.file)
     or selection.file
-  notify(('(%d of %d): %s'):format(index, count, entry), vim.log.levels.INFO)
+  return ('(%d of %d): %s'):format(index, count, entry)
+end
+
+---@param selection diffs.GeneratedFileSelection
+---@param index integer
+---@param count integer
+local function announce_review_file(selection, index, count)
+  vim.api.nvim_echo({ { '[diffs]: ' .. review_file_message(selection, index, count) } }, false, {})
 end
 
 ---@param skipped diffs.GeneratedFileSelection[]
-local function notify_skipped_review_files(skipped)
+---@return string?
+local function skipped_review_files_message(skipped)
   if #skipped == 0 then
-    return
+    return nil
   end
   local paths = {}
   for _, selection in ipairs(skipped) do
     paths[#paths + 1] = selection.file
   end
+  return ('review skipped %d file(s): %s'):format(#skipped, table.concat(paths, ', '))
+end
+
+---@param skipped diffs.GeneratedFileSelection[]
+local function notify_skipped_review_files(skipped)
+  local message = skipped_review_files_message(skipped)
+  if message then
+    notify(message, vim.log.levels.INFO)
+  end
+end
+
+---@param skipped diffs.GeneratedFileSelection[]
+---@param selection diffs.GeneratedFileSelection
+---@param index integer
+---@param count integer
+local function notify_skipped_review_file(skipped, selection, index, count)
+  local skipped_message = skipped_review_files_message(skipped)
+  if not skipped_message then
+    announce_review_file(selection, index, count)
+    return
+  end
   notify(
-    ('review skipped %d file(s): %s'):format(#skipped, table.concat(paths, ', ')),
+    skipped_message .. '\n[diffs]: ' .. review_file_message(selection, index, count),
     vim.log.levels.INFO
   )
 end
@@ -1380,8 +1410,7 @@ local function step_review_split_file(state, delta)
     else
       local switched, unsupported = switch_review_split_file(state, selected, { quiet = true })
       if switched then
-        notify_skipped_review_files(skipped)
-        announce_review_file(selected, target, count)
+        notify_skipped_review_file(skipped, selected, target, count)
         return
       end
       if not unsupported then
@@ -1672,8 +1701,7 @@ open_review_split = function(spec, opts)
       break
     end
   end
-  notify_skipped_review_files(skipped)
-  announce_review_file(first, index, #files)
+  notify_skipped_review_file(skipped, first, index, #files)
 
   dbg('opened review split %d/%d (%s)', opened.left_buf, opened.right_buf, normalized.display)
   return opened.left_buf
