@@ -3652,6 +3652,7 @@ describe('commands', function()
       assert.are.same({ 'old' }, vim.api.nvim_buf_get_lines(panes.left_buf, 0, -1, false))
       assert.are.same({ 'new' }, vim.api.nvim_buf_get_lines(panes.right_buf, 0, -1, false))
       assert.are.equal('[diffs]: review skipped 1 file(s): aaa-bin.dat', notifications[1].message)
+      assert.are.equal('[diffs]: (2 of 2): zzz-changed.lua', notifications[2].message)
     end)
 
     it('marks skipped review files in the quickfix file index', function()
@@ -3800,11 +3801,10 @@ describe('commands', function()
         diffspec.rev_to_rev('binary-base', 'binary-topic', 'ccc-two.lua'),
         vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
       )
-      assert.are.equal(vim.log.levels.INFO, notifications[#notifications].level)
-      assert.are.equal(
-        '[diffs]: review skipped 1 file(s): bbb-bin.dat',
-        notifications[#notifications].message
-      )
+      assert.are.equal('[diffs]: (1 of 3): aaa-one.lua', notifications[1].message)
+      assert.are.equal('[diffs]: review skipped 1 file(s): bbb-bin.dat', notifications[2].message)
+      assert.are.equal('[diffs]: (3 of 3): ccc-two.lua', notifications[3].message)
+      assert.are.equal(vim.log.levels.INFO, notifications[3].level)
 
       vim.api.nvim_set_current_win(panes.right_win)
       commands.review_prev_file()
@@ -3813,11 +3813,9 @@ describe('commands', function()
         diffspec.rev_to_rev('binary-base', 'binary-topic', 'aaa-one.lua'),
         vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
       )
-      assert.are.equal(vim.log.levels.INFO, notifications[#notifications].level)
-      assert.are.equal(
-        '[diffs]: review skipped 1 file(s): bbb-bin.dat',
-        notifications[#notifications].message
-      )
+      assert.are.equal('[diffs]: review skipped 1 file(s): bbb-bin.dat', notifications[4].message)
+      assert.are.equal('[diffs]: (1 of 3): aaa-one.lua', notifications[5].message)
+      assert.are.equal(vim.log.levels.INFO, notifications[5].level)
     end)
 
     it('keeps the skipped-file message when no candidate switches', function()
@@ -3841,9 +3839,10 @@ describe('commands', function()
         diffspec.rev_to_rev('binary-base', 'binary-topic', 'aaa-one.lua'),
         vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
       )
-      assert.are.equal(1, #notifications)
-      assert.are.equal(vim.log.levels.INFO, notifications[1].level)
-      assert.are.equal('[diffs]: review skipped 1 file(s): bbb-bin.dat', notifications[1].message)
+      assert.are.equal(2, #notifications)
+      assert.are.equal('[diffs]: (1 of 2): aaa-one.lua', notifications[1].message)
+      assert.are.equal(vim.log.levels.INFO, notifications[2].level)
+      assert.are.equal('[diffs]: review skipped 1 file(s): bbb-bin.dat', notifications[2].message)
     end)
 
     it('marks skipped review files for the API and picker', function()
@@ -3879,8 +3878,9 @@ describe('commands', function()
         diffspec.rev_to_rev('binary-base', 'binary-topic', 'aaa-one.lua'),
         vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
       )
-      assert.are.equal(1, #notifications)
-      assert.are.equal('[diffs]: review skipped 1 file(s): bbb-bin.dat', notifications[1].message)
+      assert.are.equal(2, #notifications)
+      assert.are.equal('[diffs]: (1 of 3): aaa-one.lua', notifications[1].message)
+      assert.are.equal('[diffs]: review skipped 1 file(s): bbb-bin.dat', notifications[2].message)
     end)
 
     it('exposes review_files/current/goto, the gO map, and the b:diffs_review marker', function()

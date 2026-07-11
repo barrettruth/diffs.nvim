@@ -1331,7 +1331,7 @@ local function announce_review_file(selection, index, count)
   local entry = (type(label) == 'string' and label ~= '')
       and ('[%s] %s'):format(label, selection.file)
     or selection.file
-  vim.api.nvim_echo({ { ('[diffs]: (%d of %d): %s'):format(index, count, entry) } }, false, {})
+  notify(('(%d of %d): %s'):format(index, count, entry), vim.log.levels.INFO)
 end
 
 ---@param skipped diffs.GeneratedFileSelection[]
