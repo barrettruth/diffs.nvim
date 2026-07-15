@@ -585,6 +585,15 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     intra-line word-diff highlighting as generated buffers
     (see |diffs.nvim-paired-windows|).
 
+    In generated review maps and split panes, `gs` toggles between the full
+    review map and the side-by-side split for the selected file. From a generated
+    map it uses the file under the cursor (or current quickfix item); from a
+    split it closes the pair and restores the generated layout it came from
+    (`unified` or `stacked`, defaulting to `unified` for direct split opens).
+    This is a buffer-local default backed by
+    |<Plug>(diffs-review-toggle-layout)|, set only when you have not already
+    mapped `gs` in that buffer.
+
     In split layout, `]f`/`[f` step to the next/previous changed file in the
     review (wrapping at the ends), swapping the displayed pair in place and
     reusing the two windows. Each step (and the initial open) echoes the file's
@@ -748,6 +757,14 @@ MAPPINGS                                                 *diffs.nvim-mappings*
                         Open the currently selected |:Diff-review| file as a
                         paired side-by-side diff: the old/removed endpoint on
                         the left, the new/added endpoint on the right.
+
+                                        *<Plug>(diffs-review-toggle-layout)*
+<Plug>(diffs-review-toggle-layout)
+                        Toggle the current review buffer between the generated
+                        review map and split layout. Mapped to `gs` by default
+                        in generated review maps and review split panes, unless
+                        `gs` is already mapped in that buffer. See
+                        |diffs.nvim.review_toggle_layout()|.
 
                                             *<Plug>(diffs-review-next-file)*
 <Plug>(diffs-review-next-file)
@@ -1254,11 +1271,12 @@ refresh({bufnr})                                        *diffs.nvim.refresh()*
     Parameters: ~
         {bufnr}  (integer, optional) Buffer number. Defaults to current buffer.
 
-The review-split navigation API below is buffer-centric and split-scoped: each
-function resolves the review split that {bufnr} (default: current buffer)
-belongs to, and is a no-op (`nil`/`false`) elsewhere. The stacked review map is
-self-sufficient through the |quickfix| list and is not covered here. Navigation
-is only meaningful inside an open review; nothing here opens one.
+The review API below is buffer-centric. Navigation functions resolve the review
+split that {bufnr} (default: current buffer) belongs to, and are no-ops
+(`nil`/`false`) elsewhere. |diffs.nvim.review_toggle_layout()| also accepts a
+generated review map buffer and can move between map and split surfaces. These
+helpers are only meaningful inside an open review; nothing here opens a new
+review spec.
 
                                                             *diffs.ReviewFile*
 A `diffs.ReviewFile` describes one changed file in a review: ~
@@ -1302,6 +1320,17 @@ review_prev_file()                              *diffs.nvim.review_prev_file()*
     Step the current review split to the next/previous changed file, wrapping
     at the ends and skipping unsupported files. Backing functions for `]f`/`[f`,
     |<Plug>(diffs-review-next-file)|, and |<Plug>(diffs-review-prev-file)|.
+
+review_toggle_layout({opts})              *diffs.nvim.review_toggle_layout()*
+    Toggle the current review surface between the generated review map and split
+    layout. From a generated review map, opens the selected file in split layout.
+    From a review split, closes the pair and restores the generated map layout
+    recorded on the split (`unified` or `stacked`). Returns the opened buffer
+    number or `nil` if the current buffer is not a review surface.
+
+    Parameters: ~
+        {opts}   (table, optional) Supports `{ bufnr = <integer> }`. Defaults to
+                 the current buffer.
 
 select_review_file({bufnr})                  *diffs.nvim.select_review_file()*
     Prompt with |vim.ui.select()| over the review split's files and jump to the
@@ -1352,14 +1381,15 @@ Configuration: >lua
 <
 
 `b:diffs_repo_root` is the only supported `b:diffs_*` variable to set on
-external buffers. On its own review-split panes |diffs.nvim| also exposes a
-read-only `b:diffs_review` table — `{ display = <review>, layout = "split" }` —
-so statuslines and other plugins can detect and identify a review buffer
-without calling the API. Treat it as identity only; live position and the file
-list come from |diffs.nvim.review_current()| and |diffs.nvim.review_files()|.
-Other `b:diffs_*` variables, generated `diffs://` buffer names,
-hunk/spec/source metadata, quickfix/location-list `user_data`, and non-root
-`lua/diffs/` modules are internal unless documented here.
+external buffers. On its own review maps and review-split panes |diffs.nvim|
+also exposes a read-only `b:diffs_review` table with `display` and `layout`
+fields (`layout` is `"unified"`, `"stacked"`, or `"split"`), so statuslines and
+other plugins can detect and identify a review buffer without calling the API.
+Treat it as identity only; live position and the file list come from
+|diffs.nvim.review_current()| and |diffs.nvim.review_files()|. Other
+`b:diffs_*` variables, generated `diffs://` buffer names, hunk/spec/source
+metadata, quickfix/location-list `user_data`, and non-root `lua/diffs/` modules
+are internal unless documented here.
 
 ==============================================================================
 KNOWN LIMITATIONS                                     *diffs.nvim-limitations*

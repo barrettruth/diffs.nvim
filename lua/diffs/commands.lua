@@ -70,6 +70,8 @@ local hunk_keymaps = {}
 ---@type table<integer, integer>
 local hunk_keymap_autocmds = {}
 
+---@alias diffs.ReviewMapLayout "unified"|"stacked"
+
 ---@class diffs.ReviewSplitState
 ---@field left_buf integer
 ---@field right_buf integer
@@ -80,6 +82,7 @@ local hunk_keymap_autocmds = {}
 ---@field display string
 ---@field review_lines string[]
 ---@field list_opts table?
+---@field map_layout diffs.ReviewMapLayout
 ---@field selected_file string
 ---@field selected_key string?
 ---@field selected_diff_spec diffs.DiffSpec
@@ -424,8 +427,16 @@ end
 
 ---@param bufnr integer
 ---@param vertical? boolean
-local function show_generated_diff_buffer(bufnr, vertical)
-  local existing_win = M.find_diffs_window()
+---@param replace_win? integer
+---@return boolean
+local function show_generated_diff_buffer(bufnr, vertical, replace_win)
+  local replace_requested = type(replace_win) == 'number'
+  if replace_requested and not vim.api.nvim_win_is_valid(replace_win) then
+    notify('replacement diff window is no longer valid', vim.log.levels.WARN)
+    return false
+  end
+
+  local existing_win = replace_requested and replace_win or M.find_diffs_window()
   if existing_win then
     vim.api.nvim_set_current_win(existing_win)
     split.release_pair_window_options(existing_win)
@@ -436,6 +447,7 @@ local function show_generated_diff_buffer(bufnr, vertical)
     clear_generated_diff_window_bindings(vim.api.nvim_get_current_win())
     vim.api.nvim_win_set_buf(0, bufnr)
   end
+  return true
 end
 
 ---@param bufnr integer
@@ -502,6 +514,35 @@ end
 
 ---@class diffs.ReviewDepsOpts
 ---@field rail_style? diffs.RailStyle
+---@field review_layout? diffs.ReviewMapLayout
+---@field replace_win? integer
+
+---@param layout? string
+---@return diffs.ReviewMapLayout
+local function normalize_review_map_layout(layout)
+  return layout == 'stacked' and 'stacked' or 'unified'
+end
+
+---@param rail_style? diffs.RailStyle
+---@return diffs.ReviewMapLayout
+local function review_layout_for_rail_style(rail_style)
+  return rail_style == 'single' and 'stacked' or 'unified'
+end
+
+---@param bufnr integer
+---@param display string
+---@param layout diffs.ReviewMapLayout
+local function setup_review_map_buffer(bufnr, display, layout)
+  vim.b[bufnr].diffs_review = { display = display, layout = layout }
+  if not get_buffer_keymap(bufnr, 'n', 'gs') then
+    vim.keymap.set(
+      'n',
+      'gs',
+      '<Plug>(diffs-review-toggle-layout)',
+      { buffer = bufnr, remap = true }
+    )
+  end
+end
 
 ---@param opts? diffs.ReviewDepsOpts
 ---@return diffs.ReviewDeps
@@ -509,10 +550,14 @@ local function review_deps(opts)
   opts = opts or {}
   return {
     create_generated_diff_buffer = create_generated_diff_buffer,
-    show_generated_diff_buffer = show_generated_diff_buffer,
+    show_generated_diff_buffer = function(bufnr, vertical)
+      return show_generated_diff_buffer(bufnr, vertical, opts.replace_win)
+    end,
     attach_generated_diff_buffer = attach_generated_diff_buffer,
     replace_combined_diffs = replace_combined_diffs,
     rail_style = opts.rail_style,
+    review_layout = opts.review_layout or review_layout_for_rail_style(opts.rail_style),
+    setup_review_map_buffer = setup_review_map_buffer,
   }
 end
 
@@ -864,7 +909,12 @@ local function complete_diff_command(arglead, cmdline, cursorpos)
   return matches
 end
 
----@type fun(spec?: diffs.ReviewSpec, opts?: { selection?: diffs.GeneratedFileSelection, replace_win?: integer }): integer?
+---@class diffs.OpenReviewSplitOpts
+---@field selection? diffs.GeneratedFileSelection
+---@field replace_win? integer
+---@field map_layout? diffs.ReviewMapLayout
+
+---@type fun(spec?: diffs.ReviewSpec, opts?: diffs.OpenReviewSplitOpts): integer?
 local open_review_split
 
 ---@param args? string
@@ -889,6 +939,7 @@ function M.review_command(args, vertical, opts)
   parsed.spec.vertical = vertical or false
   local bufnr = M.review(parsed.spec, {
     rail_style = rail_style_for_layout(parsed.layout),
+    review_layout = normalize_review_map_layout(parsed.layout),
   })
   return bufnr
 end
@@ -1061,6 +1112,7 @@ end
 ---@field replace_win integer
 ---@field selected diffs.GeneratedFileSelection
 ---@field repo_root string
+---@field map_layout diffs.ReviewMapLayout
 
 ---@param opts? diffs.ReviewSplitOpts
 ---@return diffs.ReviewSplitContext?, string?, integer?, integer?
@@ -1093,6 +1145,8 @@ local function review_split_context(opts)
   if not source or source.kind ~= 'review' then
     return nil, 'selected file is not from a review buffer', vim.log.levels.WARN, nil
   end
+  local marker = vim.b[review_buf].diffs_review
+  local map_layout = normalize_review_map_layout(type(marker) == 'table' and marker.layout or nil)
 
   local review_win = first_window_for_buffer(review_buf)
   if not review_win then
@@ -1107,6 +1161,7 @@ local function review_split_context(opts)
     replace_win = review_win,
     selected = selected,
     repo_root = source.repo_root,
+    map_layout = map_layout,
   },
     nil,
     nil,
@@ -1228,6 +1283,14 @@ local function setup_review_split_panes(state)
           'n',
           'gO',
           '<Plug>(diffs-review-select-file)',
+          { buffer = buf, remap = true }
+        )
+      end
+      if not get_buffer_keymap(buf, 'n', 'gs') then
+        vim.keymap.set(
+          'n',
+          'gs',
+          '<Plug>(diffs-review-toggle-layout)',
           { buffer = buf, remap = true }
         )
       end
@@ -1597,7 +1660,7 @@ local function close_existing_review_splits()
 end
 
 ---@param spec diffs.ReviewSpec?
----@param opts? { selection?: diffs.GeneratedFileSelection, replace_win?: integer }
+---@param opts? diffs.OpenReviewSplitOpts
 ---@return integer?
 open_review_split = function(spec, opts)
   opts = opts or {}
@@ -1684,6 +1747,7 @@ open_review_split = function(spec, opts)
     display = normalized.display,
     review_lines = review_lines,
     list_opts = list_opts,
+    map_layout = normalize_review_map_layout(opts.map_layout),
     selected_file = first.file,
     selected_key = first.key or first.file,
     selected_diff_spec = diff_spec,
@@ -1734,7 +1798,105 @@ function M.review_split(opts)
   return open_review_split(review_spec, {
     selection = context.selected,
     replace_win = context.replace_win,
+    map_layout = context.map_layout,
   })
+end
+
+---@param state diffs.ReviewSplitState
+---@return integer?
+local function review_split_keep_window(state)
+  local current_win = vim.api.nvim_get_current_win()
+  local current_buf = vim.api.nvim_get_current_buf()
+  if
+    (current_buf == state.left_buf or current_buf == state.right_buf)
+    and vim.api.nvim_win_is_valid(current_win)
+  then
+    return current_win
+  end
+  for _, win in ipairs({ state.left_win, state.right_win }) do
+    if vim.api.nvim_win_is_valid(win) then
+      local buf = vim.api.nvim_win_get_buf(win)
+      if buf == state.left_buf or buf == state.right_buf then
+        return win
+      end
+    end
+  end
+  return first_window_for_buffer(state.left_buf) or first_window_for_buffer(state.right_buf)
+end
+
+---@param bufnr integer
+---@param selected_file string
+---@param selected_key string?
+---@return boolean
+local function goto_review_map_selection(bufnr, selected_file, selected_key)
+  local win = first_window_for_buffer(bufnr)
+  if not win then
+    return false
+  end
+  for _, item in ipairs(vim.fn.getqflist({ items = 0 }).items) do
+    local data = item.user_data and item.user_data.diffs
+    if item.bufnr == bufnr and type(data) == 'table' then
+      local matches = selected_key and data.key == selected_key
+        or (not selected_key and data.file == selected_file)
+      if matches then
+        vim.api.nvim_set_current_win(win)
+        vim.api.nvim_win_set_cursor(win, { math.max(1, item.lnum or 1), 0 })
+        vim.api.nvim_exec_autocmds('CursorMoved', { buffer = bufnr })
+        return true
+      end
+    end
+  end
+  return false
+end
+
+---@param state diffs.ReviewSplitState
+---@param layout diffs.ReviewMapLayout
+---@return integer?
+local function open_review_map_from_split(state, layout)
+  local keep_win = review_split_keep_window(state)
+  if not keep_win then
+    notify('review split window is no longer visible', vim.log.levels.WARN)
+    return nil
+  end
+  local source_buf = vim.api.nvim_win_get_buf(keep_win)
+  local selected_file = state.selected_file
+  local selected_key = state.selected_key
+  local review_spec = vim.deepcopy(state.review)
+  review_spec.repo = state.repo_root
+  forget_review_split(state)
+  local split_buffers = split.close_pair_into_window(source_buf, keep_win)
+  if not split_buffers then
+    review_split_states[state.left_buf] = state
+    review_split_states[state.right_buf] = state
+    attach_review_split_autocmds(state)
+    notify('cannot close review split before opening review map', vim.log.levels.WARN)
+    return nil
+  end
+  local bufnr = M.review(review_spec, {
+    rail_style = rail_style_for_layout(layout),
+    review_layout = layout,
+    replace_win = keep_win,
+  })
+  split.delete_pair_buffers(split_buffers)
+  if bufnr then
+    goto_review_map_selection(bufnr, selected_file, selected_key)
+  end
+  return bufnr
+end
+
+---@class diffs.ReviewToggleLayoutOpts
+---@field bufnr? integer
+
+---@param opts? diffs.ReviewToggleLayoutOpts
+---@return integer?
+function M.review_toggle_layout(opts)
+  opts = opts or {}
+  local bufnr = opts.bufnr or vim.api.nvim_get_current_buf()
+  local state = resolve_review_split(bufnr)
+  if state then
+    return open_review_map_from_split(state, state.map_layout)
+  end
+  return M.review_split({ bufnr = bufnr })
 end
 
 ---@param args? string

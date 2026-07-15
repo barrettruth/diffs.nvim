@@ -6,6 +6,7 @@
 ---@field review_goto fun(target: string, bufnr?: integer): boolean
 ---@field review_next_file fun()
 ---@field review_prev_file fun()
+---@field review_toggle_layout fun(opts?: diffs.ReviewToggleLayoutOpts): integer?
 ---@field select_review_file fun(bufnr?: integer)
 
 local commands = require('diffs.commands')
@@ -20,5 +21,6 @@ return {
   review_goto = commands.review_goto,
   review_next_file = commands.review_next_file,
   review_prev_file = commands.review_prev_file,
+  review_toggle_layout = commands.review_toggle_layout,
   select_review_file = commands.select_review_file,
 }
