@@ -1158,6 +1158,22 @@ function M.read_buffer(bufnr, source, opts)
 end
 
 ---@param bufnr? integer
+---@param keep_win integer
+---@return table<integer, boolean>?
+function M.close_pair_into_window(bufnr, keep_win)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  if type(keep_win) ~= 'number' then
+    return nil
+  end
+  return close_pair_into_window(bufnr, keep_win)
+end
+
+---@param buffers table<integer, boolean>
+function M.delete_pair_buffers(buffers)
+  delete_pair_buffers(buffers)
+end
+
+---@param bufnr? integer
 ---@return boolean
 function M.close_pair(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()

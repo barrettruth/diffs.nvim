@@ -41,10 +41,12 @@ end
 
 ---@class diffs.ReviewDeps
 ---@field create_generated_diff_buffer fun(opts: diffs.GeneratedDiffBufferOpts): integer
----@field show_generated_diff_buffer fun(bufnr: integer, vertical?: boolean)
+---@field show_generated_diff_buffer fun(bufnr: integer, vertical?: boolean): boolean
 ---@field attach_generated_diff_buffer fun(bufnr: integer)
 ---@field replace_combined_diffs fun(lines: string[], repo_root: string): string[]
 ---@field rail_style? diffs.RailStyle
+---@field review_layout? diffs.ReviewMapLayout
+---@field setup_review_map_buffer? function
 
 ---@param bufnr integer
 ---@param name string
@@ -805,6 +807,7 @@ function M.open(spec, deps)
     return nil
   end
 
+  local review_layout = deps.review_layout or 'unified'
   local diff_buf = deps.create_generated_diff_buffer({
     name = target_name,
     lines = result,
@@ -821,10 +824,17 @@ function M.open(spec, deps)
       diffs_review_target = review.target,
       diffs_review_mode = review.mode,
       diffs_review_untracked = review.untracked,
+      diffs_review = { display = review.display, layout = review_layout },
     },
   })
 
-  deps.show_generated_diff_buffer(diff_buf, review.vertical)
+  if deps.setup_review_map_buffer then
+    deps.setup_review_map_buffer(diff_buf, review.display, review_layout)
+  end
+  if not deps.show_generated_diff_buffer(diff_buf, review.vertical) then
+    pcall(vim.api.nvim_buf_delete, diff_buf, { force = true })
+    return nil
+  end
   lists.set_for_unified_buffer(diff_buf, result, {
     title = 'review: ' .. review.display,
     loclist_title = 'review hunks: ' .. review.display,

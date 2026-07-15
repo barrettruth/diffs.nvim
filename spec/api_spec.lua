@@ -18,6 +18,7 @@ describe('diffs public API', function()
       'review_goto',
       'review_next_file',
       'review_prev_file',
+      'review_toggle_layout',
       'select_review_file',
     }, keys)
     assert.is_function(diffs.attach)
@@ -27,6 +28,7 @@ describe('diffs public API', function()
     assert.is_function(diffs.review_goto)
     assert.is_function(diffs.review_next_file)
     assert.is_function(diffs.review_prev_file)
+    assert.is_function(diffs.review_toggle_layout)
     assert.is_function(diffs.select_review_file)
   end)
 end)

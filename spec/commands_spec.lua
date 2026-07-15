@@ -3316,6 +3316,8 @@ describe('commands', function()
       assert.are.equal('diffs://review:' .. repo.base, vim.api.nvim_buf_get_name(bufnr))
       assert.are.equal('single', vim.api.nvim_buf_get_var(bufnr, 'diffs_rail_style'))
       assert.are.equal('single', rails.style_for_buffer(bufnr))
+      assert.are.same({ display = repo.base, layout = 'stacked' }, vim.b[bufnr].diffs_review)
+      assert.is_true(helpers.has_keymap(bufnr, 'gs'))
       assert.is_true(display_lines[1]:find('    | # Branch:', 1, true) ~= nil)
       assert.is_true(text:find('# Branch:', 1, true) ~= nil)
       assert.is_true(text:find('# Staged:', 1, true) ~= nil)
@@ -3495,6 +3497,8 @@ describe('commands', function()
       )
       assert.are.equal(2, #main_windows())
       assert.is_nil(visible_review_map())
+      assert.is_true(helpers.has_keymap(panes.left_buf, 'gs'))
+      assert.is_true(helpers.has_keymap(panes.right_buf, 'gs'))
       assert.is_false(vim.api.nvim_get_option_value('diff', { win = panes.left_win }))
       assert.is_false(vim.api.nvim_get_option_value('diff', { win = panes.right_win }))
       assert.is_true(vim.api.nvim_get_option_value('scrollbind', { win = panes.left_win }))
@@ -3602,6 +3606,152 @@ describe('commands', function()
       assert.is_true(
         notifications[#notifications].message:find('selected review buffer is not visible', 1, true)
           ~= nil
+      )
+    end)
+
+    it('toggles a selected stacked review file to split and back to the review map', function()
+      local repo = create_review_repo()
+      edit_file(repo.repo_root .. '/lua/one.lua')
+      mock_runtime_attach(function() end)
+
+      local review_buf = commands.review({
+        base = repo.base,
+        target = repo.target,
+        mode = 'direct',
+        repo = repo.repo_root,
+      }, {
+        rail_style = 'single',
+        review_layout = 'stacked',
+      })
+      assert.is_not_nil(review_buf)
+      table.insert(test_buffers, review_buf)
+      local review_win = find_window_for_buffer(review_buf)
+      assert.is_not_nil(review_win)
+      local line = find_buffer_line(review_buf, 'diff --git a/lua/two.lua b/lua/two.lua')
+      assert.is_not_nil(line)
+      vim.api.nvim_set_current_win(review_win)
+      vim.api.nvim_win_set_cursor(review_win, { line, 0 })
+
+      local left_buf = commands.review_toggle_layout()
+      local panes = track_panes(left_buf)
+
+      assert.are.equal('lua/two.lua', panes.state.selected_file)
+      assert.are.equal('stacked', panes.state.map_layout)
+      assert.is_nil(visible_review_map())
+      assert.is_true(helpers.has_keymap(panes.left_buf, 'gs'))
+      assert.is_true(helpers.has_keymap(panes.right_buf, 'gs'))
+
+      vim.api.nvim_set_current_win(panes.right_win)
+      local map_buf = commands.review_toggle_layout()
+      assert.is_not_nil(map_buf)
+      table.insert(test_buffers, map_buf)
+      local map_win = find_window_for_buffer(map_buf)
+      assert.is_not_nil(map_win)
+      local cursor_line = vim.api.nvim_win_get_cursor(map_win)[1]
+      local cursor_text = buffer_lines(map_buf)[cursor_line]
+      local loc = loclist_items(map_win)
+
+      assert.is_false(vim.api.nvim_buf_is_valid(panes.left_buf))
+      assert.is_false(vim.api.nvim_buf_is_valid(panes.right_buf))
+      assert.are.equal('single', vim.api.nvim_buf_get_var(map_buf, 'diffs_rail_style'))
+      assert.are.same(
+        { display = repo.base .. '..' .. repo.target, layout = 'stacked' },
+        vim.b[map_buf].diffs_review
+      )
+      assert.is_true(helpers.has_keymap(map_buf, 'gs'))
+      assert.is_true(cursor_text:find('diff --git a/lua/two.lua b/lua/two.lua', 1, true) ~= nil)
+      assert.is_true(#loc >= 1)
+      assert.are.equal(map_buf, loc[1].bufnr)
+      assert.is_true(loc[1].text:find('lua/two.lua', 1, true) ~= nil)
+    end)
+
+    it('toggles a direct split review back to a unified review map', function()
+      local repo_root = create_repo()
+      vim.fn.writefile({ 'line 1', 'line 2 changed' }, repo_root .. '/file.txt')
+      edit_file(repo_root .. '/file.txt')
+      mock_runtime_attach(function() end)
+
+      local left_buf = commands.review_command('++layout=split HEAD')
+      local panes = track_panes(left_buf)
+
+      vim.api.nvim_set_current_win(panes.right_win)
+      local map_buf = commands.review_toggle_layout()
+      assert.is_not_nil(map_buf)
+      table.insert(test_buffers, map_buf)
+
+      assert.is_false(vim.api.nvim_buf_is_valid(panes.left_buf))
+      assert.is_false(vim.api.nvim_buf_is_valid(panes.right_buf))
+      assert.are.equal('dual', vim.api.nvim_buf_get_var(map_buf, 'diffs_rail_style'))
+      assert.are.same({ display = 'HEAD', layout = 'unified' }, vim.b[map_buf].diffs_review)
+      assert.is_true(buffer_text(map_buf):find('diff --git a/file.txt b/file.txt', 1, true) ~= nil)
+    end)
+
+    it('restores duplicate current-state review paths by review key', function()
+      local repo = create_current_state_review_repo()
+      edit_file(repo.repo_root .. '/lua/dup.lua')
+      mock_runtime_attach(function() end)
+
+      local review_buf = commands.review({
+        base = repo.base,
+        repo = repo.repo_root,
+      })
+      assert.is_not_nil(review_buf)
+      table.insert(test_buffers, review_buf)
+      local review_win = find_window_for_buffer(review_buf)
+      assert.is_not_nil(review_win)
+      local line =
+        find_buffer_line_after(review_buf, '# Unstaged:', 'diff --git a/lua/dup.lua b/lua/dup.lua')
+      assert.is_not_nil(line)
+      vim.api.nvim_set_current_win(review_win)
+      vim.api.nvim_win_set_cursor(review_win, { line, 0 })
+
+      local left_buf = commands.review_toggle_layout()
+      local panes = track_panes(left_buf)
+      assert.are.equal('unstaged:lua/dup.lua', panes.state.selected_key)
+
+      vim.api.nvim_set_current_win(panes.left_win)
+      local map_buf = commands.review_toggle_layout()
+      assert.is_not_nil(map_buf)
+      table.insert(test_buffers, map_buf)
+      local map_win = find_window_for_buffer(map_buf)
+      assert.is_not_nil(map_win)
+      local expected_line =
+        find_buffer_line_after(map_buf, '# Unstaged:', 'diff --git a/lua/dup.lua b/lua/dup.lua')
+
+      assert.are.equal(expected_line, vim.api.nvim_win_get_cursor(map_win)[1])
+    end)
+
+    it('reports nil when toggling outside a review surface', function()
+      local repo_root = create_repo()
+      local bufnr = edit_file(repo_root .. '/file.txt')
+      local notifications = capture_notifications()
+
+      local opened = commands.review_toggle_layout()
+
+      assert.is_nil(opened)
+      assert.are.equal(bufnr, vim.api.nvim_get_current_buf())
+      assert.is_true(
+        notifications[#notifications].message:find('generated diff file index', 1, true) ~= nil
+      )
+    end)
+
+    it('does not fall back to another diffs window for an invalid replacement window', function()
+      local repo = create_review_repo()
+      local notifications = capture_notifications()
+      mock_runtime_attach(function() end)
+
+      local opened = commands.review({
+        base = repo.base,
+        target = repo.target,
+        mode = 'direct',
+        repo = repo.repo_root,
+      }, {
+        replace_win = 999999,
+      })
+
+      assert.is_nil(opened)
+      assert.is_true(
+        notifications[#notifications].message:find('replacement diff window', 1, true) ~= nil
       )
     end)
 
@@ -3900,6 +4050,7 @@ describe('commands', function()
         assert.is_table(marker)
         assert.are.equal('split', marker.layout)
         assert.is_true(helpers.has_keymap(buf, 'gO'))
+        assert.is_true(helpers.has_keymap(buf, 'gs'))
       end
 
       local files = commands.review_files(panes.left_buf)
