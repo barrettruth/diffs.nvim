@@ -1043,6 +1043,34 @@ describe('commands', function()
       assert.is_true(text:find('+local M = {}', 1, true) ~= nil)
     end)
 
+    it('opens configured default :Diff as paired endpoint windows', function()
+      local saved_splitright = vim.o.splitright
+      vim.o.splitright = false
+      local ok, err = pcall(function()
+        mock_view_config({
+          default_layout = 'split',
+          prefix = true,
+          change_bar = '┃',
+          rail_separator = '│',
+        })
+        create_split_source()
+        commands.diff(nil, false)
+      end)
+      vim.o.splitright = saved_splitright
+      assert.is_true(ok, err)
+
+      local right_buf = vim.api.nvim_get_current_buf()
+      local left_buf = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer')
+      test_buffers[#test_buffers + 1] = left_buf
+      test_buffers[#test_buffers + 1] = right_buf
+
+      assert.are.equal('diffs://split:left:index:lua/foo.lua', vim.api.nvim_buf_get_name(left_buf))
+      assert.are.equal(
+        'diffs://split:right:worktree:lua/foo.lua',
+        vim.api.nvim_buf_get_name(right_buf)
+      )
+    end)
+
     it('opens opt-in split :Diff as paired endpoint windows', function()
       local saved_splitright = vim.o.splitright
       vim.o.splitright = false
