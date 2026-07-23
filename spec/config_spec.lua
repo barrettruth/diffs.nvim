@@ -103,6 +103,25 @@ describe('diffs.config', function()
       assert.are.equal('│', opts.view.rail_separator)
     end)
 
+    it('defaults view.default_layout to unified', function()
+      local opts = config.new()
+      assert.are.equal('unified', opts.view.default_layout)
+    end)
+
+    it('accepts supported default layouts', function()
+      for _, layout in ipairs({ 'unified', 'stacked', 'split' }) do
+        local opts = config.new({ view = { default_layout = layout } })
+        assert.are.equal(layout, opts.view.default_layout)
+      end
+    end)
+
+    it('rejects unsupported default layouts', function()
+      local ok, err = pcall(config.new, { view = { default_layout = 'tiled' } })
+      assert.is_false(ok)
+      assert.matches('view.default_layout', err, 1, true)
+      assert.matches("'unified', 'stacked', or 'split'", err, 1, true)
+    end)
+
     it('accepts custom view glyphs', function()
       local opts = config.new({
         view = {

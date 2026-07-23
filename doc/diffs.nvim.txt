@@ -88,6 +88,7 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
     vim.g.diffs = {
       debug = false,
       view = {
+        default_layout = 'unified',
         prefix = true,
         change_bar = '▏',
         rail_separator = '│',
@@ -146,6 +147,14 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
 
                                                        *diffs.nvim.ViewConfig*
     View table fields: ~
+        {default_layout}     (string, default: 'unified')
+                             Default layout for current-file |:Diff| when
+                             `++layout` is omitted. Accepted values are
+                             `unified`, `stacked`, and `split`. An explicit
+                             `++layout` option takes precedence. This does not
+                             affect |:Diff-review|, |diffs.nvim-diff-files|,
+                             Fugitive status mappings, or native diff mode.
+
         {prefix}             (boolean, default: true)
                              Show diff prefixes (`+`/`-`/` `). Set to
                              `false` to hide them with virtual text overlay.
@@ -361,8 +370,8 @@ highlight-only.
     Open a diff of the current file against a diff object. The object language
     is defined at |diffs.nvim-diff-objects|. Use |:Diff-review| (`:Diff review`)
     for repository reviews.
-    The default unified layout opens below the current window and reuses an
-    existing `diffs://` window in the tabpage when one exists.
+    Without `++layout`, the layout comes from `view.default_layout`; an explicit
+    option takes precedence. The default remains `unified`.
 
     `++layout=unified` and `++layout=stacked` create generated `diffs://`
     buffers. Unified buffers include old and new line-number rails before the
@@ -392,8 +401,8 @@ highlight-only.
     itself and leaves the quickfix list untouched.
 
     Parameters: ~
-        ++layout=unified (optional) Open the default generated `diffs://` view
-                    with old and new line-number rails.
+        ++layout=unified (optional) Open a generated `diffs://` view with old
+                    and new line-number rails.
         ++layout=stacked (optional) Open a generated `diffs://` view with one
                     context-aware line-number rail.
         ++layout=split (optional) Open the current single-file comparison as

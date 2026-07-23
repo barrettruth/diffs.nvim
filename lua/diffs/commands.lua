@@ -1921,6 +1921,7 @@ function M.diff(args, vertical, opts)
   local parsed, parse_err = diff_parser.parse(args, {
     path = rel_path,
     current = diffspec.worktree(),
+    default_layout = runtime.get_view_config().default_layout,
   })
   if not parsed then
     notify(parse_err, vim.log.levels.ERROR)

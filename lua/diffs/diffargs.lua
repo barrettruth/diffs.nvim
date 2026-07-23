@@ -5,6 +5,7 @@ local diffspec = require('diffs.spec')
 ---@class diffs.DiffParseContext
 ---@field path string
 ---@field current? diffs.Endpoint
+---@field default_layout? "unified"|"stacked"|"split"
 
 ---@class diffs.DiffParseResult
 ---@field spec diffs.DiffSpec
@@ -28,9 +29,10 @@ local function split_args(args)
 end
 
 ---@param tokens string[]
+---@param default_layout? "unified"|"stacked"|"split"
 ---@return ("unified"|"stacked"|"split")?, string?
-local function take_layout(tokens)
-  local layout = 'unified'
+local function take_layout(tokens, default_layout)
+  local layout = default_layout or 'unified'
   local has_layout = false
   while tokens[1] and tokens[1]:match('^%+%+') do
     if tokens[1]:match('^%+%+layout=') then
@@ -186,7 +188,7 @@ function M.parse(args, context)
 
   local current = context.current and diffspec.endpoint(context.current) or diffspec.worktree()
   local tokens = split_args(args)
-  local layout, layout_err = take_layout(tokens)
+  local layout, layout_err = take_layout(tokens, context.default_layout)
   if not layout then
     return nil, layout_err
   end

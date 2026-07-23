@@ -6,10 +6,11 @@ local diffspec = require('diffs.spec')
 describe('diffs.diffargs', function()
   local path = 'lua/foo.lua'
 
-  local function parse(args, current)
+  local function parse(args, current, default_layout)
     local result, err = diffargs.parse(args, {
       path = path,
       current = current or diffspec.worktree(),
+      default_layout = default_layout,
     })
     assert.is_nil(err)
     return result
@@ -20,6 +21,18 @@ describe('diffs.diffargs', function()
 
     assert.are.same(diffspec.index_to_worktree(path), result.spec)
     assert.are.equal('unified', result.layout)
+  end)
+
+  it('uses the configured default layout when no option is provided', function()
+    local result = parse(nil, nil, 'split')
+
+    assert.are.equal('split', result.layout)
+  end)
+
+  it('lets an explicit layout override the configured default', function()
+    local result = parse('++layout=stacked', nil, 'split')
+
+    assert.are.equal('stacked', result.layout)
   end)
 
   it('maps explicit revisions to revision -> worktree', function()

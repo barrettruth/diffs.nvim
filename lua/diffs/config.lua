@@ -20,6 +20,7 @@ local integration_metadata = require('diffs.integrations')
 ---@field lines integer
 
 ---@class diffs.ViewConfig
+---@field default_layout "unified"|"stacked"|"split"
 ---@field prefix boolean
 ---@field change_bar string
 ---@field rail_separator string
@@ -76,6 +77,7 @@ local integration_metadata = require('diffs.integrations')
 local DEFAULTS = {
   debug = false,
   view = {
+    default_layout = 'unified',
     prefix = true,
     change_bar = '▏',
     rail_separator = '│',
@@ -154,6 +156,9 @@ function M.validate(opts)
   end, 'boolean or string (file path)')
   vim.validate('view', opts.view, 'table', true)
   if opts.view then
+    vim.validate('view.default_layout', opts.view.default_layout, function(v)
+      return v == nil or v == 'unified' or v == 'stacked' or v == 'split'
+    end, "'unified', 'stacked', or 'split'")
     vim.validate('view.prefix', opts.view.prefix, 'boolean', true)
     vim.validate('view.change_bar', opts.view.change_bar, 'string', true)
     vim.validate('view.rail_separator', opts.view.rail_separator, 'string', true)
