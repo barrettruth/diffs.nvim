@@ -1,4 +1,5 @@
 ---@class diffs.ConflictRegion
+---@field marker_open integer?
 ---@field marker_ours integer
 ---@field ours_start integer
 ---@field ours_end integer
@@ -27,6 +28,13 @@ local diagnostics_suppressed = {}
 ---@type table<integer, table<string, diffs.BufferKeymap>>
 local buffer_keymaps = {}
 
+---@param line string
+---@param char string
+---@return boolean
+local function is_marker(line, char)
+  return line:sub(1, 7) == string.rep(char, 7)
+end
+
 ---@param lines string[]
 ---@return diffs.ConflictRegion[]
 function M.parse(lines)
@@ -39,9 +47,15 @@ function M.parse(lines)
     local idx = i - 1
 
     if state == 'idle' then
-      if line:match('^<<<<<<<') then
-        current = { marker_ours = idx, ours_start = idx + 1 }
-        state = 'in_ours'
+      if is_marker(line, '<') then
+        local following = lines[i + 1]
+        if following and is_marker(following, '+') then
+          current = { marker_open = idx }
+          state = 'in_snapshot_open'
+        else
+          current = { marker_ours = idx, ours_start = idx + 1 }
+          state = 'in_ours'
+        end
       end
     elseif state == 'in_ours' then
       if line:match('^|||||||') then
@@ -84,10 +98,51 @@ function M.parse(lines)
         current = { marker_ours = idx, ours_start = idx + 1 }
         state = 'in_ours'
       end
+    elseif state == 'in_snapshot_open' then
+      current.marker_ours = idx
+      current.ours_start = idx + 1
+      state = 'in_snapshot_ours'
+    elseif state == 'in_snapshot_ours' then
+      if is_marker(line, '-') then
+        current.ours_end = idx
+        current.marker_base = idx
+        current.base_start = idx + 1
+        state = 'in_snapshot_base'
+      elseif is_marker(line, '%') or is_marker(line, '+') or is_marker(line, '>') then
+        current = nil
+        state = 'idle'
+      end
+    elseif state == 'in_snapshot_base' then
+      if is_marker(line, '+') then
+        current.base_end = idx
+        current.marker_sep = idx
+        current.theirs_start = idx + 1
+        state = 'in_snapshot_theirs'
+      elseif is_marker(line, '%') or is_marker(line, '-') or is_marker(line, '>') then
+        current = nil
+        state = 'idle'
+      end
+    elseif state == 'in_snapshot_theirs' then
+      if is_marker(line, '>') then
+        current.theirs_end = idx
+        current.marker_theirs = idx
+        table.insert(regions, current)
+        current = nil
+        state = 'idle'
+      elseif is_marker(line, '%') or is_marker(line, '+') or is_marker(line, '-') then
+        current = nil
+        state = 'idle'
+      end
     end
   end
 
   return regions
+end
+
+---@param region diffs.ConflictRegion
+---@return integer
+local function region_start(region)
+  return region.marker_open or region.marker_ours
 end
 
 ---@param bufnr integer
@@ -201,6 +256,9 @@ local function apply_highlights(bufnr, regions, config)
   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
 
   for _, region in ipairs(regions) do
+    if region.marker_open then
+      mark_line(bufnr, region.marker_open, 'DiffsConflictMarker')
+    end
     mark_line(bufnr, region.marker_ours, 'DiffsConflictMarker')
     apply_marker_label(bufnr, region.marker_ours, 'ours', config)
     apply_action_hints(bufnr, region, config)
@@ -242,7 +300,7 @@ end
 ---@return diffs.ConflictRegion?
 local function find_conflict_at_cursor(cursor_line, regions)
   for _, region in ipairs(regions) do
-    if cursor_line >= region.marker_ours and cursor_line <= region.marker_theirs then
+    if cursor_line >= region_start(region) and cursor_line <= region.marker_theirs then
       return region
     end
   end
@@ -255,7 +313,7 @@ end
 function M.replace_region(bufnr, region, replacement)
   vim.api.nvim_buf_set_lines(
     bufnr,
-    region.marker_ours,
+    region_start(region),
     region.marker_theirs + 1,
     false,
     replacement
@@ -359,22 +417,22 @@ local function goto_conflict(bufnr, forward)
   local cursor_line = vim.api.nvim_win_get_cursor(0)[1] - 1
   if forward then
     for _, region in ipairs(regions) do
-      if region.marker_ours > cursor_line then
-        vim.api.nvim_win_set_cursor(0, { region.marker_ours + 1, 0 })
+      if region_start(region) > cursor_line then
+        vim.api.nvim_win_set_cursor(0, { region_start(region) + 1, 0 })
         return
       end
     end
     notify('wrapped to first conflict', vim.log.levels.INFO)
-    vim.api.nvim_win_set_cursor(0, { regions[1].marker_ours + 1, 0 })
+    vim.api.nvim_win_set_cursor(0, { region_start(regions[1]) + 1, 0 })
   else
     for i = #regions, 1, -1 do
-      if regions[i].marker_ours < cursor_line then
-        vim.api.nvim_win_set_cursor(0, { regions[i].marker_ours + 1, 0 })
+      if region_start(regions[i]) < cursor_line then
+        vim.api.nvim_win_set_cursor(0, { region_start(regions[i]) + 1, 0 })
         return
       end
     end
     notify('wrapped to last conflict', vim.log.levels.INFO)
-    vim.api.nvim_win_set_cursor(0, { regions[#regions].marker_ours + 1, 0 })
+    vim.api.nvim_win_set_cursor(0, { region_start(regions[#regions]) + 1, 0 })
   end
 end
 
@@ -433,20 +491,13 @@ function M.attach(bufnr, config)
   end
 
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-  local has_marker = false
-  for _, line in ipairs(lines) do
-    if line:match('^<<<<<<<') then
-      has_marker = true
-      break
-    end
-  end
-  if not has_marker then
+  local regions = M.parse(lines)
+  if #regions == 0 then
     return
   end
 
   attached_buffers[bufnr] = true
 
-  local regions = M.parse(lines)
   apply_highlights(bufnr, regions, config)
   setup_keymaps(bufnr, config)
 
