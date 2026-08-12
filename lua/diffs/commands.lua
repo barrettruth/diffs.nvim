@@ -328,17 +328,17 @@ end
 ---@param info diffs.RailInfo?
 local function set_diff_rails_var(bufnr, info)
   if info then
-    vim.api.nvim_buf_set_var(bufnr, 'diffs_rail_width', info.prefix_width)
-    vim.api.nvim_buf_set_var(bufnr, 'diffs_rail_separator_width', info.separator_width)
+    generated.set_var(bufnr, 'diffs_rail_width', info.prefix_width)
+    generated.set_var(bufnr, 'diffs_rail_separator_width', info.separator_width)
     if info.style == 'single' or info.style == 'dual' then
-      vim.api.nvim_buf_set_var(bufnr, 'diffs_rail_style', info.style)
+      generated.set_var(bufnr, 'diffs_rail_style', info.style)
     else
-      pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_rail_style')
+      generated.del_var(bufnr, 'diffs_rail_style')
     end
   else
-    pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_rail_width')
-    pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_rail_separator_width')
-    pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_rail_style')
+    generated.del_var(bufnr, 'diffs_rail_width')
+    generated.del_var(bufnr, 'diffs_rail_separator_width')
+    generated.del_var(bufnr, 'diffs_rail_style')
   end
 end
 
@@ -415,7 +415,7 @@ local function create_generated_diff_buffer(opts)
   end
   for name, value in pairs(opts.vars or {}) do
     if value ~= nil then
-      vim.api.nvim_buf_set_var(bufnr, name, value)
+      generated.set_var(bufnr, name, value)
     end
   end
 
@@ -533,7 +533,7 @@ end
 ---@param display string
 ---@param layout diffs.ReviewMapLayout
 local function setup_review_map_buffer(bufnr, display, layout)
-  vim.b[bufnr].diffs_review = { display = display, layout = layout }
+  generated.set_var(bufnr, 'diffs_review', { display = display, layout = layout })
   if not get_buffer_keymap(bufnr, 'n', 'gs') then
     vim.keymap.set(
       'n',
@@ -2240,6 +2240,8 @@ function M.read_buffer(bufnr)
     return
   end
 
+  generated.restore(bufnr)
+
   local source, source_err = get_source_var(bufnr)
   if source_err then
     notify('invalid diffs_source metadata: ' .. tostring(source_err), vim.log.levels.WARN)
@@ -2354,6 +2356,15 @@ function M.read_buffer(bufnr)
     quickfix = is_review or nil,
   })
   M.setup_diff_buf(bufnr)
+
+  local review_marker = generated.get_var(bufnr, 'diffs_review')
+  if type(review_marker) == 'table' and review_marker.layout ~= 'split' then
+    setup_review_map_buffer(
+      bufnr,
+      review_marker.display,
+      normalize_review_map_layout(review_marker.layout)
+    )
+  end
 
   dbg('reloaded diff buffer %d (%s)', bufnr, debug_label)
 

@@ -165,6 +165,87 @@ describe('read_buffer', function()
     end)
   end)
 
+  describe('unloaded buffers', function()
+    it('regenerates content after an unload cleared the buffer variables', function()
+      mock_git()
+
+      local bufnr = commands._test.create_generated_diff_buffer({
+        name = 'diffs://unstaged:unloaded.lua',
+        lines = review_diff_lines(),
+        repo_root = '/tmp',
+        source = {
+          version = 1,
+          kind = 'file',
+          repo_root = '/tmp',
+          spec = diffspec.index_to_worktree('unloaded.lua'),
+        },
+        rail_style = 'single',
+      })
+      table.insert(test_buffers, bufnr)
+
+      vim.api.nvim_win_set_buf(0, bufnr)
+      vim.cmd('enew')
+
+      assert.is_false(vim.api.nvim_buf_is_loaded(bufnr))
+      assert.is_false(has_buf_var(bufnr, 'diffs_source'))
+      assert.is_false(has_buf_var(bufnr, 'diffs_repo_root'))
+
+      commands.read_buffer(bufnr)
+
+      local lines = buffer_lines(bufnr)
+      assert.are.equal('diff --git a/unloaded.lua b/unloaded.lua', lines[1])
+      assert.are.equal('+local x = 1', lines[6])
+      assert.are.equal('/tmp', vim.api.nvim_buf_get_var(bufnr, 'diffs_repo_root'))
+      assert.are.equal('single', vim.api.nvim_buf_get_var(bufnr, 'diffs_rail_style'))
+    end)
+
+    it('restores review metadata and keymaps for an unloaded review map', function()
+      mock_systemlist(function(cmd)
+        if cmd[4] == 'rev-parse' then
+          return { 'commit' }
+        end
+        if cmd[4] ~= 'diff' then
+          return {}
+        end
+        return review_diff_lines()
+      end)
+
+      local bufnr = commands._test.create_generated_diff_buffer({
+        name = 'diffs://review:origin/main...feature/topic',
+        lines = review_diff_lines(),
+        repo_root = '/tmp/repo',
+        source = {
+          version = 1,
+          kind = 'review',
+          repo_root = '/tmp/repo',
+          review = {
+            base = 'origin/main',
+            target = 'feature/topic',
+            mode = 'merge-base',
+          },
+        },
+        vars = {
+          diffs_review_base = 'origin/main',
+          diffs_review = { display = 'origin/main...feature/topic', layout = 'stacked' },
+        },
+      })
+      table.insert(test_buffers, bufnr)
+
+      vim.api.nvim_win_set_buf(0, bufnr)
+      vim.cmd('enew')
+
+      commands.read_buffer(bufnr)
+
+      assert.are.same(review_diff_lines(), buffer_lines(bufnr))
+      assert.are.equal('origin/main', vim.api.nvim_buf_get_var(bufnr, 'diffs_review_base'))
+      assert.are.same(
+        { display = 'origin/main...feature/topic', layout = 'stacked' },
+        vim.api.nvim_buf_get_var(bufnr, 'diffs_review')
+      )
+      assert.is_true(helpers.has_keymap(bufnr, 'gs'))
+    end)
+  end)
+
   describe('buffer options', function()
     it('sets buftype, bufhidden, swapfile, modifiable, filetype', function()
       mock_git()
