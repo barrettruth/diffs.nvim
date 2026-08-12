@@ -820,6 +820,13 @@ function M.set_for_unified_buffer(bufnr, diff_lines, opts)
   end
 end
 
+---@param bufnr integer
+---@return diffs.DiffHunk[]
+function M.generated_hunks(bufnr)
+  local state = generated_list_state[bufnr]
+  return state and state.hunks or {}
+end
+
 ---@param diff_lines string[]
 ---@param opts? diffs.GeneratedListOptions
 ---@return diffs.GeneratedFileSelection?
