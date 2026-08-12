@@ -3784,6 +3784,16 @@ describe('commands', function()
       assert.are.equal(review_line, returned_line)
     end)
 
+    it('settles on the replacing line when a removed line selected the split', function()
+      local repo_root = create_block_review_repo()
+
+      local first_line, _, second_line = toggle_from_review_line(repo_root, '-two')
+      local third_line = select(3, toggle_from_review_line(repo_root, '+two changed'))
+
+      assert.are_not.equal(first_line, second_line)
+      assert.are.equal(second_line, third_line)
+    end)
+
     it('returns to the review line the split cursor moved to', function()
       local repo_root = create_block_review_repo()
       edit_file(repo_root .. '/lua/block.lua')
