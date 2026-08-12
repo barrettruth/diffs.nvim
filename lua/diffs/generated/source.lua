@@ -3,6 +3,32 @@ local M = {}
 local diffspec = require('diffs.spec')
 local hunk_model = require('diffs.hunks')
 
+local group = vim.api.nvim_create_augroup('diffs_generated_source', { clear = false })
+
+---@type table<integer, table<string, any>>
+local restorable = {}
+
+---@param bufnr integer
+---@return table<string, any>
+local function tracked_vars(bufnr)
+  local vars = restorable[bufnr]
+  if vars then
+    return vars
+  end
+
+  vars = {}
+  restorable[bufnr] = vars
+  vim.api.nvim_create_autocmd('BufWipeout', {
+    group = group,
+    buffer = bufnr,
+    once = true,
+    callback = function()
+      restorable[bufnr] = nil
+    end,
+  })
+  return vars
+end
+
 ---@param bufnr integer
 ---@param name string
 ---@return any
@@ -15,6 +41,33 @@ function M.get_var(bufnr, name)
 end
 
 ---@param bufnr integer
+---@param name string
+---@param value any
+function M.set_var(bufnr, name, value)
+  vim.api.nvim_buf_set_var(bufnr, name, value)
+  tracked_vars(bufnr)[name] = value
+end
+
+---@param bufnr integer
+---@param name string
+function M.del_var(bufnr, name)
+  local vars = restorable[bufnr]
+  if vars then
+    vars[name] = nil
+  end
+  pcall(vim.api.nvim_buf_del_var, bufnr, name)
+end
+
+---@param bufnr integer
+function M.restore(bufnr)
+  for name, value in pairs(restorable[bufnr] or {}) do
+    if M.get_var(bufnr, name) == nil then
+      pcall(vim.api.nvim_buf_set_var, bufnr, name, value)
+    end
+  end
+end
+
+---@param bufnr integer
 ---@return string?
 function M.repo_root(bufnr)
   return M.get_var(bufnr, 'diffs_repo_root')
@@ -23,13 +76,13 @@ end
 ---@param bufnr integer
 ---@param repo_root string
 function M.set_repo_root(bufnr, repo_root)
-  vim.api.nvim_buf_set_var(bufnr, 'diffs_repo_root', repo_root)
+  M.set_var(bufnr, 'diffs_repo_root', repo_root)
 end
 
 ---@param bufnr integer
 ---@param diff_spec diffs.DiffSpec
 function M.set_spec(bufnr, diff_spec)
-  vim.api.nvim_buf_set_var(bufnr, 'diffs_spec', diffspec.new(diff_spec))
+  M.set_var(bufnr, 'diffs_spec', diffspec.new(diff_spec))
 end
 
 ---@param bufnr integer
@@ -187,7 +240,7 @@ end
 ---@param bufnr integer
 ---@param source diffs.GeneratedBufferSource|diffs.SplitEndpointSource
 function M.set_source(bufnr, source)
-  vim.api.nvim_buf_set_var(bufnr, 'diffs_source', source)
+  M.set_var(bufnr, 'diffs_source', source)
 end
 
 ---@param repo_root string
