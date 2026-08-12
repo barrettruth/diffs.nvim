@@ -911,6 +911,7 @@ end
 
 ---@class diffs.OpenReviewSplitOpts
 ---@field selection? diffs.GeneratedFileSelection
+---@field source_position? diffs.SourcePosition
 ---@field replace_win? integer
 ---@field map_layout? diffs.ReviewMapLayout
 
@@ -1111,6 +1112,7 @@ end
 ---@field review_buf integer
 ---@field replace_win integer
 ---@field selected diffs.GeneratedFileSelection
+---@field source_position? diffs.SourcePosition
 ---@field repo_root string
 ---@field map_layout diffs.ReviewMapLayout
 
@@ -1156,10 +1158,14 @@ local function review_split_context(opts)
       review_buf
   end
 
+  local selected_line = selected.lnum
+    and hunk_model.line_at(lists.generated_hunks(review_buf), selected.lnum)
+
   return {
     review_buf = review_buf,
     replace_win = review_win,
     selected = selected,
+    source_position = hunk_model.source_position_for(selected_line),
     repo_root = source.repo_root,
     map_layout = map_layout,
   },
@@ -1756,6 +1762,7 @@ open_review_split = function(spec, opts)
   review_split_states[opened.left_buf] = state
   review_split_states[opened.right_buf] = state
   attach_review_split_autocmds(state)
+  split.move_pair_to_source(opened.right_buf, opts.source_position)
 
   local files = lists.generated_files(review_lines, review_generated_list_opts(list_opts))
   local index = 1
@@ -1797,6 +1804,7 @@ function M.review_split(opts)
   review_spec.repo = context.repo_root
   return open_review_split(review_spec, {
     selection = context.selected,
+    source_position = context.source_position,
     replace_win = context.replace_win,
     map_layout = context.map_layout,
   })
@@ -1827,20 +1835,28 @@ end
 ---@param bufnr integer
 ---@param selected_file string
 ---@param selected_key string?
+---@param position diffs.SourcePosition?
 ---@return boolean
-local function goto_review_map_selection(bufnr, selected_file, selected_key)
+local function goto_review_map_selection(bufnr, selected_file, selected_key, position)
   local win = first_window_for_buffer(bufnr)
   if not win then
     return false
   end
+  local matched_line = position
+    and hunk_model.line_at_source(
+      lists.generated_hunks(bufnr),
+      { file = selected_file, key = selected_key },
+      position
+    )
   for _, item in ipairs(vim.fn.getqflist({ items = 0 }).items) do
     local data = item.user_data and item.user_data.diffs
     if item.bufnr == bufnr and type(data) == 'table' then
       local matches = selected_key and data.key == selected_key
         or (not selected_key and data.file == selected_file)
       if matches then
+        local lnum = (matched_line and matched_line.lnum) or item.lnum or 1
         vim.api.nvim_set_current_win(win)
-        vim.api.nvim_win_set_cursor(win, { math.max(1, item.lnum or 1), 0 })
+        vim.api.nvim_win_set_cursor(win, { math.max(1, lnum), 0 })
         vim.api.nvim_exec_autocmds('CursorMoved', { buffer = bufnr })
         return true
       end
@@ -1861,6 +1877,7 @@ local function open_review_map_from_split(state, layout)
   local source_buf = vim.api.nvim_win_get_buf(keep_win)
   local selected_file = state.selected_file
   local selected_key = state.selected_key
+  local position = split.displayed_position(source_buf, vim.api.nvim_win_get_cursor(keep_win)[1])
   local review_spec = vim.deepcopy(state.review)
   review_spec.repo = state.repo_root
   forget_review_split(state)
@@ -1879,7 +1896,7 @@ local function open_review_map_from_split(state, layout)
   })
   split.delete_pair_buffers(split_buffers)
   if bufnr then
-    goto_review_map_selection(bufnr, selected_file, selected_key)
+    goto_review_map_selection(bufnr, selected_file, selected_key, position)
   end
   return bufnr
 end

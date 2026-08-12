@@ -603,6 +603,17 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     |<Plug>(diffs-review-toggle-layout)|, set only when you have not already
     mapped `gs` in that buffer.
 
+    The toggle carries the cursor line in both directions. The split opens on
+    the source line the map cursor was on, and returning lands on the map line
+    for the source line the split cursor is on, so moving inside the split is
+    reflected in the map. Map lines with no source line of their own, such as
+    file and hunk headers, open the split at the first change of the hunk.
+
+    The split shows a removed line and the line that replaced it on one row,
+    which the map shows as two. Returning uses the line under the cursor, so
+    leaving from the right pane lands on the `+` line of such a pair even when
+    the `-` line is what selected it. Toggling again keeps that line.
+
     In split layout, `]f`/`[f` step to the next/previous changed file in the
     review (wrapping at the ends), swapping the displayed pair in place and
     reusing the two windows. Each step (and the initial open) echoes the file's
@@ -1334,8 +1345,9 @@ review_toggle_layout({opts})              *diffs.nvim.review_toggle_layout()*
     Toggle the current review surface between the generated review map and split
     layout. From a generated review map, opens the selected file in split layout.
     From a review split, closes the pair and restores the generated map layout
-    recorded on the split (`unified` or `stacked`). Returns the opened buffer
-    number or `nil` if the current buffer is not a review surface.
+    recorded on the split (`unified` or `stacked`). Either direction keeps the
+    cursor on the line it was on, mapped through the diff. Returns the opened
+    buffer number or `nil` if the current buffer is not a review surface.
 
     Parameters: ~
         {opts}   (table, optional) Supports `{ bufnr = <integer> }`. Defaults to
