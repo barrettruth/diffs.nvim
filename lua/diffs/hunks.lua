@@ -392,6 +392,46 @@ function M.prev_hunk(hunks, lnum)
   return nil
 end
 
+---@class diffs.SourcePosition
+---@field side "left"|"right"
+---@field lnum integer
+
+---@param line diffs.DiffHunkLine?
+---@return diffs.SourcePosition?
+function M.source_position_for(line)
+  if not line then
+    return nil
+  end
+  if line.kind == 'delete' and line.old_lnum then
+    return { side = 'left', lnum = line.old_lnum }
+  end
+  if (line.kind == 'add' or line.kind == 'context') and line.new_lnum then
+    return { side = 'right', lnum = line.new_lnum }
+  end
+  return nil
+end
+
+---@param hunks diffs.DiffHunk[]?
+---@param selection { file: string, key?: string }
+---@param position diffs.SourcePosition
+---@return diffs.DiffHunkLine?
+function M.line_at_source(hunks, selection, position)
+  local field = position.side == 'left' and 'old_lnum' or 'new_lnum'
+  local kind = position.side == 'left' and 'delete' or 'add'
+  for _, hunk in ipairs(hunks or {}) do
+    local matches = selection.key and hunk.generated_key == selection.key
+      or (not selection.key and (hunk.file or hunk.path) == selection.file)
+    if matches then
+      for _, line in ipairs(hunk.lines) do
+        if (line.kind == kind or line.kind == 'context') and line[field] == position.lnum then
+          return line
+        end
+      end
+    end
+  end
+  return nil
+end
+
 ---@param item diffs.DiffHunk|diffs.DiffHunkLine|nil
 ---@return { path: string, lnum: integer }?
 function M.source_line_for(item)

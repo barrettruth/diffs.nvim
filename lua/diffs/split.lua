@@ -1264,6 +1264,115 @@ local function nearest_non_filler_row(rows, cursor_row, lnum_field)
 end
 
 ---@param bufnr integer
+---@param side "left"|"right"
+---@return integer?
+local function pane_buffer_for_side(bufnr, side)
+  local source = buffer_source(bufnr)
+  if source and source.side == side then
+    return bufnr
+  end
+
+  local peer = split_peer(bufnr)
+  local peer_source = peer and buffer_source(peer) or nil
+  if peer_source and peer_source.side == side then
+    return peer
+  end
+  return nil
+end
+
+---@param bufnr integer
+---@param row? integer
+---@return integer?
+local function resolve_pane_row(bufnr, row)
+  if row then
+    return row
+  end
+
+  local win = current_or_first_window_for_buffer(bufnr)
+  if not win then
+    return nil
+  end
+  return vim.api.nvim_win_get_cursor(win)[1]
+end
+
+---@param bufnr integer
+---@param row? integer
+---@return diffs.SourcePosition?
+local function source_position(bufnr, row)
+  local source = buffer_source(bufnr)
+  local info = pane_info[bufnr]
+  local pane_row = resolve_pane_row(bufnr, row)
+  if not source or not info or not info.rows or not pane_row then
+    return nil
+  end
+
+  local lnum_field = side_config[source.side].lnum
+  local matched = nearest_non_filler_row(info.rows, pane_row, lnum_field)
+  if not matched then
+    return nil
+  end
+  return { side = source.side, lnum = matched[lnum_field] }
+end
+
+---@param bufnr integer
+---@param side "left"|"right"
+---@param row integer
+---@return diffs.SourcePosition?
+local function position_at_row(bufnr, side, row)
+  local pane = pane_buffer_for_side(bufnr, side)
+  local info = pane and pane_info[pane]
+  local entry = info and info.rows and info.rows[row]
+  if not entry or entry.kind == 'filler' then
+    return nil
+  end
+
+  local lnum = entry[side_config[side].lnum]
+  if not lnum then
+    return nil
+  end
+  return { side = side, lnum = lnum }
+end
+
+---@param bufnr integer
+---@param row? integer
+---@return diffs.SourcePosition?
+function M.displayed_position(bufnr, row)
+  local source = buffer_source(bufnr)
+  local pane_row = resolve_pane_row(bufnr, row)
+  if not source or not pane_row then
+    return nil
+  end
+
+  local peer_side = source.side == 'left' and 'right' or 'left'
+  return position_at_row(bufnr, source.side, pane_row)
+    or position_at_row(bufnr, peer_side, pane_row)
+end
+
+---@param bufnr integer
+---@param position diffs.SourcePosition?
+---@return boolean
+function M.move_pair_to_source(bufnr, position)
+  if type(position) ~= 'table' or not side_config[position.side] then
+    return false
+  end
+
+  local pane = pane_buffer_for_side(bufnr, position.side)
+  local info = pane and pane_info[pane]
+  if not info or not info.rows then
+    return false
+  end
+
+  local lnum_field = side_config[position.side].lnum
+  for row, entry in ipairs(info.rows) do
+    if entry.kind ~= 'filler' and entry[lnum_field] == position.lnum then
+      move_pair_to_row(bufnr, row)
+      return true
+    end
+  end
+  return false
+end
+
+---@param bufnr integer
 ---@return boolean
 function M.open_source(bufnr)
   local source = buffer_source(bufnr)
@@ -1293,13 +1402,8 @@ function M.open_source(bufnr)
 
   local filepath = resolve_worktree_path(source.repo_root, source.path)
   local cursor_row = vim.api.nvim_win_get_cursor(source_win)[1]
-  local info = pane_info[bufnr]
-  local target_lnum = cursor_row
-  if info and info.rows then
-    local lnum_field = side_config[source.side].lnum
-    local row = nearest_non_filler_row(info.rows, cursor_row, lnum_field)
-    target_lnum = (row and row[lnum_field]) or cursor_row
-  end
+  local position = source_position(bufnr, cursor_row)
+  local target_lnum = (position and position.lnum) or cursor_row
   local existing_win = find_window_for_file(filepath)
   if existing_win then
     vim.api.nvim_set_current_win(existing_win)

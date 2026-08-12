@@ -3687,7 +3687,7 @@ describe('commands', function()
         vim.b[map_buf].diffs_review
       )
       assert.is_true(helpers.has_keymap(map_buf, 'gs'))
-      assert.is_true(cursor_text:find('diff --git a/lua/two.lua b/lua/two.lua', 1, true) ~= nil)
+      assert.is_true(cursor_text:find('+line 2 changed', 1, true) ~= nil)
       assert.is_true(#loc >= 1)
       assert.are.equal(map_buf, loc[1].bufnr)
       assert.is_true(loc[1].text:find('lua/two.lua', 1, true) ~= nil)
@@ -3712,6 +3712,108 @@ describe('commands', function()
       assert.are.equal('dual', vim.api.nvim_buf_get_var(map_buf, 'diffs_rail_style'))
       assert.are.same({ display = 'HEAD', layout = 'unified' }, vim.b[map_buf].diffs_review)
       assert.is_true(buffer_text(map_buf):find('diff --git a/file.txt b/file.txt', 1, true) ~= nil)
+    end)
+
+    local function create_block_review_repo()
+      local repo_root = create_repo()
+      write_repo_file(repo_root, 'lua/block.lua', {
+        'one',
+        'two',
+        'three',
+        'four',
+        'five',
+        'six',
+      })
+      git_cmd(repo_root, { 'add', 'lua/block.lua' })
+      git_cmd(repo_root, { 'commit', '-qm', 'block' })
+      write_repo_file(repo_root, 'lua/block.lua', {
+        'one',
+        'two changed',
+        'three changed',
+        'five',
+        'six',
+      })
+      return repo_root
+    end
+
+    ---@param repo_root string
+    ---@param text string
+    ---@return integer, integer, integer
+    local function toggle_from_review_line(repo_root, text)
+      edit_file(repo_root .. '/lua/block.lua')
+      mock_runtime_attach(function() end)
+
+      local review_buf = commands.review({ base = 'HEAD', repo = repo_root })
+      assert.is_not_nil(review_buf)
+      table.insert(test_buffers, review_buf)
+      local review_win = find_window_for_buffer(review_buf)
+      assert.is_not_nil(review_win)
+      local review_line = find_buffer_line(review_buf, text)
+      assert.is_not_nil(review_line)
+      vim.api.nvim_set_current_win(review_win)
+      vim.api.nvim_win_set_cursor(review_win, { review_line, 0 })
+
+      local panes = track_panes(commands.review_toggle_layout())
+      vim.api.nvim_set_current_win(panes.right_win)
+      local split_row = vim.api.nvim_win_get_cursor(panes.right_win)[1]
+
+      local map_buf = commands.review_toggle_layout()
+      assert.is_not_nil(map_buf)
+      table.insert(test_buffers, map_buf)
+      local map_win = find_window_for_buffer(map_buf)
+      assert.is_not_nil(map_win)
+
+      return review_line, split_row, vim.api.nvim_win_get_cursor(map_win)[1]
+    end
+
+    it('opens the split at the selected review line and returns to it', function()
+      local repo_root = create_block_review_repo()
+
+      local review_line, split_row, returned_line =
+        toggle_from_review_line(repo_root, '+three changed')
+
+      assert.are.equal(3, split_row)
+      assert.are.equal(review_line, returned_line)
+    end)
+
+    it('returns to a deleted review line from the filler row facing it', function()
+      local repo_root = create_block_review_repo()
+
+      local review_line, _, returned_line = toggle_from_review_line(repo_root, '-four')
+
+      assert.are.equal(review_line, returned_line)
+    end)
+
+    it('returns to the review line the split cursor moved to', function()
+      local repo_root = create_block_review_repo()
+      edit_file(repo_root .. '/lua/block.lua')
+      mock_runtime_attach(function() end)
+
+      local review_buf = commands.review({ base = 'HEAD', repo = repo_root })
+      assert.is_not_nil(review_buf)
+      table.insert(test_buffers, review_buf)
+      local review_win = find_window_for_buffer(review_buf)
+      vim.api.nvim_set_current_win(review_win)
+      vim.api.nvim_win_set_cursor(review_win, { find_buffer_line(review_buf, '+two changed'), 0 })
+
+      local panes = track_panes(commands.review_toggle_layout())
+      vim.api.nvim_set_current_win(panes.right_win)
+      local moved_row = nil
+      for lnum, line in ipairs(vim.api.nvim_buf_get_lines(panes.right_buf, 0, -1, false)) do
+        if line == 'six' then
+          moved_row = lnum
+        end
+      end
+      assert.is_not_nil(moved_row)
+      vim.api.nvim_win_set_cursor(panes.right_win, { moved_row, 0 })
+
+      local map_buf = commands.review_toggle_layout()
+      assert.is_not_nil(map_buf)
+      table.insert(test_buffers, map_buf)
+      local map_win = find_window_for_buffer(map_buf)
+      local returned_line = vim.api.nvim_win_get_cursor(map_win)[1]
+
+      assert.are.equal(find_buffer_line(map_buf, ' six'), returned_line)
     end)
 
     it('restores duplicate current-state review paths by review key', function()
@@ -3743,8 +3845,7 @@ describe('commands', function()
       table.insert(test_buffers, map_buf)
       local map_win = find_window_for_buffer(map_buf)
       assert.is_not_nil(map_win)
-      local expected_line =
-        find_buffer_line_after(map_buf, '# Unstaged:', 'diff --git a/lua/dup.lua b/lua/dup.lua')
+      local expected_line = find_buffer_line_after(map_buf, '# Unstaged:', '-dup staged')
 
       assert.are.equal(expected_line, vim.api.nvim_win_get_cursor(map_win)[1])
     end)
