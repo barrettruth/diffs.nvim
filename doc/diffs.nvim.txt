@@ -476,16 +476,23 @@ Diff objects: ~                                       *diffs.nvim-diff-objects*
 
 Diff files: ~                                            *diffs.nvim-diff-files*
 
-    `:Diff files {left} [{right}]` opens a read-only generated diff of two
+    `:Diff files [{left}] [{right}]` opens a read-only generated diff of two
     arbitrary files. Neither file has to be tracked by git, and the command
     works outside a repository. It is the file-path counterpart to a plain
     |:Diff| object: the first path names the old (left) side, and the second
-    names the new (right) side. With a single path the new side defaults to the
-    current buffer's file, mirroring |:diffsplit| and `:Diff {rev}`.
+    names the new (right) side.
+
+    A named path is always read from disk. An omitted side falls back to the
+    current buffer: the new side is the buffer's live content, and the old
+    side is that buffer's file on disk. Bare `:Diff files` therefore compares
+    the buffer to its last save, like `:Diff {rev}`, which also diffs against
+    unsaved buffer content. A buffer-backed side is shown as `buffer:{name}`,
+    and falls back to disk if that buffer is gone when the view reloads.
 
     Examples: >vim
+        :Diff files                   " last save (old) vs buffer (new)
         :Diff files old.lua new.lua   " old.lua (old) vs new.lua (new)
-        :Diff files other.lua         " other.lua (old) vs current file (new)
+        :Diff files other.lua         " other.lua (old) vs buffer (new)
         :Diff files ++layout=stacked a.txt b.txt
 <
     The `++layout=unified` and `++layout=stacked` layouts and the |:vertical|
@@ -495,10 +502,12 @@ Diff files: ~                                            *diffs.nvim-diff-files*
     (`do`/`dp`) are not available.
 
     Errors: ~
-    - With no path, or more than two, the command reports the expected count.
+    - More than two paths reports the expected count.
+    - An omitted side needs a named current buffer.
     - A path that is a directory, missing, unreadable, or binary is refused and
-      named; directories are intentionally unsupported.
-    - Two identical files report no changes without opening a buffer.
+      named; directories are intentionally unsupported. A buffer-backed side
+      does not have to exist on disk.
+    - Two identical sides report no changes without opening a buffer.
 
 Stacked generated layout: ~                        *diffs.nvim-stacked-layout*
 

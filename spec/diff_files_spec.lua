@@ -55,6 +55,7 @@ describe('diffs.commands.diff_files', function()
   before_each(function()
     dir = vim.fn.tempname()
     vim.fn.mkdir(dir, 'p')
+    dir = vim.fn.resolve(dir)
     a = dir .. '/a.txt'
     b = dir .. '/b.txt'
     vim.fn.writefile({ 'alpha', 'beta', 'gamma' }, a)
@@ -69,7 +70,8 @@ describe('diffs.commands.diff_files', function()
       return false
     end)
     for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-      if vim.api.nvim_buf_is_valid(buf) and vim.api.nvim_buf_get_name(buf):match('^diffs://') then
+      local name = vim.api.nvim_buf_is_valid(buf) and vim.api.nvim_buf_get_name(buf) or ''
+      if name:match('^diffs://') or name:find(dir, 1, true) then
         pcall(vim.api.nvim_buf_delete, buf, { force = true })
       end
     end
@@ -91,14 +93,107 @@ describe('diffs.commands.diff_files', function()
     assert.are.equal(b, source.right_path)
   end)
 
-  it('defaults the new side to the current buffer with a single path', function()
+  it('defaults the new side to live buffer content with a single path', function()
     vim.cmd('edit ' .. vim.fn.fnameescape(a))
+    local src = vim.api.nvim_get_current_buf()
+    vim.api.nvim_buf_set_lines(src, 0, -1, false, { 'alpha', 'beta', 'UNSAVED' })
+
     local bufnr = commands.diff_files(b, nil, { layout = 'unified' })
 
     assert.is_number(bufnr)
+    assert.is_true(has_line(bufnr, '^.*%+UNSAVED'))
+
     local source = generated.source(bufnr)
     assert.are.equal(b, source.left_path)
     assert.are.equal(a, source.right_path)
+    assert.are.equal(src, source.right_buf)
+  end)
+
+  it('compares the current buffer against its last save with no paths', function()
+    vim.cmd('edit ' .. vim.fn.fnameescape(a))
+    local src = vim.api.nvim_get_current_buf()
+    vim.api.nvim_buf_set_lines(src, 2, 3, false, { 'GAMMA' })
+
+    local bufnr = commands.diff_files(nil, nil, { layout = 'unified' })
+
+    assert.is_number(bufnr)
+    assert.is_true(has_line(bufnr, '^.*%-gamma'))
+    assert.is_true(has_line(bufnr, '^.*%+GAMMA'))
+
+    local source = generated.source(bufnr)
+    assert.are.equal(a, source.left_path)
+    assert.are.equal(a, source.right_path)
+    assert.are.equal(src, source.right_buf)
+    assert.is_truthy(vim.api.nvim_buf_get_name(bufnr):find('-> buffer:', 1, true))
+  end)
+
+  it('reports no changes for an unmodified buffer with no paths', function()
+    vim.cmd('edit ' .. vim.fn.fnameescape(a))
+
+    local bufnr = commands.diff_files(nil, nil, { layout = 'unified' })
+
+    assert.is_nil(bufnr)
+    local name = vim.fn.fnamemodify(a, ':~:.')
+    assert.is_true(last_message_has('no changes between ' .. name .. ' and buffer:' .. name))
+  end)
+
+  it('reads both sides from disk when the new side is named', function()
+    vim.cmd('edit ' .. vim.fn.fnameescape(b))
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'UNSAVED' })
+
+    local bufnr = commands.diff_files(a, b, { layout = 'unified' })
+
+    assert.is_number(bufnr)
+    assert.is_false(has_line(bufnr, 'UNSAVED'))
+    assert.is_nil(generated.source(bufnr).right_buf)
+  end)
+
+  it('allows a buffer-backed side that is not on disk', function()
+    vim.cmd('edit ' .. vim.fn.fnameescape(dir .. '/new.txt'))
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'alpha', 'beta', 'gamma', 'delta' })
+
+    local bufnr = commands.diff_files(a, nil, { layout = 'unified' })
+
+    assert.is_number(bufnr)
+    assert.is_true(has_line(bufnr, '^.*%+delta'))
+  end)
+
+  it('refuses a defaulted side in an unnamed buffer', function()
+    vim.cmd('enew')
+
+    assert.is_nil(commands.diff_files(a, nil, { layout = 'unified' }))
+    assert.is_true(last_message_has('cannot diff unnamed buffer'))
+  end)
+
+  it('re-reads the buffer when the view reloads', function()
+    vim.cmd('edit ' .. vim.fn.fnameescape(a))
+    local src = vim.api.nvim_get_current_buf()
+    vim.api.nvim_buf_set_lines(src, 0, -1, false, { 'alpha', 'beta', 'first' })
+
+    local bufnr = commands.diff_files(b, nil, { layout = 'unified' })
+    assert.is_number(bufnr)
+
+    vim.api.nvim_buf_set_lines(src, 0, -1, false, { 'alpha', 'beta', 'second' })
+    commands.read_buffer(bufnr)
+
+    assert.is_true(has_line(bufnr, '^.*%+second'))
+    assert.is_false(has_line(bufnr, '^.*%+first'))
+  end)
+
+  it('falls back to disk when the buffer is gone at reload', function()
+    vim.cmd('edit ' .. vim.fn.fnameescape(a))
+    local src = vim.api.nvim_get_current_buf()
+    vim.api.nvim_buf_set_lines(src, 0, -1, false, { 'alpha', 'beta', 'UNSAVED' })
+
+    local bufnr = commands.diff_files(b, nil, { layout = 'unified' })
+    assert.is_number(bufnr)
+    assert.is_true(has_line(bufnr, '^.*%+UNSAVED'))
+
+    vim.api.nvim_buf_delete(src, { force = true })
+    commands.read_buffer(bufnr)
+
+    assert.is_false(has_line(bufnr, 'UNSAVED'))
+    assert.is_true(has_line(bufnr, '^.*%+beta'))
   end)
 
   it('reloads from disk through the files source', function()

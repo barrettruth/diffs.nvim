@@ -222,7 +222,7 @@ function M.parse(args, context)
 end
 
 ---@class diffs.DiffFilesParseResult
----@field left string # old/left side path, as typed
+---@field left? string # old/left side path, as typed; nil means the current buffer's file on disk
 ---@field right? string # new/right side path, as typed; nil means the current buffer
 ---@field layout "unified"|"stacked"|"split"
 
@@ -235,9 +235,6 @@ function M.parse_files(args)
     return nil, layout_err
   end
 
-  if #tokens == 0 then
-    return nil, ':Diff files expects one or two file paths'
-  end
   if #tokens > 2 then
     return nil, 'expected at most two file paths'
   end

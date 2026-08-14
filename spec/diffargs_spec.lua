@@ -233,13 +233,17 @@ describe('diffs.diffargs.parse_files', function()
     assert.are.equal('split', result.layout)
   end)
 
-  it('requires at least one path', function()
-    for _, args in ipairs({ nil, '', '++layout=unified' }) do
-      local result, err = diffargs.parse_files(args)
+  it('defaults both sides to the current buffer with no paths', function()
+    local bare, bare_err = diffargs.parse_files(nil)
+    assert.is_nil(bare_err)
+    assert.is_nil(bare.left)
+    assert.is_nil(bare.right)
+    assert.are.equal('unified', bare.layout)
 
-      assert.is_nil(result)
-      assert.are.equal(':Diff files expects one or two file paths', err)
-    end
+    local layout_only = diffargs.parse_files('++layout=stacked')
+    assert.is_nil(layout_only.left)
+    assert.is_nil(layout_only.right)
+    assert.are.equal('stacked', layout_only.layout)
   end)
 
   it('rejects more than two paths', function()
