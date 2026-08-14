@@ -153,6 +153,7 @@ end
 ---@field right_path? string
 ---@field left_name? string
 ---@field right_name? string
+---@field right_buf? integer
 
 ---@param source table
 ---@return diffs.GeneratedBufferSource?
@@ -213,6 +214,9 @@ function M.normalize_source(source)
     end
     if type(source.right_path) ~= 'string' or source.right_path == '' then
       error('expected files right_path')
+    end
+    if source.right_buf ~= nil and type(source.right_buf) ~= 'number' then
+      error('expected files right_buf')
     end
   else
     error('unknown source kind')
@@ -301,8 +305,9 @@ end
 ---@param right_path string # absolute path of the new/right side
 ---@param left_name string # display name for the old/left side
 ---@param right_name string # display name for the new/right side
+---@param right_buf? integer # buffer whose content is the new/right side; nil reads the path
 ---@return diffs.GeneratedBufferSource
-function M.files_source(left_path, right_path, left_name, right_name)
+function M.files_source(left_path, right_path, left_name, right_name, right_buf)
   return {
     version = 1,
     kind = 'files',
@@ -310,6 +315,7 @@ function M.files_source(left_path, right_path, left_name, right_name)
     right_path = right_path,
     left_name = left_name,
     right_name = right_name,
+    right_buf = right_buf,
   }
 end
 

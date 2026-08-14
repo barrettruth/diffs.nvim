@@ -588,6 +588,27 @@ local function render_section_source(repo_root, section)
   return replace_combined_diffs(diff_lines, repo_root)
 end
 
+---@param name string
+---@param buffered boolean
+---@return string
+local function files_side_display(name, buffered)
+  return buffered and ('buffer:' .. name) or name
+end
+
+---@param source diffs.GeneratedBufferSource
+---@return diffs.ContentLines?, boolean
+local function files_source_new_lines(source)
+  local bufnr = source.right_buf
+  if
+    bufnr
+    and vim.api.nvim_buf_is_loaded(bufnr)
+    and vim.api.nvim_buf_get_name(bufnr) == source.right_path
+  then
+    return content.from_buffer(bufnr), true
+  end
+  return git.get_working_content(source.right_path), false
+end
+
 ---@param source diffs.GeneratedBufferSource
 ---@return string[]?, diffs.DiffSpec?, string?, table?
 local function render_source(source)
@@ -606,13 +627,13 @@ local function render_source(source)
     if not old_lines then
       return nil, nil, source.left_name .. ': file not readable', nil
     end
-    local new_lines = git.get_working_content(source.right_path)
+    local new_lines, buffered = files_source_new_lines(source)
     if not new_lines then
       return nil, nil, source.right_name .. ': file not readable', nil
     end
     return render.unified_lines(old_lines, new_lines, source.left_name, source.right_name),
       nil,
-      'files:' .. source.left_name .. ' -> ' .. source.right_name,
+      'files:' .. source.left_name .. ' -> ' .. files_side_display(source.right_name, buffered),
       nil
   end
 
@@ -998,50 +1019,51 @@ end
 ---@field layout "unified"|"stacked"|"split"
 ---@field vertical? boolean
 
----@param left string
+---@param path string
+---@return string, string
+local function files_side_names(path)
+  local abs = vim.fn.fnamemodify(vim.fn.expand(path), ':p')
+  local name = vim.fn.fnamemodify(abs, ':~:.')
+  return abs, name ~= '' and name or abs
+end
+
+---@param left string?
 ---@param right string?
 ---@param opts? diffs.DiffFilesViewOpts
 ---@return integer?
 function M.diff_files(left, right, opts)
   opts = opts or {}
 
-  local right_input = right
-  if not right_input then
-    local current = vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf())
-    if current == '' then
-      notify('cannot diff unnamed buffer', vim.log.levels.ERROR)
-      return nil
-    end
-    right_input = current
+  local current_buf = vim.api.nvim_get_current_buf()
+  local current_name = vim.api.nvim_buf_get_name(current_buf)
+  local right_buf = right == nil and current_buf or nil
+  if (left == nil or right == nil) and current_name == '' then
+    notify('cannot diff unnamed buffer', vim.log.levels.ERROR)
+    return nil
   end
 
-  local left_abs = vim.fn.fnamemodify(vim.fn.expand(left), ':p')
-  local right_abs = vim.fn.fnamemodify(vim.fn.expand(right_input), ':p')
-  local left_name = vim.fn.fnamemodify(left_abs, ':~:.')
-  if left_name == '' then
-    left_name = left_abs
-  end
-  local right_name = vim.fn.fnamemodify(right_abs, ':~:.')
-  if right_name == '' then
-    right_name = right_abs
-  end
+  local left_abs, left_name = files_side_names(left or current_name)
+  local right_abs, right_name = files_side_names(right or current_name)
+  local right_display = files_side_display(right_name, right_buf ~= nil)
 
   for _, side in ipairs({
-    { abs = left_abs, name = left_name },
-    { abs = right_abs, name = right_name },
+    { abs = left_abs, name = left_name, buffered = false },
+    { abs = right_abs, name = right_name, buffered = right_buf ~= nil },
   }) do
     if vim.fn.isdirectory(side.abs) == 1 then
       notify(side.name .. ' is a directory; :Diff files compares two files', vim.log.levels.ERROR)
       return nil
     end
-    if vim.fn.filereadable(side.abs) ~= 1 then
+    if not side.buffered and vim.fn.filereadable(side.abs) ~= 1 then
       notify(side.name .. ': file not readable', vim.log.levels.ERROR)
       return nil
     end
   end
 
   local old_lines = git.get_working_content(left_abs) or {}
-  local new_lines = git.get_working_content(right_abs) or {}
+  local new_lines = right_buf and content.from_buffer(right_buf)
+    or git.get_working_content(right_abs)
+    or {}
   if render.has_binary_lines(old_lines) or render.has_binary_lines(new_lines) then
     notify('diff does not support binary files', vim.log.levels.ERROR)
     return nil
@@ -1049,30 +1071,32 @@ function M.diff_files(left, right, opts)
 
   local diff_lines = render.unified_lines(old_lines, new_lines, left_name, right_name)
   if #diff_lines == 0 then
-    notify('no changes between ' .. left_name .. ' and ' .. right_name, vim.log.levels.INFO)
+    notify('no changes between ' .. left_name .. ' and ' .. right_display, vim.log.levels.INFO)
     return nil
   end
 
   local diff_buf = create_generated_diff_buffer({
-    name = 'diffs://files:' .. left_name .. ' -> ' .. right_name,
+    name = 'diffs://files:' .. left_name .. ' -> ' .. right_display,
     lines = diff_lines,
-    source = generated.files_source(left_abs, right_abs, left_name, right_name),
+    source = generated.files_source(left_abs, right_abs, left_name, right_name, right_buf),
     rail_style = rail_style_for_layout(opts.layout),
   })
   show_generated_diff_buffer(diff_buf, opts.vertical)
   lists.set_for_unified_buffer(diff_buf, diff_lines, {
-    title = 'diff: files ' .. left_name .. ' -> ' .. right_name,
+    title = 'diff: files ' .. left_name .. ' -> ' .. right_display,
   })
   attach_generated_diff_buffer(diff_buf)
 
-  if difftastic.available() then
+  if right_buf then
+    apply_difft_unified(diff_buf, diff_lines, nil, old_lines, new_lines, right_name)
+  elseif difftastic.available() then
     local lhs, rhs = difftastic.span_maps_for_paths(left_abs, right_abs)
     if lhs and rhs then
       paint_difft_unified(diff_buf, diff_lines, nil, lhs, rhs)
     end
   end
 
-  dbg('opened files diff buffer %d (%s -> %s)', diff_buf, left_name, right_name)
+  dbg('opened files diff buffer %d (%s -> %s)', diff_buf, left_name, right_display)
   return diff_buf
 end
 
