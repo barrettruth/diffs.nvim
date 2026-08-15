@@ -966,6 +966,32 @@ function M.review_command(args, vertical, opts)
   return bufnr
 end
 
+---@class diffs.ReviewOpts
+---@field layout? "unified"|"stacked"|"split"
+---@field replace_win? integer
+
+--- Open a review from Lua, for a caller that already knows what it wants
+--- reviewed.
+---
+--- `replace_win` is why this exists as well as `:Diff review`: a command has
+--- nowhere to say "this window", so with no review open it splits. An embedder
+--- handing a review off from its own buffer already has a window and wants that
+--- one, not a new one and not the rest of the tab closed to compensate.
+---@param spec? diffs.ReviewSpec
+---@param opts? diffs.ReviewOpts
+---@return integer?
+function M.open_review(spec, opts)
+  opts = opts or {}
+  if opts.layout == 'split' then
+    return open_review_split(spec, { replace_win = opts.replace_win })
+  end
+  return M.review(spec, {
+    rail_style = rail_style_for_layout(opts.layout),
+    review_layout = normalize_review_map_layout(opts.layout),
+    replace_win = opts.replace_win,
+  })
+end
+
 --- Primary `:Diff` command handler. Routes `:Diff review ...` to the review
 --- surface and everything else to the current-file diff, threading the
 --- `:vertical` modifier through to generated layouts.

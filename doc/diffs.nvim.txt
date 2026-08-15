@@ -1300,12 +1300,51 @@ refresh({bufnr})                                        *diffs.nvim.refresh()*
     Parameters: ~
         {bufnr}  (integer, optional) Buffer number. Defaults to current buffer.
 
-The review API below is buffer-centric. Navigation functions resolve the review
-split that {bufnr} (default: current buffer) belongs to, and are no-ops
+                                                            *diffs.ReviewSpec*
+A `diffs.ReviewSpec` says what to review, as the arguments to |:Diff-review|
+do: ~
+    {base}       (string, optional) The ref to review against.
+    {target}     (string, optional) The ref to review. Omit for the current
+                 repository state.
+    {mode}       ("merge-base"|"direct", optional) How {base} and {target}
+                 relate, matching `A...B` and `A..B` respectively.
+    {repo}       (string, optional) Repository root. Defaults to the one the
+                 current buffer is in.
+    {untracked}  (boolean, optional) Include untracked files in a
+                 current-state review. Ignored when {target} is given.
+
+open_review({spec}, {opts})                         *diffs.nvim.open_review()*
+    Open a review, as |:Diff-review| does, for a caller that already knows
+    what it wants reviewed. Returns the review buffer, or `nil` on failure.
+
+    {opts.replace_win} is why this exists alongside the command: |:Diff|
+    has nowhere to say "this window", so with no review already open it
+    splits. A plugin handing a review off from its own buffer already has a
+    window and wants that one used, rather than a new one and the rest of the
+    tab closed to compensate. The window is not closed or created, only its
+    buffer replaced.
+
+    Parameters: ~
+        {spec}   (|diffs.ReviewSpec|, optional) What to review. Omit to
+                 review the current repository state against the remote
+                 default branch, as `:Diff review` with no arguments does.
+        {opts}   (table, optional) ~
+                 • {layout} ("unified"|"stacked"|"split", optional) As
+                   `++layout`. Defaults to `view.default_layout`.
+                 • {replace_win} (integer, optional) Show the review in this
+                   window instead of splitting.
+
+    Example, reviewing a pull request in the window you are standing in: >lua
+        require('diffs').open_review(
+          { base = 'main', target = 'refs/forge/pull/12', mode = 'merge-base' },
+          { replace_win = vim.api.nvim_get_current_win() }
+        )
+<
+The rest of the review API is buffer-centric. Navigation functions resolve the
+review split that {bufnr} (default: current buffer) belongs to, and are no-ops
 (`nil`/`false`) elsewhere. |diffs.nvim.review_toggle_layout()| also accepts a
-generated review map buffer and can move between map and split surfaces. These
-helpers are only meaningful inside an open review; nothing here opens a new
-review spec.
+generated review map buffer and can move between map and split surfaces. Those
+helpers are only meaningful inside an open review.
 
                                                             *diffs.ReviewFile*
 A `diffs.ReviewFile` describes one changed file in a review: ~

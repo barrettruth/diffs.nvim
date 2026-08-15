@@ -12,6 +12,7 @@ describe('diffs public API', function()
 
     assert.same({
       'attach',
+      'open_review',
       'refresh',
       'review_current',
       'review_files',
@@ -22,6 +23,7 @@ describe('diffs public API', function()
       'select_review_file',
     }, keys)
     assert.is_function(diffs.attach)
+    assert.is_function(diffs.open_review)
     assert.is_function(diffs.refresh)
     assert.is_function(diffs.review_files)
     assert.is_function(diffs.review_current)
