@@ -53,7 +53,7 @@ describe('diffs.commands.diff_files', function()
   local b
 
   before_each(function()
-    dir = vim.fn.tempname()
+    dir = vim.fn.resolve(vim.fn.tempname())
     vim.fn.mkdir(dir, 'p')
     dir = vim.fn.resolve(dir)
     a = dir .. '/a.txt'

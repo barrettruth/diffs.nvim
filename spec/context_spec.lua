@@ -8,7 +8,7 @@ describe('context', function()
     local tmpdir
 
     before_each(function()
-      tmpdir = vim.fn.tempname()
+      tmpdir = vim.fn.resolve(vim.fn.tempname())
       vim.fn.mkdir(tmpdir, 'p')
     end)
 

@@ -6,7 +6,7 @@ local test_buffers = {}
 local test_files = {}
 
 local function edit_temp_file(lines, flags)
-  local path = vim.fn.tempname()
+  local path = vim.fn.resolve(vim.fn.tempname())
   test_files[#test_files + 1] = path
   vim.fn.writefile(lines, path, flags or '')
   vim.cmd('edit ' .. vim.fn.fnameescape(path))
