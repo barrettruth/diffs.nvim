@@ -2,7 +2,7 @@ require('spec.helpers')
 
 describe('plugin bootstrap', function()
   local function run_child_result(init_lines, after_lines)
-    local tmpdir = vim.fn.tempname()
+    local tmpdir = vim.fn.resolve(vim.fn.tempname())
     assert.are.equal(1, vim.fn.mkdir(tmpdir, 'p'))
     local init_file = tmpdir .. '/init.lua'
     local after_file = tmpdir .. '/after.lua'
@@ -118,7 +118,7 @@ describe('plugin bootstrap', function()
   end)
 
   it('enhances native diff windows opened at startup with nvim -d', function()
-    local tmpdir = vim.fn.tempname()
+    local tmpdir = vim.fn.resolve(vim.fn.tempname())
     assert.are.equal(1, vim.fn.mkdir(tmpdir, 'p'))
     local file_a = tmpdir .. '/a.txt'
     local file_b = tmpdir .. '/b.txt'

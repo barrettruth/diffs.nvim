@@ -95,7 +95,7 @@ local function git_cmd(repo_root, args)
 end
 
 local function create_repo()
-  local repo_root = vim.fn.tempname()
+  local repo_root = vim.fn.resolve(vim.fn.tempname())
   vim.fn.mkdir(repo_root, 'p')
   test_repos[#test_repos + 1] = repo_root
 
@@ -141,7 +141,7 @@ end
 
 local function create_review_repo(opts)
   opts = opts or {}
-  local repo_root = vim.fn.tempname()
+  local repo_root = vim.fn.resolve(vim.fn.tempname())
   vim.fn.mkdir(repo_root, 'p')
   test_repos[#test_repos + 1] = repo_root
 
@@ -213,7 +213,7 @@ end
 
 local function create_current_state_review_repo(opts)
   opts = opts or {}
-  local repo_root = vim.fn.tempname()
+  local repo_root = vim.fn.resolve(vim.fn.tempname())
   vim.fn.mkdir(repo_root, 'p')
   test_repos[#test_repos + 1] = repo_root
 
@@ -257,7 +257,7 @@ local function create_current_state_review_repo(opts)
 end
 
 local function create_mode_only_review_repo()
-  local repo_root = vim.fn.tempname()
+  local repo_root = vim.fn.resolve(vim.fn.tempname())
   vim.fn.mkdir(repo_root, 'p')
   test_repos[#test_repos + 1] = repo_root
 
@@ -3428,7 +3428,7 @@ describe('commands', function()
     end
 
     local function create_binary_first_review_repo()
-      local repo_root = vim.fn.tempname()
+      local repo_root = vim.fn.resolve(vim.fn.tempname())
       vim.fn.mkdir(repo_root, 'p')
       test_repos[#test_repos + 1] = repo_root
 
@@ -3454,7 +3454,7 @@ describe('commands', function()
 
     local function create_binary_review_repo(opts)
       opts = opts or {}
-      local repo_root = vim.fn.tempname()
+      local repo_root = vim.fn.resolve(vim.fn.tempname())
       vim.fn.mkdir(repo_root, 'p')
       test_repos[#test_repos + 1] = repo_root
 
