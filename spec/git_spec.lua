@@ -14,7 +14,7 @@ local function git_cmd(repo_root, args)
 end
 
 local function create_repo()
-  local repo_root = vim.fn.tempname()
+  local repo_root = vim.fn.resolve(vim.fn.tempname())
   vim.fn.mkdir(repo_root, 'p')
   test_repos[#test_repos + 1] = repo_root
 
