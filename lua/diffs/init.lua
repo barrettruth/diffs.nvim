@@ -1,5 +1,6 @@
 ---@class diffs.PublicApi
 ---@field attach fun(bufnr?: integer)
+---@field open_review fun(spec?: diffs.ReviewSpec, opts?: diffs.ReviewOpts): integer?
 ---@field refresh fun(bufnr?: integer)
 ---@field review_files fun(bufnr?: integer): diffs.ReviewFile[]?
 ---@field review_current fun(bufnr?: integer): { index: integer, count: integer, file: diffs.ReviewFile }?
@@ -15,6 +16,7 @@ local runtime = require('diffs.runtime')
 ---@type diffs.PublicApi
 return {
   attach = runtime.attach,
+  open_review = commands.open_review,
   refresh = runtime.refresh,
   review_files = commands.review_files,
   review_current = commands.review_current,
