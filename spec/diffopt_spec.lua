@@ -36,6 +36,26 @@ describe('diffopt resolver', function()
     assert.are.equal(60, opts.linematch)
   end)
 
+  it('resolves every inline granularity', function()
+    for _, mode in ipairs({ 'none', 'simple', 'char', 'word' }) do
+      vim.o.diffopt = 'internal,filler,inline:' .. mode
+      assert.are.equal(mode, diffopt.resolve().inline)
+      assert.are.equal(mode, diffopt.inline())
+    end
+  end)
+
+  it('treats a missing inline value as simple, like Neovim does', function()
+    vim.o.diffopt = 'internal,filler'
+    assert.is_nil(diffopt.resolve().inline)
+    assert.are.equal('simple', diffopt.inline())
+  end)
+
+  it('omits inline from git flags and vim.diff() options', function()
+    vim.o.diffopt = 'internal,inline:word,iwhiteall'
+    assert.are.same({ '--ignore-all-space' }, diffopt.git_flags())
+    assert.are.same({ ignore_whitespace = true }, diffopt.vim_diff_opts())
+  end)
+
   it('maps flags onto the equivalent git diff flags', function()
     vim.o.diffopt = 'internal,iwhiteall'
     assert.are.same({ '--ignore-all-space' }, diffopt.git_flags())

@@ -19,8 +19,7 @@ All other integrations are opt-in. See |diffs.nvim-integrations|.
 
 Features: ~
 - Treesitter syntax highlighting in diff hunks
-- Character-level intra-line diff highlighting
-- Word-level diff highlighting
+- Intra-line diff highlighting, character- or word-level per 'diffopt'
 - Vim syntax fallback for languages without a treesitter parser
 - Blended diff background colors that preserve syntax visibility
 - Optional diff prefix (`+`/`-`/` `) concealment
@@ -305,11 +304,13 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                                                       *diffs.nvim.IntraConfig*
     Intra config fields: ~
         {enabled}            (boolean, default: true)
-                             Enable character-level diff highlighting within
-                             changed lines. When a line changes from `local x = 1`
+                             Enable intra-line diff highlighting within changed
+                             lines. When a line changes from `local x = 1`
                              to `local x = 2`, only the `1`/`2` characters get
                              an intense background overlay while the rest of the
-                             line keeps the softer line-level background.
+                             line keeps the softer line-level background. How
+                             much of the line is covered follows 'diffopt'
+                             `inline:`; see |diffs.nvim-inline|.
 
         {algorithm}          (string, default: 'default')
                              Diff algorithm for character-level analysis.
@@ -762,6 +763,41 @@ Whitespace handling: ~                                  *diffs.nvim-whitespace*
       too. `linematch` has no git equivalent, so it shapes the file diffs
       computed with |vim.diff()| but not the git-backed surfaces (|:Diff-review|
       and the staged/unstaged section diffs).
+
+Inline granularity: ~                                       *diffs.nvim-inline*
+
+    How much of a changed line is emphasized comes from 'diffopt' `inline:`, so
+    diffs.nvim surfaces match native |:diffsplit| windows. As with whitespace,
+    there is no separate plugin option.
+
+        inline:none     No intra-line emphasis. Changed lines keep only their
+                        line-level background.
+        inline:simple   One span per line, from the first differing byte to
+                        the last.
+        inline:char     A span per differing run of characters.
+        inline:word     Spans grown to whole words, with gaps of five bytes or
+                        less of non-word characters merged into one block.
+
+    Neovim treats a 'diffopt' with no `inline:` value as `inline:simple`, and
+    diffs.nvim resolves it the same way. To emphasize whole words: >vim
+        set diffopt+=inline:word
+<
+    The setting takes effect live through the same 'diffopt' repaint described
+    above, so a plain `:set`, an unimpaired-style toggle, or an autocmd all
+    work. There is no dedicated mapping.
+
+    `highlights.intra` stays orthogonal: `inline:` chooses the granularity,
+    `highlights.intra.algorithm` chooses the engine that finds the differences,
+    and `highlights.intra.enabled = false` turns the feature off regardless of
+    'diffopt'.
+
+    Limitations: ~
+    - `inline:word` is produced by growing character-level spans to the word
+      boundaries they touch, not by re-diffing the line word by word. The
+      result matches Neovim's own `inline:word` rendering on ordinary source
+      lines, but the two are not guaranteed identical in every case.
+    - difftastic-rendered diffs keep their structural token spans; `inline:`
+      does not apply to them (see |diffs.nvim-difftastic|).
 
 ==============================================================================
 MAPPINGS                                                 *diffs.nvim-mappings*
