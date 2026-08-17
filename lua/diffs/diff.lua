@@ -136,6 +136,130 @@ local function drop_whitespace_spans(spans, line, diff_opts)
   return kept
 end
 
+--- Gap between two inline:word changes that 'diffopt' folds into a single
+--- highlight block, in bytes.
+local WORD_GAP_MERGE = 5
+
+--- Whether a byte belongs to a |word| (letters, digits, underscore). Bytes of a
+--- multi-byte character are excluded on purpose: 'diffopt' counts emoji and CJK
+--- characters as individual words, so a word boundary falls either side of one.
+---@param byte string
+---@return boolean
+local function is_word_byte(byte)
+  return byte:match('[%w_]') ~= nil
+end
+
+--- Grow a span outward until it covers whole words. The spans reaching here come
+--- from a character-wise differ, so inline:word is produced by widening them to
+--- the word boundaries they already touch rather than by diffing words.
+---@param span diffs.CharSpan
+---@param line string
+---@return diffs.CharSpan
+local function extend_span_to_words(span, line)
+  local col_start, col_end = span.col_start, span.col_end
+  if is_word_byte(line:sub(col_start, col_start)) then
+    while col_start > 1 and is_word_byte(line:sub(col_start - 1, col_start - 1)) do
+      col_start = col_start - 1
+    end
+  end
+  if is_word_byte(line:sub(col_end - 1, col_end - 1)) then
+    while col_end <= #line and is_word_byte(line:sub(col_end, col_end)) do
+      col_end = col_end + 1
+    end
+  end
+  return { line = span.line, col_start = col_start, col_end = col_end }
+end
+
+--- Whether the half-open byte range holds no word bytes. A gap containing one
+--- means an unchanged word sits between the spans, which must not be swallowed.
+---@param line string
+---@param from integer
+---@param to integer
+---@return boolean
+local function gap_is_wordless(line, from, to)
+  for i = from, to - 1 do
+    if is_word_byte(line:sub(i, i)) then
+      return false
+    end
+  end
+  return true
+end
+
+--- Merge one line's word spans where they overlap or are parted by a short run
+--- of non-word bytes, matching how 'diffopt' inline:word blocks read.
+---@param spans diffs.CharSpan[]
+---@param line string
+---@return diffs.CharSpan[]
+local function merge_word_spans(spans, line)
+  table.sort(spans, function(a, b)
+    return a.col_start < b.col_start
+  end)
+
+  ---@type diffs.CharSpan[]
+  local merged = {}
+  for _, span in ipairs(spans) do
+    local prev = merged[#merged]
+    local gap = prev and span.col_start - prev.col_end or nil
+    if
+      prev
+      and gap
+      and gap <= WORD_GAP_MERGE
+      and (gap <= 0 or gap_is_wordless(line, prev.col_end, span.col_start))
+    then
+      prev.col_end = math.max(prev.col_end, span.col_end)
+    else
+      merged[#merged + 1] = span
+    end
+  end
+  return merged
+end
+
+--- Reshape character-wise spans to the granularity 'diffopt' inline: asks for.
+--- `char` is what the differs already produce, so it passes through untouched.
+---@param spans diffs.CharSpan[]
+---@param texts table<integer, string>
+---@param mode diffs.InlineMode
+---@return diffs.CharSpan[]
+local function apply_inline_mode(spans, texts, mode)
+  if mode == 'char' or #spans == 0 then
+    return spans
+  end
+
+  ---@type table<integer, diffs.CharSpan[]>
+  local by_line = {}
+  ---@type integer[]
+  local line_order = {}
+  for _, span in ipairs(spans) do
+    if not by_line[span.line] then
+      by_line[span.line] = {}
+      line_order[#line_order + 1] = span.line
+    end
+    table.insert(by_line[span.line], span)
+  end
+
+  ---@type diffs.CharSpan[]
+  local out = {}
+  for _, line_idx in ipairs(line_order) do
+    local line = texts[line_idx] or ''
+    if mode == 'simple' then
+      local col_start, col_end = math.huge, 0
+      for _, span in ipairs(by_line[line_idx]) do
+        col_start = math.min(col_start, span.col_start)
+        col_end = math.max(col_end, span.col_end)
+      end
+      out[#out + 1] = { line = line_idx, col_start = col_start, col_end = col_end }
+    else
+      ---@type diffs.CharSpan[]
+      local extended = {}
+      for _, span in ipairs(by_line[line_idx]) do
+        extended[#extended + 1] = extend_span_to_words(span, line)
+      end
+      vim.list_extend(out, merge_word_spans(extended, line))
+    end
+  end
+  return out
+end
+
 ---@param old_line string
 ---@param new_line string
 ---@param del_idx integer
@@ -339,6 +463,12 @@ end
 ---@param algorithm? string
 ---@return diffs.IntraChanges?
 function M.compute_intra_hunks(hunk_lines, algorithm)
+  local inline = diffopt.inline()
+  if inline == 'none' then
+    dbg('intra skipped: diffopt inline:none')
+    return nil
+  end
+
   local groups = M.extract_change_groups(hunk_lines)
   if #groups == 0 then
     return nil
@@ -407,7 +537,16 @@ function M.compute_intra_hunks(hunk_lines, algorithm)
     return nil
   end
 
-  return { add_spans = all_add, del_spans = all_del }
+  ---@type table<integer, string>
+  local texts = {}
+  for i, line in ipairs(hunk_lines) do
+    texts[i] = line:sub(2)
+  end
+
+  return {
+    add_spans = apply_inline_mode(all_add, texts, inline),
+    del_spans = apply_inline_mode(all_del, texts, inline),
+  }
 end
 
 --- Normalize a line for whitespace-insensitive comparison, following the active

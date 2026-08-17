@@ -13,7 +13,7 @@ highlighting driven by treesitter.
   [vim-fugitive](https://github.com/tpope/vim-fugitive),
   [Neogit](https://github.com/NeogitOrg/neogit), builtin `diff` filetype, and
   more!
-- Word and chatacer-level diff highlighting
+- Word- and character-level diff highlighting, driven by `'diffopt'` `inline:`
 - `:Diff` for [pierre-style](https://diffs.com) unified, stacked, or split diffs against any revision
 - `:Diff review` full-repo review diff with qflist/loclist navigation
 - `:Diff files` to diff two arbitrary files, or the buffer against its last save
