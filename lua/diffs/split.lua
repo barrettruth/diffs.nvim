@@ -472,12 +472,12 @@ end
 ---@param win integer
 local function set_pair_window_options(win)
   remember_pair_window_options(win)
-  vim.api.nvim_set_option_value('scrollbind', true, { win = win })
-  vim.api.nvim_set_option_value('cursorbind', true, { win = win })
-  vim.api.nvim_set_option_value('wrap', false, { win = win })
-  vim.api.nvim_set_option_value('statuscolumn', split_statuscolumn, { win = win })
-  vim.api.nvim_set_option_value('foldmethod', 'manual', { win = win })
-  vim.api.nvim_set_option_value('foldenable', false, { win = win })
+  vim.api.nvim_set_option_value('scrollbind', true, { win = win, scope = 'local' })
+  vim.api.nvim_set_option_value('cursorbind', true, { win = win, scope = 'local' })
+  vim.api.nvim_set_option_value('wrap', false, { win = win, scope = 'local' })
+  vim.api.nvim_set_option_value('statuscolumn', split_statuscolumn, { win = win, scope = 'local' })
+  vim.api.nvim_set_option_value('foldmethod', 'manual', { win = win, scope = 'local' })
+  vim.api.nvim_set_option_value('foldenable', false, { win = win, scope = 'local' })
 end
 
 ---@param win integer
@@ -486,15 +486,15 @@ local function clear_pair_window_options(win)
   if saved then
     pair_window_options[win] = nil
     for name, value in pairs(saved) do
-      pcall(vim.api.nvim_set_option_value, name, value, { win = win })
+      pcall(vim.api.nvim_set_option_value, name, value, { win = win, scope = 'local' })
     end
     return
   end
 
-  pcall(vim.api.nvim_set_option_value, 'scrollbind', false, { win = win })
-  pcall(vim.api.nvim_set_option_value, 'cursorbind', false, { win = win })
-  pcall(vim.api.nvim_set_option_value, 'foldenable', true, { win = win })
-  pcall(vim.api.nvim_set_option_value, 'statuscolumn', '', { win = win })
+  pcall(vim.api.nvim_set_option_value, 'scrollbind', false, { win = win, scope = 'local' })
+  pcall(vim.api.nvim_set_option_value, 'cursorbind', false, { win = win, scope = 'local' })
+  pcall(vim.api.nvim_set_option_value, 'foldenable', true, { win = win, scope = 'local' })
+  pcall(vim.api.nvim_set_option_value, 'statuscolumn', '', { win = win, scope = 'local' })
 end
 
 ---@param bufnr integer

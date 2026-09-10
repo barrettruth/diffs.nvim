@@ -1296,6 +1296,71 @@ describe('commands', function()
       assert.is_nil(rail(right_win, 2):find('%d'))
     end)
 
+    for _, exit in ipairs({ 'replace', 'close' }) do
+      it('preserves window defaults when leaving a split via ' .. exit, function()
+        vim.cmd.tabnew()
+        local tab = vim.api.nvim_get_current_tabpage()
+        local ok, err = pcall(function()
+          create_split_source()
+          local defaults = {
+            statuscolumn = 'ordinary:%l',
+            number = true,
+            scrollbind = false,
+            cursorbind = false,
+            wrap = true,
+            foldmethod = 'marker',
+            foldenable = true,
+          }
+          for name, value in pairs(defaults) do
+            vim.api.nvim_set_option_value(name, value, { win = 0 })
+          end
+          vim.api.nvim_set_option_value('statuscolumn', 'source:%l', {
+            win = 0,
+            scope = 'local',
+          })
+
+          commands.diff('++layout=split', false)
+          local right_buf = vim.api.nvim_get_current_buf()
+          local left_buf = vim.b[right_buf].diffs_split_peer
+          table.insert(test_buffers, left_buf)
+          table.insert(test_buffers, right_buf)
+          local left_win, right_win = find_split_windows(left_buf, right_buf)
+          for _, win in ipairs({ left_win, right_win }) do
+            for name, value in pairs(defaults) do
+              assert.are.equal(
+                value,
+                vim.api.nvim_get_option_value(name, { win = win, scope = 'global' }),
+                name
+              )
+            end
+          end
+
+          if exit == 'replace' then
+            vim.cmd.enew()
+          else
+            assert.is_true(split.close_pair(right_buf))
+          end
+          for name, value in pairs(defaults) do
+            assert.are.equal(value, vim.api.nvim_get_option_value(name, { win = 0 }), name)
+            assert.are.equal(
+              value,
+              vim.api.nvim_get_option_value(name, { win = 0, scope = 'global' }),
+              name
+            )
+          end
+          assert.are.equal(
+            'ordinary:1',
+            vim.api.nvim_eval_statusline(vim.wo.statuscolumn, { use_statuscol_lnum = 1 }).str
+          )
+        end)
+        if vim.api.nvim_tabpage_is_valid(tab) then
+          vim.api.nvim_set_current_tabpage(tab)
+          vim.cmd.tabclose({ bang = true })
+        end
+        assert.is_true(ok, err)
+      end)
+    end
+
     it('warns and still opens the split when :vertical Diff ++layout=split is used', function()
       local notifications = capture_notifications()
       local saved_splitright = vim.o.splitright
