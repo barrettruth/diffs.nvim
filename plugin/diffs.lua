@@ -47,7 +47,12 @@ vim.api.nvim_create_autocmd('FileType', {
 vim.api.nvim_create_autocmd('BufReadCmd', {
   pattern = 'diffs://*',
   callback = function(args)
-    require('diffs.commands').read_buffer(args.buf)
+    vim.cmd(
+      ('lockmarks lua require("diffs.commands").read_buffer(%d, { quickfix = %s })'):format(
+        args.buf,
+        tostring(vim.b[args.buf].diffs_source ~= nil)
+      )
+    )
   end,
 })
 
@@ -103,10 +108,14 @@ vim.keymap.set('n', '<Plug>(diffs-review-toggle-layout)', function()
   cmds.review_toggle_layout()
 end, { desc = 'Toggle review layout' })
 vim.keymap.set('n', '<Plug>(diffs-review-next-file)', function()
-  cmds.review_next_file()
+  for _ = 1, vim.v.count1 do
+    cmds.review_next_file()
+  end
 end, { desc = 'Next file in review split' })
 vim.keymap.set('n', '<Plug>(diffs-review-prev-file)', function()
-  cmds.review_prev_file()
+  for _ = 1, vim.v.count1 do
+    cmds.review_prev_file()
+  end
 end, { desc = 'Previous file in review split' })
 vim.keymap.set('n', '<Plug>(diffs-review-select-file)', function()
   cmds.select_review_file()

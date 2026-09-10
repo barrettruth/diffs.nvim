@@ -43,9 +43,9 @@ local function mock_systemlist(fn)
 end
 
 local function mock_runtime_attach(fn)
-  saved_runtime_attach = runtime.attach
+  saved_runtime_attach = saved_runtime_attach or runtime.attach
   runtime.attach = fn
-  saved_schedule = vim.schedule
+  saved_schedule = saved_schedule or vim.schedule
   vim.schedule = function(callback)
     callback()
   end
@@ -4002,7 +4002,7 @@ describe('commands', function()
       open_section('# Unstaged:', diffspec.index_to_worktree('lua/dup.lua'))
     end)
 
-    it('uses ]f/[f to switch review files and loclist for active-file hunks', function()
+    it('uses ]q/[q and ]f/[f to switch review files and loclist for active-file hunks', function()
       local repo = create_review_repo()
       edit_file(repo.repo_root .. '/lua/one.lua')
       mock_runtime_attach(function() end)
@@ -4020,6 +4020,10 @@ describe('commands', function()
       assert.is_true(helpers.has_keymap(panes.right_buf, ']f'))
       assert.is_true(helpers.has_keymap(panes.left_buf, '[f'))
       assert.is_true(helpers.has_keymap(panes.right_buf, '[f'))
+      assert.is_true(helpers.has_keymap(panes.left_buf, ']q'))
+      assert.is_true(helpers.has_keymap(panes.right_buf, ']q'))
+      assert.is_true(helpers.has_keymap(panes.left_buf, '[q'))
+      assert.is_true(helpers.has_keymap(panes.right_buf, '[q'))
 
       vim.api.nvim_set_current_win(panes.right_win)
       commands.review_next_file()
@@ -4218,6 +4222,29 @@ describe('commands', function()
       table.insert(test_buffers, scratch)
       assert.is_nil(commands.review_files(scratch))
       assert.is_false(commands.review_goto(files[1].key, scratch))
+    end)
+
+    it('navigates repeated paths by their review section', function()
+      local repo = create_current_state_review_repo()
+      edit_file(repo.repo_root .. '/lua/dup.lua')
+      mock_runtime_attach(function() end)
+
+      local panes = track_panes(commands.review_command('++layout=split ' .. repo.base))
+      local files = commands.review_files(panes.right_buf)
+      for index, file in ipairs(files) do
+        assert.are.equal(index, commands.review_current(panes.right_buf).index)
+        assert.are.equal(file.key, panes.state.selected_key)
+        vim.api.nvim_set_current_win(panes.right_win)
+        commands.review_next_file()
+        panes = track_panes(panes.state.left_buf)
+      end
+      assert.are.equal(1, commands.review_current(panes.right_buf).index)
+
+      for _, key in ipairs({ 'branch:lua/dup.lua', 'staged:lua/dup.lua', 'unstaged:lua/dup.lua' }) do
+        assert.is_true(commands.review_goto(key, panes.right_buf))
+        panes = track_panes(panes.state.left_buf)
+        assert.are.equal(key, commands.review_current(panes.right_buf).file.key)
+      end
     end)
 
     it('select_review_file jumps to the chosen file via vim.ui.select', function()

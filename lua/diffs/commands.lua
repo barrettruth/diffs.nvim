@@ -1328,11 +1328,15 @@ local function setup_review_split_panes(state)
   for _, buf in ipairs({ state.left_buf, state.right_buf }) do
     if vim.api.nvim_buf_is_valid(buf) then
       vim.b[buf].diffs_review = { display = state.display, layout = 'split' }
-      if not get_buffer_keymap(buf, 'n', ']f') then
-        vim.keymap.set('n', ']f', '<Plug>(diffs-review-next-file)', { buffer = buf, remap = true })
+      for _, key in ipairs({ ']f', ']q' }) do
+        if not get_buffer_keymap(buf, 'n', key) then
+          vim.keymap.set('n', key, '<Plug>(diffs-review-next-file)', { buffer = buf, remap = true })
+        end
       end
-      if not get_buffer_keymap(buf, 'n', '[f') then
-        vim.keymap.set('n', '[f', '<Plug>(diffs-review-prev-file)', { buffer = buf, remap = true })
+      for _, key in ipairs({ '[f', '[q' }) do
+        if not get_buffer_keymap(buf, 'n', key) then
+          vim.keymap.set('n', key, '<Plug>(diffs-review-prev-file)', { buffer = buf, remap = true })
+        end
       end
       if not get_buffer_keymap(buf, 'n', 'gO') then
         vim.keymap.set(
@@ -1435,7 +1439,7 @@ end
 ---@return integer
 local function review_index_of_current(files, state)
   for i, selection in ipairs(files) do
-    if selection.key == state.selected_key or selection.file == state.selected_file then
+    if (selection.key or selection.file) == state.selected_key then
       return i
     end
   end
@@ -1627,7 +1631,7 @@ function M.review_goto(target, bufnr)
   local files = review_split_files(state)
   for i, selection in ipairs(files) do
     if selection.key == target or selection.file == target then
-      if selection.key == state.selected_key or selection.file == state.selected_file then
+      if (selection.key or selection.file) == state.selected_key then
         return true
       end
       if selection.skipped then
@@ -1815,13 +1819,7 @@ open_review_split = function(spec, opts)
   split.move_pair_to_source(opened.right_buf, opts.source_position)
 
   local files = lists.generated_files(review_lines, review_generated_list_opts(list_opts))
-  local index = 1
-  for i, selection in ipairs(files) do
-    if selection.key == state.selected_key or selection.file == state.selected_file then
-      index = i
-      break
-    end
-  end
+  local index = review_index_of_current(files, state)
   notify_skipped_review_file(skipped, first, index, #files)
 
   dbg('opened review split %d/%d (%s)', opened.left_buf, opened.right_buf, normalized.display)
@@ -2300,7 +2298,9 @@ function M.diff_section(repo_root, opts)
 end
 
 ---@param bufnr integer
-function M.read_buffer(bufnr)
+---@param opts? { quickfix?: boolean }
+function M.read_buffer(bufnr, opts)
+  opts = opts or {}
   local name = vim.api.nvim_buf_get_name(bufnr)
   local url_body = name:match('^diffs://(.+)$')
   if not url_body then
@@ -2318,6 +2318,7 @@ function M.read_buffer(bufnr)
   if source and source.kind == 'split_endpoint' then
     local ok, err = split.read_buffer(bufnr, source, {
       change_bar = runtime.get_view_config().change_bar,
+      quickfix = opts.quickfix,
     })
     if not ok then
       notify(err or 'cannot reload split diffs:// buffer', vim.log.levels.WARN)
@@ -2420,7 +2421,7 @@ function M.read_buffer(bufnr)
     metadata_for_line = list_opts and list_opts.metadata_for_line,
     sections = list_opts and list_opts.sections,
     store_hunks = list_opts and list_opts.store_hunks,
-    quickfix = is_review or nil,
+    quickfix = opts.quickfix ~= false and (is_review or nil),
   })
   M.setup_diff_buf(bufnr)
 

@@ -1087,7 +1087,7 @@ end
 
 ---@param bufnr integer
 ---@param source table
----@param opts? { change_bar?: string }
+---@param opts? { change_bar?: string, quickfix?: boolean }
 ---@return boolean, string?
 function M.read_buffer(bufnr, source, opts)
   opts = opts or {}
@@ -1152,7 +1152,7 @@ function M.read_buffer(bufnr, source, opts)
     right_buf = right_buf,
     hunks = split_hunks,
     anchors = alignment.anchors,
-    quickfix = source.quickfix,
+    quickfix = opts.quickfix ~= false and source.quickfix,
   })
   return true, nil
 end

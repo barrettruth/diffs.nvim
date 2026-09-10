@@ -117,6 +117,113 @@ describe('plugin bootstrap', function()
     assert.matches('diffs: hide_prefix has been removed; use view.prefix', output, 1, true)
   end)
 
+  it('navigates both review panes and preserves quickfix entries across reloads', function()
+    local init_lines = {
+      ('vim.opt.runtimepath:prepend(%s)'):format(vim.inspect(vim.fn.getcwd())),
+      'vim.g.diffs = { integrations = { difftastic = false } }',
+    }
+    local after_lines = vim.split(
+      [[
+local repo = vim.fn.resolve(vim.fn.tempname())
+vim.fn.mkdir(repo, 'p')
+local function git(...)
+  local output = vim.fn.systemlist({ 'git', '-C', repo, ... })
+  assert(vim.v.shell_error == 0, table.concat(output, '\n'))
+end
+local ok, err = pcall(function()
+  git('init', '-q')
+  git('config', 'user.name', 'Test')
+  git('config', 'user.email', 'test@example.com')
+  for _, file in ipairs({ 'one.lua', 'three.lua', 'two.lua' }) do
+    vim.fn.writefile({ 'old' }, repo .. '/' .. file)
+  end
+  git('add', '.')
+  git('commit', '-qm', 'base')
+  for _, file in ipairs({ 'one.lua', 'three.lua', 'two.lua' }) do
+    vim.fn.writefile({ 'new' }, repo .. '/' .. file)
+  end
+  git('commit', '-qam', 'target')
+  vim.cmd.cd(repo)
+  vim.cmd('Diff review HEAD~1')
+  local buf = vim.api.nvim_get_current_buf()
+  local window_count = #vim.api.nvim_tabpage_list_wins(0)
+  local statuscolumn = vim.wo.statuscolumn
+  local before = vim.fn.getqflist({ id = 0, items = 0 })
+  assert(#before.items == 3)
+  vim.keymap.set('n', ']q', '<cmd>cnext<cr>')
+  vim.keymap.set('n', '[q', '<cmd>cprevious<cr>')
+  vim.cmd('normal gs')
+  assert(not vim.api.nvim_buf_is_loaded(buf))
+  local pair_wins = vim.tbl_filter(function(win)
+    return require('diffs').review_current(vim.api.nvim_win_get_buf(win)) ~= nil
+  end, vim.api.nvim_tabpage_list_wins(0))
+  assert(#pair_wins == 2)
+  local reads = 0
+  local autocmd = vim.api.nvim_create_autocmd('BufReadCmd', {
+    pattern = 'diffs://review:*',
+    callback = function() reads = reads + 1 end,
+  })
+  local function check_pair(index)
+    assert(#vim.api.nvim_tabpage_list_wins(0) == window_count + 1)
+    for _, win in ipairs(pair_wins) do
+      local pane = vim.api.nvim_win_get_buf(win)
+      local current = require('diffs').review_current(pane)
+      assert(current and current.index == index, vim.inspect(current))
+      assert(vim.bo[pane].modifiable == false)
+      assert(vim.wo[win].scrollbind and vim.wo[win].cursorbind)
+    end
+    assert(reads == 0)
+    assert(vim.fn.getqflist({ id = 0 }).id == before.id)
+  end
+  check_pair(1)
+  vim.cmd('normal ]q')
+  check_pair(2)
+  vim.api.nvim_set_current_win(pair_wins[1])
+  vim.cmd('normal ]q')
+  check_pair(3)
+  vim.cmd('normal ]q')
+  check_pair(1)
+  vim.cmd('normal [q')
+  check_pair(3)
+  vim.cmd('normal 2[q')
+  check_pair(1)
+  vim.cmd('normal 2]q')
+  check_pair(3)
+  vim.api.nvim_del_autocmd(autocmd)
+  vim.cmd('normal gs')
+  assert(#vim.api.nvim_tabpage_list_wins(0) == window_count)
+  buf = vim.api.nvim_get_current_buf()
+  assert(vim.b[buf].diffs_review.layout == 'unified')
+  before = vim.fn.getqflist({ id = 0, items = 0 })
+  vim.cmd('normal gs')
+  assert(require('diffs').review_current().index == 3)
+  vim.cmd('normal q')
+  local remaining_windows = #vim.api.nvim_tabpage_list_wins(0)
+  vim.cmd('cc 2')
+  local after = vim.fn.getqflist({ id = 0, idx = 0 })
+  assert(after.id == before.id)
+  assert(after.idx == 2)
+  assert(vim.api.nvim_get_current_buf() == buf)
+  assert(vim.api.nvim_win_get_cursor(0)[1] == before.items[2].lnum)
+  assert(#vim.api.nvim_tabpage_list_wins(0) == remaining_windows)
+  assert(not vim.wo.scrollbind)
+  assert(not vim.wo.cursorbind)
+  assert(vim.wo.statuscolumn == statuscolumn)
+  vim.fn.writefile({ 'new file' }, repo .. '/four.lua')
+  vim.cmd('edit')
+  assert(#vim.fn.getqflist() == 4)
+end)
+vim.fn.delete(repo, 'rf')
+assert(ok, err)
+print('quickfix_reloaded=true')
+]],
+      '\n'
+    )
+
+    local output = run_child(init_lines, after_lines)
+    assert.matches('quickfix_reloaded=true', output, 1, true)
+  end)
+
   it('enhances native diff windows opened at startup with nvim -d', function()
     local tmpdir = vim.fn.resolve(vim.fn.tempname())
     assert.are.equal(1, vim.fn.mkdir(tmpdir, 'p'))
