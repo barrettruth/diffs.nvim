@@ -394,6 +394,8 @@ function Cache:ensure(bufnr)
       if vim.api.nvim_buf_is_valid(bufnr) and self.hunk_cache[bufnr] then
         log.dbg('retrying filetype detection for buffer %d (was blocked by did_filetype)', bufnr)
         self:invalidate(bufnr)
+        self:ensure(bufnr)
+        self:process_pending_clear(bufnr)
         vim.cmd('redraw!')
       end
       self.ft_retry_pending[bufnr] = nil

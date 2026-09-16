@@ -190,23 +190,37 @@ describe('integration', function()
       delete_buffer(bufnr)
     end)
 
-    it('invalidates cache after scheduled callback fires', function()
+    it('refreshes cache after scheduled callback fires', function()
       local bufnr = create_buffer({
         'diff --git a/app.conf b/app.conf',
         '@@ -1,2 +1,2 @@',
         ' server {',
         '-    listen 80;',
         '+    listen 8080;',
+        'diff --git a/test.lua b/test.lua',
+        '@@ -1,1 +1,2 @@',
+        ' local x = 1',
+        '+local y = 2',
       })
       runtime.attach(bufnr)
-      local tick_after_attach = runtime._test.hunk_cache[bufnr].tick
-      assert.is_true(tick_after_attach >= 0)
+      local ns = vim.api.nvim_create_namespace('diffs')
+      vim.api.nvim_buf_set_extmark(bufnr, ns, 2, 0, {
+        end_row = 3,
+        end_col = 0,
+        hl_group = 'DiffsAdd',
+        hl_eol = true,
+      })
+      local entry = runtime._test.hunk_cache[bufnr]
+      entry.highlighted = { [1] = true, [2] = true }
+      entry.pending_clear = false
 
       run_scheduled_callbacks()
 
-      local entry = runtime._test.hunk_cache[bufnr]
-      assert.are.equal(-1, entry.tick)
-      assert.is_true(entry.pending_clear)
+      entry = runtime._test.hunk_cache[bufnr]
+      assert.are.equal(vim.api.nvim_buf_get_changedtick(bufnr), entry.tick)
+      assert.is_false(entry.pending_clear)
+      assert.are.same({}, entry.highlighted)
+      assert.are.same({}, vim.api.nvim_buf_get_extmarks(bufnr, ns, 0, -1, {}))
       delete_buffer(bufnr)
     end)
 
