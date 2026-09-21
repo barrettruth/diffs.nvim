@@ -2507,16 +2507,7 @@ function M.on_diffopt_changed()
   end)
 end
 
-function M.setup()
-  vim.api.nvim_create_user_command('Diff', function(opts)
-    M.diff_command(opts.args ~= '' and opts.args or nil, opts.smods.vertical)
-  end, {
-    nargs = '*',
-    bar = true,
-    complete = complete_diff_command,
-    desc = 'Show a current-file diff, a repository review with :Diff review, or two files with :Diff files',
-  })
-end
+M.complete_diff_command = complete_diff_command
 
 M._test = {
   complete_diff = complete_diff_command,

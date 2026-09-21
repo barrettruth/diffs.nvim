@@ -429,19 +429,6 @@ describe('commands', function()
     end
   end)
 
-  describe('setup', function()
-    it('registers the Diff command without the removed aliases', function()
-      commands.setup()
-      local cmds = vim.api.nvim_get_commands({})
-      assert.is_not_nil(cmds.Diff)
-      assert.is_true(cmds.Diff.bar)
-      assert.is_nil(cmds.Gdiff)
-      assert.is_nil(cmds.Gvdiff)
-      assert.is_nil(cmds.Ghdiff)
-      assert.is_nil(cmds.Greview)
-    end)
-  end)
-
   describe('Diff command dispatch', function()
     local function capture_dispatch(args, vertical)
       local saved_diff = commands.diff

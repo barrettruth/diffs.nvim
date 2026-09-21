@@ -29,7 +29,9 @@ describe('diffs.telescope', function()
       attached_bufnr = target
     end
 
-    telescope.setup()
+    telescope.setup(function(target)
+      runtime.attach(target)
+    end)
     vim.api.nvim_set_current_buf(bufnr)
     vim.api.nvim_exec_autocmds('User', { pattern = 'TelescopePreviewerLoaded' })
     if vim.api.nvim_buf_is_valid(previous) then

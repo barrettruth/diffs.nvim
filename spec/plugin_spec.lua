@@ -29,6 +29,66 @@ describe('plugin bootstrap', function()
     return output
   end
 
+  it('registers entry points without loading implementation modules', function()
+    local init_lines = {
+      ('vim.opt.runtimepath:prepend(%s)'):format(vim.inspect(vim.fn.getcwd())),
+    }
+    local after_lines = {
+      'local commands = vim.api.nvim_get_commands({})',
+      "print('has_diff_command=' .. tostring(commands.Diff ~= nil))",
+      "print('diff_bar=' .. tostring(commands.Diff and commands.Diff.bar == true))",
+      "print('commands_loaded=' .. tostring(package.loaded['diffs.commands'] ~= nil))",
+      "print('runtime_loaded=' .. tostring(package.loaded['diffs.runtime'] ~= nil))",
+      "print('highlight_loaded=' .. tostring(package.loaded['diffs.highlight'] ~= nil))",
+    }
+
+    local output = run_child(init_lines, after_lines)
+
+    assert.matches('has_diff_command=true', output, 1, true)
+    assert.matches('diff_bar=true', output, 1, true)
+    assert.matches('commands_loaded=false', output, 1, true)
+    assert.matches('runtime_loaded=false', output, 1, true)
+    assert.matches('highlight_loaded=false', output, 1, true)
+  end)
+
+  it('does not load runtime for an ordinary file', function()
+    local init_lines = {
+      ('vim.opt.runtimepath:prepend(%s)'):format(vim.inspect(vim.fn.getcwd())),
+    }
+    local after_lines = {
+      'local path = vim.fn.tempname()',
+      "vim.fn.writefile({ 'ordinary source line' }, path)",
+      'vim.cmd.edit(path)',
+      "print('runtime_loaded=' .. tostring(package.loaded['diffs.runtime'] ~= nil))",
+      "print('conflict_loaded=' .. tostring(package.loaded['diffs.conflict'] ~= nil))",
+      'vim.fn.delete(path)',
+    }
+
+    local output = run_child(init_lines, after_lines)
+
+    assert.matches('runtime_loaded=false', output, 1, true)
+    assert.matches('conflict_loaded=false', output, 1, true)
+  end)
+
+  it('loads conflict handling when a file contains conflict markers', function()
+    local init_lines = {
+      ('vim.opt.runtimepath:prepend(%s)'):format(vim.inspect(vim.fn.getcwd())),
+    }
+    local after_lines = {
+      'local path = vim.fn.tempname()',
+      "vim.fn.writefile({ '<<<<<<< ours', 'old', '=======', 'new', '>>>>>>> theirs' }, path)",
+      'vim.cmd.edit(path)',
+      "print('runtime_loaded=' .. tostring(package.loaded['diffs.runtime'] ~= nil))",
+      "print('conflict_loaded=' .. tostring(package.loaded['diffs.conflict'] ~= nil))",
+      'vim.fn.delete(path)',
+    }
+
+    local output = run_child(init_lines, after_lines)
+
+    assert.matches('runtime_loaded=true', output, 1, true)
+    assert.matches('conflict_loaded=true', output, 1, true)
+  end)
+
   it('loads supported config during plugin startup', function()
     local init_lines = {
       '_G.diffs_notifications = {}',
@@ -42,6 +102,7 @@ describe('plugin bootstrap', function()
     local after_lines = {
       "print('loaded=' .. tostring(vim.g.loaded_diffs))",
       "print('notifications=' .. #(_G.diffs_notifications or {}))",
+      "print('runtime_loaded_at_startup=' .. tostring(package.loaded['diffs.runtime'] ~= nil))",
       "local runtime = require('diffs.runtime')",
       'runtime.attach(0)',
       "print('after_attach_notifications=' .. #(_G.diffs_notifications or {}))",
@@ -98,6 +159,7 @@ describe('plugin bootstrap', function()
     assert.matches('highlight_priority_syntax=199', output, 1, true)
     assert.matches('highlight_priority_line_bg=200', output, 1, true)
     assert.matches('highlight_priority_char_bg=201', output, 1, true)
+    assert.matches('runtime_loaded_at_startup=false', output, 1, true)
     assert.matches('has_fugitive_autocmd=true', output, 1, true)
     assert.matches('has_neogit_autocmd=true', output, 1, true)
     assert.matches('has_neojj_autocmd=true', output, 1, true)

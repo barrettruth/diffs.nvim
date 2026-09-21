@@ -70,8 +70,10 @@ With vim.pack (Neovim 0.12+): >lua
     luarocks install diffs.nvim
 <
 
-Do not lazy load with `event`, `lazy`, `ft`, `config`, or `keys` — diffs.nvim
-lazy-loads itself.
+Do not lazy load with `event`, `lazy`, `ft`, `config`, or `keys`. The startup
+script validates configuration and registers commands, mappings, and event
+handlers. Diff rendering and highlighting modules load when an entry point
+runs.
 
 NOTE: Load your colorscheme before diffs.nvim. With lazy.nvim, set `priority =
 1000` and `lazy = false` on your colorscheme plugin.
