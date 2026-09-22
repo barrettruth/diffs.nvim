@@ -5,7 +5,7 @@
 Enhance Neovim's built-in diff mode (and much more!) with language-aware syntax
 highlighting driven by treesitter.
 
-![diffs.nvim highlighting Git changes](assets/diffs.nvim.webp)
+![diffs.nvim highlighting Git changes](https://forge.barrettruth.com/attachments/83106815-5f02-4e5b-ad00-2bea81014a0e)
 
 ## Features
 
