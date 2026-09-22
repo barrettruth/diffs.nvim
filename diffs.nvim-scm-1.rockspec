@@ -9,7 +9,7 @@ source = {
 description = {
   summary = 'Syntax highlighting for diffs in Neovim',
   homepage = 'https://github.com/barrettruth/diffs.nvim',
-  license = 'MIT',
+  license = 'GPL-3.0',
 }
 
 dependencies = {
