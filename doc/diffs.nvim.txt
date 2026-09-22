@@ -51,6 +51,7 @@ CONTENTS                                                 *diffs.nvim-contents*
  12. Highlight Groups ................................ |diffs.nvim-highlights|
  13. Health Check ........................................ |diffs.nvim-health|
  14. Acknowledgements .......................... |diffs.nvim-acknowledgements|
+ 15. Migration ....................................... |diffs-migration|
 
 ==============================================================================
 REQUIREMENTS                                         *diffs.nvim-requirements*
@@ -79,6 +80,15 @@ NOTE: Load your colorscheme before diffs.nvim. With lazy.nvim, set `priority =
 See |diffs.nvim-config| for customization, |diffs.nvim-integrations| for
 plugin support.
 
+==============================================================================
+MIGRATION                                                    *diffs-migration*
+
+diffs.nvim will be removed from GitHub on October 31, 2026. Update your plugin
+source to Forgejo: >lua
+    vim.pack.add({
+      'https://forge.barrettruth.com/barrettruth/diffs.nvim',
+    })
+<
 ==============================================================================
 CONFIGURATION                                              *diffs.nvim-config*
 
@@ -441,7 +451,7 @@ highlight-only.
     mutation. `dp` appears only for supported index -> worktree hunks/ranges;
     `do` appears only for supported tree -> index hunks/ranges.
 
-Diff objects: ~                                       *diffs.nvim-diff-objects*
+Diff objects: ~                                      *diffs.nvim-diff-objects*
 
     `:Diff [object]` takes a single object that names one side of the diff; the
     other side is that path's worktree (except the staged-context default). `%`
@@ -475,7 +485,7 @@ Diff objects: ~                                       *diffs.nvim-diff-objects*
         - `{rev}:`                    tree objects
         - `-`                         the previous object
 
-Diff files: ~                                            *diffs.nvim-diff-files*
+Diff files: ~                                          *diffs.nvim-diff-files*
 
     `:Diff files [{left}] [{right}]` opens a read-only generated diff of two
     arbitrary files. Neither file has to be tracked by git, and the command
@@ -708,7 +718,7 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     These helpers are command integration helpers for |:Diff-review|. The stable
     root Lua API remains the small surface documented at |diffs.nvim-api|.
 
-Whitespace handling: ~                                  *diffs.nvim-whitespace*
+Whitespace handling: ~                                 *diffs.nvim-whitespace*
 
     Generated diffs honor Neovim's |'diffopt'| whitespace flags, in both the
     line-level diff and the intra-line character highlights. There is no
@@ -764,7 +774,7 @@ Whitespace handling: ~                                  *diffs.nvim-whitespace*
       computed with |vim.diff()| but not the git-backed surfaces (|:Diff-review|
       and the staged/unstaged section diffs).
 
-Inline granularity: ~                                       *diffs.nvim-inline*
+Inline granularity: ~                                      *diffs.nvim-inline*
 
     How much of a changed line is emphasized comes from 'diffopt' `inline:`, so
     diffs.nvim surfaces match native |:diffsplit| windows. As with whitespace,
@@ -802,28 +812,29 @@ Inline granularity: ~                                       *diffs.nvim-inline*
 ==============================================================================
 MAPPINGS                                                 *diffs.nvim-mappings*
 
-                                                         *<Plug>(diffs-diff)*
+                                                          *<Plug>(diffs-diff)*
 <Plug>(diffs-diff)     Show index-to-worktree unified diff in a horizontal
                         split. Equivalent to |:Diff| with no arguments.
 
-                                                        *<Plug>(diffs-diff-vertical)*
-<Plug>(diffs-diff-vertical)    Show index-to-worktree unified diff in a vertical
+                                                 *<Plug>(diffs-diff-vertical)*
+<Plug>(diffs-diff-vertical)    Show index-to-worktree unified diff in a
+vertical
                         split. Equivalent to `:vertical Diff` with no
                         arguments.
 
-                                             *<Plug>(diffs-diff-open-source)*
+                                              *<Plug>(diffs-diff-open-source)*
 <Plug>(diffs-diff-open-source)
                         Open the real worktree file at the current |:Diff|
                         hunk location. `diffs://` buffers map this to
                         <CR> by default.
 
-                                            *<Plug>(diffs-review-open-split)*
+                                             *<Plug>(diffs-review-open-split)*
 <Plug>(diffs-review-open-split)
                         Open the currently selected |:Diff-review| file as a
                         paired side-by-side diff: the old/removed endpoint on
                         the left, the new/added endpoint on the right.
 
-                                        *<Plug>(diffs-review-toggle-layout)*
+                                          *<Plug>(diffs-review-toggle-layout)*
 <Plug>(diffs-review-toggle-layout)
                         Toggle the current review buffer between the generated
                         review map and split layout. Mapped to `gs` by default
@@ -831,19 +842,19 @@ MAPPINGS                                                 *diffs.nvim-mappings*
                         `gs` is already mapped in that buffer. See
                         |diffs.nvim.review_toggle_layout()|.
 
-                                            *<Plug>(diffs-review-next-file)*
+                                              *<Plug>(diffs-review-next-file)*
 <Plug>(diffs-review-next-file)
                         In a |:Diff-review| split, swap the displayed pair to
                         the next changed file, wrapping at the end. Mapped to
                         `]q` and `]f` by default in the split panes, unless
                         already mapped in that buffer. Accepts a count.
 
-                                            *<Plug>(diffs-review-prev-file)*
+                                              *<Plug>(diffs-review-prev-file)*
 <Plug>(diffs-review-prev-file)
                         As |<Plug>(diffs-review-next-file)|, but the previous
                         changed file. Mapped to `[q` and `[f` by default.
 
-                                          *<Plug>(diffs-review-select-file)*
+                                            *<Plug>(diffs-review-select-file)*
 <Plug>(diffs-review-select-file)
                         In a |:Diff-review| split, prompt with |vim.ui.select()|
                         for one of the review's files and jump to it. Mapped to
@@ -851,7 +862,7 @@ MAPPINGS                                                 *diffs.nvim-mappings*
                         its table of contents — unless `gO` is already mapped in
                         that buffer. See |diffs.nvim.select_review_file()|.
 
-                                                   *<Plug>(diffs-refresh)*
+                                                       *<Plug>(diffs-refresh)*
 <Plug>(diffs-refresh)
                         Re-render the current `diffs://` buffer in place,
                         preserving the cursor and view. Useful after changing
@@ -1110,9 +1121,9 @@ https://github.com/nvim-telescope/telescope.nvim/issues/3626
 DIFFTASTIC                                             *diffs.nvim-difftastic*
 
 Enable structural diffing via difftastic
-(https://github.com/Wilfred/difftastic). This integration is different from the
-others: difftastic is not a plugin whose buffers are decorated, but an external
-`difft` binary used as a structural diff engine. >lua
+(https://github.com/Wilfred/difftastic). This integration is different from
+the others: difftastic is not a plugin whose buffers are decorated, but an
+external `difft` binary used as a structural diff engine. >lua
     vim.g.diffs = { integrations = { difftastic = true } }
     vim.g.diffs = { integrations = { difftastic = { args = { '--ignore-comments' } } } }
 <
@@ -1129,19 +1140,19 @@ When enabled, difftastic augments the diffs you explicitly open — |:Diff|,
     reformatting/reindentation recognized as unchanged), and
   - structural side-by-side row alignment in the split layout.
 
-It deliberately does not touch the live/ambient surfaces (fugitive, neogit, the
-builtin `diff` filetype), the multi-file review map, conflicts, or binary
+It deliberately does not touch the live/ambient surfaces (fugitive, neogit,
+the builtin `diff` filetype), the multi-file review map, conflicts, or binary
 files; those render unchanged. In the unified layouts difftastic only refines
 the token layer (the +/- line structure stays git's), so its line-level
 structural wins appear in the split layout.
 
-difftastic runs synchronously when you open the diff, with an internal timeout.
-It is independent of |diffs.nvim-config| `highlights.intra`, which configures
-the built-in engine and is the fallback when difftastic is off. When difftastic
-finds no structural change (e.g. a reformat-only edit), it emits an
-informational message and renders no token highlights. The 'diffopt'
-whitespace handling does not apply to a structural diff; such buffers are
-left unchanged.
+difftastic runs synchronously when you open the diff, with an internal
+timeout. It is independent of |diffs.nvim-config| `highlights.intra`, which
+configures the built-in engine and is the fallback when difftastic is off.
+When difftastic finds no structural change (e.g. a reformat-only edit), it
+emits an informational message and renders no token highlights. The 'diffopt'
+whitespace handling does not apply to a structural diff; such buffers are left
+unchanged.
 
 Run |:checkhealth| diffs to confirm `difft` is detected.
 
@@ -1273,12 +1284,12 @@ User events: ~
 ==============================================================================
 MERGE DIFF RESOLUTION                                       *diffs.nvim-merge*
 
-When running plain |:Diff| or an explicit index-object comparison (for
-example `:Diff :%`) on an unmerged worktree file, or pressing `du`/`dU` on an
-unmerged (`U`) file in the fugitive status buffer, diffs.nvim opens a unified
-diff of ours (`git show :2:path`) vs theirs (`git show :3:path`) with full
-treesitter and intra-line highlighting. Revision comparisons such as `:Diff
-HEAD` keep rendering that revision against the conflicted worktree buffer.
+When running plain |:Diff| or an explicit index-object comparison (for example
+`:Diff :%`) on an unmerged worktree file, or pressing `du`/`dU` on an unmerged
+(`U`) file in the fugitive status buffer, diffs.nvim opens a unified diff of
+ours (`git show :2:path`) vs theirs (`git show :3:path`) with full treesitter
+and intra-line highlighting. Revision comparisons such as `:Diff HEAD` keep
+rendering that revision against the conflicted worktree buffer.
 
 When `conflict.keymaps` is configured, those same conflict resolution mappings
 are available on the diff buffer. The corresponding |<Plug>(diffs-merge-ours)|
@@ -1375,12 +1386,11 @@ open_review({spec}, {opts})                         *diffs.nvim.open_review()*
           { base = 'main', target = 'refs/forge/pull/12', mode = 'merge-base' },
           { replace_win = vim.api.nvim_get_current_win() }
         )
-<
-The rest of the review API is buffer-centric. Navigation functions resolve the
-review split that {bufnr} (default: current buffer) belongs to, and are no-ops
-(`nil`/`false`) elsewhere. |diffs.nvim.review_toggle_layout()| also accepts a
-generated review map buffer and can move between map and split surfaces. Those
-helpers are only meaningful inside an open review.
+< The rest of the review API is buffer-centric. Navigation functions resolve
+the review split that {bufnr} (default: current buffer) belongs to, and are
+no-ops (`nil`/`false`) elsewhere. |diffs.nvim.review_toggle_layout()| also
+accepts a generated review map buffer and can move between map and split
+surfaces. Those helpers are only meaningful inside an open review.
 
                                                             *diffs.ReviewFile*
 A `diffs.ReviewFile` describes one changed file in a review: ~
@@ -1419,14 +1429,14 @@ review_goto({target}, {bufnr})                      *diffs.nvim.review_goto()*
         {target} (string) A |diffs.ReviewFile| `key` (preferred) or path.
         {bufnr}  (integer, optional) Buffer number. Defaults to current buffer.
 
-review_next_file()                              *diffs.nvim.review_next_file()*
-review_prev_file()                              *diffs.nvim.review_prev_file()*
+review_next_file()                             *diffs.nvim.review_next_file()*
+review_prev_file()                             *diffs.nvim.review_prev_file()*
     Step the current review split to the next/previous changed file, wrapping
     at the ends and skipping unsupported files. Backing functions for `]q`/`[q`,
     `]f`/`[f`,
     |<Plug>(diffs-review-next-file)|, and |<Plug>(diffs-review-prev-file)|.
 
-review_toggle_layout({opts})              *diffs.nvim.review_toggle_layout()*
+review_toggle_layout({opts})               *diffs.nvim.review_toggle_layout()*
     Toggle the current review surface between the generated review map and split
     layout. From a generated review map, opens the selected file in split layout.
     From a review split, closes the pair and restores the generated map layout
@@ -1489,13 +1499,13 @@ Configuration: >lua
 `b:diffs_repo_root` is the only supported `b:diffs_*` variable to set on
 external buffers. On its own review maps and review-split panes |diffs.nvim|
 also exposes a read-only `b:diffs_review` table with `display` and `layout`
-fields (`layout` is `"unified"`, `"stacked"`, or `"split"`), so statuslines and
-other plugins can detect and identify a review buffer without calling the API.
-Treat it as identity only; live position and the file list come from
+fields (`layout` is `"unified"`, `"stacked"`, or `"split"`), so statuslines
+and other plugins can detect and identify a review buffer without calling the
+API. Treat it as identity only; live position and the file list come from
 |diffs.nvim.review_current()| and |diffs.nvim.review_files()|. Other
 `b:diffs_*` variables, generated `diffs://` buffer names, hunk/spec/source
-metadata, quickfix/location-list `user_data`, and non-root `lua/diffs/` modules
-are internal unless documented here.
+metadata, quickfix/location-list `user_data`, and non-root `lua/diffs/`
+modules are internal unless documented here.
 
 ==============================================================================
 KNOWN LIMITATIONS                                     *diffs.nvim-limitations*

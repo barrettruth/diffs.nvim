@@ -8,6 +8,10 @@ local user_config = config.new(vim.deepcopy(vim.g.diffs or {}))
 
 vim.g.loaded_diffs = 1
 
+pcall(function()
+  require('diffs.migration').warn_if_github_source()
+end)
+
 local function get_runtime()
   local runtime = require('diffs.runtime')
   runtime.configure(user_config)
