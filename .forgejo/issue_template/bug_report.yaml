@@ -9,7 +9,7 @@ body:
       options:
         - label:
             I have searched [existing
-            issues](https://github.com/barrettruth/diffs.nvim/issues)
+            issues](https://forge.barrettruth.com/barrettruth/diffs.nvim/issues)
           required: true
         - label: I have updated to the latest version
           required: true
@@ -100,7 +100,7 @@ body:
           { name = 'gitsigns.nvim', src = 'https://github.com/lewis6991/gitsigns.nvim' },
           { name = 'committia.vim', src = 'https://github.com/rhysd/committia.vim' },
           { name = 'telescope.nvim', src = 'https://github.com/nvim-telescope/telescope.nvim' },
-          { name = 'diffs.nvim', src = 'https://github.com/barrettruth/diffs.nvim' },
+          { name = 'diffs.nvim', src = 'https://forge.barrettruth.com/barrettruth/diffs.nvim' },
         }
 
         local uv = vim.uv or vim.loop
