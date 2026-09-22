@@ -5,7 +5,7 @@
 Enhance Neovim's built-in diff mode (and much more!) with language-aware syntax
 highlighting driven by treesitter.
 
-<img width="1920" height="1200" alt="image" src="https://github.com/user-attachments/assets/457730f9-d512-408a-81bf-4492d2848b7e" />
+![diffs.nvim highlighting Git changes](assets/diffs.nvim.png)
 
 ## Features
 
@@ -34,7 +34,7 @@ With `vim.pack` (Neovim 0.12+):
 
 ```lua
 vim.pack.add({
-  'https://github.com/barrettruth/diffs.nvim',
+  'https://forge.barrettruth.com/barrettruth/diffs.nvim',
 })
 ```
 

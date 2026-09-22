@@ -3,12 +3,12 @@ package = 'diffs.nvim'
 version = 'scm-1'
 
 source = {
-  url = 'git+https://github.com/barrettruth/diffs.nvim.git',
+  url = 'git+https://forge.barrettruth.com/barrettruth/diffs.nvim.git',
 }
 
 description = {
   summary = 'Syntax highlighting for diffs in Neovim',
-  homepage = 'https://github.com/barrettruth/diffs.nvim',
+  homepage = 'https://forge.barrettruth.com/barrettruth/diffs.nvim',
   license = 'GPL-3.0',
 }
 
