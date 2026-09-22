@@ -5,10 +5,6 @@
 Enhance Neovim's built-in diff mode (and much more!) with language-aware syntax
 highlighting driven by treesitter.
 
-> [!NOTE]
-> Active development is hosted on
-> [Forgejo](https://forge.barrettruth.com/barrettruth/diffs.nvim).
-
 ![diffs.nvim highlighting Git changes](assets/diffs.nvim.webp)
 
 ## Features
