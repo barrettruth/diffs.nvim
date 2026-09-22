@@ -67,10 +67,6 @@ With vim.pack (Neovim 0.12+): >lua
     vim.pack.add({
       'https://forge.barrettruth.com/barrettruth/diffs.nvim',
     })
-< With luarocks: >sh
-    luarocks install diffs.nvim
-<
-
 Do not lazy load with `event`, `lazy`, `ft`, `config`, or `keys` — diffs.nvim
 lazy-loads itself.
 

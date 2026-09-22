@@ -42,12 +42,6 @@ vim.pack.add({
 })
 ```
 
-Or via [luarocks](https://luarocks.org/modules/barrettruth/diffs.nvim):
-
-```
-luarocks install diffs.nvim
-```
-
 ## Documentation
 
 ```vim
