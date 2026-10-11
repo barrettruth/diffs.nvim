@@ -95,7 +95,7 @@ local function default_branch(repo_root)
   if vim.v.shell_error ~= 0 or not ref[1] or ref[1] == '' then
     return nil
   end
-  return ref[1]:gsub('^refs/remotes/', '')
+  return (ref[1]:gsub('^refs/remotes/', ''))
 end
 
 ---@param repo_root string

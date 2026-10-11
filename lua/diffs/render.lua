@@ -50,7 +50,7 @@ function M.unified_lines(old_lines, new_lines, old_name, new_name, opts)
   local old_content = content.to_string(old_lines)
   local new_content = content.to_string(new_lines)
 
-  local diff_fn = vim.text and vim.text.diff or vim.diff
+  local diff_fn = (vim.text and type(vim.text.diff) == 'function' and vim.text or vim).diff
   local diff_output = diff_fn(
     old_content,
     new_content,
@@ -60,7 +60,7 @@ function M.unified_lines(old_lines, new_lines, old_name, new_name, opts)
     }, diffopt.vim_diff_opts())
   )
 
-  if not diff_output or diff_output == '' then
+  if type(diff_output) ~= 'string' or diff_output == '' then
     return {}
   end
 

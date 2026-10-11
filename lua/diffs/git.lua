@@ -11,7 +11,7 @@ end
 ---@param filepath? string
 ---@return string?
 function M.get_repo_root(filepath)
-  local dir = vim.fn.fnamemodify(filepath, ':h')
+  local dir = filepath and vim.fn.fnamemodify(filepath, ':h') or vim.fn.getcwd()
   if repo_root_cache[dir] ~= nil then
     return repo_root_cache[dir]
   end
@@ -52,7 +52,7 @@ function M.get_file_content(revision, filepath)
   end
 
   local result =
-    vim.fn.systemlist({ 'git', '-C', repo_root, 'show', revision .. ':' .. rel_path }, nil, true)
+    vim.fn.systemlist({ 'git', '-C', repo_root, 'show', revision .. ':' .. rel_path }, nil, 1)
   if vim.v.shell_error ~= 0 then
     return nil, 'file not in revision: ' .. revision
   end
@@ -82,7 +82,7 @@ function M.get_index_content(filepath)
     return nil, 'could not determine relative path'
   end
 
-  local result = vim.fn.systemlist({ 'git', '-C', repo_root, 'show', ':0:' .. rel_path }, nil, true)
+  local result = vim.fn.systemlist({ 'git', '-C', repo_root, 'show', ':0:' .. rel_path }, nil, 1)
   if vim.v.shell_error ~= 0 then
     return nil, 'file not in index'
   end

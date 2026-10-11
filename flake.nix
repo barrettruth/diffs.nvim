@@ -46,15 +46,14 @@
             pkgs.stylua
             pkgs.selene
             pkgs.lua-language-server
+            pkgs.neovim
             vimdoc-ls
           ];
         in
         {
           default = pkgs.mkShell {
             packages = commonPackages;
-          };
-          ci = pkgs.mkShell {
-            packages = commonPackages ++ [ pkgs.neovim ];
+            VIMRUNTIME = "${pkgs.neovim}/share/nvim/runtime";
           };
         }
       );

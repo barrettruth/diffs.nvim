@@ -20,7 +20,7 @@ function M.setup(opts)
   vim.api.nvim_set_decoration_provider(ns, {
     on_buf = function(_, bufnr)
       if not attached_buffers[bufnr] then
-        return false
+        return
       end
       local config = opts.get_config()
       local t0 = config.debug and vim.uv.hrtime() or nil

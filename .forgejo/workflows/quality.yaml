@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Format
-        run: nix develop .#ci --command just format
+        run: nix develop --command just format
 
   lint:
     name: Lint
@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Lint
-        run: nix develop .#ci --command just lint
+        run: nix develop --command just lint
 
   test:
     name: Test
@@ -30,4 +30,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Test
-        run: nix develop .#ci --command just test
+        run: nix develop --command just test

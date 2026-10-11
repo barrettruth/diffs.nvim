@@ -78,8 +78,9 @@ local function byte_diff(old_text, new_text, diff_opts)
       vim_opts.linematch = diff_opts.linematch
     end
   end
-  local ok, result = pcall(vim.diff, old_text, new_text, vim_opts)
-  if not ok or not result then
+  local diff_fn = (vim.text and type(vim.text.diff) == 'function' and vim.text or vim).diff
+  local ok, result = pcall(diff_fn, old_text, new_text, vim_opts)
+  if not ok or type(result) ~= 'table' then
     return {}
   end
   ---@type {old_start: integer, old_count: integer, new_start: integer, new_count: integer}[]

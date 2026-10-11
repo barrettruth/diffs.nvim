@@ -199,8 +199,9 @@ end
 ---@param overrides? diffs.HunkOptsOverride
 ---@return diffs.HunkOpts
 function M.hunk_opts(config, overrides)
-  local highlights = vim.deepcopy(config.highlights or {})
-  highlights.priorities = vim.deepcopy(HIGHLIGHT_PRIORITIES)
+  local highlights = vim.tbl_extend('force', vim.deepcopy(config.highlights or {}), {
+    priorities = vim.deepcopy(HIGHLIGHT_PRIORITIES),
+  })
   local opts = {
     hide_prefix = not config.view.prefix,
     change_bar = config.view.change_bar,

@@ -430,13 +430,12 @@ end
 ---@param replace_win? integer
 ---@return boolean
 local function show_generated_diff_buffer(bufnr, vertical, replace_win)
-  local replace_requested = type(replace_win) == 'number'
-  if replace_requested and not vim.api.nvim_win_is_valid(replace_win) then
+  if replace_win and not vim.api.nvim_win_is_valid(replace_win) then
     notify('replacement diff window is no longer valid', vim.log.levels.WARN)
     return false
   end
 
-  local existing_win = replace_requested and replace_win or M.find_diffs_window()
+  local existing_win = replace_win or M.find_diffs_window()
   if existing_win then
     vim.api.nvim_set_current_win(existing_win)
     split.release_pair_window_options(existing_win)

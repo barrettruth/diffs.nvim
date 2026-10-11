@@ -38,6 +38,10 @@ describe('git', function()
   end)
 
   describe('get_repo_root', function()
+    it('uses the current directory when the filepath is absent', function()
+      assert.are.equal(vim.fn.getcwd(), git.get_repo_root())
+    end)
+
     it('returns repo root for current repo', function()
       local cwd = vim.fn.getcwd()
       local root = git.get_repo_root(cwd .. '/lua/diffs/init.lua')
