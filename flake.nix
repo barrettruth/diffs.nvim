@@ -38,7 +38,6 @@
             chmod +x "$tmpdir/nvim"
             PATH="$tmpdir:$PATH" exec ${luaEnv}/bin/busted "$@"
           '';
-          vimdoc-ls = pkgs.vimdoc-language-server;
           commonPackages = [
             busted-with-grammar
             pkgs.just
@@ -47,7 +46,6 @@
             pkgs.selene
             pkgs.lua-language-server
             pkgs.neovim
-            vimdoc-ls
           ];
         in
         {
