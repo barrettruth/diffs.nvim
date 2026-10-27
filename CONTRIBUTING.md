@@ -1,10 +1,10 @@
 # Contributing
 
 Development happens on
-[SourceHut](https://git.sr.ht/~barrettruth/diffs.nvim). Send patches to
-[~barrettruth/diffs.nvim-devel@lists.sr.ht](https://lists.sr.ht/~barrettruth/diffs.nvim-devel)
+[GitHub](https://github.com/barrettruth/diffs.nvim). Open
+[pull requests](https://github.com/barrettruth/diffs.nvim/pulls) for patches
 and report bugs on the
-[tracker](https://todo.sr.ht/~barrettruth/diffs.nvim).
+[issue tracker](https://github.com/barrettruth/diffs.nvim/issues).
 
 ## Patches
 

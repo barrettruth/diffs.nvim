@@ -51,7 +51,6 @@ CONTENTS                                                 *diffs.nvim-contents*
  12. Highlight Groups ................................ |diffs.nvim-highlights|
  13. Health Check ........................................ |diffs.nvim-health|
  14. Acknowledgements .......................... |diffs.nvim-acknowledgements|
- 15. Migration ....................................... |diffs-migration|
 
 ==============================================================================
 REQUIREMENTS                                         *diffs.nvim-requirements*
@@ -65,8 +64,10 @@ SETUP                                                       *diffs.nvim-setup*
 
 With vim.pack (Neovim 0.12+): >lua
     vim.pack.add({
-      'https://forge.barrettruth.com/barrettruth/diffs.nvim',
+      'https://github.com/barrettruth/diffs.nvim',
     })
+<
+
 Do not lazy load with `event`, `lazy`, `ft`, `config`, or `keys` — diffs.nvim
 lazy-loads itself.
 
@@ -76,15 +77,6 @@ NOTE: Load your colorscheme before diffs.nvim. With lazy.nvim, set `priority =
 See |diffs.nvim-config| for customization, |diffs.nvim-integrations| for
 plugin support.
 
-==============================================================================
-MIGRATION                                                    *diffs-migration*
-
-diffs.nvim will be removed from GitHub on October 31, 2026. Update your plugin
-source to Forgejo: >lua
-    vim.pack.add({
-      'https://forge.barrettruth.com/barrettruth/diffs.nvim',
-    })
-<
 ==============================================================================
 CONFIGURATION                                              *diffs.nvim-config*
 
