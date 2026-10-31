@@ -1,6 +1,6 @@
 *diffs.nvim.txt*        Syntax highlighting for diffs in Neovim
 
-Author:  Barrett Ruth <br.barrettruth@gmail.com> License: GPL-3.0
+Author:  Barrett Ruth <br.barrettruth@gmail.com> License: ISC
 
 ==============================================================================
 INTRODUCTION                                                      *diffs.nvim*
