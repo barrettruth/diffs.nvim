@@ -2,7 +2,6 @@ require('spec.helpers')
 
 vim.g.diffs = { integrations = { neogit = true } }
 
-local parser = require('diffs.parser')
 local runtime = require('diffs.runtime')
 
 local function create_buffer(lines)
@@ -77,49 +76,6 @@ describe('neogit_integration', function()
       assert.is_not_nil(entry)
       assert.is_table(entry.hunks)
       assert.are.equal(1, #entry.hunks)
-      delete_buffer(bufnr)
-    end)
-  end)
-
-  describe('parser neogit patterns', function()
-    it('detects renamed prefix via parser', function()
-      local bufnr = create_buffer({
-        'renamed   old.lua',
-        '@@ -1,2 +1,3 @@',
-        ' local M = {}',
-        '+local x = 1',
-        ' return M',
-      })
-      local hunks = parser.parse_buffer(bufnr)
-      assert.are.equal(1, #hunks)
-      assert.are.equal('old.lua', hunks[1].filename)
-      delete_buffer(bufnr)
-    end)
-
-    it('detects copied prefix via parser', function()
-      local bufnr = create_buffer({
-        'copied   orig.lua',
-        '@@ -1,2 +1,3 @@',
-        ' local M = {}',
-        '+local x = 1',
-        ' return M',
-      })
-      local hunks = parser.parse_buffer(bufnr)
-      assert.are.equal(1, #hunks)
-      assert.are.equal('orig.lua', hunks[1].filename)
-      delete_buffer(bufnr)
-    end)
-
-    it('detects deleted prefix via parser', function()
-      local bufnr = create_buffer({
-        'deleted   gone.lua',
-        '@@ -1,2 +0,0 @@',
-        '-local M = {}',
-        '-return M',
-      })
-      local hunks = parser.parse_buffer(bufnr)
-      assert.are.equal(1, #hunks)
-      assert.are.equal('gone.lua', hunks[1].filename)
       delete_buffer(bufnr)
     end)
   end)

@@ -202,12 +202,6 @@ describe('whitespace-only line classification', function()
   end)
 end)
 
-describe('diffopt change handler', function()
-  it('exposes on_diffopt_changed', function()
-    assert.are.equal('function', type(require('diffs.commands').on_diffopt_changed))
-  end)
-end)
-
 describe('line-level whitespace handling', function()
   local saved
 

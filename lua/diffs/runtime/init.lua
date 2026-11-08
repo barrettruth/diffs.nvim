@@ -37,9 +37,6 @@ local attached_buffers = {}
 ---@type table<integer, boolean>
 local diff_windows = {}
 
----@type fun(bufnr: integer): boolean
-M.is_fugitive_buffer = attach_mod.is_fugitive_buffer
-
 local function compute_highlight_groups(is_default)
   local result = highlight_groups.apply(config, is_default)
   if result.transparent and not hl_retry_pending then
@@ -232,7 +229,6 @@ M._test = {
   invalidate_cache = function(bufnr)
     cache:invalidate(bufnr)
   end,
-  hunks_eq = cache_mod.hunks_eq,
   process_pending_clear = function(bufnr)
     cache:process_pending_clear(bufnr)
   end,
