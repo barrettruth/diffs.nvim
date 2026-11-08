@@ -1492,7 +1492,7 @@ After diffs.nvim initializes, customize with |nvim_set_hl()| and
 Background colors ~
                                                      *diffs.nvim-blend-alpha*
 To replace the deprecated `highlights.blend_alpha` setting, use one of these
-alternatives in `set_highlights()` above.
+alternatives:
 
 1. Set the highlight groups yourself (see |diffs.nvim-highlights|).
 
