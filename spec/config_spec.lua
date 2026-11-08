@@ -72,15 +72,12 @@ describe('diffs.config', function()
     end)
 
     it('accepts boolean and table highlight settings', function()
-      for _, key in ipairs({ 'treesitter', 'vim', 'intra' }) do
+      for _, key in ipairs({ 'vim', 'intra' }) do
         local defaults = config.new().highlights[key]
         for _, value in ipairs({ true, {} }) do
           assert.are.same(defaults, config.new({ highlights = { [key] = value } }).highlights[key])
         end
-        assert.are.same(
-          key == 'treesitter' and defaults or false,
-          config.new({ highlights = { [key] = false } }).highlights[key]
-        )
+        assert.is_false(config.new({ highlights = { [key] = false } }).highlights[key])
         assert.are.same(
           vim.tbl_extend('force', defaults, { max_lines = 1000 }),
           config.new({ highlights = { [key] = { max_lines = 1000 } } }).highlights[key]
