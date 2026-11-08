@@ -541,40 +541,6 @@ describe('parser', function()
       rawset(vim.fn, 'did_filetype', nil)
     end)
 
-    it('extracts file line numbers from @@ header', function()
-      local bufnr = create_buffer({
-        'M lua/test.lua',
-        '@@ -1,3 +1,4 @@',
-        ' local M = {}',
-        '+local new = true',
-        ' return M',
-      })
-      local hunks = parser.parse_buffer(bufnr)
-
-      assert.are.equal(1, #hunks)
-      assert.are.equal(1, hunks[1].file_old_start)
-      assert.are.equal(3, hunks[1].file_old_count)
-      assert.are.equal(1, hunks[1].file_new_start)
-      assert.are.equal(4, hunks[1].file_new_count)
-      delete_buffer(bufnr)
-    end)
-
-    it('defaults count to 1 when omitted in @@ header', function()
-      local bufnr = create_buffer({
-        'M lua/test.lua',
-        '@@ -1 +1 @@',
-        ' local M = {}',
-      })
-      local hunks = parser.parse_buffer(bufnr)
-
-      assert.are.equal(1, #hunks)
-      assert.are.equal(1, hunks[1].file_old_start)
-      assert.are.equal(1, hunks[1].file_old_count)
-      assert.are.equal(1, hunks[1].file_new_start)
-      assert.are.equal(1, hunks[1].file_new_count)
-      delete_buffer(bufnr)
-    end)
-
     it('recognizes U prefix for unmerged files', function()
       local bufnr = create_buffer({
         'U merge_me.lua',
@@ -645,22 +611,6 @@ describe('parser', function()
       delete_buffer(bufnr)
     end)
 
-    it('extracts new range from combined diff header', function()
-      local bufnr = create_buffer({
-        'U test.lua',
-        '@@@ -1,3 -1,5 +1,9 @@@',
-        '  local M = {}',
-      })
-      local hunks = parser.parse_buffer(bufnr)
-
-      assert.are.equal(1, #hunks)
-      assert.are.equal(1, hunks[1].file_new_start)
-      assert.are.equal(9, hunks[1].file_new_count)
-      assert.are.equal(1, hunks[1].file_old_start)
-      assert.are.equal(3, hunks[1].file_old_count)
-      delete_buffer(bufnr)
-    end)
-
     it('extracts header context from combined diff header', function()
       local bufnr = create_buffer({
         'U test.lua',
@@ -720,22 +670,6 @@ describe('parser', function()
       assert.are.equal('test.lua', hunks[1].filename)
       assert.are.equal('lua', hunks[1].ft)
       assert.are.equal(4, #hunks[1].lines)
-      delete_buffer(bufnr)
-    end)
-
-    it('stores repo_root on hunk when available', function()
-      local bufnr = create_buffer({
-        'M lua/test.lua',
-        '@@ -1,3 +1,4 @@',
-        ' local M = {}',
-        '+local new = true',
-        ' return M',
-      })
-      vim.api.nvim_buf_set_var(bufnr, 'diffs_repo_root', '/tmp/test-repo')
-      local hunks = parser.parse_buffer(bufnr)
-
-      assert.are.equal(1, #hunks)
-      assert.are.equal('/tmp/test-repo', hunks[1].repo_root)
       delete_buffer(bufnr)
     end)
 

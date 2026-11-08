@@ -27,10 +27,6 @@ describe('diffs.config', function()
             background = true,
             blend_alpha = 0.4,
             warn_max_lines = false,
-            context = {
-              enabled = false,
-              lines = 10,
-            },
             treesitter = { max_lines = 1000 },
             vim = false,
             intra = {
@@ -164,10 +160,6 @@ describe('diffs.config', function()
 
     it('validates numeric highlight limits', function()
       local cases = {
-        {
-          input = { highlights = { context = { lines = -1 } } },
-          message = 'diffs: highlights.context.lines must be >= 0',
-        },
         {
           input = { highlights = { treesitter = { max_lines = 0 } } },
           message = 'diffs: highlights.treesitter.max_lines must be >= 1',

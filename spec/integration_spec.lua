@@ -38,7 +38,6 @@ local function highlight_opts_with_background()
     hide_prefix = false,
     highlights = {
       background = true,
-      context = { enabled = false, lines = 0 },
       treesitter = { max_lines = 500 },
       vim = false,
       intra = { enabled = false, algorithm = 'default', max_lines = 500 },

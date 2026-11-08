@@ -13,10 +13,6 @@ local integration_metadata = require('diffs.integrations')
 ---@field algorithm string
 ---@field max_lines integer
 
----@class diffs.ContextConfig
----@field enabled boolean
----@field lines integer
-
 ---@class diffs.ViewConfig
 ---@field default_layout "unified"|"stacked"|"split"
 ---@field prefix boolean
@@ -26,7 +22,6 @@ local integration_metadata = require('diffs.integrations')
 ---@field blend_alpha? number
 ---@field overrides? table<string, table>
 ---@field warn_max_lines boolean
----@field context diffs.ContextConfig
 ---@field treesitter diffs.TreesitterConfig|false
 ---@field vim diffs.VimConfig|false
 ---@field intra diffs.IntraConfig
@@ -80,10 +75,6 @@ local DEFAULTS = {
   highlights = {
     background = true,
     warn_max_lines = true,
-    context = {
-      enabled = true,
-      lines = 25,
-    },
     treesitter = {
       max_lines = 500,
     },
@@ -143,13 +134,7 @@ function M.validate(opts)
     vim.validate('highlights.blend_alpha', opts.highlights.blend_alpha, 'number', true)
     vim.validate('highlights.overrides', opts.highlights.overrides, 'table', true)
     vim.validate('highlights.warn_max_lines', opts.highlights.warn_max_lines, 'boolean', true)
-    vim.validate('highlights.context', opts.highlights.context, 'table', true)
     vim.validate('highlights.intra', opts.highlights.intra, 'table', true)
-
-    if opts.highlights.context then
-      vim.validate('highlights.context.enabled', opts.highlights.context.enabled, 'boolean', true)
-      vim.validate('highlights.context.lines', opts.highlights.context.lines, 'number', true)
-    end
 
     for _, key in ipairs({ 'treesitter', 'vim' }) do
       local path = 'highlights.' .. key
@@ -204,14 +189,6 @@ function M.validate(opts)
     end
   end
 
-  if
-    opts.highlights
-    and opts.highlights.context
-    and opts.highlights.context.lines
-    and opts.highlights.context.lines < 0
-  then
-    error('diffs: highlights.context.lines must be >= 0')
-  end
   if
     opts.highlights
     and opts.highlights.intra

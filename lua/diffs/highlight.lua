@@ -112,26 +112,9 @@ end
 ---@param lang string
 ---@param context_lines? string[]
 ---@param priorities diffs.HighlightPriorities
----@param context_before? string[]
 ---@return integer
-local function highlight_text(
-  bufnr,
-  ns,
-  hunk,
-  col_offset,
-  text,
-  lang,
-  context_lines,
-  priorities,
-  context_before
-)
-  local prefix_count = 0
-  local parts = {}
-  if context_before and #context_before > 0 then
-    prefix_count = #context_before
-    parts[#parts + 1] = table.concat(context_before, '\n')
-  end
-  parts[#parts + 1] = text
+local function highlight_text(bufnr, ns, hunk, col_offset, text, lang, context_lines, priorities)
+  local parts = { text }
   if context_lines and #context_lines > 0 then
     parts[#parts + 1] = table.concat(context_lines, '\n')
   end
@@ -154,11 +137,10 @@ local function highlight_text(
 
   local extmark_count = 0
   local header_line = hunk.start_line - 1
-  local target_row = prefix_count
 
   for id, node, metadata in query:iter_captures(trees[1]:root(), parse_text) do
     local sr, sc, _, ec = node:range()
-    if sr == target_row then
+    if sr == 0 then
       local capture_name = '@' .. query.captures[id] .. '.' .. lang
 
       local buf_sr = header_line
@@ -247,10 +229,6 @@ function M.highlight_hunk_prefixes(bufnr, ns, hunk, opts)
   return extmark_count
 end
 
----@class diffs.TSContext
----@field before string[]?
----@field after string[]?
-
 ---@param bufnr integer
 ---@param ns integer
 ---@param code_lines string[]
@@ -260,7 +238,6 @@ end
 ---@param covered_lines? table<integer, true>
 ---@param priorities diffs.HighlightPriorities
 ---@param force_high_priority? boolean
----@param context? diffs.TSContext
 ---@return integer
 local function highlight_treesitter(
   bufnr,
@@ -271,34 +248,9 @@ local function highlight_treesitter(
   col_offset,
   covered_lines,
   priorities,
-  force_high_priority,
-  context
+  force_high_priority
 )
-  local prefix_count = 0
-  local parse_lines = code_lines
-  if context then
-    local before = context.before
-    local after = context.after
-    if (before and #before > 0) or (after and #after > 0) then
-      parse_lines = {}
-      if before then
-        prefix_count = #before
-        for _, l in ipairs(before) do
-          parse_lines[#parse_lines + 1] = l
-        end
-      end
-      for _, l in ipairs(code_lines) do
-        parse_lines[#parse_lines + 1] = l
-      end
-      if after then
-        for _, l in ipairs(after) do
-          parse_lines[#parse_lines + 1] = l
-        end
-      end
-    end
-  end
-
-  local code = table.concat(parse_lines, '\n')
+  local code = table.concat(code_lines, '\n')
   if code == '' then
     return 0
   end
@@ -328,8 +280,6 @@ local function highlight_treesitter(
       if capture ~= 'spell' and capture ~= 'nospell' then
         local capture_name = '@' .. capture .. '.' .. tree_lang
         local sr, sc, er, ec = node:range()
-        sr = sr - prefix_count
-        er = er - prefix_count
 
         local buf_sr = line_map[sr]
         if buf_sr then
@@ -598,36 +548,10 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
       end
     end
 
-    local ts_context = nil
-    if opts.highlights.context.enabled and (hunk.context_before or hunk.context_after) then
-      ts_context = { before = hunk.context_before, after = hunk.context_after }
-    end
-
-    extmark_count = highlight_treesitter(
-      bufnr,
-      ns,
-      new_code,
-      hunk.lang,
-      new_map,
-      pw + qw,
-      covered_lines,
-      p,
-      nil,
-      ts_context
-    )
+    extmark_count =
+      highlight_treesitter(bufnr, ns, new_code, hunk.lang, new_map, pw + qw, covered_lines, p)
     extmark_count = extmark_count
-      + highlight_treesitter(
-        bufnr,
-        ns,
-        old_code,
-        hunk.lang,
-        old_map,
-        pw + qw,
-        covered_lines,
-        p,
-        nil,
-        ts_context
-      )
+      + highlight_treesitter(bufnr, ns, old_code, hunk.lang, old_map, pw + qw, covered_lines, p)
 
     if hunk.header_context and hunk.header_context_col then
       local header_extmarks = highlight_text(
@@ -638,8 +562,7 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
         hunk.header_context,
         hunk.lang,
         new_code,
-        p,
-        hunk.context_before
+        p
       )
       if header_extmarks > 0 then
         dbg('header %s:%d applied %d extmarks', hunk.filename, hunk.start_line, header_extmarks)

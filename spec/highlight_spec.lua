@@ -77,7 +77,6 @@ describe('highlight', function()
         hide_prefix = false,
         highlights = {
           background = false,
-          context = { enabled = false, lines = 0 },
           treesitter = { max_lines = 500 },
           vim = false,
           intra = {
@@ -2108,7 +2107,6 @@ describe('highlight', function()
         hide_prefix = false,
         highlights = {
           background = false,
-          context = { enabled = false, lines = 0 },
           treesitter = { max_lines = 500 },
           vim = false,
           priorities = { clear = 198, syntax = 199, line_bg = 200, char_bg = 201 },
@@ -2692,7 +2690,6 @@ describe('highlight', function()
         hide_prefix = false,
         highlights = {
           background = false,
-          context = { enabled = false, lines = 0 },
           treesitter = { max_lines = 500 },
           vim = false,
           priorities = { clear = 198, syntax = 199, line_bg = 200, char_bg = 201 },

@@ -8,17 +8,10 @@
 ---@field lines string[]
 ---@field header_start_line integer?
 ---@field header_lines string[]?
----@field file_old_start integer?
----@field file_old_count integer?
----@field file_new_start integer?
----@field file_new_count integer?
 ---@field prefix_width integer
 ---@field quote_width integer
 ---@field rail_width integer?
 ---@field rail_style diffs.RailStyle?
----@field repo_root string?
----@field context_before string[]?
----@field context_after string[]?
 ---@field _hl_line_count integer?
 ---@field _skipped_max_lines boolean?
 
@@ -195,14 +188,6 @@ function M.parse_buffer(bufnr)
   ---@type string[]
   local header_lines = {}
   ---@type integer?
-  local file_old_start = nil
-  ---@type integer?
-  local file_old_count = nil
-  ---@type integer?
-  local file_new_start = nil
-  ---@type integer?
-  local file_new_count = nil
-  ---@type integer?
   local old_remaining = nil
   ---@type integer?
   local new_remaining = nil
@@ -220,11 +205,6 @@ function M.parse_buffer(bufnr)
         lines = hunk_lines,
         prefix_width = hunk_prefix_width,
         quote_width = current_quote_width,
-        file_old_start = file_old_start,
-        file_old_count = file_old_count,
-        file_new_start = file_new_start,
-        file_new_count = file_new_count,
-        repo_root = repo_root,
         rail_width = rail_width > 0 and rail_width or nil,
         rail_style = rail_style,
       }
@@ -238,10 +218,6 @@ function M.parse_buffer(bufnr)
     hunk_header_context = nil
     hunk_header_context_col = nil
     hunk_lines = {}
-    file_old_start = nil
-    file_old_count = nil
-    file_new_start = nil
-    file_new_count = nil
     old_remaining = nil
     new_remaining = nil
   end
@@ -306,27 +282,19 @@ function M.parse_buffer(bufnr)
       local at_prefix = logical:match('^(@@+)')
       hunk_prefix_width = #at_prefix - 1
       if #at_prefix == 2 then
-        local hs, hc, hs2, hc2 = logical:match('^@@ %-(%d+),?(%d*) %+(%d+),?(%d*) @@')
-        if hs then
-          file_old_start = tonumber(hs)
-          file_old_count = tonumber(hc) or 1
-          file_new_start = tonumber(hs2)
-          file_new_count = tonumber(hc2) or 1
-          old_remaining = file_old_count
-          new_remaining = file_new_count
+        local hc, hc2 = logical:match('^@@ %-%d+,?(%d*) %+%d+,?(%d*) @@')
+        if hc then
+          old_remaining = tonumber(hc) or 1
+          new_remaining = tonumber(hc2) or 1
         end
       else
-        local hs, hc = logical:match('%-(%d+),?(%d*)')
-        if hs then
-          file_old_start = tonumber(hs)
-          file_old_count = tonumber(hc) or 1
-          old_remaining = file_old_count
+        local hc = logical:match('%-%d+,?(%d*)')
+        if hc then
+          old_remaining = tonumber(hc) or 1
         end
-        local hs2, hc2 = logical:match('%+(%d+),?(%d*) @@')
-        if hs2 then
-          file_new_start = tonumber(hs2)
-          file_new_count = tonumber(hc2) or 1
-          new_remaining = file_new_count
+        local hc2 = logical:match('%+%d+,?(%d*) @@')
+        if hc2 then
+          new_remaining = tonumber(hc2) or 1
         end
       end
       local at_end, context = logical:match('^(@@+.-@@+%s*)(.*)')
