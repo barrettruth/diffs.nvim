@@ -1308,6 +1308,28 @@ local function first_renderable_review_file(review_spec, repo_root, review_lines
 end
 
 ---@param state diffs.ReviewSplitState
+local function sync_review_quickfix(state)
+  local qf = vim.fn.getqflist({ items = 0, idx = 0 })
+  for index, item in ipairs(qf.items) do
+    local selected = lists.selected_generated_file({ item = item })
+    if selected and (selected.key or selected.file) == state.selected_key then
+      local source = generated.source(selected.bufnr)
+      if
+        source
+        and source.kind == 'review'
+        and source.repo_root == state.repo_root
+        and vim.deep_equal(source.review, state.review)
+      then
+        if qf.idx ~= index then
+          vim.fn.setqflist({}, 'a', { idx = index })
+        end
+        return
+      end
+    end
+  end
+end
+
+---@param state diffs.ReviewSplitState
 local function clear_review_split_autocmds(state)
   for _, id in ipairs(state.autocmds or {}) do
     pcall(vim.api.nvim_del_autocmd, id)
@@ -1424,6 +1446,7 @@ local function switch_review_split_file(state, selected, opts)
   review_split_states[state.left_buf] = state
   review_split_states[state.right_buf] = state
   attach_review_split_autocmds(state)
+  sync_review_quickfix(state)
   return true, false
 end
 
@@ -1643,6 +1666,34 @@ function M.review_goto(target, bufnr)
   return false
 end
 
+---@param item table?
+---@return boolean handled
+function M.review_quickfix_jump(item)
+  local selected = lists.selected_generated_file({ item = item })
+  if not selected then
+    return false
+  end
+  local source = generated.source(selected.bufnr)
+  if not source or source.kind ~= 'review' then
+    return false
+  end
+
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    local state = review_split_states[vim.api.nvim_win_get_buf(win)]
+    if
+      state
+      and state.repo_root == source.repo_root
+      and vim.deep_equal(state.review, source.review)
+    then
+      if M.review_goto(selected.key or selected.file, state.right_buf) then
+        vim.api.nvim_set_current_win(state.right_win)
+      end
+      return true
+    end
+  end
+  return false
+end
+
 ---@param file diffs.ReviewFile
 ---@return string
 local function review_file_label(file)
@@ -1815,6 +1866,7 @@ open_review_split = function(spec, opts)
   review_split_states[opened.left_buf] = state
   review_split_states[opened.right_buf] = state
   attach_review_split_autocmds(state)
+  sync_review_quickfix(state)
   split.move_pair_to_source(opened.right_buf, opts.source_position)
 
   local files = lists.generated_files(review_lines, review_generated_list_opts(list_opts))

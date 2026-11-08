@@ -93,6 +93,8 @@ function M.apply(config, is_default)
   )
   vim.api.nvim_set_hl(0, 'DiffsAddBar', { default = dflt, fg = add_fg, bg = blended_add })
   vim.api.nvim_set_hl(0, 'DiffsDeleteBar', { default = dflt, fg = del_fg, bg = blended_del })
+  vim.api.nvim_set_hl(0, 'DiffsAddCount', { default = dflt, fg = add_fg })
+  vim.api.nvim_set_hl(0, 'DiffsDeleteCount', { default = dflt, fg = del_fg })
   vim.api.nvim_set_hl(0, 'DiffsAddText', { default = dflt, bg = blended_add_text })
   vim.api.nvim_set_hl(0, 'DiffsDeleteText', { default = dflt, bg = blended_del_text })
 

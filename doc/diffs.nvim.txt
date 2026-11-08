@@ -634,8 +634,9 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     file index; the location list holds the active file's hunks
     (`:lnext`/`:lprev`). A quickfix from another surface
     (such as an open review map) is left untouched, so `:cnext`/`:cprev` follow
-    that list. `]c`/`[c` navigate hunks within the active file across both panes,
-    and `q` closes the pair.
+    that list. If the review map is hidden, <CR> on its quickfix file entries
+    selects the file in the matching visible split review. `]c`/`[c` navigate
+    hunks within the active file across both panes, and `q` closes the pair.
 
     Prefix with |:vertical| to open the generated `unified` and `stacked`
     review maps in a vertical split (`:vertical Diff review`). As with |:Diff|,
@@ -1573,6 +1574,12 @@ Diff and generated rail highlights: ~
 
                                                               *DiffsDeleteBar*
     DiffsDeleteBar      Change bar for `-` lines in diffs.nvim-owned views.
+
+                                                               *DiffsAddCount*
+    DiffsAddCount       Added-line counts in the quickfix file list.
+
+                                                            *DiffsDeleteCount*
+    DiffsDeleteCount    Deleted-line counts in the quickfix file list.
 
                                                                 *DiffsAddText*
     DiffsAddText        Character-level background for changed characters
