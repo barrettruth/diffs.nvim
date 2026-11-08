@@ -35,7 +35,7 @@ function M.setup(opts)
         return false
       end
       local entry = cache.hunk_cache[bufnr]
-      if entry and entry.tick == -1 then
+      if attached_buffers[bufnr].hunks and entry and entry.tick == -1 then
         cache:ensure(bufnr)
         cache:process_pending_clear(bufnr)
         entry = cache.hunk_cache[bufnr]

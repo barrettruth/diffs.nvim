@@ -58,14 +58,14 @@ function M.attach(opts, bufnr, options)
   }
   opts.attached_buffers[bufnr] = attachment
   local config = opts.get_config()
-  for _, name in ipairs({ 'neogit', 'neojj' }) do
+  for name, event in pairs({ neogit = 'NeogitDiffLoaded', neojj = 'NeojjDiffLoaded' }) do
     if
       integrations.is_enabled(config.integrations[name])
       and integrations.matches_filetype(name, vim.bo[bufnr].filetype)
     then
       vim.b[bufnr][name .. '_disable_hunk_highlight'] = true
       vim.api.nvim_create_autocmd('User', {
-        pattern = name == 'neogit' and 'NeogitDiffLoaded' or 'NeojjDiffLoaded',
+        pattern = event,
         group = attachment.augroup,
         callback = function()
           if vim.api.nvim_buf_is_valid(bufnr) and opts.attached_buffers[bufnr] == attachment then
@@ -73,6 +73,7 @@ function M.attach(opts, bufnr, options)
           end
         end,
       })
+      break
     end
   end
   vim.api.nvim_create_autocmd('BufWipeout', {

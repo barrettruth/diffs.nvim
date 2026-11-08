@@ -6,7 +6,7 @@ Diffs uses Treesitter or Vim syntax to highlight the code inside diff hunks.
 It adds line backgrounds and intra-line highlights, and adjusts colors in native
 diff windows.
 
-<img width="863" height="752" alt="image" src="https://github.com/user-attachments/assets/fb67f1f5-e64b-4b67-88f4-2d8d37d9f9f2" />
+<img width="1719" height="1040" alt="image" src="https://github.com/user-attachments/assets/c26cd9d4-b8f7-4386-aa47-6e7cf2fef9cb" />
 
 ## Requirements
 
