@@ -737,9 +737,6 @@ Inline granularity: ~                                      *diffs.nvim-inline*
     'diffopt' is global: this changes all diff views. For attachment to `diff`
     buffers, see |diffs.nvim-extra-filetypes|.
 
-    Remove `highlights.intra = true` to use the defaults. The table form
-    remains available for `max_lines` and `algorithm`.
-
 ==============================================================================
 MAPPINGS                                                 *diffs.nvim-mappings*
 
@@ -1080,7 +1077,7 @@ emits an informational message and renders no token highlights. The 'diffopt'
 whitespace handling does not apply to a structural diff; such buffers are left
 unchanged.
 
-Run `:Diff refresh` after changing `inline:` in an open difftastic view.
+Use |<Plug>(diffs-refresh)| after changing `inline:` in an open difftastic view.
 
 Run |:checkhealth| diffs to confirm `difft` is detected.
 
