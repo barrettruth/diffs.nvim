@@ -353,12 +353,6 @@ local function clear_diff_hunks_var(bufnr)
 end
 
 ---@param bufnr integer
----@return diffs.DiffSpec?, string?
-local function get_diff_spec_var(bufnr)
-  return generated.spec(bufnr)
-end
-
----@param bufnr integer
 ---@return diffs.GeneratedBufferSource?, string?
 local function get_source_var(bufnr)
   return generated.source(bufnr)
@@ -2228,9 +2222,6 @@ function M.diff_file(filepath, opts)
     diff_spec = diff_spec,
     source = source,
     rail_style = opts.rail_style,
-    vars = {
-      diffs_old_filepath = old_rel_path ~= rel_path and old_rel_path or nil,
-    },
   })
   show_generated_diff_buffer(diff_buf, opts.vertical)
 
@@ -2331,8 +2322,7 @@ end
 function M.read_buffer(bufnr, opts)
   opts = opts or {}
   local name = vim.api.nvim_buf_get_name(bufnr)
-  local url_body = name:match('^diffs://(.+)$')
-  if not url_body then
+  if not name:match('^diffs://') then
     return
   end
 
@@ -2354,94 +2344,19 @@ function M.read_buffer(bufnr, opts)
     return
   end
 
-  local diff_lines
-  local stored_spec
-  local debug_label
-  local list_opts
-  local label, path
-
-  if source then
-    local render_err
-    diff_lines, stored_spec, render_err, list_opts = render_source(source)
-    if not diff_lines then
-      notify(render_err or 'cannot reload diffs:// buffer', vim.log.levels.WARN)
-      return
-    end
-    debug_label = render_err
-  else
-    local repo_root = generated.repo_root(bufnr)
-    if not repo_root then
-      notify('cannot reload diffs:// buffer without diffs_repo_root', vim.log.levels.WARN)
-      return
-    end
-    local spec_err
-    stored_spec, spec_err = get_diff_spec_var(bufnr)
-    if spec_err then
-      notify('invalid diffs_spec metadata: ' .. tostring(spec_err), vim.log.levels.WARN)
-      return
-    end
-
-    if stored_spec then
-      local read_err
-      diff_lines, read_err = render.file(stored_spec, repo_root, { empty_on_missing = true })
-      if not diff_lines then
-        notify(read_err, vim.log.levels.WARN)
-        return
-      end
-      debug_label = diffspec.label(stored_spec)
-    else
-      label, path = url_body:match('^([^:]+):(.+)$')
-      if not label or not path then
-        notify('cannot reload malformed diffs:// buffer: ' .. name, vim.log.levels.WARN)
-        return
-      end
-    end
-
-    if not stored_spec and path == 'all' then
-      diff_lines = render_section_source(repo_root, label)
-    elseif not stored_spec and label == 'review' then
-      local review_err
-      diff_lines, review_err, list_opts = review.reload(bufnr, repo_root, path, review_deps())
-      if not diff_lines then
-        notify(review_err or 'cannot reload review buffer', vim.log.levels.WARN)
-        return
-      end
-    elseif not stored_spec then
-      local abs_path = repo_root .. '/' .. path
-
-      local old_ok, old_rel_path = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_old_filepath')
-      local old_abs_path = old_ok and old_rel_path and (repo_root .. '/' .. old_rel_path)
-        or abs_path
-      local old_name = old_ok and old_rel_path or path
-
-      local old_lines, new_lines
-
-      if label == 'unmerged' then
-        old_lines = git.get_file_content(':2', abs_path) or {}
-        new_lines = git.get_file_content(':3', abs_path) or {}
-      elseif label == 'untracked' then
-        old_lines = {}
-        new_lines = git.get_working_content(abs_path) or {}
-      elseif label == 'staged' then
-        old_lines = git.get_file_content('HEAD', old_abs_path) or {}
-        new_lines = git.get_index_content(abs_path) or {}
-      elseif label == 'unstaged' then
-        old_lines = git.get_index_content(old_abs_path)
-        if not old_lines then
-          old_lines = git.get_file_content('HEAD', old_abs_path) or {}
-        end
-        new_lines = git.get_working_content(abs_path) or {}
-      else
-        old_lines = git.get_file_content(label, abs_path) or {}
-        new_lines = git.get_working_content(abs_path) or {}
-      end
-
-      diff_lines = render.unified_lines(old_lines, new_lines, old_name, path)
-    end
-    debug_label = debug_label or ((label or '?') .. ':' .. (path or '?'))
+  if not source then
+    notify('cannot reload diffs:// buffer without diffs_source metadata', vim.log.levels.WARN)
+    return
   end
 
-  local is_review = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_review_base')
+  local diff_lines, stored_spec, render_err, list_opts = render_source(source)
+  if not diff_lines then
+    notify(render_err or 'cannot reload diffs:// buffer', vim.log.levels.WARN)
+    return
+  end
+  local debug_label = render_err
+
+  local is_review = source.kind == 'review'
   replace_generated_diff_buffer_lines(bufnr, diff_lines, stored_spec)
   lists.set_for_unified_buffer(bufnr, diff_lines, {
     title = 'diff: ' .. (debug_label or name:gsub('^diffs://', '')),
