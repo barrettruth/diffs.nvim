@@ -737,8 +737,9 @@ Inline granularity: ~                                      *diffs.nvim-inline*
       boundaries they touch, not by re-diffing the line word by word. The
       result matches Neovim's own `inline:word` rendering on ordinary source
       lines, but the two are not guaranteed identical in every case.
-    - difftastic-rendered diffs keep their structural token spans; `inline:`
-      does not apply to them (see |diffs.nvim-difftastic|).
+    - `inline:none` hides difftastic token highlights. Other `inline:` modes
+      preserve its structural spans. Run `:Diff refresh` after changing this
+      setting in an open difftastic view (see |diffs.nvim-difftastic|).
 
 ==============================================================================
 MAPPINGS                                                 *diffs.nvim-mappings*
