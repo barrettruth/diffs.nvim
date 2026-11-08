@@ -142,10 +142,10 @@ local function merge_base(repo_root, base, target)
 end
 
 ---@param arg? string
----@return diffs.ReviewSpec?, string?
+---@return diffs.ReviewSpec
 function M.parse_arg(arg)
   if not arg or arg == '' then
-    return {}, nil
+    return {}
   end
 
   local base, separator, target = arg:match('^(.-)(%.%.%.?)(.*)$')
@@ -154,11 +154,10 @@ function M.parse_arg(arg)
       base = base ~= '' and base or 'HEAD',
       target = target ~= '' and target or 'HEAD',
       mode = separator == '...' and 'merge-base' or 'direct',
-    },
-      nil
+    }
   end
 
-  return { base = arg }, nil
+  return { base = arg }
 end
 
 ---@param args? string
@@ -166,27 +165,17 @@ end
 function M.parse_command_args(args)
   local tokens = split_args(args)
   local layout = 'unified'
-  local has_layout = false
   local untracked = nil
-  local has_untracked = false
 
   while tokens[1] and (tokens[1]:match('^%+%+layout=') or tokens[1] == '++nountracked') do
     local token = tokens[1]
     if token:match('^%+%+layout=') then
-      if has_layout then
-        return nil, 'repeated ++layout option'
-      end
       local value = token:match('^%+%+layout=(.+)$')
       if value ~= 'unified' and value ~= 'stacked' and value ~= 'split' then
         return nil, 'unsupported layout ' .. tostring(value)
       end
-      has_layout = true
       layout = value
     else
-      if has_untracked then
-        return nil, 'repeated ++nountracked option'
-      end
-      has_untracked = true
       untracked = false
     end
     table.remove(tokens, 1)
@@ -196,13 +185,8 @@ function M.parse_command_args(args)
     return nil, 'expected at most one review spec'
   end
 
-  local spec, err = M.parse_arg(tokens[1])
-  if not spec then
-    return nil, err
-  end
-  if has_untracked then
-    spec.untracked = untracked
-  end
+  local spec = M.parse_arg(tokens[1])
+  spec.untracked = untracked
 
   return {
     spec = spec,

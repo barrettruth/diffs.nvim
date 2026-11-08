@@ -33,17 +33,12 @@ end
 ---@return ("unified"|"stacked"|"split")?, string?
 local function take_layout(tokens, default_layout)
   local layout = default_layout or 'unified'
-  local has_layout = false
   while tokens[1] and tokens[1]:match('^%+%+') do
     if tokens[1]:match('^%+%+layout=') then
-      if has_layout then
-        return nil, 'repeated ++layout option'
-      end
       local value = tokens[1]:match('^%+%+layout=(.+)$')
       if value ~= 'unified' and value ~= 'stacked' and value ~= 'split' then
         return nil, 'unsupported layout ' .. tostring(value)
       end
-      has_layout = true
       layout = value
       table.remove(tokens, 1)
     else

@@ -2869,12 +2869,12 @@ describe('commands', function()
       assert.are.equal('unsupported layout tiled', err)
     end)
 
-    it('rejects repeated review command layout options', function()
+    it('uses the last review command layout option', function()
       local parsed, err =
         commands._test.parse_review_command('++layout=split ++layout=unified origin/main')
 
-      assert.is_nil(parsed)
-      assert.are.equal('repeated ++layout option', err)
+      assert.is_nil(err)
+      assert.are.same({ layout = 'unified', spec = { base = 'origin/main' } }, parsed)
     end)
 
     it('treats non-layout plus-prefixed review args as review specs', function()
@@ -2918,12 +2918,15 @@ describe('commands', function()
       }, parsed)
     end)
 
-    it('rejects repeated ++nountracked options', function()
+    it('accepts repeated ++nountracked options', function()
       local parsed, err =
         commands._test.parse_review_command('++nountracked ++nountracked origin/main')
 
-      assert.is_nil(parsed)
-      assert.are.equal('repeated ++nountracked option', err)
+      assert.is_nil(err)
+      assert.are.same({
+        layout = 'unified',
+        spec = { base = 'origin/main', untracked = false },
+      }, parsed)
     end)
 
     it('normalizes default base inside the resolved repo', function()

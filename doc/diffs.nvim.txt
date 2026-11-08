@@ -372,6 +372,8 @@ highlight-only.
     Without `++layout`, the layout comes from `view.default_layout`; an explicit
     option takes precedence. The default remains `unified`.
 
+    If `++layout` occurs more than once, the last value applies.
+
     `++layout=unified` and `++layout=stacked` create generated `diffs://`
     buffers. Unified buffers include old and new line-number rails before the
     unified diff text. Stacked buffers use the same generated diff text with a
@@ -663,6 +665,9 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
                          target `{target}` against base `{base}`
                        - `{base}..{target}`: direct review of explicit target
                          `{target}` against base `{base}`
+
+    If `++layout` occurs more than once, the last value applies. Repeating
+    `++nountracked` has no additional effect.
 
     Completion covers `++layout=...`, `++nountracked`, and git refs.
 
