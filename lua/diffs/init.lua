@@ -10,19 +10,24 @@
 ---@field review_toggle_layout fun(opts?: diffs.ReviewToggleLayoutOpts): integer?
 ---@field select_review_file fun(bufnr?: integer)
 
-local commands = require('diffs.commands')
 local runtime = require('diffs.runtime')
+
+local function command(name)
+  return function(...)
+    return require('diffs.commands')[name](...)
+  end
+end
 
 ---@type diffs.PublicApi
 return {
   attach = runtime.attach,
-  open_review = commands.open_review,
+  open_review = command('open_review'),
   refresh = runtime.refresh,
-  review_files = commands.review_files,
-  review_current = commands.review_current,
-  review_goto = commands.review_goto,
-  review_next_file = commands.review_next_file,
-  review_prev_file = commands.review_prev_file,
-  review_toggle_layout = commands.review_toggle_layout,
-  select_review_file = commands.select_review_file,
+  review_files = command('review_files'),
+  review_current = command('review_current'),
+  review_goto = command('review_goto'),
+  review_next_file = command('review_next_file'),
+  review_prev_file = command('review_prev_file'),
+  review_toggle_layout = command('review_toggle_layout'),
+  select_review_file = command('select_review_file'),
 }
