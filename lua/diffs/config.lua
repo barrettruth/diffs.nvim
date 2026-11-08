@@ -129,7 +129,7 @@ function M.validate(opts)
       local types = key == 'treesitter' and 'table' or { 'boolean', 'table' }
       vim.validate(path, value, types, true)
       if type(value) == 'table' then
-        vim.validate(path .. '.enabled', value.enabled, 'boolean', true)
+        vim.validate(path .. '.enabled', value.enabled, 'nil')
         vim.validate(path .. '.max_lines', value.max_lines, 'number', true)
         if value.max_lines and value.max_lines < 1 then
           error('diffs: ' .. path .. '.max_lines must be >= 1')
@@ -191,34 +191,7 @@ function M.new(opts)
       vim.log.levels.WARN
     )
   end
-  if opts.highlights and opts.highlights.context ~= nil then
-    vim.notify_once(
-      '[diffs]: highlights.context was removed and is ignored. Remove it from the configuration.',
-      vim.log.levels.WARN
-    )
-  end
   local result = vim.tbl_deep_extend('force', DEFAULTS, opts)
-  for _, key in ipairs({ 'treesitter', 'vim', 'intra' }) do
-    local value = result.highlights[key]
-    if type(value) == 'table' and value.enabled ~= nil then
-      local migration = key == 'treesitter'
-          and 'The enabled field is ignored. Tree-sitter highlighting is always enabled. Remove enabled.'
-        or key == 'intra' and 'Remove enabled and use diffopt. See :help diffs.nvim-diffopt.'
-        or 'Use highlights.vim = false to disable Vim syntax. Otherwise remove enabled.'
-      vim.notify_once(
-        '[diffs]: highlights.'
-          .. key
-          .. '.enabled is deprecated. Support ends on November 30, 2026. '
-          .. migration,
-        vim.log.levels.WARN
-      )
-      if key ~= 'treesitter' and value.enabled == false then
-        result.highlights[key] = false
-      else
-        value.enabled = nil
-      end
-    end
-  end
   if type(result.conflict) == 'table' and result.conflict.enabled ~= nil then
     vim.notify_once(
       '[diffs]: conflict.enabled is deprecated. Support ends on November 30, 2026. '
