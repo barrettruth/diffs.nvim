@@ -68,24 +68,6 @@ function M.restore(bufnr)
 end
 
 ---@param bufnr integer
----@return string?
-function M.repo_root(bufnr)
-  return M.get_var(bufnr, 'diffs_repo_root')
-end
-
----@param bufnr integer
----@param repo_root string
-function M.set_repo_root(bufnr, repo_root)
-  M.set_var(bufnr, 'diffs_repo_root', repo_root)
-end
-
----@param bufnr integer
----@param diff_spec diffs.DiffSpec
-function M.set_spec(bufnr, diff_spec)
-  M.set_var(bufnr, 'diffs_spec', diffspec.new(diff_spec))
-end
-
----@param bufnr integer
 ---@return boolean, any
 function M.raw_hunks(bufnr)
   return pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_hunks')

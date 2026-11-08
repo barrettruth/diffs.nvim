@@ -68,8 +68,7 @@ With vim.pack (Neovim 0.12+): >lua
     })
 <
 
-Do not lazy load with `event`, `lazy`, `ft`, `config`, or `keys` — diffs.nvim
-lazy-loads itself.
+Do not lazy load with `event`, `lazy`, `ft`, `config`, or `keys`.
 
 NOTE: Load your colorscheme before diffs.nvim. With lazy.nvim, set `priority =
 1000` and `lazy = false` on your colorscheme plugin.
@@ -146,10 +145,6 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              Enable gitsigns.nvim popup support. See
                              |diffs.nvim-gitsigns|.
 
-            {committia}
-                             Enable committia.vim diff-pane support. See
-                             |diffs.nvim-committia|.
-
             {telescope}
                              Enable telescope.nvim preview support. See
                              |diffs.nvim-telescope|.
@@ -188,8 +183,7 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              {max_lines}. See |diffs.nvim-max-lines|.
 
         {treesitter}         (table, default: see below)
-                             Treesitter highlighting is always enabled when
-                             a parser is available.
+                             Treesitter highlighting limits.
                              See |diffs.nvim.TreesitterConfig| for fields.
 
         {vim}                (boolean|table, default: true)
@@ -886,13 +880,10 @@ Diff buffer mappings: ~
 ==============================================================================
 INTEGRATIONS                                         *diffs.nvim-integrations*
 
-diffs.nvim integrates with several plugins. There are two attachment patterns:
-
-Automatic: ~ List integrations in the config. The plugin registers `FileType`
-autocmds for each integration's filetypes and attaches automatically.
+List the integrations to enable:
 >lua
     vim.g.diffs = {
-      integrations = { 'fugitive', 'neogit', 'neojj', 'gitsigns', 'committia' },
+      integrations = { 'fugitive', 'neogit', 'neojj', 'gitsigns' },
     }
 <
 
@@ -958,15 +949,6 @@ This status-row behavior is intentionally narrower than Fugitive
 `:Gdiffsplit`. It preserves the useful edge selection model while keeping
 `diffs://` buffers read-only, explicit, and owned by diffs.nvim.
 
-Configuration: ~
->lua
-    vim.g.diffs = {
-      integrations = { 'fugitive' },
-    }
-<
-    Remove `'fugitive'` from the list to disable it. Status keymaps are fixed
-    at `du` and `dU`.
-
 ------------------------------------------------------------------------------
 NEOGIT                                                     *diffs.nvim-neogit*
 
@@ -976,9 +958,6 @@ Enable Neogit (https://github.com/NeogitOrg/neogit) support: >lua
 
 Expanding a diff in a Neogit buffer (e.g., TAB on a file in the status view)
 applies treesitter syntax highlighting and intra-line diffs to the hunk lines.
-
-Configuration: ~
-    Use `neogit = false` to disable.
 
 ------------------------------------------------------------------------------
 NEOJJ                                                       *diffs.nvim-neojj*
@@ -990,9 +969,6 @@ Enable neojj (https://github.com/NicholasZolton/neojj) support: >lua
 Expanding a diff in a neojj buffer (e.g., TAB on a file in the status view)
 applies treesitter syntax highlighting and intra-line diffs to the hunk lines.
 
-Configuration: ~
-    Use `neojj = false` to disable.
-
 ------------------------------------------------------------------------------
 GITSIGNS                                                 *diffs.nvim-gitsigns*
 
@@ -1000,9 +976,6 @@ Enable gitsigns.nvim (https://github.com/lewis6991/gitsigns.nvim) popup
 integration for blame hunk previews: >lua
     vim.g.diffs = { integrations = { 'gitsigns' } }
 <
-
-Configuration: ~
-    Use `gitsigns = false` to disable.
 
 `:Gitsigns blame_line full=true` popups receive treesitter syntax, line
 backgrounds, and intra-line diffs.
@@ -1013,12 +986,8 @@ interfere with the main decoration provider used for diff buffers.
 ------------------------------------------------------------------------------
 COMMITTIA                                               *diffs.nvim-committia*
 
-Enable committia.vim (https://github.com/rhysd/committia.vim) diff-pane
-support: >lua
-    vim.g.diffs = { integrations = { 'committia' } }
-<
-
-Use `committia = false` to disable.
+Committia (https://github.com/rhysd/committia.vim) diff panes receive
+highlighting automatically.
 
 ------------------------------------------------------------------------------
 TELESCOPE                                               *diffs.nvim-telescope*
@@ -1027,11 +996,6 @@ Enable telescope.nvim (https://github.com/nvim-telescope/telescope.nvim)
 preview highlighting: >lua
     vim.g.diffs = { integrations = { 'telescope' } }
 <
-
-Telescope does not set `filetype=diff` on preview buffers — it calls
-`vim.treesitter.start(bufnr, "diff")` directly, so diffs.nvim's `FileType`
-autocmd never fires. This integration listens for the `User
-TelescopePreviewerLoaded` event and attaches to the preview buffer.
 
 Pickers that show diff content (e.g. `git_bcommits`, `git_status`) will
 receive treesitter syntax, line backgrounds, and intra-line diffs in the
@@ -1078,8 +1042,6 @@ When difftastic finds no structural change (e.g. a reformat-only edit), it
 emits an informational message and renders no token highlights. The 'diffopt'
 whitespace handling does not apply to a structural diff; such buffers are left
 unchanged.
-
-Run |:checkhealth| diffs to confirm `difft` is detected.
 
 ==============================================================================
 CONFLICT RESOLUTION                                      *diffs.nvim-conflict*
@@ -1371,25 +1333,6 @@ When opening a fugitive buffer, there is an unavoidable visual "flash" where
 the buffer briefly shows fugitive's default diff highlighting before
 diffs.nvim applies its own highlights.
 
-Conflicting Diff Plugins ~
-                                                 *diffs.nvim-plugin-conflicts*
-Plugins that also own diff highlighting, sign columns, or conflict resolution
-can visually conflict with diffs.nvim. Common overlap points include
-diffview.nvim, mini.diff, gitsigns.nvim line highlights, and
-git-conflict.nvim. If you see visual conflicts, disable one plugin's
-overlapping diff features.
-
-Prefixless Diff Path Ambiguity ~
-                                                 *diffs.nvim-prefix-ambiguity*
-Diffs that diffs.nvim generates pin git's `a/` and `b/` path prefixes, so they
-are unaffected by `diff.mnemonicPrefix` or `diff.noprefix`. Diffs from other
-sources that diffs.nvim only highlights (fugitive, neogit, an opened patch)
-are parsed as they arrive. When such a diff was produced with `diff.noprefix`,
-a header like `diff --git path path` carries no prefix, and a real top-level
-directory named with a single letter (for example `a` or `i`) cannot be
-distinguished from a stripped prefix. In that narrow case the file may be
-mis-identified, which can degrade its syntax highlighting or hunk navigation.
-
 ==============================================================================
 HIGHLIGHT GROUPS                                       *diffs.nvim-highlights*
 
@@ -1500,12 +1443,7 @@ After diffs.nvim initializes, customize with |nvim_set_hl()| and
 ==============================================================================
 HEALTH CHECK                                               *diffs.nvim-health*
 
-Run `:checkhealth diffs` to verify your setup.
-
-Checks performed:
-- Neovim version >= 0.12.0
-- vim-fugitive is installed (optional)
-- libvscode_diff shared library is available (optional)
+Run `:checkhealth diffs` to check the required Neovim version (0.12.0+).
 
 ==============================================================================
 ACKNOWLEDGEMENTS                                 *diffs.nvim-acknowledgements*

@@ -296,9 +296,10 @@ end
 ---@return boolean
 local function mutate_hunk(bufnr, hunk, operation, opts)
   opts = opts or {}
-  local repo_root = get_buf_var(bufnr, 'diffs_repo_root')
+  local source = get_buf_var(bufnr, 'diffs_source')
+  local repo_root = source and source.repo_root
   if not repo_root then
-    notify('cannot mutate diff hunk without diffs_repo_root', vim.log.levels.ERROR)
+    notify('cannot mutate diff hunk without a source repository', vim.log.levels.ERROR)
     return false
   end
 

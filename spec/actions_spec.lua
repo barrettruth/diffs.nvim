@@ -82,8 +82,6 @@ local function create_diff_buffer(repo_root, diff_spec)
   test_buffers[#test_buffers + 1] = bufnr
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, diff_lines)
   vim.api.nvim_buf_set_name(bufnr, 'diffs://actions-' .. buffer_counter .. ':file.txt')
-  vim.api.nvim_buf_set_var(bufnr, 'diffs_repo_root', repo_root)
-  vim.api.nvim_buf_set_var(bufnr, 'diffs_spec', diff_spec)
   generated.set_source(bufnr, generated.file_source(repo_root, diff_spec))
   vim.api.nvim_buf_set_var(bufnr, 'diffs_hunks', hunk_model.parse(diff_lines, diff_spec))
   vim.api.nvim_set_current_buf(bufnr)

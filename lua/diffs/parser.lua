@@ -110,9 +110,9 @@ end
 ---@param bufnr integer
 ---@return string?
 local function get_repo_root(bufnr)
-  local ok, repo_root = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_repo_root')
-  if ok and repo_root then
-    return repo_root
+  local ok, source = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_source')
+  if ok and source.repo_root then
+    return source.repo_root
   end
 
   local ok2, git_dir = pcall(vim.api.nvim_buf_get_var, bufnr, 'git_dir')

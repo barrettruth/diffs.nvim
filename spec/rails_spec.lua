@@ -101,7 +101,12 @@ describe('diffs.rails', function()
     assert.are.equal('  2 │', annotated[4])
     assert.is_nil(annotated[4]:match('%s$'))
     assert.are.equal(' ', rails.strip(annotated[4], info.prefix_width))
-    assert.are.same(lines, rails.strip_lines(annotated, info.prefix_width))
+    assert.are.same(
+      lines,
+      vim.tbl_map(function(line)
+        return rails.strip(line, info.prefix_width)
+      end, annotated)
+    )
   end)
 
   it('returns byte ranges for old and new rail number columns', function()

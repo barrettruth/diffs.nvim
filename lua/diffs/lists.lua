@@ -31,7 +31,8 @@ end
 ---@param bufnr integer
 ---@return diffs.DiffSpec?
 local function buffer_diff_spec(bufnr)
-  return get_buf_var(bufnr, 'diffs_spec')
+  local source = get_buf_var(bufnr, 'diffs_source')
+  return source and source.spec
 end
 
 ---@param bufnr integer
@@ -299,15 +300,6 @@ local function entry_at_lnum(entries, lnum, sections)
     end
   end
   return entries[1]
-end
-
----@param hunks diffs.DiffHunk[]
----@param entries table[]
----@param lnum integer
----@return string?
-local function file_at_lnum(hunks, entries, lnum)
-  local entry = entry_at_lnum(entries or file_entries(hunks), lnum)
-  return entry and entry.file or nil
 end
 
 ---@param bufnr integer
@@ -634,15 +626,8 @@ local function jump_current_quickfix_item()
     if item_win then
       local lnum = math.max(1, math.min(item.lnum or 1, vim.api.nvim_buf_line_count(item.bufnr)))
       local col = math.max(0, (item.col or 1) - 1)
-      vim.api.nvim_buf_set_var(item.bufnr, 'diffs_generated_jump_in_progress', true)
-      local ok, err = pcall(function()
-        vim.api.nvim_win_set_cursor(item_win, { lnum, col })
-        vim.api.nvim_set_current_win(item_win)
-      end)
-      pcall(vim.api.nvim_buf_del_var, item.bufnr, 'diffs_generated_jump_in_progress')
-      if not ok then
-        error(err, 0)
-      end
+      vim.api.nvim_win_set_cursor(item_win, { lnum, col })
+      vim.api.nvim_set_current_win(item_win)
       jumped = true
     end
   end
@@ -850,18 +835,6 @@ end
 
 ---@param diff_lines string[]
 ---@param opts? diffs.GeneratedListOptions
----@return diffs.GeneratedFileSelection?
-function M.first_generated_file(diff_lines, opts)
-  local state = list_state(diff_lines, opts)
-  local entry = state.entries[1]
-  if not entry then
-    return nil
-  end
-  return selection_from_entry(state, entry)
-end
-
----@param diff_lines string[]
----@param opts? diffs.GeneratedListOptions
 ---@return diffs.GeneratedFileSelection[]
 function M.generated_files(diff_lines, opts)
   local state = list_state(diff_lines, opts)
@@ -870,23 +843,6 @@ function M.generated_files(diff_lines, opts)
     files[#files + 1] = selection_from_entry(state, entry)
   end
   return files
-end
-
----@param bufnr integer
----@param diff_lines string[]
----@param opts? diffs.GeneratedListOptions
-function M.set_loclist_for_buffer(bufnr, diff_lines, opts)
-  opts = opts or {}
-  local state = list_state(diff_lines, {
-    diff_spec = opts.diff_spec or buffer_diff_spec(bufnr),
-    title = opts.title,
-    loclist_title = opts.loclist_title,
-  })
-  local title = state.loclist_title
-  local entry = state.entries[1]
-  for _, win in ipairs(windows_for_buffer(bufnr)) do
-    set_loclist(win, title, loclist_items(bufnr, state.hunks, entry))
-  end
 end
 
 ---@param hunk diffs.DiffHunk
@@ -994,7 +950,6 @@ function M.set_for_split_pair(opts)
 end
 
 M._test = {
-  file_at_lnum = file_at_lnum,
   file_entries = file_entries,
   hunk_at_lnum = hunk_at_lnum,
   loclist_items = loclist_items,
