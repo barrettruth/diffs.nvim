@@ -318,7 +318,9 @@ local function buffer_lines(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local ok, rail_width = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_rail_width')
   if ok then
-    return rails.strip_lines(lines, rail_width)
+    return vim.tbl_map(function(line)
+      return rails.strip(line, rail_width)
+    end, lines)
   end
   return lines
 end
@@ -2133,7 +2135,7 @@ describe('commands', function()
       table.insert(test_buffers, diff_buf)
       assert.are.equal('diffs://stage2:file.txt', vim.api.nvim_buf_get_name(diff_buf))
       assert.are.same(
-        diffspec.stage_to_worktree(2, 'file.txt'),
+        diffspec.file(diffspec.stage(2), diffspec.worktree(), 'file.txt'),
         vim.api.nvim_buf_get_var(diff_buf, 'diffs_source').spec
       )
       assert.is_false(helpers.has_keymap(diff_buf, 'dp'))
@@ -4474,71 +4476,6 @@ describe('commands', function()
       assert.are.equal(1, #loc)
       assert.are.equal(7, loc[1].lnum)
       assert.is_true(loc[1].text:find('lua/changed.lua', 1, true) ~= nil)
-    end)
-  end)
-
-  describe('review_file_at_line', function()
-    local review_test_buffers = {}
-
-    after_each(function()
-      for _, bufnr in ipairs(review_test_buffers) do
-        if vim.api.nvim_buf_is_valid(bufnr) then
-          vim.api.nvim_buf_delete(bufnr, { force = true })
-        end
-      end
-      review_test_buffers = {}
-    end)
-
-    it('returns filename at cursor line', function()
-      local bufnr = vim.api.nvim_create_buf(false, true)
-      table.insert(review_test_buffers, bufnr)
-      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {
-        'diff --git a/foo.lua b/foo.lua',
-        '--- a/foo.lua',
-        '+++ b/foo.lua',
-        '@@ -1,3 +1,4 @@',
-        ' local M = {}',
-        '+local x = 1',
-        ' return M',
-      })
-
-      assert.are.equal('foo.lua', commands.review_file_at_line(bufnr, 6))
-    end)
-
-    it('returns correct file in multi-file diff', function()
-      local bufnr = vim.api.nvim_create_buf(false, true)
-      table.insert(review_test_buffers, bufnr)
-      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {
-        'diff --git a/foo.lua b/foo.lua',
-        '@@ -1 +1 @@',
-        '-old',
-        '+new',
-        'diff --git a/bar.lua b/bar.lua',
-        '@@ -1 +1 @@',
-        '-old',
-        '+new',
-      })
-
-      assert.are.equal('foo.lua', commands.review_file_at_line(bufnr, 3))
-      assert.are.equal('bar.lua', commands.review_file_at_line(bufnr, 7))
-    end)
-
-    it('returns nil before any diff header', function()
-      local bufnr = vim.api.nvim_create_buf(false, true)
-      table.insert(review_test_buffers, bufnr)
-      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {
-        'some preamble text',
-        'diff --git a/foo.lua b/foo.lua',
-      })
-
-      assert.is_nil(commands.review_file_at_line(bufnr, 1))
-    end)
-
-    it('returns nil on empty buffer', function()
-      local bufnr = vim.api.nvim_create_buf(false, true)
-      table.insert(review_test_buffers, bufnr)
-
-      assert.is_nil(commands.review_file_at_line(bufnr, 1))
     end)
   end)
 

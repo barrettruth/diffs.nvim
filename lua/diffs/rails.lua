@@ -184,21 +184,6 @@ function M.strip(line, prefix_width)
   return stripped
 end
 
----@param lines string[]
----@param prefix_width integer?
----@return string[]
-function M.strip_lines(lines, prefix_width)
-  if type(prefix_width) ~= 'number' or prefix_width <= 0 then
-    return lines
-  end
-
-  local stripped = {}
-  for i, line in ipairs(lines) do
-    stripped[i] = M.strip(line, prefix_width)
-  end
-  return stripped
-end
-
 ---@param prefix_width integer?
 ---@return diffs.RailRanges?
 function M.ranges(prefix_width)
