@@ -31,14 +31,8 @@ describe('diffs.config', function()
               enabled = false,
               lines = 10,
             },
-            treesitter = {
-              enabled = true,
-              max_lines = 1000,
-            },
-            vim = {
-              enabled = false,
-              max_lines = 200,
-            },
+            treesitter = { max_lines = 1000 },
+            vim = false,
             intra = {
               enabled = true,
               algorithm = 'vscode',
@@ -86,7 +80,21 @@ describe('diffs.config', function()
 
       assert.is_false(opts.view.prefix)
       assert.is_false(opts.highlights.background)
-      assert.is_true(opts.highlights.treesitter.enabled)
+      assert.is_table(opts.highlights.treesitter)
+    end)
+
+    it('accepts boolean and table syntax settings', function()
+      for _, key in ipairs({ 'treesitter', 'vim' }) do
+        local defaults = config.new().highlights[key]
+        for _, value in ipairs({ true, {} }) do
+          assert.are.same(defaults, config.new({ highlights = { [key] = value } }).highlights[key])
+        end
+        assert.is_false(config.new({ highlights = { [key] = false } }).highlights[key])
+        assert.are.same(
+          { max_lines = 1000 },
+          config.new({ highlights = { [key] = { max_lines = 1000 } } }).highlights[key]
+        )
+      end
     end)
 
     it('defaults view.prefix to true', function()

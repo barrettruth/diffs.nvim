@@ -39,8 +39,8 @@ local function highlight_opts_with_background()
     highlights = {
       background = true,
       context = { enabled = false, lines = 0 },
-      treesitter = { enabled = true, max_lines = 500 },
-      vim = { enabled = false, max_lines = 200 },
+      treesitter = { max_lines = 500 },
+      vim = false,
       intra = { enabled = false, algorithm = 'default', max_lines = 500 },
       priorities = { clear = 198, syntax = 199, line_bg = 200, char_bg = 201 },
     },

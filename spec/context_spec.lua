@@ -311,8 +311,8 @@ describe('context', function()
         highlights = {
           background = false,
           context = { enabled = true, lines = 25 },
-          treesitter = { enabled = true, max_lines = 500 },
-          vim = { enabled = false, max_lines = 200 },
+          treesitter = { max_lines = 500 },
+          vim = false,
           intra = { enabled = false, algorithm = 'default', max_lines = 500 },
           priorities = { clear = 198, syntax = 199, line_bg = 200, char_bg = 201 },
         },

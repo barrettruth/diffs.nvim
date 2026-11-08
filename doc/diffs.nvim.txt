@@ -98,14 +98,8 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
           enabled = true,
           lines = 25,
         },
-        treesitter = {
-          enabled = true,
-          max_lines = 500,
-        },
-        vim = {
-          enabled = true,
-          max_lines = 200,
-        },
+        treesitter = true,
+        vim = true,
         intra = {
           enabled = true,
           algorithm = 'default',
@@ -227,11 +221,11 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              Syntax parsing context options.
                              See |diffs.nvim.ContextConfig| for fields.
 
-        {treesitter}         (table, default: see below)
+        {treesitter}         (boolean|table, default: true)
                              Treesitter highlighting options.
                              See |diffs.nvim.TreesitterConfig| for fields.
 
-        {vim}                (table, default: see below)
+        {vim}                (boolean|table, default: true)
                              Vim syntax fallback highlighting options.
                              See |diffs.nvim.VimConfig| for fields.
 
@@ -259,9 +253,6 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
 
                                                  *diffs.nvim.TreesitterConfig*
     Treesitter config fields: ~
-        {enabled}            (boolean, default: true)
-                             Apply treesitter syntax highlighting to code.
-
         {max_lines}          (integer, default: 500)
                              Skip treesitter highlighting for hunks with more
                              highlighted lines (`+`/`-`) than this threshold.
@@ -270,12 +261,6 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
 
                                                         *diffs.nvim.VimConfig*
     Vim config fields: ~
-        {enabled}            (boolean, default: true)
-                             Use vim syntax highlighting as fallback when no
-                             treesitter parser is available for a language.
-                             Slower than treesitter, but covers languages
-                             without a parser installed.
-
         {max_lines}          (integer, default: 200)
                              Skip vim syntax highlighting for hunks with more
                              highlighted lines (`+`/`-`) than this threshold.
