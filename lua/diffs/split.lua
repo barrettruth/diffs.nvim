@@ -384,6 +384,7 @@ end
 
 ---@param bufnr integer
 local function clear_owned_split_keymaps(bufnr)
+  clear_owned_keymap(bufnr, '<C-L>', 'Refresh diff and redraw')
   clear_owned_keymap(bufnr, 'q', 'Close split diff')
   clear_owned_keymap(bufnr, '<CR>', 'Open source file')
   clear_owned_keymap(bufnr, ']c', 'Next diff hunk')
@@ -392,6 +393,14 @@ end
 
 ---@param bufnr integer
 local function set_keymaps(bufnr)
+  if not get_buffer_keymap(bufnr, 'n', '<C-L>') then
+    vim.keymap.set(
+      'n',
+      '<C-L>',
+      '<Cmd>nohlsearch<Bar>diffupdate<CR><Plug>(diffs-refresh)<C-L>',
+      { buffer = bufnr, silent = true, desc = 'Refresh diff and redraw' }
+    )
+  end
   if not get_buffer_keymap(bufnr, 'n', 'q') then
     vim.keymap.set('n', 'q', function()
       M.close_pair(vim.api.nvim_get_current_buf())

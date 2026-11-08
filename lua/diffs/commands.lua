@@ -190,6 +190,14 @@ end
 
 ---@param bufnr integer
 function M.setup_diff_buf(bufnr)
+  if not get_buffer_keymap(bufnr, 'n', '<C-L>') then
+    vim.keymap.set(
+      'n',
+      '<C-L>',
+      '<Cmd>nohlsearch<Bar>diffupdate<CR><Plug>(diffs-refresh)<C-L>',
+      { buffer = bufnr, silent = true, desc = 'Refresh diff and redraw' }
+    )
+  end
   if not get_buffer_keymap(bufnr, 'n', 'q') then
     vim.keymap.set('n', 'q', '<cmd>close<CR>', { buffer = bufnr })
   end
