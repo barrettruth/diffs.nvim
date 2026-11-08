@@ -37,7 +37,6 @@ local integration_metadata = require('diffs.integrations')
 ---@alias diffs.ConflictKeymapName 'ours' | 'theirs' | 'both' | 'none' | 'next' | 'prev'
 
 ---@class diffs.ConflictConfig
----@field enabled boolean
 ---@field disable_diagnostics boolean
 ---@field show_virtual_text boolean
 ---@field format_virtual_text? fun(side: 'ours'|'base'|'theirs', keymap: string|false): string?
@@ -62,7 +61,7 @@ local integration_metadata = require('diffs.integrations')
 ---@field extra_filetypes string[]
 ---@field highlights diffs.Highlights
 ---@field integrations diffs.IntegrationsConfig
----@field conflict diffs.ConflictConfig
+---@field conflict diffs.ConflictConfig|false
 
 ---@type diffs.Config
 local DEFAULTS = {
@@ -89,7 +88,6 @@ local DEFAULTS = {
   },
   integrations = {},
   conflict = {
-    enabled = true,
     disable_diagnostics = true,
     show_virtual_text = true,
     show_actions = false,
@@ -159,8 +157,10 @@ function M.validate(opts)
     end
   end
 
-  if opts.conflict then
-    vim.validate('conflict.enabled', opts.conflict.enabled, 'boolean', true)
+  vim.validate('conflict', opts.conflict, function(v)
+    return v == nil or type(v) == 'boolean' or type(v) == 'table'
+  end, 'boolean or table')
+  if type(opts.conflict) == 'table' then
     vim.validate('conflict.disable_diagnostics', opts.conflict.disable_diagnostics, 'boolean', true)
     vim.validate('conflict.show_virtual_text', opts.conflict.show_virtual_text, 'boolean', true)
     vim.validate(
@@ -214,6 +214,9 @@ function M.new(opts)
   })
   M.validate(opts)
   local result = vim.tbl_deep_extend('force', DEFAULTS, opts)
+  if result.conflict == true then
+    result.conflict = vim.deepcopy(DEFAULTS.conflict)
+  end
   for _, key in ipairs({ 'treesitter', 'vim' }) do
     if result.highlights[key] == true then
       result.highlights[key] = vim.deepcopy(DEFAULTS.highlights[key])

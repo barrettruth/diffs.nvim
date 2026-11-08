@@ -44,7 +44,6 @@ describe('diffs.config', function()
             telescope = true,
           },
           conflict = {
-            enabled = true,
             disable_diagnostics = false,
             show_virtual_text = true,
             format_virtual_text = function()
@@ -117,11 +116,16 @@ describe('diffs.config', function()
       assert.is_nil(opts.highlights.priorities)
     end)
 
-    it('keeps supported conflict config without removed priority', function()
-      local opts = config.new({ conflict = { show_virtual_text = false } })
-
-      assert.is_false(opts.conflict.show_virtual_text)
-      assert.is_nil(opts.conflict.priority)
+    it('accepts boolean and table conflict settings', function()
+      local defaults = config.new().conflict
+      for _, value in ipairs({ true, {} }) do
+        assert.are.same(defaults, config.new({ conflict = value }).conflict)
+      end
+      assert.is_false(config.new({ conflict = false }).conflict)
+      assert.are.same(
+        vim.tbl_extend('force', defaults, { show_virtual_text = false }),
+        config.new({ conflict = { show_virtual_text = false } }).conflict
+      )
     end)
 
     it('accepts integration lists and boolean maps', function()

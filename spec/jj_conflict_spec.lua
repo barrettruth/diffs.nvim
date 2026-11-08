@@ -2,7 +2,6 @@ local conflict = require('diffs.conflict')
 
 local function default_config(overrides)
   local cfg = {
-    enabled = true,
     disable_diagnostics = false,
     show_virtual_text = false,
     show_actions = false,

@@ -104,7 +104,6 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
         overrides = {},
       },
       conflict = {
-        enabled = true,
         disable_diagnostics = true,
         show_virtual_text = true,
         show_actions = false,
@@ -191,7 +190,7 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              Controls which highlight features are enabled.
                              See |diffs.nvim.Highlights| for fields.
 
-        {conflict}           (table, default: see below)
+        {conflict}           (boolean|table, default: true)
                              Inline merge conflict resolution options.
                              See |diffs.nvim.ConflictConfig| for fields.
 
@@ -1116,7 +1115,6 @@ Configuration: ~
 >lua
     vim.g.diffs = {
       conflict = {
-        enabled = true,
         disable_diagnostics = true,
         show_virtual_text = true,
         show_actions = false,
@@ -1139,11 +1137,6 @@ Configuration: ~
     }
 <
     Fields: ~
-        {enabled}            (boolean, default: true)
-                             Enable conflict marker detection and
-                             resolution. Set to `false` to disable
-                             entirely.
-
         {disable_diagnostics} (boolean, default: true)
                              Suppress LSP diagnostics on buffers with
                              conflict markers. Markers produce syntax

@@ -2163,6 +2163,20 @@ describe('commands', function()
       assert.is_true(rejected)
     end)
 
+    it('opens unmerged files with conflict handling disabled', function()
+      local _, filepath = create_conflicted_repo()
+      edit_file(filepath)
+      mock_runtime_attach(function() end)
+      mock_conflict_config(false)
+
+      commands.diff(nil, false)
+
+      local bufnr = vim.api.nvim_get_current_buf()
+      table.insert(test_buffers, bufnr)
+      assert.is_true(vim.b[bufnr].diffs_unmerged)
+      assert.is_false(helpers.has_keymap(bufnr, 'go'))
+    end)
+
     it('routes direct :Diff on unmerged files to the generated unmerged view', function()
       local repo_root, filepath = create_conflicted_repo()
       edit_file(filepath)

@@ -175,7 +175,7 @@ function M.get_telescope_config()
   return config.integrations.telescope == true
 end
 
----@return diffs.ConflictConfig
+---@return diffs.ConflictConfig|false
 function M.get_conflict_config()
   init()
   return config.conflict
