@@ -141,41 +141,6 @@ describe('diffs.config', function()
       assert.is_nil(opts.conflict.priority)
     end)
 
-    it('rejects removed config keys', function()
-      local cases = {
-        {
-          input = { view = { change_bar = '┃' } },
-          message = 'diffs: view.change_bar has been removed',
-        },
-        {
-          input = { view = { rail_separator = '|' } },
-          message = 'diffs: view.rail_separator has been removed',
-        },
-        {
-          input = { hide_prefix = true },
-          message = 'diffs: hide_prefix has been removed; use view.prefix',
-        },
-        {
-          input = { highlights = { gutter = false } },
-          message = 'diffs: highlights.gutter has been removed',
-        },
-        {
-          input = { highlights = { priorities = { syntax = 250 } } },
-          message = 'diffs: highlights.priorities has been removed',
-        },
-        {
-          input = { conflict = { priority = 250 } },
-          message = 'diffs: conflict.priority has been removed',
-        },
-      }
-
-      for _, case in ipairs(cases) do
-        local ok, err = pcall(config.new, case.input)
-        assert.is_false(ok)
-        assert.matches(case.message, err, 1, true)
-      end
-    end)
-
     it('keeps boolean integration toggles as the supported enable path', function()
       for _, key in ipairs(integration_keys) do
         local opts = config.new({ integrations = { [key] = true } })

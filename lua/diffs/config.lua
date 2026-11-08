@@ -110,41 +110,6 @@ local DEFAULTS = {
   },
 }
 
----@param path string
----@param replacement? string
-local function reject_removed_key(path, replacement)
-  local message = 'diffs: ' .. path .. ' has been removed'
-  if replacement then
-    message = message .. '; use ' .. replacement
-  end
-  error(message)
-end
-
----@param opts table
-local function reject_removed_config(opts)
-  if type(opts.view) == 'table' then
-    for _, key in ipairs({ 'change_bar', 'rail_separator' }) do
-      if opts.view[key] ~= nil then
-        reject_removed_key('view.' .. key)
-      end
-    end
-  end
-  if opts.hide_prefix ~= nil then
-    reject_removed_key('hide_prefix', 'view.prefix')
-  end
-  if type(opts.highlights) == 'table' then
-    if opts.highlights.gutter ~= nil then
-      reject_removed_key('highlights.gutter')
-    end
-    if opts.highlights.priorities ~= nil then
-      reject_removed_key('highlights.priorities')
-    end
-  end
-  if type(opts.conflict) == 'table' and opts.conflict.priority ~= nil then
-    reject_removed_key('conflict.priority')
-  end
-end
-
 ---@param opts? table
 ---@return string[]
 function M.compute_filetypes(opts)
@@ -153,7 +118,6 @@ end
 
 ---@param opts table
 function M.validate(opts)
-  reject_removed_config(opts)
   vim.validate('debug', opts.debug, function(v)
     return v == nil or type(v) == 'boolean' or type(v) == 'string'
   end, 'boolean or string (file path)')
