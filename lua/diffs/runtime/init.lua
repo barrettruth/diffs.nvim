@@ -34,7 +34,7 @@ local fast_hl_opts = {} ---@type diffs.HunkOpts
 ---@type table<integer, boolean>
 local attached_buffers = {}
 
----@type table<integer, boolean>
+---@type table<integer, string>
 local diff_windows = {}
 
 local function compute_highlight_groups(is_default)
