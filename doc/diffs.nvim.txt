@@ -212,10 +212,16 @@ It updates its groups after ColorScheme events.
     DiffsDiffChange     Native diff changed line background
     DiffsDiffText       Native diff changed text background
 
-Set custom colors in a ColorScheme callback after the plugin loads: >lua
-    vim.api.nvim_create_autocmd('ColorScheme', {
+                                                    *DiffsHighlights*
+diffs.nvim triggers `User DiffsHighlights` after each highlight update, including
+initialization and |ColorScheme| changes.  Register this autocmd before loading
+diffs.nvim to apply your colors after each update: >lua
+    vim.api.nvim_create_autocmd('User', {
+      pattern = 'DiffsHighlights',
+      group = vim.api.nvim_create_augroup('my_diffs_highlights', { clear = true }),
       callback = function()
-        vim.api.nvim_set_hl(0, 'DiffsAdd', { bg = '#173317' })
+        vim.api.nvim_set_hl(0, 'DiffsAdd', { bg = '#2e4a3a' })
+        vim.api.nvim_set_hl(0, 'DiffsDiffDelete', { link = 'DiffDelete' })
       end,
     })
 <

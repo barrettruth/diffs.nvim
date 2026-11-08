@@ -84,6 +84,8 @@ function M.apply(config, is_default)
     vim.api.nvim_set_hl(0, 'NeogitDiffDeleteInline', {})
   end
 
+  vim.api.nvim_exec_autocmds('User', { pattern = 'DiffsHighlights', modeline = false })
+
   return { transparent = transparent }
 end
 
