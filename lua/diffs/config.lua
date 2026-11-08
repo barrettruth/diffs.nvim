@@ -21,7 +21,7 @@ local integration_metadata = require('diffs.integrations')
 ---@field warn_max_lines boolean
 ---@field treesitter diffs.TreesitterConfig
 ---@field vim diffs.VimConfig|false
----@field intra diffs.IntraConfig|false
+---@field intra diffs.IntraConfig
 
 ---@class diffs.DifftasticConfig
 ---@field args? string[]
@@ -105,7 +105,7 @@ function M.validate(opts)
     for _, key in ipairs({ 'treesitter', 'vim', 'intra' }) do
       local path = 'highlights.' .. key
       local value = opts.highlights[key]
-      local types = key == 'treesitter' and 'table' or { 'boolean', 'table' }
+      local types = key == 'vim' and { 'boolean', 'table' } or 'table'
       vim.validate(path, value, types, true)
       if type(value) == 'table' then
         vim.validate(path .. '.enabled', value.enabled, 'boolean', true)
@@ -135,43 +135,9 @@ function M.new(opts)
     integrations = integration_metadata.normalize(opts and opts.integrations),
   })
   M.validate(opts)
-  for group, keys in pairs({
-    conflict = { 'disable_diagnostics', 'show_virtual_text', 'format_virtual_text', 'show_actions' },
-    view = { 'change_bar', 'rail_separator' },
-  }) do
-    if type(opts[group]) == 'table' then
-      for _, key in ipairs(keys) do
-        if opts[group][key] ~= nil then
-          vim.notify_once(
-            '[diffs]: '
-              .. group
-              .. '.'
-              .. key
-              .. ' was removed and is ignored. Remove it from the configuration.',
-            vim.log.levels.WARN
-          )
-        end
-      end
-    end
-  end
-  if opts.highlights and type(opts.highlights.intra) == 'boolean' then
-    vim.notify_once(
-      '[diffs]: Boolean highlights.intra is deprecated. Support ends on November 30, 2026. '
-        .. 'See :help diffs.nvim-diffopt.',
-      vim.log.levels.WARN
-    )
-  end
-  if opts.highlights and opts.highlights.context ~= nil then
-    vim.notify_once(
-      '[diffs]: highlights.context was removed and is ignored. Remove it from the configuration.',
-      vim.log.levels.WARN
-    )
-  end
   local result = vim.tbl_deep_extend('force', DEFAULTS, opts)
-  for _, key in ipairs({ 'treesitter', 'vim', 'intra' }) do
-    if result.highlights[key] == true then
-      result.highlights[key] = vim.deepcopy(DEFAULTS.highlights[key])
-    end
+  if result.highlights.vim == true then
+    result.highlights.vim = vim.deepcopy(DEFAULTS.highlights.vim)
   end
   return result
 end

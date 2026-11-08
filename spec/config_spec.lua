@@ -61,7 +61,7 @@ describe('diffs.config', function()
     end)
 
     it('accepts boolean and table highlight settings', function()
-      for _, key in ipairs({ 'vim', 'intra' }) do
+      for _, key in ipairs({ 'vim' }) do
         local defaults = config.new().highlights[key]
         for _, value in ipairs({ true, {} }) do
           assert.are.same(defaults, config.new({ highlights = { [key] = value } }).highlights[key])

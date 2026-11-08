@@ -193,9 +193,8 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              Vim syntax fallback highlighting options.
                              See |diffs.nvim.VimConfig| for fields.
 
-        {intra}              (boolean|table, default: true)
-                             Boolean values are deprecated.
-                             See |diffs.nvim-diffopt|.
+        {intra}              (table, default: see below)
+                             Intra-line diff highlighting options.
                              See |diffs.nvim.IntraConfig| for fields.
 
                                                  *diffs.nvim.TreesitterConfig*
