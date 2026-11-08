@@ -42,7 +42,7 @@ function M.find_visible_hunks(hunks, toprow, botrow)
   while lo < hi do
     local mid = math.floor((lo + hi) / 2)
     local h = hunks[mid]
-    local bottom = h.start_line - 1 + #h.lines - 1
+    local bottom = h.start_line + #h.lines - 1
     if bottom < toprow then
       lo = mid + 1
     else

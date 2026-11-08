@@ -44,11 +44,13 @@ describe('diffs.runtime', function()
       assert.are.equal(0, last)
     end)
 
-    it('finds single hunk partially visible at top edge', function()
-      local h = make_hunk(5, 15)
-      local first, last = find_visible_hunks({ h }, 10, 30)
-      assert.are.equal(1, first)
-      assert.are.equal(1, last)
+    it('finds a hunk when only its last body line is visible', function()
+      for _, start_line in ipairs({ 0, 5 }) do
+        local h = { start_line = start_line, lines = { '+hello' } }
+        local first, last = find_visible_hunks({ h }, start_line, start_line + 1)
+        assert.are.equal(1, first)
+        assert.are.equal(1, last)
+      end
     end)
 
     it('finds single hunk partially visible at bottom edge', function()
