@@ -34,6 +34,7 @@ local integration_metadata = require('diffs.integrations')
 ---@field prev string|false
 
 ---@class diffs.ConflictConfig
+---@field enabled? boolean Deprecated.
 ---@field keymaps diffs.ConflictKeymaps|false
 
 ---@class diffs.DifftasticConfig
@@ -146,6 +147,7 @@ function M.validate(opts)
     return v == nil or type(v) == 'boolean' or type(v) == 'table'
   end, 'boolean or table')
   if type(opts.conflict) == 'table' then
+    vim.validate('conflict.enabled', opts.conflict.enabled, 'boolean', true)
     vim.validate('conflict.keymaps', opts.conflict.keymaps, function(v)
       return v == nil or v == false or type(v) == 'table'
     end, 'table or false')
@@ -189,6 +191,18 @@ function M.new(opts)
     )
   end
   local result = vim.tbl_deep_extend('force', DEFAULTS, opts)
+  if type(result.conflict) == 'table' and result.conflict.enabled ~= nil then
+    vim.notify_once(
+      '[diffs]: conflict.enabled is deprecated. Support ends on November 30, 2026. '
+        .. 'Use conflict = false to disable conflict handling. Otherwise remove enabled.',
+      vim.log.levels.WARN
+    )
+    if result.conflict.enabled == false then
+      result.conflict = false
+    else
+      result.conflict.enabled = nil
+    end
+  end
   if result.conflict == true then
     result.conflict = vim.deepcopy(DEFAULTS.conflict)
   end
