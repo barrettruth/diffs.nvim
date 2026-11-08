@@ -271,6 +271,25 @@ describe('diffs.runtime', function()
     end)
 
     describe('detach_diff', function()
+      it('restores custom winhighlight after repeated attachment', function()
+        local win = create_diff_window()
+        vim.wo[win].winhighlight = 'Normal:ErrorMsg'
+        runtime.attach_diff()
+        runtime.attach_diff()
+        runtime.detach_diff()
+        assert.are.equal('Normal:ErrorMsg', vim.wo[win].winhighlight)
+        close_window(win)
+      end)
+
+      it('keeps winhighlight changes made after attachment', function()
+        local win = create_diff_window()
+        runtime.attach_diff()
+        vim.wo[win].winhighlight = 'Normal:WarningMsg'
+        runtime.detach_diff()
+        assert.are.equal('Normal:WarningMsg', vim.wo[win].winhighlight)
+        close_window(win)
+      end)
+
       it('clears winhighlight from tracked windows', function()
         local win, _ = create_diff_window()
         runtime.attach_diff()
