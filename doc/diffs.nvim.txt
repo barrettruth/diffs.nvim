@@ -1115,7 +1115,8 @@ Configuration: ~
                              errors that clutter the diagnostic list.
                              Diagnostics are re-enabled when all conflicts
                              are resolved. Set `false` to leave
-                             diagnostics alone.
+                             diagnostics alone. This option will be removed on
+                             30 November 2026. See |diffs.nvim-conflict-diagnostics|.
 
         {keymaps}            (table|false, default: false)
                              Opt-in buffer-local keymaps for conflict
@@ -1145,18 +1146,46 @@ Configuration: ~
                              Jump to previous conflict marker. Wraps
                              around.
 
-User events: ~
-                                                       *DiffsConflictResolved*
-    DiffsConflictResolved   Fired when the last conflict in a buffer is
-                            resolved. Useful for triggering custom actions
-                            (e.g., auto-staging the file). >lua
-                                vim.api.nvim_create_autocmd('User', {
-                                  pattern = 'DiffsConflictResolved',
-                                  callback = function()
-                                    print('all conflicts resolved!')
-                                  end,
-                                })
+Diagnostic suppression: ~                  *diffs.nvim-conflict-diagnostics*
+
+This recipe restores diagnostics only when it disabled them: >lua
+    vim.g.diffs = { conflict = { disable_diagnostics = false } }
+
+    vim.api.nvim_create_autocmd('User', {
+      pattern = {
+        'DiffsConflictDetected',
+        'DiffsConflictResolved',
+        'DiffsConflictDetached',
+      },
+      callback = function(event)
+        local bufnr = event.data.bufnr
+        if event.match == 'DiffsConflictDetected' then
+          if vim.diagnostic.is_enabled({ bufnr = bufnr }) then
+            vim.b[bufnr].diffs_restore_diagnostics = true
+            vim.diagnostic.enable(false, { bufnr = bufnr })
+          end
+        elseif vim.b[bufnr].diffs_restore_diagnostics then
+          vim.b[bufnr].diffs_restore_diagnostics = nil
+          vim.diagnostic.enable(true, { bufnr = bufnr })
+        end
+      end,
+    })
 <
+
+User events: ~
+
+All conflict events include the working buffer number in `event.data.bufnr`.
+
+                                                       *DiffsConflictDetected*
+    DiffsConflictDetected   Fired when conflicts first appear in an attached
+                            buffer, including when undo restores markers.
+
+                                                       *DiffsConflictResolved*
+    DiffsConflictResolved   Fired when the last conflict in a buffer is resolved.
+
+                                                       *DiffsConflictDetached*
+    DiffsConflictDetached   Fired when conflict highlighting is explicitly
+                            detached from a buffer.
 
 ==============================================================================
 MERGE DIFF RESOLUTION                                       *diffs.nvim-merge*

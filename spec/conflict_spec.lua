@@ -824,6 +824,14 @@ describe('conflict', function()
         'local x = 2',
         '>>>>>>> feature',
       })
+      local events = {}
+      local autocmd = vim.api.nvim_create_autocmd('User', {
+        pattern = { 'DiffsConflictDetected', 'DiffsConflictResolved', 'DiffsConflictDetached' },
+        callback = function(event)
+          assert.are.equal(bufnr, event.data.bufnr)
+          events[#events + 1] = event.match
+        end,
+      })
       vim.api.nvim_set_current_buf(bufnr)
       local cfg = default_config()
       conflict.attach(bufnr, cfg)
@@ -833,6 +841,7 @@ describe('conflict', function()
       vim.api.nvim_win_set_cursor(0, { 2, 0 })
       conflict.resolve_ours(bufnr, cfg)
       assert.are.equal(0, #get_extmarks(bufnr))
+      conflict.refresh(bufnr, cfg)
 
       vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {
         '<<<<<<< HEAD',
@@ -845,7 +854,15 @@ describe('conflict', function()
 
       assert.is_true(#get_extmarks(bufnr) > 0)
 
+      conflict.refresh(bufnr, cfg)
       conflict.detach(bufnr)
+      assert.are.same({
+        'DiffsConflictDetected',
+        'DiffsConflictResolved',
+        'DiffsConflictDetected',
+        'DiffsConflictDetached',
+      }, events)
+      vim.api.nvim_del_autocmd(autocmd)
       helpers.delete_buffer(bufnr)
     end)
 
