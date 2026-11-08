@@ -45,7 +45,6 @@ local integration_metadata = require('diffs.integrations')
 ---@field neogit? boolean
 ---@field neojj? boolean
 ---@field gitsigns? boolean
----@field committia? boolean
 ---@field telescope? boolean
 ---@field difftastic? boolean|diffs.DifftasticConfig
 
@@ -97,13 +96,6 @@ function M.new(opts)
   opts = vim.tbl_extend('force', opts or {}, {
     integrations = integration_metadata.normalize(opts and opts.integrations),
   })
-  if opts.integrations.committia ~= nil then
-    vim.notify_once(
-      '[diffs]: integrations.committia is deprecated and ignored. Support ends on November 30, 2026. '
-        .. 'Committia highlighting is automatic. See :help diffs.nvim-committia.',
-      vim.log.levels.WARN
-    )
-  end
   for group, keys in pairs({
     conflict = { 'disable_diagnostics', 'show_virtual_text', 'format_virtual_text', 'show_actions' },
     view = { 'change_bar', 'rail_separator' },

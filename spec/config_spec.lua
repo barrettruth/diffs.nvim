@@ -2,7 +2,7 @@ require('spec.helpers')
 local config = require('diffs.config')
 
 describe('diffs.config', function()
-  local integration_keys = { 'fugitive', 'neogit', 'neojj', 'gitsigns', 'committia', 'telescope' }
+  local integration_keys = { 'fugitive', 'neogit', 'neojj', 'gitsigns', 'telescope' }
 
   describe('new', function()
     it('accepts nil config', function()
@@ -39,7 +39,6 @@ describe('diffs.config', function()
             neogit = true,
             neojj = true,
             gitsigns = true,
-            committia = true,
             telescope = true,
           },
           conflict = {
