@@ -3,9 +3,6 @@ local helpers = require('spec.helpers')
 
 local function default_config(overrides)
   local cfg = {
-    disable_diagnostics = false,
-    show_virtual_text = true,
-    show_actions = false,
     keymaps = false,
   }
   if overrides then
@@ -21,7 +18,13 @@ local function create_file_buffer(lines)
 end
 
 local function get_extmarks(bufnr)
-  return vim.api.nvim_buf_get_extmarks(bufnr, conflict.get_namespace(), 0, -1, { details = true })
+  return vim.api.nvim_buf_get_extmarks(
+    bufnr,
+    vim.api.nvim_get_namespaces()['diffs-conflict'],
+    0,
+    -1,
+    { details = true }
+  )
 end
 
 describe('conflict', function()
@@ -224,29 +227,6 @@ describe('conflict', function()
         end
       end
       assert.is_true(checked > 0)
-
-      helpers.delete_buffer(bufnr)
-    end)
-
-    it('applies virtual text when enabled', function()
-      local bufnr = create_file_buffer({
-        '<<<<<<< HEAD',
-        'local x = 1',
-        '=======',
-        'local x = 2',
-        '>>>>>>> feature',
-      })
-
-      conflict.attach(bufnr, default_config({ show_virtual_text = true }))
-
-      local extmarks = get_extmarks(bufnr)
-      local virt_text_count = 0
-      for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].virt_text then
-          virt_text_count = virt_text_count + 1
-        end
-      end
-      assert.are.equal(2, virt_text_count)
 
       helpers.delete_buffer(bufnr)
     end)
@@ -828,8 +808,16 @@ describe('conflict', function()
         'local x = 2',
         '>>>>>>> feature',
       })
-      vim.api.nvim_set_current_buf(bufnr)
       local cfg = default_config()
+      local events = {}
+      local autocmd = vim.api.nvim_create_autocmd('User', {
+        pattern = { 'DiffsConflictDetected', 'DiffsConflictResolved', 'DiffsConflictDetached' },
+        callback = function(event)
+          assert.are.equal(bufnr, event.data.bufnr)
+          events[#events + 1] = event.match
+        end,
+      })
+      vim.api.nvim_set_current_buf(bufnr)
       conflict.attach(bufnr, cfg)
 
       assert.is_true(#get_extmarks(bufnr) > 0)
@@ -837,6 +825,7 @@ describe('conflict', function()
       vim.api.nvim_win_set_cursor(0, { 2, 0 })
       conflict.resolve_ours(bufnr, cfg)
       assert.are.equal(0, #get_extmarks(bufnr))
+      conflict.refresh(bufnr, cfg)
 
       vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {
         '<<<<<<< HEAD',
@@ -849,7 +838,15 @@ describe('conflict', function()
 
       assert.is_true(#get_extmarks(bufnr) > 0)
 
+      conflict.refresh(bufnr, cfg)
       conflict.detach(bufnr)
+      assert.are.same({
+        'DiffsConflictDetected',
+        'DiffsConflictResolved',
+        'DiffsConflictDetected',
+        'DiffsConflictDetached',
+      }, events)
+      vim.api.nvim_del_autocmd(autocmd)
       helpers.delete_buffer(bufnr)
     end)
 
@@ -870,275 +867,6 @@ describe('conflict', function()
       conflict.resolve_ours(bufnr, default_config())
 
       assert.are.equal(0, #get_extmarks(bufnr))
-
-      helpers.delete_buffer(bufnr)
-    end)
-  end)
-
-  describe('virtual text formatting', function()
-    after_each(function()
-      conflict.detach(vim.api.nvim_get_current_buf())
-    end)
-
-    it('default labels show current and incoming without keymaps', function()
-      local bufnr = create_file_buffer({
-        '<<<<<<< HEAD',
-        'local x = 1',
-        '=======',
-        'local x = 2',
-        '>>>>>>> feature',
-      })
-
-      conflict.attach(bufnr, default_config())
-
-      local extmarks = get_extmarks(bufnr)
-      local labels = {}
-      for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].virt_text then
-          table.insert(labels, mark[4].virt_text[1][1])
-        end
-      end
-      assert.are.equal(2, #labels)
-      assert.are.equal(' (current)', labels[1])
-      assert.are.equal(' (incoming)', labels[2])
-
-      helpers.delete_buffer(bufnr)
-    end)
-
-    it('labels the base marker in diff3 conflicts', function()
-      local bufnr = create_file_buffer({
-        '<<<<<<< HEAD',
-        'local x = 1',
-        '||||||| base',
-        'local x = 0',
-        '=======',
-        'local x = 2',
-        '>>>>>>> feature',
-      })
-
-      conflict.attach(bufnr, default_config())
-
-      local labels = {}
-      for _, mark in ipairs(get_extmarks(bufnr)) do
-        if mark[4] and mark[4].virt_text then
-          table.insert(labels, mark[4].virt_text[1][1])
-        end
-      end
-      assert.are.same({ ' (current)', ' (base)', ' (incoming)' }, labels)
-
-      helpers.delete_buffer(bufnr)
-    end)
-
-    it('labels the base marker when the base section is empty', function()
-      local bufnr = create_file_buffer({
-        '<<<<<<< HEAD',
-        'a',
-        '||||||| base',
-        '=======',
-        'b',
-        '>>>>>>> feature',
-      })
-
-      conflict.attach(bufnr, default_config())
-
-      local labels = {}
-      for _, mark in ipairs(get_extmarks(bufnr)) do
-        if mark[4] and mark[4].virt_text then
-          table.insert(labels, mark[4].virt_text[1][1])
-        end
-      end
-      assert.are.same({ ' (current)', ' (base)', ' (incoming)' }, labels)
-
-      helpers.delete_buffer(bufnr)
-    end)
-
-    it('passes the base side with no keymap to format_virtual_text', function()
-      local seen = {}
-      local bufnr = create_file_buffer({
-        '<<<<<<< HEAD',
-        'local x = 1',
-        '||||||| base',
-        'local x = 0',
-        '=======',
-        'local x = 2',
-        '>>>>>>> feature',
-      })
-
-      conflict.attach(
-        bufnr,
-        default_config({
-          keymaps = { ours = 'co', theirs = 'ct' },
-          format_virtual_text = function(side, keymap)
-            seen[side] = keymap
-            return side
-          end,
-        })
-      )
-
-      assert.are.equal('co', seen.ours)
-      assert.are.equal('ct', seen.theirs)
-      assert.is_false(seen.base)
-
-      local labels = {}
-      for _, mark in ipairs(get_extmarks(bufnr)) do
-        if mark[4] and mark[4].virt_text then
-          table.insert(labels, mark[4].virt_text[1][1])
-        end
-      end
-      assert.are.same({ ' (ours)', ' (base)', ' (theirs)' }, labels)
-
-      helpers.delete_buffer(bufnr)
-    end)
-
-    it('omits the base label when show_virtual_text is false', function()
-      local bufnr = create_file_buffer({
-        '<<<<<<< HEAD',
-        'local x = 1',
-        '||||||| base',
-        'local x = 0',
-        '=======',
-        'local x = 2',
-        '>>>>>>> feature',
-      })
-
-      conflict.attach(bufnr, default_config({ show_virtual_text = false }))
-
-      local virt_text_count = 0
-      for _, mark in ipairs(get_extmarks(bufnr)) do
-        if mark[4] and mark[4].virt_text then
-          virt_text_count = virt_text_count + 1
-        end
-      end
-      assert.are.equal(0, virt_text_count)
-
-      helpers.delete_buffer(bufnr)
-    end)
-
-    it('uses custom format_virtual_text function', function()
-      local bufnr = create_file_buffer({
-        '<<<<<<< HEAD',
-        'local x = 1',
-        '=======',
-        'local x = 2',
-        '>>>>>>> feature',
-      })
-
-      conflict.attach(
-        bufnr,
-        default_config({
-          format_virtual_text = function(side)
-            return side == 'ours' and 'OURS' or 'THEIRS'
-          end,
-        })
-      )
-
-      local extmarks = get_extmarks(bufnr)
-      local labels = {}
-      for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].virt_text then
-          table.insert(labels, mark[4].virt_text[1][1])
-        end
-      end
-      assert.are.equal(2, #labels)
-      assert.are.equal(' (OURS)', labels[1])
-      assert.are.equal(' (THEIRS)', labels[2])
-
-      helpers.delete_buffer(bufnr)
-    end)
-
-    it('hides label when format_virtual_text returns nil', function()
-      local bufnr = create_file_buffer({
-        '<<<<<<< HEAD',
-        'local x = 1',
-        '=======',
-        'local x = 2',
-        '>>>>>>> feature',
-      })
-
-      conflict.attach(
-        bufnr,
-        default_config({
-          format_virtual_text = function()
-            return nil
-          end,
-        })
-      )
-
-      local extmarks = get_extmarks(bufnr)
-      local virt_text_count = 0
-      for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].virt_text then
-          virt_text_count = virt_text_count + 1
-        end
-      end
-      assert.are.equal(0, virt_text_count)
-
-      helpers.delete_buffer(bufnr)
-    end)
-  end)
-
-  describe('action lines', function()
-    after_each(function()
-      conflict.detach(vim.api.nvim_get_current_buf())
-    end)
-
-    it('adds virt_lines when show_actions is true', function()
-      local bufnr = create_file_buffer({
-        '<<<<<<< HEAD',
-        'local x = 1',
-        '=======',
-        'local x = 2',
-        '>>>>>>> feature',
-      })
-
-      conflict.attach(
-        bufnr,
-        default_config({ show_actions = true, keymaps = helpers.default_conflict_keymaps() })
-      )
-
-      local extmarks = get_extmarks(bufnr)
-      local virt_lines_count = 0
-      for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].virt_lines then
-          virt_lines_count = virt_lines_count + 1
-        end
-      end
-      assert.are.equal(1, virt_lines_count)
-
-      helpers.delete_buffer(bufnr)
-    end)
-
-    it('omits disabled keymaps from action line', function()
-      local bufnr = create_file_buffer({
-        '<<<<<<< HEAD',
-        'local x = 1',
-        '=======',
-        'local x = 2',
-        '>>>>>>> feature',
-      })
-
-      conflict.attach(
-        bufnr,
-        default_config({
-          show_actions = true,
-          keymaps = helpers.default_conflict_keymaps({ both = false, none = false }),
-        })
-      )
-
-      local extmarks = get_extmarks(bufnr)
-      for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].virt_lines then
-          local line = mark[4].virt_lines[1]
-          local text = ''
-          for _, chunk in ipairs(line) do
-            text = text .. chunk[1]
-          end
-          assert.is_truthy(text:find('Current'))
-          assert.is_truthy(text:find('Incoming'))
-          assert.is_falsy(text:find('Both'))
-          assert.is_falsy(text:find('None'))
-        end
-      end
 
       helpers.delete_buffer(bufnr)
     end)

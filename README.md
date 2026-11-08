@@ -25,7 +25,7 @@ highlighting driven by treesitter.
 
 ## Requirements
 
-- Neovim 0.9.0+
+- Neovim 0.12.0+
 - Optional: the Treesitter `diff` parser for the best experience
 
 ## Installation
@@ -92,7 +92,8 @@ own command, e.g. `:command! Review Diff review ++nountracked`.
   redraw cycle due to Neovim's restriction on buffer mutations. Vim syntax
   highlights for cold hunks may appear one frame later. Warm hunks can reuse
   cached vim syntax spans, and stale deferred renders are ignored after buffer
-  changes.
+  changes. The plugin reparses hunks after buffer edits and redraws visible
+  highlights.
 
 - **Conflicting diff plugins**: `diffs.nvim` may not interact well with other
   plugins that modify diff highlighting. Known plugins that may conflict:

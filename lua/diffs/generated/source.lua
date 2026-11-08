@@ -68,40 +68,6 @@ function M.restore(bufnr)
 end
 
 ---@param bufnr integer
----@return string?
-function M.repo_root(bufnr)
-  return M.get_var(bufnr, 'diffs_repo_root')
-end
-
----@param bufnr integer
----@param repo_root string
-function M.set_repo_root(bufnr, repo_root)
-  M.set_var(bufnr, 'diffs_repo_root', repo_root)
-end
-
----@param bufnr integer
----@param diff_spec diffs.DiffSpec
-function M.set_spec(bufnr, diff_spec)
-  M.set_var(bufnr, 'diffs_spec', diffspec.new(diff_spec))
-end
-
----@param bufnr integer
----@return diffs.DiffSpec?, string?
-function M.spec(bufnr)
-  local raw = M.get_var(bufnr, 'diffs_spec')
-  if raw == nil then
-    return nil, nil
-  end
-
-  local ok, parsed = pcall(diffspec.new, raw)
-  if not ok then
-    return nil, tostring(parsed)
-  end
-
-  return parsed, nil
-end
-
----@param bufnr integer
 ---@return boolean, any
 function M.raw_hunks(bufnr)
   return pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_hunks')
@@ -154,6 +120,7 @@ end
 ---@field left_name? string
 ---@field right_name? string
 ---@field right_buf? integer
+---@field worktree_buf? integer
 
 ---@param source table
 ---@return diffs.GeneratedBufferSource?
@@ -253,13 +220,15 @@ end
 
 ---@param repo_root string
 ---@param diff_spec diffs.DiffSpec
+---@param worktree_buf? integer
 ---@return diffs.GeneratedBufferSource
-function M.file_source(repo_root, diff_spec)
+function M.file_source(repo_root, diff_spec, worktree_buf)
   return {
     version = 1,
     kind = 'file',
     repo_root = repo_root,
     spec = diff_spec,
+    worktree_buf = worktree_buf,
   }
 end
 
@@ -335,7 +304,7 @@ function M.review_source(repo_root, review)
   }
 end
 
----@param opts { repo_root: string, spec: diffs.DiffSpec, side: "left"|"right", path: string, filetype?: string, quickfix?: boolean }
+---@param opts { repo_root: string, spec: diffs.DiffSpec, side: "left"|"right", path: string, filetype?: string, quickfix?: boolean, worktree_buf?: integer }
 ---@return diffs.SplitEndpointSource
 function M.split_endpoint_source(opts)
   return {
@@ -347,6 +316,7 @@ function M.split_endpoint_source(opts)
     path = opts.path,
     filetype = opts.filetype,
     quickfix = opts.quickfix,
+    worktree_buf = opts.worktree_buf,
   }
 end
 

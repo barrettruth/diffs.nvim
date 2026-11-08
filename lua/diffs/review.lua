@@ -49,17 +49,6 @@ end
 ---@field review_layout? diffs.ReviewMapLayout
 ---@field setup_review_map_buffer? function
 
----@param bufnr integer
----@param name string
----@return any
-local function get_buf_var(bufnr, name)
-  local ok, value = pcall(vim.api.nvim_buf_get_var, bufnr, name)
-  if ok then
-    return value
-  end
-  return nil
-end
-
 ---@param args? string
 ---@return string[]
 local function split_args(args)
@@ -682,10 +671,6 @@ function M.open(spec, deps)
     source = generated.review_source(review.repo_root, M.stored_review_spec(review)),
     rail_style = deps.rail_style,
     vars = {
-      diffs_review_base = review.base,
-      diffs_review_target = review.target,
-      diffs_review_mode = review.mode,
-      diffs_review_untracked = review.untracked,
       diffs_review = { display = review.display, layout = review_layout },
     },
   })
@@ -713,20 +698,6 @@ function M.open(spec, deps)
   return diff_buf
 end
 
----@param buf integer
----@param lnum integer
----@return string?
-function M.file_at_line(buf, lnum)
-  local lines = vim.api.nvim_buf_get_lines(buf, 0, lnum, false)
-  for i = #lines, 1, -1 do
-    local file = lines[i]:match('^diff %-%-git %a/.+ %a/(.+)$')
-    if file then
-      return file
-    end
-  end
-  return nil
-end
-
 ---@param review_spec diffs.ReviewSpec?
 ---@param repo_root string
 ---@param deps diffs.ReviewDeps
@@ -745,32 +716,6 @@ end
 ---@return string[]?, string?, table?
 function M.reload_source(source, deps)
   return reload_spec(source.review, source.repo_root, deps)
-end
-
----@param bufnr integer
----@param repo_root string
----@param path string
----@param deps diffs.ReviewDeps
----@return string[]?, string?, table?
-function M.reload(bufnr, repo_root, path, deps)
-  local stored_base = get_buf_var(bufnr, 'diffs_review_base')
-  local stored_target = get_buf_var(bufnr, 'diffs_review_target')
-  local stored_mode = get_buf_var(bufnr, 'diffs_review_mode')
-  local stored_untracked = get_buf_var(bufnr, 'diffs_review_untracked')
-
-  local review_spec
-  if stored_base then
-    review_spec = {
-      base = stored_base,
-      target = stored_target,
-      mode = stored_mode,
-      untracked = stored_untracked,
-    }
-  else
-    review_spec = M.parse_arg(path)
-  end
-
-  return reload_spec(review_spec, repo_root, deps)
 end
 
 return M

@@ -1,5 +1,7 @@
 local M = {}
 
+local diffopt = require('diffs.diffopt')
+
 local hunk_model = require('diffs.hunks')
 local log = require('diffs.log')
 local runtime = require('diffs.runtime')
@@ -29,13 +31,6 @@ end
 function M.clear_active(bufnr)
   pcall(vim.api.nvim_buf_del_var, bufnr, active_var)
   pcall(vim.api.nvim_buf_clear_namespace, bufnr, unified_ns, 0, -1)
-end
-
----@param bufnr integer
----@return boolean
-function M.is_active(bufnr)
-  local ok, value = pcall(vim.api.nvim_buf_get_var, bufnr, active_var)
-  return ok and value == true
 end
 
 ---@return { enabled: boolean, args: string[] }
@@ -353,7 +348,7 @@ function M.apply_unified(bufnr, lhs, rhs, diff_lines, spec, rail_width)
   vim.api.nvim_buf_clear_namespace(bufnr, unified_ns, 0, -1)
   M.mark_active(bufnr)
 
-  if not intra_cfg then
+  if not intra_cfg or diffopt.inline() == 'none' then
     return 0
   end
 

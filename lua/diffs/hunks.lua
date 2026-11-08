@@ -507,7 +507,7 @@ function M.source_at_cursor(bufnr)
 
   local spec = hunk.diff_spec and diffspec.new(hunk.diff_spec) or nil
   if not spec then
-    return nil, 'missing diffs_spec metadata for hunk'
+    return nil, 'missing diff specification for hunk'
   end
 
   if spec.right.kind == diffspec.endpoint_kind.index then
@@ -522,9 +522,10 @@ function M.source_at_cursor(bufnr)
     return nil, 'could not resolve source location for hunk'
   end
 
-  local repo_root = get_buf_var(bufnr, 'diffs_repo_root')
+  local metadata = get_buf_var(bufnr, 'diffs_source')
+  local repo_root = metadata and metadata.repo_root
   if type(repo_root) ~= 'string' or repo_root == '' then
-    return nil, 'cannot open source without diffs_repo_root'
+    return nil, 'cannot open source without a source repository'
   end
 
   return {

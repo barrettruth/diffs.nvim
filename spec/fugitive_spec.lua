@@ -152,16 +152,6 @@ describe('fugitive', function()
       assert.equals('old file.lua', old_filename)
     end)
 
-    it('KNOWN LIMITATION: filename containing arrow parsed incorrectly', function()
-      local buf = create_status_buffer({
-        'Staged (1)',
-        'R  a -> b.lua -> c.lua',
-      })
-      local filename, _, _, old_filename = fugitive.get_file_at_line(buf, 2)
-      assert.equals('b.lua -> c.lua', filename)
-      assert.equals('a', old_filename)
-    end)
-
     it('unquotes git-quoted filenames with spaces', function()
       local buf = create_status_buffer({
         'Unstaged (1)',

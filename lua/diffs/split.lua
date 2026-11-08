@@ -1,5 +1,7 @@
 local M = {}
 
+local diffopt = require('diffs.diffopt')
+
 local diff = require('diffs.diff')
 local diffspec = require('diffs.spec')
 local difftastic = require('diffs.difftastic')
@@ -47,6 +49,7 @@ local split_statuscolumn = "%!v:lua.require'diffs.split'.statuscolumn()"
 ---@field repo_root string
 ---@field filetype? string
 ---@field worktree_lines? diffs.ContentLines|string[]
+---@field worktree_buf? integer
 ---@field diff_lines? string[]
 ---@field hunk_index? integer
 ---@field quickfix? boolean
@@ -56,6 +59,7 @@ local split_statuscolumn = "%!v:lua.require'diffs.split'.statuscolumn()"
 ---@class diffs.SplitEndpointSource
 ---@field version integer
 ---@field kind "split_endpoint"
+---@field worktree_buf? integer
 ---@field repo_root string
 ---@field spec diffs.DiffSpec
 ---@field side "left"|"right"
@@ -109,6 +113,7 @@ local function endpoint_lines(source, opts)
     abs_path(source.repo_root, source.path),
     {
       worktree_lines = opts.worktree_lines,
+      worktree_buf = source.worktree_buf,
       empty_on_missing = true,
     }
   )
@@ -126,21 +131,6 @@ local function split_hunks_for(diff_lines, spec)
     return {}
   end
   return hunk_model.parse(diff_lines, spec)
-end
-
----@param bufnr integer
----@param source diffs.SplitEndpointSource
----@param split_hunks? diffs.DiffHunk[]
-local function set_source_vars(bufnr, source, split_hunks)
-  generated.set_repo_root(bufnr, source.repo_root)
-  generated.set_spec(bufnr, source.spec)
-  generated.set_source(bufnr, source)
-  vim.api.nvim_buf_set_var(bufnr, 'diffs_split_side', source.side)
-  if split_hunks then
-    vim.api.nvim_buf_set_var(bufnr, 'diffs_split_hunks', split_hunks)
-  else
-    pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_split_hunks')
-  end
 end
 
 ---@class diffs.SplitSideConfig
@@ -256,7 +246,7 @@ end
 local function set_split_intra_difft(bufnr, info)
   local opts = require('diffs.runtime').get_highlight_opts()
   local intra_cfg = opts.highlights.intra
-  if not intra_cfg then
+  if not intra_cfg or diffopt.inline() == 'none' then
     return
   end
   local cfg = side_config[info.side]
@@ -289,7 +279,7 @@ local function set_split_intra(bufnr, info, hunks)
 
   local opts = require('diffs.runtime').get_highlight_opts()
   local intra_cfg = opts.highlights.intra
-  if not intra_cfg then
+  if not intra_cfg or diffopt.inline() == 'none' then
     return
   end
 
@@ -382,6 +372,7 @@ end
 
 ---@param bufnr integer
 local function clear_owned_split_keymaps(bufnr)
+  clear_owned_keymap(bufnr, '<C-L>', 'Refresh diff and redraw')
   clear_owned_keymap(bufnr, 'q', 'Close split diff')
   clear_owned_keymap(bufnr, '<CR>', 'Open source file')
   clear_owned_keymap(bufnr, ']c', 'Next diff hunk')
@@ -390,6 +381,14 @@ end
 
 ---@param bufnr integer
 local function set_keymaps(bufnr)
+  if not get_buffer_keymap(bufnr, 'n', '<C-L>') then
+    vim.keymap.set(
+      'n',
+      '<C-L>',
+      '<Cmd>nohlsearch<Bar>diffupdate<CR><Plug>(diffs-refresh)<C-L>',
+      { buffer = bufnr, silent = true, desc = 'Refresh diff and redraw' }
+    )
+  end
   if not get_buffer_keymap(bufnr, 'n', 'q') then
     vim.keymap.set('n', 'q', function()
       M.close_pair(vim.api.nvim_get_current_buf())
@@ -426,7 +425,7 @@ end
 ---@param hunks diffs.DiffHunk[]
 local function paint_pane(bufnr, source, info, hunks)
   pane_info[bufnr] = info
-  set_source_vars(bufnr, source, hunks)
+  generated.set_source(bufnr, source)
   if info.difft_intra then
     difftastic.mark_active(bufnr)
   end
@@ -629,8 +628,6 @@ local function clear_split_state(bufnr)
 
   clear_pair_tracking(bufnr)
   pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_split_peer')
-  pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_split_hunks')
-  pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_split_side')
   vim.api.nvim_buf_clear_namespace(bufnr, split_line_ns, 0, -1)
   vim.api.nvim_buf_clear_namespace(bufnr, split_intra_ns, 0, -1)
   clear_owned_split_keymaps(bufnr)
@@ -966,6 +963,7 @@ function M.open(opts)
     path = path,
     filetype = filetype,
     quickfix = opts.quickfix,
+    worktree_buf = opts.worktree_buf,
   }
 
   local left_source =
@@ -1075,6 +1073,7 @@ function normalize_source(source)
     path = source.path,
     filetype = source.filetype,
     quickfix = source.quickfix,
+    worktree_buf = source.worktree_buf,
   }
 end
 
@@ -1114,7 +1113,9 @@ function M.read_buffer(bufnr, source, opts)
 
   local split_hunks
   if peer_source then
-    local diff_lines, diff_err = render.file(source.spec, source.repo_root)
+    local diff_lines, diff_err = render.file(source.spec, source.repo_root, {
+      worktree_buf = source.worktree_buf,
+    })
     if not diff_lines then
       return false, diff_err
     end
@@ -1422,24 +1423,6 @@ end
 ---@param bufnr integer
 function M.goto_prev(bufnr)
   goto_anchor(bufnr, -1)
-end
-
----@param bufnr integer
----@param hunk_index integer?
----@return boolean
-function M.move_pair_to_hunk_index(bufnr, hunk_index)
-  if type(hunk_index) ~= 'number' then
-    return false
-  end
-
-  local info = pane_info[bufnr]
-  local row = info and info.anchors and info.anchors[hunk_index]
-  if not row then
-    return false
-  end
-
-  move_pair_to_row(bufnr, row)
-  return true
 end
 
 ---@param bufnr integer

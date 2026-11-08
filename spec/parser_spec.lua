@@ -447,7 +447,7 @@ describe('parser', function()
         '+set -e',
         ' echo "done"',
       })
-      vim.api.nvim_buf_set_var(diff_buf, 'diffs_repo_root', repo_root)
+      vim.api.nvim_buf_set_var(diff_buf, 'diffs_source', { repo_root = repo_root })
 
       local hunks = parser.parse_buffer(diff_buf)
 
@@ -505,7 +505,7 @@ describe('parser', function()
         '+set -e',
         ' echo "hello"',
       })
-      vim.api.nvim_buf_set_var(diff_buf, 'diffs_repo_root', repo_root)
+      vim.api.nvim_buf_set_var(diff_buf, 'diffs_source', { repo_root = repo_root })
 
       local hunks = parser.parse_buffer(diff_buf)
 

@@ -33,7 +33,7 @@ local function add_hunk_metadata(bufnr, diff_spec)
     'diffs_hunks',
     hunks.parse(lines, diff_spec or diffspec.index_to_worktree('file.lua'))
   )
-  vim.api.nvim_buf_set_var(bufnr, 'diffs_repo_root', '/tmp/repo')
+  vim.api.nvim_buf_set_var(bufnr, 'diffs_source', { repo_root = '/tmp/repo' })
 end
 
 local function keymap_desc(bufnr, lhs, mode)
@@ -46,44 +46,7 @@ local function keymap_desc(bufnr, lhs, mode)
 end
 
 describe('ux', function()
-  describe('diagnostics', function()
-    it('disables diagnostics on diff buffers', function()
-      local bufnr = create_diffs_buffer()
-      commands.setup_diff_buf(bufnr)
-
-      assert.is_false(vim.diagnostic.is_enabled({ bufnr = bufnr }))
-      vim.api.nvim_buf_delete(bufnr, { force = true })
-    end)
-
-    it('does not affect other buffers', function()
-      local diff_buf = create_diffs_buffer()
-      local normal_buf = helpers.create_buffer({ 'hello' })
-
-      commands.setup_diff_buf(diff_buf)
-
-      assert.is_true(vim.diagnostic.is_enabled({ bufnr = normal_buf }))
-      vim.api.nvim_buf_delete(diff_buf, { force = true })
-      helpers.delete_buffer(normal_buf)
-    end)
-  end)
-
   describe('q keymap', function()
-    it('sets q keymap on diff buffer', function()
-      local bufnr = create_diffs_buffer()
-      commands.setup_diff_buf(bufnr)
-
-      local keymaps = vim.api.nvim_buf_get_keymap(bufnr, 'n')
-      local has_q = false
-      for _, km in ipairs(keymaps) do
-        if km.lhs == 'q' then
-          has_q = true
-          break
-        end
-      end
-      assert.is_true(has_q)
-      vim.api.nvim_buf_delete(bufnr, { force = true })
-    end)
-
     it('does not replace an existing q keymap', function()
       local bufnr = create_diffs_buffer()
       vim.keymap.set('n', 'q', '<Nop>', { buffer = bufnr, desc = 'user q' })

@@ -318,7 +318,9 @@ local function buffer_lines(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local ok, rail_width = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_rail_width')
   if ok then
-    return rails.strip_lines(lines, rail_width)
+    return vim.tbl_map(function(line)
+      return rails.strip(line, rail_width)
+    end, lines)
   end
   return lines
 end
@@ -706,33 +708,6 @@ describe('commands', function()
     end)
   end)
 
-  describe('unified diff generation', function()
-    local old_lines = { 'local M = {}', 'return M' }
-    local new_lines = { 'local M = {}', 'local x = 1', 'return M' }
-    local diff_fn = vim.text and vim.text.diff or vim.diff
-
-    it('generates valid unified diff', function()
-      local old_content = table.concat(old_lines, '\n')
-      local new_content = table.concat(new_lines, '\n')
-      local diff_output = diff_fn(old_content, new_content, {
-        result_type = 'unified',
-        ctxlen = 3,
-      })
-      assert.is_not_nil(diff_output)
-      assert.is_true(diff_output:find('@@ ') ~= nil)
-      assert.is_true(diff_output:find('+local x = 1') ~= nil)
-    end)
-
-    it('returns empty for identical content', function()
-      local content = table.concat(old_lines, '\n')
-      local diff_output = diff_fn(content, content, {
-        result_type = 'unified',
-        ctxlen = 3,
-      })
-      assert.are.equal('', diff_output)
-    end)
-  end)
-
   describe('filter_combined_diffs', function()
     it('strips diff --cc entries entirely', function()
       local lines = {
@@ -904,7 +879,7 @@ describe('commands', function()
       assert.are.equal('diffs://unstaged:lua/foo.lua', vim.api.nvim_buf_get_name(diff_buf))
       assert.are.same(
         diffspec.index_to_worktree('lua/foo.lua'),
-        vim.api.nvim_buf_get_var(diff_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(diff_buf, 'diffs_source').spec
       )
       local diff_hunks = vim.api.nvim_buf_get_var(diff_buf, 'diffs_hunks')
       assert.are.equal(1, #diff_hunks)
@@ -999,7 +974,7 @@ describe('commands', function()
       assert.are.equal('diffs://unstaged:lua/foo.lua', vim.api.nvim_buf_get_name(diff_buf))
       assert.are.same(
         diffspec.index_to_worktree('lua/foo.lua'),
-        vim.api.nvim_buf_get_var(diff_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(diff_buf, 'diffs_source').spec
       )
       assert.are.equal(8, vim.api.nvim_buf_get_var(diff_buf, 'diffs_rail_width'))
       assert.are.equal('single', vim.api.nvim_buf_get_var(diff_buf, 'diffs_rail_style'))
@@ -1047,7 +1022,7 @@ describe('commands', function()
       assert.are.equal('diffs://unstaged:lua/new.lua', vim.api.nvim_buf_get_name(diff_buf))
       assert.are.same(
         diffspec.index_to_worktree('lua/new.lua'),
-        vim.api.nvim_buf_get_var(diff_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(diff_buf, 'diffs_source').spec
       )
       local text = table.concat(lines, '\n')
       assert.is_true(text:find('new file mode 100644', 1, true) ~= nil)
@@ -1115,10 +1090,10 @@ describe('commands', function()
       assert.is_true(vim.tbl_contains(left_lines, ''))
       assert.are.same(
         diffspec.index_to_worktree('lua/foo.lua'),
-        vim.api.nvim_buf_get_var(left_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(left_buf, 'diffs_source').spec
       )
-      assert.are.equal('left', vim.api.nvim_buf_get_var(left_buf, 'diffs_split_side'))
-      assert.are.equal('right', vim.api.nvim_buf_get_var(right_buf, 'diffs_split_side'))
+      assert.are.equal('left', vim.api.nvim_buf_get_var(left_buf, 'diffs_source').side)
+      assert.are.equal('right', vim.api.nvim_buf_get_var(right_buf, 'diffs_source').side)
       assert.are.equal('lua', vim.api.nvim_get_option_value('filetype', { buf = left_buf }))
       assert.are.equal('lua', vim.api.nvim_get_option_value('filetype', { buf = right_buf }))
       assert.is_false(vim.api.nvim_get_option_value('modifiable', { buf = left_buf }))
@@ -1139,7 +1114,6 @@ describe('commands', function()
       assert.is_true(vim.api.nvim_get_option_value('scrollbind', { win = right_win }))
       assert.is_true(vim.api.nvim_get_option_value('cursorbind', { win = left_win }))
       assert.is_true(vim.api.nvim_get_option_value('cursorbind', { win = right_win }))
-      assert.are.equal(1, #vim.api.nvim_buf_get_var(right_buf, 'diffs_split_hunks'))
       assert.is_true(helpers.has_keymap(left_buf, 'q'))
       assert.is_true(helpers.has_keymap(right_buf, 'q'))
       assert.is_true(helpers.has_keymap(left_buf, '<CR>'))
@@ -1438,9 +1412,7 @@ describe('commands', function()
       table.insert(test_buffers, left_buf)
       table.insert(test_buffers, right_buf)
       local left_win, right_win = find_split_windows(left_buf, right_buf)
-      local hunks = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_hunks')
 
-      assert.are.equal(2, #hunks)
       local right_loc = loclist_items(right_win)
       assert.are.equal(2, #right_loc)
       assert.are.equal(right_buf, right_loc[2].bufnr)
@@ -1451,22 +1423,21 @@ describe('commands', function()
         assert.are.equal(lrow, rrow)
         return rrow
       end
-      local function in_hunk(row, hunk)
-        return row >= hunk.new_range.start
-          and row <= math.max(hunk.new_range.start, hunk.new_range.finish)
+      local function in_hunk(row, item)
+        return row == item.lnum
       end
 
       vim.api.nvim_set_current_win(right_win)
       vim.api.nvim_win_set_cursor(right_win, { 1, 0 })
 
       split.goto_next(right_buf)
-      assert.is_true(in_hunk(synced_row(), hunks[1]))
+      assert.is_true(in_hunk(synced_row(), right_loc[1]))
 
       split.goto_next(right_buf)
-      assert.is_true(in_hunk(synced_row(), hunks[2]))
+      assert.is_true(in_hunk(synced_row(), right_loc[2]))
 
       split.goto_prev(right_buf)
-      assert.is_true(in_hunk(synced_row(), hunks[1]))
+      assert.is_true(in_hunk(synced_row(), right_loc[1]))
 
       vim.api.nvim_set_current_win(right_win)
       vim.cmd('lopen')
@@ -1509,10 +1480,6 @@ describe('commands', function()
       table.insert(test_buffers, left_buf)
       table.insert(test_buffers, right_buf)
       local left_win, right_win = find_split_windows(left_buf, right_buf)
-      local hunks = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_hunks')
-
-      assert.are.equal(1, #hunks)
-      assert.are.equal(0, hunks[1].new_range.count)
 
       local qf = quickfix_items()
       assert.are.equal(0, #qf)
@@ -1520,7 +1487,7 @@ describe('commands', function()
       local right_loc = loclist_items(right_win)
       assert.are.equal(1, #right_loc)
       assert.are.equal(left_buf, right_loc[1].bufnr)
-      assert.are.equal(hunks[1].old_range.start, right_loc[1].lnum)
+      assert.are.equal(1, right_loc[1].lnum)
 
       vim.api.nvim_set_current_win(right_win)
       vim.cmd('lopen')
@@ -1535,11 +1502,11 @@ describe('commands', function()
       vim.cmd('normal \r')
       vim.wait(100, function()
         return vim.api.nvim_get_current_buf() == left_buf
-          and vim.api.nvim_win_get_cursor(left_win)[1] == hunks[1].old_range.start
+          and vim.api.nvim_win_get_cursor(left_win)[1] == right_loc[1].lnum
       end)
 
       assert.are.equal(left_buf, vim.api.nvim_get_current_buf())
-      assert.are.same({ hunks[1].old_range.start, 0 }, vim.api.nvim_win_get_cursor(left_win))
+      assert.are.same({ right_loc[1].lnum, 0 }, vim.api.nvim_win_get_cursor(left_win))
     end)
 
     it('opens the worktree split endpoint in an existing source window', function()
@@ -1779,10 +1746,10 @@ describe('commands', function()
 
       assert.are.equal('HEAD~3', captured_revision)
       assert.are.equal('diffs://HEAD~3:lua/foo.lua', vim.api.nvim_buf_get_name(diff_buf))
-      assert.are.equal('/tmp/repo', vim.api.nvim_buf_get_var(diff_buf, 'diffs_repo_root'))
+      assert.are.equal('/tmp/repo', vim.api.nvim_buf_get_var(diff_buf, 'diffs_source').repo_root)
       assert.are.same(
         diffspec.rev_to_worktree('HEAD~3', 'lua/foo.lua'),
-        vim.api.nvim_buf_get_var(diff_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(diff_buf, 'diffs_source').spec
       )
       local diff_hunks = vim.api.nvim_buf_get_var(diff_buf, 'diffs_hunks')
       assert.are.equal(1, #diff_hunks)
@@ -1799,6 +1766,35 @@ describe('commands', function()
   end)
 
   describe('diff real repository rendering', function()
+    for _, layout in ipairs({ 'unified', 'stacked', 'split' }) do
+      it('reloads live worktree content in ' .. layout .. ' views', function()
+        local repo_root = create_repo()
+        local source_buf = edit_file(repo_root .. '/file.txt')
+        vim.api.nvim_buf_set_lines(source_buf, 0, -1, false, { 'unsaved first' })
+        mock_runtime_attach(function() end)
+        commands.diff('++layout=' .. layout, false)
+        local diff_buf = vim.api.nvim_get_current_buf()
+        test_buffers[#test_buffers + 1] = diff_buf
+        if layout == 'split' then
+          local peer = vim.b[diff_buf].diffs_split_peer
+          test_buffers[#test_buffers + 1] = peer
+          if vim.b[diff_buf].diffs_source.side == 'left' then
+            diff_buf = peer
+          end
+        end
+        assert.is_true(buffer_text(diff_buf):find('unsaved first', 1, true) ~= nil)
+
+        vim.api.nvim_buf_set_lines(source_buf, 0, -1, false, { 'unsaved second' })
+        commands.refresh(diff_buf)
+        assert.is_true(buffer_text(diff_buf):find('unsaved second', 1, true) ~= nil)
+        assert.are.same({ 'line 1', 'line 2' }, vim.fn.readfile(repo_root .. '/file.txt'))
+
+        vim.api.nvim_buf_delete(source_buf, { force = true })
+        commands.refresh(diff_buf)
+        assert.is_nil(buffer_text(diff_buf):find('unsaved second', 1, true))
+      end)
+    end
+
     it('reports no unstaged changes for staged-only tracked files', function()
       local repo_root = create_repo()
       local filepath = repo_root .. '/file.txt'
@@ -2121,7 +2117,7 @@ describe('commands', function()
       assert.are.equal('diffs://HEAD:other.lua', vim.api.nvim_buf_get_name(diff_buf))
       assert.are.same(
         diffspec.rev_to_worktree('HEAD', 'other.lua'),
-        vim.api.nvim_buf_get_var(diff_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(diff_buf, 'diffs_source').spec
       )
       local text = table.concat(buffer_lines(diff_buf), '\n')
       assert.is_true(text:find('+local b = 2', 1, true) ~= nil)
@@ -2139,8 +2135,8 @@ describe('commands', function()
       table.insert(test_buffers, diff_buf)
       assert.are.equal('diffs://stage2:file.txt', vim.api.nvim_buf_get_name(diff_buf))
       assert.are.same(
-        diffspec.stage_to_worktree(2, 'file.txt'),
-        vim.api.nvim_buf_get_var(diff_buf, 'diffs_spec')
+        diffspec.file(diffspec.stage(2), diffspec.worktree(), 'file.txt'),
+        vim.api.nvim_buf_get_var(diff_buf, 'diffs_source').spec
       )
       assert.is_false(helpers.has_keymap(diff_buf, 'dp'))
       assert.is_false(helpers.has_keymap(diff_buf, 'do'))
@@ -2173,18 +2169,16 @@ describe('commands', function()
 
       local bufnr = vim.api.nvim_get_current_buf()
       table.insert(test_buffers, bufnr)
-      assert.is_true(vim.b[bufnr].diffs_unmerged)
       assert.is_false(helpers.has_keymap(bufnr, 'go'))
     end)
 
     it('routes direct :Diff on unmerged files to the generated unmerged view', function()
       local repo_root, filepath = create_conflicted_repo()
-      edit_file(filepath)
+      local source_buf = edit_file(filepath)
       local source_win = vim.api.nvim_get_current_win()
       mock_runtime_attach(function() end)
       mock_conflict_config({
         keymaps = helpers.default_conflict_keymaps(),
-        show_virtual_text = false,
       })
 
       assert.is_true(git.is_unmerged(filepath))
@@ -2199,7 +2193,7 @@ describe('commands', function()
         local text = table.concat(lines, '\n')
 
         assert.are.equal('diffs://unmerged:file.txt', vim.api.nvim_buf_get_name(bufnr))
-        assert.are.equal(repo_root, vim.api.nvim_buf_get_var(bufnr, 'diffs_repo_root'))
+        assert.are.equal(repo_root, vim.api.nvim_buf_get_var(bufnr, 'diffs_source').repo_root)
         assert.are.same({
           version = 1,
           kind = 'unmerged',
@@ -2207,9 +2201,8 @@ describe('commands', function()
           path = 'file.txt',
           working_path = filepath,
         }, vim.api.nvim_buf_get_var(bufnr, 'diffs_source'))
-        assert.is_true(vim.api.nvim_buf_get_var(bufnr, 'diffs_unmerged'))
-        assert.are.equal(filepath, vim.api.nvim_buf_get_var(bufnr, 'diffs_working_path'))
-        assert.is_false(has_buf_var(bufnr, 'diffs_spec'))
+        assert.are.equal(filepath, vim.api.nvim_buf_get_var(bufnr, 'diffs_source').working_path)
+        assert.is_nil(vim.api.nvim_buf_get_var(bufnr, 'diffs_source').spec)
         assert.is_false(has_buf_var(bufnr, 'diffs_hunks'))
         assert.are.equal('diff --git a/file.txt b/file.txt', lines[1])
         assert.is_true(text:find('-line 2 theirs', 1, true) ~= nil)
@@ -2271,15 +2264,15 @@ describe('commands', function()
       assert.are.equal('diffs://HEAD:file.txt', vim.api.nvim_buf_get_name(revision_buf))
       assert.are.same(
         diffspec.rev_to_worktree('HEAD', 'file.txt'),
-        vim.api.nvim_buf_get_var(revision_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(revision_buf, 'diffs_source').spec
       )
       assert.are.same({
         version = 1,
         kind = 'file',
         repo_root = repo_root,
         spec = diffspec.rev_to_worktree('HEAD', 'file.txt'),
+        worktree_buf = source_buf,
       }, vim.api.nvim_buf_get_var(revision_buf, 'diffs_source'))
-      assert.is_false(has_buf_var(revision_buf, 'diffs_unmerged'))
       assert.is_true(revision_text:find('+<<<<<<<', 1, true) ~= nil)
     end)
   end)
@@ -2315,7 +2308,7 @@ describe('commands', function()
       assert.are.equal('diffs://staged:lua/foo.lua', vim.api.nvim_buf_get_name(diff_buf))
       assert.are.same(
         diffspec.head_to_index('lua/foo.lua'),
-        vim.api.nvim_buf_get_var(diff_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(diff_buf, 'diffs_source').spec
       )
       local diff_hunks = vim.api.nvim_buf_get_var(diff_buf, 'diffs_hunks')
       assert.are.equal(1, #diff_hunks)
@@ -2355,7 +2348,7 @@ describe('commands', function()
       assert.are.equal('diffs://unstaged:lua/foo.lua', vim.api.nvim_buf_get_name(diff_buf))
       assert.are.same(
         diffspec.index_to_worktree('lua/foo.lua'),
-        vim.api.nvim_buf_get_var(diff_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(diff_buf, 'diffs_source').spec
       )
       local diff_hunks = vim.api.nvim_buf_get_var(diff_buf, 'diffs_hunks')
       assert.are.equal(1, #diff_hunks)
@@ -2395,7 +2388,7 @@ describe('commands', function()
       assert.are.equal('diffs://untracked:lua/new.lua', vim.api.nvim_buf_get_name(diff_buf))
       assert.are.same(
         diffspec.index_to_worktree('lua/new.lua'),
-        vim.api.nvim_buf_get_var(diff_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(diff_buf, 'diffs_source').spec
       )
       local text = buffer_text(diff_buf)
       assert.is_true(text:find('new file mode 100644', 1, true) ~= nil)
@@ -2440,7 +2433,7 @@ describe('commands', function()
       assert.are.equal('diffs://staged:lua/new.lua', vim.api.nvim_buf_get_name(diff_buf))
       assert.are.same(
         diffspec.head_to_index('lua/new.lua'),
-        vim.api.nvim_buf_get_var(diff_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(diff_buf, 'diffs_source').spec
       )
       local text = buffer_text(diff_buf)
       assert.is_true(text:find('new file mode 100644', 1, true) ~= nil)
@@ -2485,7 +2478,7 @@ describe('commands', function()
       assert.are.equal('diffs://staged:lua/deleted.lua', vim.api.nvim_buf_get_name(diff_buf))
       assert.are.same(
         diffspec.head_to_index('lua/deleted.lua'),
-        vim.api.nvim_buf_get_var(diff_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(diff_buf, 'diffs_source').spec
       )
       local text = buffer_text(diff_buf)
       assert.is_true(text:find('deleted file mode 100644', 1, true) ~= nil)
@@ -2642,22 +2635,16 @@ describe('commands', function()
 
     local function assert_lifecycle_state(bufnr, case)
       assert.are.equal(case.buffer_name, vim.api.nvim_buf_get_name(bufnr))
-      assert.are.equal('/tmp/repo', vim.api.nvim_buf_get_var(bufnr, 'diffs_repo_root'))
+      assert.are.equal('/tmp/repo', vim.api.nvim_buf_get_var(bufnr, 'diffs_source').repo_root)
       assert_generated_options(bufnr)
 
       if case.diff_spec then
-        assert.are.same(case.diff_spec, vim.api.nvim_buf_get_var(bufnr, 'diffs_spec'))
+        assert.are.same(case.diff_spec, vim.api.nvim_buf_get_var(bufnr, 'diffs_source').spec)
       else
-        assert.is_false(has_buf_var(bufnr, 'diffs_spec'))
+        assert.is_nil(vim.api.nvim_buf_get_var(bufnr, 'diffs_source').spec)
       end
 
       assert.are.same(case.source, vim.api.nvim_buf_get_var(bufnr, 'diffs_source'))
-
-      if case.review then
-        assert.are.equal(case.review.base, vim.api.nvim_buf_get_var(bufnr, 'diffs_review_base'))
-        assert.are.equal(case.review.target, vim.api.nvim_buf_get_var(bufnr, 'diffs_review_target'))
-        assert.are.equal(case.review.mode, vim.api.nvim_buf_get_var(bufnr, 'diffs_review_mode'))
-      end
 
       if case.hunk then
         local diff_hunks = vim.api.nvim_buf_get_var(bufnr, 'diffs_hunks')
@@ -3097,9 +3084,6 @@ describe('commands', function()
         'diffs://review:origin/main...refs/forge/pr/42',
         vim.api.nvim_buf_get_name(bufnr)
       )
-      assert.are.equal('origin/main', vim.api.nvim_buf_get_var(bufnr, 'diffs_review_base'))
-      assert.are.equal('refs/forge/pr/42', vim.api.nvim_buf_get_var(bufnr, 'diffs_review_target'))
-      assert.are.equal('merge-base', vim.api.nvim_buf_get_var(bufnr, 'diffs_review_mode'))
     end)
 
     it('initializes generated review metadata before diff FileType attach', function()
@@ -3371,8 +3355,7 @@ describe('commands', function()
     end
 
     local function assert_target_at_hunk(panes, hunk_index)
-      local hunks = vim.api.nvim_buf_get_var(panes.right_buf, 'diffs_split_hunks')
-      local hunk = hunks[hunk_index]
+      local hunk = loclist_items(panes.right_win)[hunk_index]
       assert.is_not_nil(hunk)
       local left_row = vim.api.nvim_win_get_cursor(panes.left_win)[1]
       local right_row = vim.api.nvim_win_get_cursor(panes.right_win)[1]
@@ -3460,14 +3443,14 @@ describe('commands', function()
       )
       assert.are.same(
         diffspec.index_to_worktree('file.txt'),
-        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_source').spec
       )
       assert.are.same(
         diffspec.index_to_worktree('file.txt'),
-        vim.api.nvim_buf_get_var(panes.right_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(panes.right_buf, 'diffs_source').spec
       )
-      assert.are.equal('left', vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_split_side'))
-      assert.are.equal('right', vim.api.nvim_buf_get_var(panes.right_buf, 'diffs_split_side'))
+      assert.are.equal('left', vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_source').side)
+      assert.are.equal('right', vim.api.nvim_buf_get_var(panes.right_buf, 'diffs_source').side)
       assert.are.same(
         { 'line 1', 'line 2' },
         vim.api.nvim_buf_get_lines(panes.left_buf, 0, -1, false)
@@ -3813,7 +3796,7 @@ describe('commands', function()
         panes = track_panes(panes.state.left_buf)
         local item = quickfix_items()[row]
         assert.are.equal(item.user_data.diffs.key, panes.state.selected_key)
-        assert.are.same(item.user_data.diffs.diff_spec, vim.b[panes.right_buf].diffs_spec)
+        assert.are.same(item.user_data.diffs.diff_spec, vim.b[panes.right_buf].diffs_source.spec)
         assert.are.equal(panes.right_win, vim.api.nvim_get_current_win())
         assert.are.equal(row, vim.fn.getqflist({ idx = 0 }).idx)
         assert.are.same(wins, main_windows())
@@ -3912,11 +3895,11 @@ describe('commands', function()
 
       assert.are.same(
         diffspec.rev_to_rev('binary-first-base', 'binary-first-topic', 'zzz-changed.lua'),
-        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_source').spec
       )
       assert.are.same(
         diffspec.rev_to_rev('binary-first-base', 'binary-first-topic', 'zzz-changed.lua'),
-        vim.api.nvim_buf_get_var(panes.right_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(panes.right_buf, 'diffs_source').spec
       )
       assert.are.same({ 'old' }, vim.api.nvim_buf_get_lines(panes.left_buf, 0, -1, false))
       assert.are.same({ 'new' }, vim.api.nvim_buf_get_lines(panes.right_buf, 0, -1, false))
@@ -3970,8 +3953,14 @@ describe('commands', function()
 
         local left_buf = commands.review_split({ bufnr = review_buf })
         local panes = track_panes(left_buf)
-        assert.are.same(expected_spec, vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec'))
-        assert.are.same(expected_spec, vim.api.nvim_buf_get_var(panes.right_buf, 'diffs_spec'))
+        assert.are.same(
+          expected_spec,
+          vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_source').spec
+        )
+        assert.are.same(
+          expected_spec,
+          vim.api.nvim_buf_get_var(panes.right_buf, 'diffs_source').spec
+        )
         assert.is_not_nil(find_window_for_buffer(panes.left_buf))
         assert.is_not_nil(find_window_for_buffer(panes.right_buf))
         assert.is_nil(find_window_for_buffer(review_buf))
@@ -3994,7 +3983,7 @@ describe('commands', function()
       local panes = track_panes(left_buf)
       assert.are.same(
         diffspec.rev_to_rev(repo.base, repo.target, 'lua/one.lua'),
-        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_source').spec
       )
 
       assert.are.equal(0, #quickfix_items())
@@ -4012,11 +4001,11 @@ describe('commands', function()
       panes = track_panes(panes.state.left_buf)
       assert.are.same(
         diffspec.rev_to_rev(repo.base, repo.target, 'lua/two.lua'),
-        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_source').spec
       )
       assert.are.same(
         diffspec.rev_to_rev(repo.base, repo.target, 'lua/two.lua'),
-        vim.api.nvim_buf_get_var(panes.right_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(panes.right_buf, 'diffs_source').spec
       )
       assert.is_true(buffer_text(panes.right_buf):find('line 11 changed', 1, true) ~= nil)
       assert.are.equal(0, #quickfix_items())
@@ -4026,7 +4015,7 @@ describe('commands', function()
       panes = track_panes(panes.state.left_buf)
       assert.are.same(
         diffspec.rev_to_rev(repo.base, repo.target, 'lua/one.lua'),
-        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_source').spec
       )
 
       vim.api.nvim_set_current_win(panes.right_win)
@@ -4034,7 +4023,7 @@ describe('commands', function()
       panes = track_panes(panes.state.left_buf)
       assert.are.same(
         diffspec.rev_to_rev(repo.base, repo.target, 'lua/two.lua'),
-        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_source').spec
       )
 
       assert_target_at_hunk(panes, 1)
@@ -4068,7 +4057,7 @@ describe('commands', function()
       local panes = track_panes(left_buf)
       assert.are.same(
         diffspec.rev_to_rev('binary-base', 'binary-topic', 'aaa-one.lua'),
-        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_source').spec
       )
 
       vim.api.nvim_set_current_win(panes.right_win)
@@ -4076,7 +4065,7 @@ describe('commands', function()
       panes = track_panes(panes.state.left_buf)
       assert.are.same(
         diffspec.rev_to_rev('binary-base', 'binary-topic', 'ccc-two.lua'),
-        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_source').spec
       )
       assert.are.equal(vim.log.levels.INFO, notifications[#notifications].level)
       assert.are.equal(
@@ -4089,7 +4078,7 @@ describe('commands', function()
       panes = track_panes(panes.state.left_buf)
       assert.are.same(
         diffspec.rev_to_rev('binary-base', 'binary-topic', 'aaa-one.lua'),
-        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_source').spec
       )
       assert.are.equal(vim.log.levels.INFO, notifications[#notifications].level)
       assert.are.equal(
@@ -4108,7 +4097,7 @@ describe('commands', function()
       local panes = track_panes(left_buf)
       assert.are.same(
         diffspec.rev_to_rev('binary-base', 'binary-topic', 'aaa-one.lua'),
-        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_source').spec
       )
 
       vim.api.nvim_set_current_win(panes.right_win)
@@ -4117,7 +4106,7 @@ describe('commands', function()
 
       assert.are.same(
         diffspec.rev_to_rev('binary-base', 'binary-topic', 'aaa-one.lua'),
-        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_source').spec
       )
       assert.are.equal(1, #notifications)
       assert.are.equal(vim.log.levels.INFO, notifications[1].level)
@@ -4155,7 +4144,7 @@ describe('commands', function()
       assert.is_true(formatted[3]:match('^ccc%-two%.lua%s+%+1%s+%-1$') ~= nil)
       assert.are.same(
         diffspec.rev_to_rev('binary-base', 'binary-topic', 'aaa-one.lua'),
-        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_source').spec
       )
       assert.are.equal(1, #notifications)
       assert.are.equal('[diffs]: review skipped 1 file(s): bbb-bin.dat', notifications[1].message)
@@ -4195,7 +4184,7 @@ describe('commands', function()
       panes = track_panes(panes.state.left_buf)
       assert.are.same(
         diffspec.rev_to_rev(repo.base, repo.target, 'lua/two.lua'),
-        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_source').spec
       )
       assert.are.equal(2, commands.review_current(panes.left_buf).index)
 
@@ -4249,7 +4238,7 @@ describe('commands', function()
       panes = track_panes(panes.state.left_buf)
       assert.are.same(
         diffspec.rev_to_rev(repo.base, repo.target, 'lua/two.lua'),
-        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_source').spec
       )
     end)
 
@@ -4355,11 +4344,11 @@ describe('commands', function()
 
       assert.are.same(
         diffspec.rev_to_rev(':2', ':3', 'file.txt'),
-        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_source').spec
       )
       assert.are.same(
         diffspec.rev_to_rev(':2', ':3', 'file.txt'),
-        vim.api.nvim_buf_get_var(panes.right_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(panes.right_buf, 'diffs_source').spec
       )
       assert.is_true(buffer_text(panes.left_buf):find('line 2 theirs', 1, true) ~= nil)
       assert.is_true(buffer_text(panes.right_buf):find('line 2 ours', 1, true) ~= nil)
@@ -4375,11 +4364,11 @@ describe('commands', function()
 
       assert.are.same(
         diffspec.index_to_worktree('lua/one.lua'),
-        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_source').spec
       )
       assert.are.same(
         diffspec.index_to_worktree('lua/one.lua'),
-        vim.api.nvim_buf_get_var(panes.right_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(panes.right_buf, 'diffs_source').spec
       )
     end)
 
@@ -4394,11 +4383,11 @@ describe('commands', function()
 
       assert.are.same(
         diffspec.rev_to_rev(repo.base_sha, repo.target, 'lua/one.lua'),
-        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(panes.left_buf, 'diffs_source').spec
       )
       assert.are.same(
         diffspec.rev_to_rev(repo.base_sha, repo.target, 'lua/one.lua'),
-        vim.api.nvim_buf_get_var(panes.right_buf, 'diffs_spec')
+        vim.api.nvim_buf_get_var(panes.right_buf, 'diffs_source').spec
       )
     end)
 
@@ -4487,71 +4476,6 @@ describe('commands', function()
       assert.are.equal(1, #loc)
       assert.are.equal(7, loc[1].lnum)
       assert.is_true(loc[1].text:find('lua/changed.lua', 1, true) ~= nil)
-    end)
-  end)
-
-  describe('review_file_at_line', function()
-    local review_test_buffers = {}
-
-    after_each(function()
-      for _, bufnr in ipairs(review_test_buffers) do
-        if vim.api.nvim_buf_is_valid(bufnr) then
-          vim.api.nvim_buf_delete(bufnr, { force = true })
-        end
-      end
-      review_test_buffers = {}
-    end)
-
-    it('returns filename at cursor line', function()
-      local bufnr = vim.api.nvim_create_buf(false, true)
-      table.insert(review_test_buffers, bufnr)
-      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {
-        'diff --git a/foo.lua b/foo.lua',
-        '--- a/foo.lua',
-        '+++ b/foo.lua',
-        '@@ -1,3 +1,4 @@',
-        ' local M = {}',
-        '+local x = 1',
-        ' return M',
-      })
-
-      assert.are.equal('foo.lua', commands.review_file_at_line(bufnr, 6))
-    end)
-
-    it('returns correct file in multi-file diff', function()
-      local bufnr = vim.api.nvim_create_buf(false, true)
-      table.insert(review_test_buffers, bufnr)
-      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {
-        'diff --git a/foo.lua b/foo.lua',
-        '@@ -1 +1 @@',
-        '-old',
-        '+new',
-        'diff --git a/bar.lua b/bar.lua',
-        '@@ -1 +1 @@',
-        '-old',
-        '+new',
-      })
-
-      assert.are.equal('foo.lua', commands.review_file_at_line(bufnr, 3))
-      assert.are.equal('bar.lua', commands.review_file_at_line(bufnr, 7))
-    end)
-
-    it('returns nil before any diff header', function()
-      local bufnr = vim.api.nvim_create_buf(false, true)
-      table.insert(review_test_buffers, bufnr)
-      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {
-        'some preamble text',
-        'diff --git a/foo.lua b/foo.lua',
-      })
-
-      assert.is_nil(commands.review_file_at_line(bufnr, 1))
-    end)
-
-    it('returns nil on empty buffer', function()
-      local bufnr = vim.api.nvim_create_buf(false, true)
-      table.insert(review_test_buffers, bufnr)
-
-      assert.is_nil(commands.review_file_at_line(bufnr, 1))
     end)
   end)
 

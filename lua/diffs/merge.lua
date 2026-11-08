@@ -5,8 +5,6 @@ local keymaps = require('diffs.keymaps')
 local notify = require('diffs.log').notify
 local rails = require('diffs.rails')
 
-local ns = vim.api.nvim_create_namespace('diffs-merge')
-
 ---@type table<integer, table<integer, true>>
 local resolved_hunks = {}
 
@@ -115,8 +113,9 @@ end
 ---@param diff_bufnr integer
 ---@return integer?
 function M.get_or_load_working_buf(diff_bufnr)
-  local ok, working_path = pcall(vim.api.nvim_buf_get_var, diff_bufnr, 'diffs_working_path')
-  if not ok or not working_path then
+  local ok, source = pcall(vim.api.nvim_buf_get_var, diff_bufnr, 'diffs_source')
+  local working_path = ok and source.working_path
+  if not working_path then
     return nil
   end
 
@@ -147,15 +146,6 @@ function M.is_resolved(diff_bufnr, hunk_index)
 end
 
 ---@param diff_bufnr integer
----@param hunk diffs.MergeHunkInfo
-local function add_resolved_virtual_text(diff_bufnr, hunk)
-  pcall(vim.api.nvim_buf_set_extmark, diff_bufnr, ns, hunk.start_line, 0, {
-    virt_text = { { ' (resolved)', 'Comment' } },
-    virt_text_pos = 'eol',
-  })
-end
-
----@param diff_bufnr integer
 ---@param config diffs.ConflictConfig
 ---@param side 'ours'|'theirs'|'both'|'none'
 local function resolve(diff_bufnr, config, side)
@@ -183,7 +173,6 @@ local function resolve(diff_bufnr, config, side)
   )
   conflict.refresh(working_bufnr, config)
   mark_resolved(diff_bufnr, hunk.index)
-  add_resolved_virtual_text(diff_bufnr, hunk)
 end
 
 ---@param bufnr integer
@@ -269,46 +258,8 @@ end
 
 ---@param bufnr integer
 ---@param config diffs.ConflictConfig
-local function apply_hunk_hints(bufnr, config)
-  if not config.show_virtual_text then
-    return
-  end
-
-  local hunks = M.parse_hunks(bufnr)
-  for _, hunk in ipairs(hunks) do
-    if M.is_resolved(bufnr, hunk.index) then
-      add_resolved_virtual_text(bufnr, hunk)
-    else
-      local parts = {}
-      local actions = {
-        { 'current', keymaps.get_conflict_keymap(config, 'ours') },
-        { 'incoming', keymaps.get_conflict_keymap(config, 'theirs') },
-        { 'both', keymaps.get_conflict_keymap(config, 'both') },
-        { 'none', keymaps.get_conflict_keymap(config, 'none') },
-      }
-      for _, action in ipairs(actions) do
-        if action[2] then
-          if #parts > 0 then
-            table.insert(parts, { ' | ', 'Comment' })
-          end
-          table.insert(parts, { ('%s: %s'):format(action[2], action[1]), 'Comment' })
-        end
-      end
-      if #parts > 0 then
-        pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, hunk.start_line, 0, {
-          virt_text = parts,
-          virt_text_pos = 'eol',
-        })
-      end
-    end
-  end
-end
-
----@param bufnr integer
----@param config diffs.ConflictConfig
-function M.setup_keymaps(bufnr, config)
+function M.attach(bufnr, config)
   resolved_hunks[bufnr] = nil
-  vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
 
   local km = config.keymaps
   if km ~= false then
@@ -324,8 +275,6 @@ function M.setup_keymaps(bufnr, config)
     keymaps.clear_buffer_keymaps(buffer_keymaps, bufnr)
   end
 
-  apply_hunk_hints(bufnr, config)
-
   vim.api.nvim_create_autocmd('BufWipeout', {
     buffer = bufnr,
     callback = function()
@@ -333,11 +282,7 @@ function M.setup_keymaps(bufnr, config)
       resolved_hunks[bufnr] = nil
     end,
   })
-end
-
----@return integer
-function M.get_namespace()
-  return ns
+  vim.api.nvim_exec_autocmds('User', { pattern = 'DiffsMergeReady', data = { bufnr = bufnr } })
 end
 
 return M

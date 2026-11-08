@@ -70,30 +70,53 @@ describe('plugin bootstrap', function()
     assert.matches('conflict_loaded=false', output, 1, true)
   end)
 
-  it('loads conflict handling only when enabled', function()
+  it('respects the conflict setting', function()
     for _, enabled in ipairs({ true, false }) do
       local init_lines = {
         ('vim.g.diffs = { conflict = %s }'):format(tostring(enabled)),
         ('vim.opt.runtimepath:prepend(%s)'):format(vim.inspect(vim.fn.getcwd())),
       }
-      local after_lines = {
-        'local path = vim.fn.tempname()',
-        "vim.fn.writefile({ '<<<<<<< ours', 'old', '=======', 'new', '>>>>>>> theirs' }, path)",
-        'vim.cmd.edit(path)',
-        "print('runtime_loaded=' .. tostring(package.loaded['diffs.runtime'] ~= nil))",
-        "print('conflict_loaded=' .. tostring(package.loaded['diffs.conflict'] ~= nil))",
-        'if not vim.g.diffs.conflict then',
-        'local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)',
-        "vim.fn.maparg('<Plug>(diffs-conflict-ours)', 'n', false, true).callback()",
-        "print('unchanged=' .. tostring(vim.deep_equal(lines, vim.api.nvim_buf_get_lines(0, 0, -1, false))))",
-        'end',
-        'vim.fn.delete(path)',
-      }
+      local after_lines = vim.split(
+        [[
+local path = vim.fn.tempname()
+vim.fn.writefile({ '<<<<<<< ours', 'old', '=======', 'new', '>>>>>>> theirs' }, path)
+vim.cmd.edit(path)
+print('runtime_loaded=' .. tostring(package.loaded['diffs.runtime'] ~= nil))
+print('conflict_loaded=' .. tostring(package.loaded['diffs.conflict'] ~= nil))
+
+if not vim.g.diffs.conflict then
+  local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+  vim.fn.maparg('<Plug>(diffs-conflict-ours)', 'n', false, true).callback()
+  print('unchanged=' .. tostring(vim.deep_equal(lines, vim.api.nvim_buf_get_lines(0, 0, -1, false))))
+end
+
+for _, kind in ipairs({ 'conflict', 'merge' }) do
+  if kind == 'merge' then
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { '@@ -1 +1 @@', '-old', '+new' })
+    vim.b[buf].diffs_source = { working_path = path }
+    vim.api.nvim_set_current_buf(buf)
+  end
+  for _, direction in ipairs({ 'next', 'prev' }) do
+    vim.api.nvim_win_set_cursor(0, { 2, 0 })
+    vim.fn.maparg('<Plug>(diffs-' .. kind .. '-' .. direction .. ')', 'n', false, true).callback()
+    print(kind .. '_' .. direction .. '=' .. vim.api.nvim_win_get_cursor(0)[1])
+  end
+end
+vim.fn.delete(path)
+]],
+        '\n'
+      )
 
       local output = run_child(init_lines, after_lines)
 
       assert.matches('runtime_loaded=' .. tostring(enabled), output, 1, true)
       assert.matches('conflict_loaded=' .. tostring(enabled), output, 1, true)
+      for _, kind in ipairs({ 'conflict', 'merge' }) do
+        for _, direction in ipairs({ 'next', 'prev' }) do
+          assert.matches(kind .. '_' .. direction .. '=' .. (enabled and 1 or 2), output, 1, true)
+        end
+      end
       if not enabled then
         assert.matches('unchanged=true', output, 1, true)
       end
@@ -106,7 +129,7 @@ describe('plugin bootstrap', function()
       'vim.notify = function(message, level)',
       '_G.diffs_notifications[#_G.diffs_notifications + 1] = { message = message, level = level }',
       'end',
-      'vim.g.diffs = { view = { prefix = false }, highlights = { background = false, intra = { algorithm = "vscode" } }, conflict = { show_virtual_text = false }, integrations = { "fugitive", "neogit", "neojj", "gitsigns", "committia", "telescope" } }',
+      'vim.g.diffs = { view = { prefix = false }, highlights = { background = false, intra = { algorithm = "vscode" } }, conflict = { keymaps = { ours = "co" } }, integrations = { "fugitive", "neogit", "neojj", "gitsigns", "telescope" } }',
       ('vim.opt.runtimepath:prepend(%s)'):format(vim.inspect(vim.fn.getcwd())),
     }
 
@@ -119,6 +142,8 @@ describe('plugin bootstrap', function()
       'runtime.attach(0)',
       "print('warning=' .. _G.diffs_notifications[1].message)",
       "print('warning_level=' .. _G.diffs_notifications[1].level)",
+      "print('keymap_warning=' .. _G.diffs_notifications[2].message)",
+      "print('keymap_warning_level=' .. _G.diffs_notifications[2].level)",
       "print('after_attach_notifications=' .. #(_G.diffs_notifications or {}))",
       'local runtime_config = runtime._test.get_config()',
       'local highlight_opts = runtime.get_highlight_opts()',
@@ -127,10 +152,9 @@ describe('plugin bootstrap', function()
       "print('runtime_neogit=' .. tostring(runtime_config.integrations.neogit))",
       "print('runtime_neojj=' .. tostring(runtime_config.integrations.neojj))",
       "print('runtime_gitsigns=' .. tostring(runtime_config.integrations.gitsigns))",
-      "print('runtime_committia=' .. tostring(runtime_config.integrations.committia))",
       "print('runtime_telescope=' .. tostring(runtime_config.integrations.telescope))",
       "print('runtime_background=' .. tostring(runtime_config.highlights.background))",
-      "print('runtime_show_virtual_text=' .. tostring(runtime_config.conflict.show_virtual_text))",
+      "print('runtime_conflict_keymaps=' .. tostring(runtime_config.conflict.keymaps.ours))",
       "print('runtime_config_priorities=' .. tostring(runtime_config.highlights.priorities))",
       "print('highlight_priority_clear=' .. tostring(highlight_opts.highlights.priorities.clear))",
       "print('highlight_priority_syntax=' .. tostring(highlight_opts.highlights.priorities.syntax))",
@@ -158,19 +182,21 @@ describe('plugin bootstrap', function()
 
     assert.matches('loaded=1', output, 1, true)
     assert.matches('notifications=0', output, 1, true)
-    assert.matches('after_attach_notifications=1', output, 1, true)
+    assert.matches('after_attach_notifications=2', output, 1, true)
     assert.matches('libvscodediff support will be removed on 30 November 2026.', output, 1, true)
     assert.matches('Remove highlights.intra.algorithm', output, 1, true)
+    assert.matches('conflict.keymaps will be removed on 30 November 2026.', output, 1, true)
+    assert.matches(':help diffs.nvim-conflict-keymaps', output, 1, true)
+    assert.matches('keymap_warning_level=' .. vim.log.levels.WARN, output, 1, true)
     assert.matches('warning_level=' .. vim.log.levels.WARN, output, 1, true)
     assert.matches('runtime_view_prefix=false', output, 1, true)
     assert.matches('runtime_fugitive=true', output, 1, true)
     assert.matches('runtime_neogit=true', output, 1, true)
     assert.matches('runtime_neojj=true', output, 1, true)
     assert.matches('runtime_gitsigns=true', output, 1, true)
-    assert.matches('runtime_committia=true', output, 1, true)
     assert.matches('runtime_telescope=true', output, 1, true)
     assert.matches('runtime_background=false', output, 1, true)
-    assert.matches('runtime_show_virtual_text=false', output, 1, true)
+    assert.matches('runtime_conflict_keymaps=co', output, 1, true)
     assert.matches('runtime_config_priorities=nil', output, 1, true)
     assert.matches('highlight_priority_clear=198', output, 1, true)
     assert.matches('highlight_priority_syntax=199', output, 1, true)

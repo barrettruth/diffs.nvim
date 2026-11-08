@@ -190,7 +190,14 @@ end
 
 ---@param bufnr integer
 function M.setup_diff_buf(bufnr)
-  vim.diagnostic.enable(false, { bufnr = bufnr })
+  if not get_buffer_keymap(bufnr, 'n', '<C-L>') then
+    vim.keymap.set(
+      'n',
+      '<C-L>',
+      '<Cmd>nohlsearch<Bar>diffupdate<CR><Plug>(diffs-refresh)<C-L>',
+      { buffer = bufnr, silent = true, desc = 'Refresh diff and redraw' }
+    )
+  end
   if not get_buffer_keymap(bufnr, 'n', 'q') then
     vim.keymap.set('n', 'q', '<cmd>close<CR>', { buffer = bufnr })
   end
@@ -312,12 +319,6 @@ local function diff_buffer_label(diff_spec)
 end
 
 ---@param bufnr integer
----@param diff_spec diffs.DiffSpec
-local function set_diff_spec_var(bufnr, diff_spec)
-  generated.set_spec(bufnr, diff_spec)
-end
-
----@param bufnr integer
 ---@param diff_lines string[]
 ---@param diff_spec diffs.DiffSpec
 local function set_diff_hunks_var(bufnr, diff_lines, diff_spec)
@@ -343,12 +344,6 @@ end
 ---@param bufnr integer
 local function clear_diff_hunks_var(bufnr)
   generated.clear_hunks(bufnr)
-end
-
----@param bufnr integer
----@return diffs.DiffSpec?, string?
-local function get_diff_spec_var(bufnr)
-  return generated.spec(bufnr)
 end
 
 ---@param bufnr integer
@@ -401,11 +396,7 @@ local function create_generated_diff_buffer(opts)
   set_diff_rails_var(bufnr, rail_info)
 
   if opts.diff_spec then
-    set_diff_spec_var(bufnr, opts.diff_spec)
     set_diff_hunks_var(bufnr, opts.lines, opts.diff_spec)
-  end
-  if opts.repo_root then
-    generated.set_repo_root(bufnr, opts.repo_root)
   end
   if opts.source then
     generated.set_source(bufnr, opts.source)
@@ -605,16 +596,17 @@ local function files_source_new_lines(source)
 end
 
 ---@param source diffs.GeneratedBufferSource
----@return string[]?, diffs.DiffSpec?, string?, table?
+---@return string[]?, diffs.DiffSpec?, string?, table?, diffs.ContentLines|string[]?, diffs.ContentLines|string[]?
 local function render_source(source)
   if source.kind == 'file' then
-    local diff_lines, read_err = render.file(source.spec, source.repo_root, {
+    local diff_lines, read_err, old_lines, new_lines = render.file(source.spec, source.repo_root, {
+      worktree_buf = source.worktree_buf,
       empty_on_missing = true,
     })
     if not diff_lines then
       return nil, nil, read_err, nil
     end
-    return diff_lines, source.spec, diffspec.label(source.spec), nil
+    return diff_lines, source.spec, diffspec.label(source.spec), nil, old_lines, new_lines
   end
 
   if source.kind == 'files' then
@@ -629,7 +621,9 @@ local function render_source(source)
     return render.unified_lines(old_lines, new_lines, source.left_name, source.right_name),
       nil,
       'files:' .. source.left_name .. ' -> ' .. files_side_display(source.right_name, buffered),
-      nil
+      nil,
+      old_lines,
+      new_lines
   end
 
   if source.kind == 'file_pair' then
@@ -649,7 +643,9 @@ local function render_source(source)
     return render.unified_lines(old_lines, new_lines, source.old_path, source.path),
       nil,
       source.edge .. ':' .. source.path,
-      nil
+      nil,
+      old_lines,
+      new_lines
   end
 
   if source.kind == 'section' then
@@ -689,13 +685,6 @@ end
 ---@return integer?
 function M.review(spec, opts)
   return review.open(spec, review_deps(opts))
-end
-
----@param buf integer
----@param lnum integer
----@return string?
-function M.review_file_at_line(buf, lnum)
-  return review.file_at_line(buf, lnum)
 end
 
 local layout_options = {
@@ -2076,6 +2065,7 @@ function M.diff(args, vertical, opts)
       repo_root = repo_root,
       filetype = vim.api.nvim_get_option_value('filetype', { buf = bufnr }),
       worktree_lines = worktree_lines,
+      worktree_buf = worktree_lines and bufnr or nil,
       diff_lines = diff_lines,
     })
     if not opened then
@@ -2089,7 +2079,7 @@ function M.diff(args, vertical, opts)
     lines = diff_lines,
     repo_root = repo_root,
     diff_spec = diff_spec,
-    source = generated.file_source(repo_root, diff_spec),
+    source = generated.file_source(repo_root, diff_spec, worktree_lines and bufnr or nil),
     rail_style = rail_style,
   })
   show_generated_diff_buffer(diff_buf, vertical)
@@ -2221,9 +2211,6 @@ function M.diff_file(filepath, opts)
     diff_spec = diff_spec,
     source = source,
     rail_style = opts.rail_style,
-    vars = {
-      diffs_old_filepath = old_rel_path ~= rel_path and old_rel_path or nil,
-    },
   })
   show_generated_diff_buffer(diff_buf, opts.vertical)
 
@@ -2256,11 +2243,9 @@ function M.diff_file(filepath, opts)
   end
 
   if diff_label == 'unmerged' then
-    vim.api.nvim_buf_set_var(diff_buf, 'diffs_unmerged', true)
-    vim.api.nvim_buf_set_var(diff_buf, 'diffs_working_path', filepath)
     local conflict_config = runtime.get_conflict_config()
     if conflict_config then
-      require('diffs.merge').setup_keymaps(diff_buf, conflict_config)
+      require('diffs.merge').attach(diff_buf, conflict_config)
     end
   end
 
@@ -2324,8 +2309,7 @@ end
 function M.read_buffer(bufnr, opts)
   opts = opts or {}
   local name = vim.api.nvim_buf_get_name(bufnr)
-  local url_body = name:match('^diffs://(.+)$')
-  if not url_body then
+  if not name:match('^diffs://') then
     return
   end
 
@@ -2347,94 +2331,19 @@ function M.read_buffer(bufnr, opts)
     return
   end
 
-  local diff_lines
-  local stored_spec
-  local debug_label
-  local list_opts
-  local label, path
-
-  if source then
-    local render_err
-    diff_lines, stored_spec, render_err, list_opts = render_source(source)
-    if not diff_lines then
-      notify(render_err or 'cannot reload diffs:// buffer', vim.log.levels.WARN)
-      return
-    end
-    debug_label = render_err
-  else
-    local repo_root = generated.repo_root(bufnr)
-    if not repo_root then
-      notify('cannot reload diffs:// buffer without diffs_repo_root', vim.log.levels.WARN)
-      return
-    end
-    local spec_err
-    stored_spec, spec_err = get_diff_spec_var(bufnr)
-    if spec_err then
-      notify('invalid diffs_spec metadata: ' .. tostring(spec_err), vim.log.levels.WARN)
-      return
-    end
-
-    if stored_spec then
-      local read_err
-      diff_lines, read_err = render.file(stored_spec, repo_root, { empty_on_missing = true })
-      if not diff_lines then
-        notify(read_err, vim.log.levels.WARN)
-        return
-      end
-      debug_label = diffspec.label(stored_spec)
-    else
-      label, path = url_body:match('^([^:]+):(.+)$')
-      if not label or not path then
-        notify('cannot reload malformed diffs:// buffer: ' .. name, vim.log.levels.WARN)
-        return
-      end
-    end
-
-    if not stored_spec and path == 'all' then
-      diff_lines = render_section_source(repo_root, label)
-    elseif not stored_spec and label == 'review' then
-      local review_err
-      diff_lines, review_err, list_opts = review.reload(bufnr, repo_root, path, review_deps())
-      if not diff_lines then
-        notify(review_err or 'cannot reload review buffer', vim.log.levels.WARN)
-        return
-      end
-    elseif not stored_spec then
-      local abs_path = repo_root .. '/' .. path
-
-      local old_ok, old_rel_path = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_old_filepath')
-      local old_abs_path = old_ok and old_rel_path and (repo_root .. '/' .. old_rel_path)
-        or abs_path
-      local old_name = old_ok and old_rel_path or path
-
-      local old_lines, new_lines
-
-      if label == 'unmerged' then
-        old_lines = git.get_file_content(':2', abs_path) or {}
-        new_lines = git.get_file_content(':3', abs_path) or {}
-      elseif label == 'untracked' then
-        old_lines = {}
-        new_lines = git.get_working_content(abs_path) or {}
-      elseif label == 'staged' then
-        old_lines = git.get_file_content('HEAD', old_abs_path) or {}
-        new_lines = git.get_index_content(abs_path) or {}
-      elseif label == 'unstaged' then
-        old_lines = git.get_index_content(old_abs_path)
-        if not old_lines then
-          old_lines = git.get_file_content('HEAD', old_abs_path) or {}
-        end
-        new_lines = git.get_working_content(abs_path) or {}
-      else
-        old_lines = git.get_file_content(label, abs_path) or {}
-        new_lines = git.get_working_content(abs_path) or {}
-      end
-
-      diff_lines = render.unified_lines(old_lines, new_lines, old_name, path)
-    end
-    debug_label = debug_label or ((label or '?') .. ':' .. (path or '?'))
+  if not source then
+    notify('cannot reload diffs:// buffer without diffs_source metadata', vim.log.levels.WARN)
+    return
   end
 
-  local is_review = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_review_base')
+  local diff_lines, stored_spec, render_err, list_opts, old_lines, new_lines = render_source(source)
+  if not diff_lines then
+    notify(render_err or 'cannot reload diffs:// buffer', vim.log.levels.WARN)
+    return
+  end
+  local debug_label = render_err
+
+  local is_review = source.kind == 'review'
   replace_generated_diff_buffer_lines(bufnr, diff_lines, stored_spec)
   lists.set_for_unified_buffer(bufnr, diff_lines, {
     title = 'diff: ' .. (debug_label or name:gsub('^diffs://', '')),
@@ -2458,6 +2367,10 @@ function M.read_buffer(bufnr, opts)
   dbg('reloaded diff buffer %d (%s)', bufnr, debug_label)
 
   runtime.attach(bufnr)
+  local relpath = stored_spec and stored_spec.scope.path or source.right_name or source.path
+  if relpath then
+    apply_difft_unified(bufnr, diff_lines, stored_spec, old_lines, new_lines, relpath)
+  end
 end
 
 --- Re-render every visible diffs:// buffer in place, preserving each window's
@@ -2477,7 +2390,7 @@ function M.refresh_visible()
   local done = {}
   for _, entry in ipairs(views) do
     local buf = vim.api.nvim_win_is_valid(entry.win) and vim.api.nvim_win_get_buf(entry.win)
-    if buf and not done[buf] and not difftastic.is_active(buf) then
+    if buf and not done[buf] then
       done[buf] = true
       local ok, peer = pcall(vim.api.nvim_buf_get_var, buf, 'diffs_split_peer')
       if ok and type(peer) == 'number' then

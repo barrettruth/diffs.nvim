@@ -55,7 +55,7 @@ CONTENTS                                                 *diffs.nvim-contents*
 ==============================================================================
 REQUIREMENTS                                         *diffs.nvim-requirements*
 
-- Neovim 0.9.0+
+- Neovim 0.12.0+
 - Treesitter parsers for languages you want highlighted
 - Optional: the Treesitter `diff` parser for the best experience
 
@@ -68,8 +68,7 @@ With vim.pack (Neovim 0.12+): >lua
     })
 <
 
-Do not lazy load with `event`, `lazy`, `ft`, `config`, or `keys` — diffs.nvim
-lazy-loads itself.
+Do not lazy load with `event`, `lazy`, `ft`, `config`, or `keys`.
 
 NOTE: Load your colorscheme before diffs.nvim. With lazy.nvim, set `priority =
 1000` and `lazy = false` on your colorscheme plugin.
@@ -93,16 +92,9 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
         background = true,
         blend_alpha = 0.6,
         warn_max_lines = true,
-        treesitter = true,
         vim = true,
-        intra = true,
       },
-      conflict = {
-        disable_diagnostics = true,
-        show_virtual_text = true,
-        show_actions = false,
-        keymaps = false,
-      },
+      conflict = true,
     }
 <
 
@@ -153,10 +145,6 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              Enable gitsigns.nvim popup support. See
                              |diffs.nvim-gitsigns|.
 
-            {committia}
-                             Enable committia.vim diff-pane support. See
-                             |diffs.nvim-committia|.
-
             {telescope}
                              Enable telescope.nvim preview support. See
                              |diffs.nvim-telescope|.
@@ -174,8 +162,7 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              See |diffs.nvim.Highlights| for fields.
 
         {conflict}           (boolean|table, default: true)
-                             Inline merge conflict resolution options.
-                             See |diffs.nvim.ConflictConfig| for fields.
+                             Highlight and resolve inline merge conflicts.
 
                                                        *diffs.nvim.Highlights*
     Highlights table fields: ~
@@ -195,8 +182,8 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              highlighting is skipped because a hunk exceeds
                              {max_lines}. See |diffs.nvim-max-lines|.
 
-        {treesitter}         (boolean|table, default: true)
-                             Treesitter highlighting options.
+        {treesitter}         (table, default: see below)
+                             Treesitter highlighting limits.
                              See |diffs.nvim.TreesitterConfig| for fields.
 
         {vim}                (boolean|table, default: true)
@@ -204,7 +191,8 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              See |diffs.nvim.VimConfig| for fields.
 
         {intra}              (boolean|table, default: true)
-                             Character-level (intra-line) diff highlighting.
+                             Boolean values are deprecated.
+                             See |diffs.nvim-diffopt|.
                              See |diffs.nvim.IntraConfig| for fields.
 
                                                  *diffs.nvim.TreesitterConfig*
@@ -522,6 +510,9 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     already exists in the current tabpage, the new diff replaces its buffer
     instead of creating another split.
 
+    Reloads require the source metadata stored when the plugin creates the
+    view. If that metadata is unavailable, reopen the view with |:Diff-review|.
+
     With `++layout=split`, |:Diff-review| opens one review file as a paired
     side-by-side diff instead of the full review map: the old/removed endpoint
     on the left, the new/added endpoint on the right. Both panes are read-only
@@ -717,18 +708,24 @@ Inline granularity: ~                                      *diffs.nvim-inline*
     above, so a plain `:set`, an unimpaired-style toggle, or an autocmd all
     work. There is no dedicated mapping.
 
-    `highlights.intra` stays orthogonal: `inline:` chooses the granularity,
-    `highlights.intra.algorithm` chooses the engine that finds the differences,
-    and `highlights.intra = false` turns the feature off regardless of
-    'diffopt'.
+                                                *diffs.nvim-diffopt*
+    Intra-line highlighting is controlled by |'diffopt'|.
 
-    Limitations: ~
-    - `inline:word` is produced by growing character-level spans to the word
-      boundaries they touch, not by re-diffing the line word by word. The
-      result matches Neovim's own `inline:word` rendering on ordinary source
-      lines, but the two are not guaranteed identical in every case.
-    - difftastic-rendered diffs keep their structural token spans; `inline:`
-      does not apply to them (see |diffs.nvim-difftastic|).
+    Disable intra-line highlighting: >lua
+        vim.opt.diffopt:remove({ 'inline:simple', 'inline:char', 'inline:word' })
+        vim.opt.diffopt:append('inline:none')
+<
+    To enable word-level highlighting when opening a diff buffer: >lua
+        vim.api.nvim_create_autocmd('FileType', {
+          pattern = { 'diff', 'git', 'gitcommit' },
+          callback = function()
+            vim.opt.diffopt:remove({ 'inline:none', 'inline:simple', 'inline:char' })
+            vim.opt.diffopt:append('inline:word')
+          end,
+        })
+<
+    'diffopt' is global: this changes all diff views. For attachment to `diff`
+    buffers, see |diffs.nvim-extra-filetypes|.
 
 ==============================================================================
 MAPPINGS                                                 *diffs.nvim-mappings*
@@ -788,6 +785,9 @@ vertical
                         Re-render the current `diffs://` buffer in place,
                         preserving the cursor and view. Useful after changing
                         'diffopt' directly. Comparable to |:diffupdate|.
+                        Generated diff buffers map <C-L> to this action,
+                        clear search highlighting, update native diffs, and
+                        redraw. Existing buffer-local <C-L> mappings are kept.
 
 Example configuration: >lua
     vim.keymap.set('n', '<leader>gd', '<Plug>(diffs-diff)')
@@ -877,13 +877,10 @@ Diff buffer mappings: ~
 ==============================================================================
 INTEGRATIONS                                         *diffs.nvim-integrations*
 
-diffs.nvim integrates with several plugins. There are two attachment patterns:
-
-Automatic: ~ List integrations in the config. The plugin registers `FileType`
-autocmds for each integration's filetypes and attaches automatically.
+List the integrations to enable:
 >lua
     vim.g.diffs = {
-      integrations = { 'fugitive', 'neogit', 'neojj', 'gitsigns', 'committia' },
+      integrations = { 'fugitive', 'neogit', 'neojj', 'gitsigns' },
     }
 <
 
@@ -949,15 +946,6 @@ This status-row behavior is intentionally narrower than Fugitive
 `:Gdiffsplit`. It preserves the useful edge selection model while keeping
 `diffs://` buffers read-only, explicit, and owned by diffs.nvim.
 
-Configuration: ~
->lua
-    vim.g.diffs = {
-      integrations = { 'fugitive' },
-    }
-<
-    Remove `'fugitive'` from the list to disable it. Status keymaps are fixed
-    at `du` and `dU`.
-
 ------------------------------------------------------------------------------
 NEOGIT                                                     *diffs.nvim-neogit*
 
@@ -967,9 +955,6 @@ Enable Neogit (https://github.com/NeogitOrg/neogit) support: >lua
 
 Expanding a diff in a Neogit buffer (e.g., TAB on a file in the status view)
 applies treesitter syntax highlighting and intra-line diffs to the hunk lines.
-
-Configuration: ~
-    Use `neogit = false` to disable.
 
 ------------------------------------------------------------------------------
 NEOJJ                                                       *diffs.nvim-neojj*
@@ -981,9 +966,6 @@ Enable neojj (https://github.com/NicholasZolton/neojj) support: >lua
 Expanding a diff in a neojj buffer (e.g., TAB on a file in the status view)
 applies treesitter syntax highlighting and intra-line diffs to the hunk lines.
 
-Configuration: ~
-    Use `neojj = false` to disable.
-
 ------------------------------------------------------------------------------
 GITSIGNS                                                 *diffs.nvim-gitsigns*
 
@@ -991,9 +973,6 @@ Enable gitsigns.nvim (https://github.com/lewis6991/gitsigns.nvim) popup
 integration for blame hunk previews: >lua
     vim.g.diffs = { integrations = { 'gitsigns' } }
 <
-
-Configuration: ~
-    Use `gitsigns = false` to disable.
 
 `:Gitsigns blame_line full=true` popups receive treesitter syntax, line
 backgrounds, and intra-line diffs.
@@ -1004,12 +983,8 @@ interfere with the main decoration provider used for diff buffers.
 ------------------------------------------------------------------------------
 COMMITTIA                                               *diffs.nvim-committia*
 
-Enable committia.vim (https://github.com/rhysd/committia.vim) diff-pane
-support: >lua
-    vim.g.diffs = { integrations = { 'committia' } }
-<
-
-Use `committia = false` to disable.
+Committia (https://github.com/rhysd/committia.vim) diff panes receive
+highlighting automatically.
 
 ------------------------------------------------------------------------------
 TELESCOPE                                               *diffs.nvim-telescope*
@@ -1018,11 +993,6 @@ Enable telescope.nvim (https://github.com/nvim-telescope/telescope.nvim)
 preview highlighting: >lua
     vim.g.diffs = { integrations = { 'telescope' } }
 <
-
-Telescope does not set `filetype=diff` on preview buffers — it calls
-`vim.treesitter.start(bufnr, "diff")` directly, so diffs.nvim's `FileType`
-autocmd never fires. This integration listens for the `User
-TelescopePreviewerLoaded` event and attaches to the preview buffer.
 
 Pickers that show diff content (e.g. `git_bcommits`, `git_status`) will
 receive treesitter syntax, line backgrounds, and intra-line diffs in the
@@ -1070,126 +1040,79 @@ emits an informational message and renders no token highlights. The 'diffopt'
 whitespace handling does not apply to a structural diff; such buffers are left
 unchanged.
 
-Run |:checkhealth| diffs to confirm `difft` is detected.
-
 ==============================================================================
 CONFLICT RESOLUTION                                      *diffs.nvim-conflict*
 
 diffs.nvim detects inline merge conflict markers (`<<<<<<<`/`=======`/
-`>>>>>>>`) in working files and provides highlighting and resolution keymaps.
+`>>>>>>>`) in working files and provides highlighting and resolution actions.
 Both standard and diff3 (`|||||||`) formats are supported.
 
 Conflict regions are detected automatically on `BufReadPost` and re-scanned on
 `TextChanged`. When all conflicts in a buffer are resolved, highlighting is
-removed and diagnostics are re-enabled.
+removed.
 
-Configuration: ~
-                                                   *diffs.nvim.ConflictConfig*
->lua
-    vim.g.diffs = {
-      conflict = {
-        disable_diagnostics = true,
-        show_virtual_text = true,
-        show_actions = false,
-        keymaps = false,
+Buffer-local mappings: ~                      *diffs.nvim-conflict-keymaps*
+
+`conflict.keymaps` is deprecated and will be removed on 30 November 2026.
+Replace it with buffer-local mappings: >lua
+    vim.api.nvim_create_autocmd('User', {
+      pattern = 'DiffsConflictDetected',
+      callback = function(event)
+        local opts = { buffer = event.data.bufnr }
+        vim.keymap.set('n', 'co', '<Plug>(diffs-conflict-ours)', opts)
+        vim.keymap.set('n', 'ct', '<Plug>(diffs-conflict-theirs)', opts)
+        vim.keymap.set('n', 'cb', '<Plug>(diffs-conflict-both)', opts)
+        vim.keymap.set('n', 'c0', '<Plug>(diffs-conflict-none)', opts)
+        vim.keymap.set('n', ']x', '<Plug>(diffs-conflict-next)', opts)
+        vim.keymap.set('n', '[x', '<Plug>(diffs-conflict-prev)', opts)
+      end,
+    })
+<
+
+Diagnostic suppression: ~                  *diffs.nvim-conflict-diagnostics*
+
+Hide diagnostics while a buffer contains merge conflicts: >lua
+    vim.api.nvim_create_autocmd('User', {
+      pattern = {
+        'DiffsConflictDetected',
+        'DiffsConflictResolved',
+        'DiffsConflictDetached',
       },
-    }
+      callback = function(event)
+        local bufnr = event.data.bufnr
+        if event.match == 'DiffsConflictDetected' then
+          if vim.diagnostic.is_enabled({ bufnr = bufnr }) then
+            vim.b[bufnr].diffs_restore_diagnostics = true
+            vim.diagnostic.enable(false, { bufnr = bufnr })
+          end
+        elseif vim.b[bufnr].diffs_restore_diagnostics then
+          vim.b[bufnr].diffs_restore_diagnostics = nil
+          vim.diagnostic.enable(true, { bufnr = bufnr })
+        end
+      end,
+    })
 <
-    To opt in to buffer-local mappings, provide a table: >lua
-    vim.g.diffs = {
-      conflict = {
-        keymaps = {
-          ours = '<leader>co',
-          theirs = '<leader>ct',
-          both = '<leader>cb',
-          none = '<leader>c0',
-          next = ']x',
-          prev = '[x',
-        },
-      },
-    }
-<
-    Fields: ~
-        {disable_diagnostics} (boolean, default: true)
-                             Suppress LSP diagnostics on buffers with
-                             conflict markers. Markers produce syntax
-                             errors that clutter the diagnostic list.
-                             Diagnostics are re-enabled when all conflicts
-                             are resolved. Set `false` to leave
-                             diagnostics alone.
-
-        {show_virtual_text}  (boolean, default: true)
-                             Show `(current)`, `(base)`, and `(incoming)`
-                             labels at the end of `<<<<<<<`, `|||||||`, and
-                             `>>>>>>>` marker lines. The `(base)` label only
-                             appears in `diff3`/`zdiff3` conflicts, which
-                             include the `|||||||` ancestor section. Also
-                             controls hunk hints in merge diff views.
-
-        {format_virtual_text} (function|nil, default: nil)
-                             Custom formatter for virtual text labels.
-                             Receives `(side, keymap)` where `side` is
-                             `"ours"`, `"base"`, or `"theirs"` and `keymap`
-                             is the configured keymap string, or `false`
-                             (always `false` for `"base"`, which has no
-                             resolution keymap). Return a string (label text
-                             without parens) or `nil` to hide the label.
-                             Example: >lua
-                                 format_virtual_text = function(side, keymap)
-                                   if keymap then
-                                     return side .. ' [' .. keymap .. ']'
-                                   end
-                                   return side
-                                 end
-<
-
-        {show_actions}       (boolean, default: false)
-                             Show a codelens-style action line above each
-                             `<<<<<<<` marker listing available resolution
-                             keymaps. Renders as virtual lines using the
-                             `DiffsConflictActions` highlight group. Only
-                             configured keymaps appear.
-
-        {keymaps}            (table|false, default: false)
-                             Opt-in buffer-local keymaps for conflict
-                             resolution and navigation in conflicted
-                             working buffers and merge diff views. Pass a
-                             table to enable plugin-defined mappings.
-                             Unspecified fields remain disabled.
-
-                                                  *diffs.nvim.ConflictKeymaps*
-    Keymap fields: ~
-        {ours}               (string|false, default: false)
-                             Accept current (ours) change.
-
-        {theirs}             (string|false, default: false)
-                             Accept incoming (theirs) change.
-
-        {both}               (string|false, default: false)
-                             Accept both changes (ours then theirs).
-
-        {none}               (string|false, default: false)
-                             Reject both changes (delete entire block).
-
-        {next}               (string|false, default: false)
-                             Jump to next conflict marker. Wraps around.
-
-        {prev}               (string|false, default: false)
-                             Jump to previous conflict marker. Wraps
-                             around.
 
 User events: ~
+
+All events below include their target buffer number in `event.data.bufnr`.
+Conflict events identify the working buffer. `DiffsMergeReady` identifies the
+generated merge buffer.
+
+                                                       *DiffsConflictDetected*
+    DiffsConflictDetected   Fired when conflicts first appear in an attached
+                            buffer, including when undo restores markers.
+
                                                        *DiffsConflictResolved*
-    DiffsConflictResolved   Fired when the last conflict in a buffer is
-                            resolved. Useful for triggering custom actions
-                            (e.g., auto-staging the file). >lua
-                                vim.api.nvim_create_autocmd('User', {
-                                  pattern = 'DiffsConflictResolved',
-                                  callback = function()
-                                    print('all conflicts resolved!')
-                                  end,
-                                })
-<
+    DiffsConflictResolved   Fired when the last conflict in a buffer is resolved.
+
+                                                       *DiffsConflictDetached*
+    DiffsConflictDetached   Fired when conflict highlighting is explicitly
+                            detached from a buffer.
+
+                                                             *DiffsMergeReady*
+    DiffsMergeReady         Fired after a generated merge view is initialized
+                            or refreshed.
 
 ==============================================================================
 MERGE DIFF RESOLUTION                                       *diffs.nvim-merge*
@@ -1201,20 +1124,26 @@ ours (`git show :2:path`) vs theirs (`git show :3:path`) with full treesitter
 and intra-line highlighting. Revision comparisons such as `:Diff HEAD` keep
 rendering that revision against the conflicted worktree buffer.
 
-When `conflict.keymaps` is configured, those same conflict resolution mappings
-are available on the diff buffer. The corresponding |<Plug>(diffs-merge-ours)|
-family is documented in |diffs.nvim-mappings|. They resolve conflicts in the
-working file by matching diff hunks to conflict markers:
+The |<Plug>(diffs-merge-ours)| family resolves conflicts in the working file
+by matching diff hunks to conflict markers.
 
-- `co` replaces the conflict region with ours content
-- `ct` replaces the conflict region with theirs content
-- `cb` replaces with both (ours then theirs)
-- `c0` removes the conflict region entirely
-- `]c`/`[c` navigate between unresolved conflict hunks
+Set buffer-local mappings for merge views: >lua
+    vim.api.nvim_create_autocmd('User', {
+      pattern = 'DiffsMergeReady',
+      callback = function(event)
+        local opts = { buffer = event.data.bufnr }
+        vim.keymap.set('n', 'co', '<Plug>(diffs-merge-ours)', opts)
+        vim.keymap.set('n', 'ct', '<Plug>(diffs-merge-theirs)', opts)
+        vim.keymap.set('n', 'cb', '<Plug>(diffs-merge-both)', opts)
+        vim.keymap.set('n', 'c0', '<Plug>(diffs-merge-none)', opts)
+        vim.keymap.set('n', ']x', '<Plug>(diffs-merge-next)', opts)
+        vim.keymap.set('n', '[x', '<Plug>(diffs-merge-prev)', opts)
+      end,
+    })
+<
 
-Resolved hunks are marked with `(resolved)` virtual text. Hunks that
-correspond to auto-merged content (no conflict markers) show an informational
-notification and are left unchanged.
+Hunks that correspond to auto-merged content (no conflict markers) show an
+informational notification and are left unchanged.
 
 The working file buffer is modified in place; save it when ready. Inline
 conflict highlights (see |diffs.nvim-conflict|) are refreshed automatically
@@ -1233,8 +1162,8 @@ merged working file in Neovim:
 <
 
 When the file opens, diffs.nvim detects conflict markers automatically.
-Configure `conflict.keymaps` to enable buffer-local resolution mappings; see
-|diffs.nvim-conflict|. From a Git-unmerged file, |:Diff| can also open the
+For buffer-local resolution mappings, see |diffs.nvim-conflict-keymaps|.
+From a Git-unmerged file, |:Diff| can also open the
 generated ours-vs-theirs merge diff view documented above.
 
 Save and quit after resolving conflicts. Use `:cq` to abort.
@@ -1401,25 +1330,6 @@ When opening a fugitive buffer, there is an unavoidable visual "flash" where
 the buffer briefly shows fugitive's default diff highlighting before
 diffs.nvim applies its own highlights.
 
-Conflicting Diff Plugins ~
-                                                 *diffs.nvim-plugin-conflicts*
-Plugins that also own diff highlighting, sign columns, or conflict resolution
-can visually conflict with diffs.nvim. Common overlap points include
-diffview.nvim, mini.diff, gitsigns.nvim line highlights, and
-git-conflict.nvim. If you see visual conflicts, disable one plugin's
-overlapping diff features.
-
-Prefixless Diff Path Ambiguity ~
-                                                 *diffs.nvim-prefix-ambiguity*
-Diffs that diffs.nvim generates pin git's `a/` and `b/` path prefixes, so they
-are unaffected by `diff.mnemonicPrefix` or `diff.noprefix`. Diffs from other
-sources that diffs.nvim only highlights (fugitive, neogit, an opened patch)
-are parsed as they arrive. When such a diff was produced with `diff.noprefix`,
-a header like `diff --git path path` carries no prefix, and a real top-level
-directory named with a single letter (for example `a` or `i`) cannot be
-distinguished from a stripped prefix. In that narrow case the file may be
-mis-identified, which can degrade its syntax highlighting or hunk navigation.
-
 ==============================================================================
 HIGHLIGHT GROUPS                                       *diffs.nvim-highlights*
 
@@ -1496,10 +1406,6 @@ Conflict highlights: ~
                                                          *DiffsConflictBaseNr*
     DiffsConflictBaseNr Line number for base content lines (diff3).
 
-                                                        *DiffsConflictActions*
-    DiffsConflictActions Dimmed foreground (no bold) for the codelens-style
-                        action line shown when `show_actions` is true.
-
 Diff mode window highlights: ~ These are used for 'winhighlight' remapping in
 `&diff` windows.
 
@@ -1515,22 +1421,24 @@ Diff mode window highlights: ~ These are used for 'winhighlight' remapping in
                                                                *DiffsDiffText*
     DiffsDiffText       Background-only replacement for `DiffText`.
 
-Customize with |nvim_set_hl()|: >lua
-    vim.api.nvim_set_hl(0, 'DiffsAdd', { bg = '#2e4a3a' })
-    vim.api.nvim_set_hl(0, 'DiffsDiffDelete', { link = 'DiffDelete' })
+                                                        *DiffsHighlights*
+diffs.nvim triggers `User DiffsHighlights` after each highlight update, including
+initialization and |ColorScheme| changes.  Register this autocmd before loading
+diffs.nvim to apply your colors after each update: >lua
+    vim.api.nvim_create_autocmd('User', {
+      pattern = 'DiffsHighlights',
+      group = vim.api.nvim_create_augroup('my_diffs_highlights', { clear = true }),
+      callback = function()
+        vim.api.nvim_set_hl(0, 'DiffsAdd', { bg = '#2e4a3a' })
+        vim.api.nvim_set_hl(0, 'DiffsDiffDelete', { link = 'DiffDelete' })
+      end,
+    })
 <
-
-diffs.nvim recomputes these groups on |ColorScheme|.
 
 ==============================================================================
 HEALTH CHECK                                               *diffs.nvim-health*
 
-Run `:checkhealth diffs` to verify your setup.
-
-Checks performed:
-- Neovim version >= 0.9.0
-- vim-fugitive is installed (optional)
-- libvscode_diff shared library is available (optional)
+Run `:checkhealth diffs` to check the required Neovim version (0.12.0+).
 
 ==============================================================================
 ACKNOWLEDGEMENTS                                 *diffs.nvim-acknowledgements*

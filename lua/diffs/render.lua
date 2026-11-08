@@ -7,6 +7,7 @@ local git = require('diffs.git')
 
 ---@class diffs.RenderFileOpts
 ---@field worktree_lines? diffs.ContentLines|string[]
+---@field worktree_buf? integer
 ---@field empty_on_missing? boolean
 ---@field old_path? string
 ---@field new_path? string
@@ -50,8 +51,7 @@ function M.unified_lines(old_lines, new_lines, old_name, new_name, opts)
   local old_content = content.to_string(old_lines)
   local new_content = content.to_string(new_lines)
 
-  local diff_fn = (vim.text and type(vim.text.diff) == 'function' and vim.text or vim).diff
-  local diff_output = diff_fn(
+  local diff_output = vim.text.diff(
     old_content,
     new_content,
     vim.tbl_extend('force', {
@@ -60,7 +60,8 @@ function M.unified_lines(old_lines, new_lines, old_name, new_name, opts)
     }, diffopt.vim_diff_opts())
   )
 
-  if type(diff_output) ~= 'string' or diff_output == '' then
+  ---@cast diff_output string
+  if diff_output == '' then
     return {}
   end
 
@@ -138,6 +139,15 @@ function M.read_endpoint(endpoint, filepath, opts)
     lines, err = git.get_index_content(filepath)
   elseif endpoint.kind == diffspec.endpoint_kind.worktree then
     lines = opts.worktree_lines
+    local buf = opts.worktree_buf
+    if
+      not lines
+      and buf
+      and vim.api.nvim_buf_is_loaded(buf)
+      and vim.api.nvim_buf_get_name(buf) == filepath
+    then
+      lines = content.from_buffer(buf)
+    end
     if not lines then
       lines, err = git.get_working_content(filepath)
     end
@@ -265,7 +275,7 @@ end
 ---@param diff_spec diffs.DiffSpec
 ---@param repo_root string
 ---@param opts? diffs.RenderFileOpts
----@return string[]?, string?
+---@return string[]?, string?, diffs.ContentLines|string[]?, diffs.ContentLines|string[]?
 function M.file(diff_spec, repo_root, opts)
   diff_spec = diffspec.new(diff_spec)
   opts = opts or {}
@@ -296,6 +306,7 @@ function M.file(diff_spec, repo_root, opts)
 
   local old_lines, old_err, old_missing = M.read_endpoint(diff_spec.left, old_filepath, {
     worktree_lines = opts.worktree_lines,
+    worktree_buf = opts.worktree_buf,
     empty_on_missing = true,
   })
   if not old_lines then
@@ -304,6 +315,7 @@ function M.file(diff_spec, repo_root, opts)
 
   local new_lines, new_err, new_missing = M.read_endpoint(diff_spec.right, new_filepath, {
     worktree_lines = opts.worktree_lines,
+    worktree_buf = opts.worktree_buf,
     empty_on_missing = true,
   })
   if not new_lines then
@@ -330,7 +342,7 @@ function M.file(diff_spec, repo_root, opts)
     return nil, 'diff does not support mode-only changes'
   end
 
-  return diff_lines, nil
+  return diff_lines, nil, old_lines, new_lines
 end
 
 return M

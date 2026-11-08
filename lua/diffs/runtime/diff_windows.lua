@@ -20,7 +20,8 @@ local CONFLICT_WINHIGHLIGHT = table.concat({
 ---@return boolean
 local function is_split_pane(win)
   local buf = vim.api.nvim_win_get_buf(win)
-  return pcall(vim.api.nvim_buf_get_var, buf, 'diffs_split_side')
+  local ok, source = pcall(vim.api.nvim_buf_get_var, buf, 'diffs_source')
+  return ok and source.kind == 'split_endpoint'
 end
 
 ---@param buf integer
@@ -34,7 +35,7 @@ local function has_conflict_markers(buf)
   return false
 end
 
----@param diff_windows table<integer, boolean>
+---@param diff_windows table<integer, string>
 function M.attach(diff_windows)
   local tabpage = vim.api.nvim_get_current_tabpage()
   local wins = vim.api.nvim_tabpage_list_wins(tabpage)
@@ -54,23 +55,31 @@ function M.attach(diff_windows)
   for _, win in ipairs(diff_wins) do
     local buf = vim.api.nvim_win_get_buf(win)
     local winhighlight = has_conflict_markers(buf) and CONFLICT_WINHIGHLIGHT or WINHIGHLIGHT
+    local current = vim.api.nvim_get_option_value('winhighlight', { win = win })
+    if
+      diff_windows[win] == nil or (current ~= WINHIGHLIGHT and current ~= CONFLICT_WINHIGHLIGHT)
+    then
+      diff_windows[win] = current
+    end
     vim.api.nvim_set_option_value('winhighlight', winhighlight, { win = win })
-    diff_windows[win] = true
     log.dbg('applied diff winhighlight to window %d', win)
   end
 end
 
----@param diff_windows table<integer, boolean>
+---@param diff_windows table<integer, string>
 function M.detach(diff_windows)
-  for win, _ in pairs(diff_windows) do
+  for win, previous in pairs(diff_windows) do
     if vim.api.nvim_win_is_valid(win) then
-      vim.api.nvim_set_option_value('winhighlight', '', { win = win })
+      local current = vim.api.nvim_get_option_value('winhighlight', { win = win })
+      if current == WINHIGHLIGHT or current == CONFLICT_WINHIGHLIGHT then
+        vim.api.nvim_set_option_value('winhighlight', previous, { win = win })
+      end
     end
     diff_windows[win] = nil
   end
 end
 
----@param diff_windows table<integer, boolean>
+---@param diff_windows table<integer, string>
 ---@param win integer?
 function M.forget(diff_windows, win)
   if win then

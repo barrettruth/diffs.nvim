@@ -4,9 +4,6 @@ local rails = require('diffs.rails')
 
 local function default_config(overrides)
   local cfg = {
-    disable_diagnostics = false,
-    show_virtual_text = true,
-    show_actions = false,
     keymaps = false,
   }
   if overrides then
@@ -18,7 +15,7 @@ end
 local function create_diff_buffer(lines, working_path)
   local bufnr = helpers.create_buffer(lines)
   if working_path then
-    vim.api.nvim_buf_set_var(bufnr, 'diffs_working_path', working_path)
+    vim.api.nvim_buf_set_var(bufnr, 'diffs_source', { working_path = working_path })
   end
   return bufnr
 end
@@ -378,29 +375,6 @@ describe('merge', function()
       cleanup()
     end)
 
-    it('adds virtual text for resolved hunks', function()
-      setup_buffers()
-      vim.api.nvim_win_set_cursor(0, { 5, 0 })
-
-      merge.resolve_ours(diff_bufnr, default_config())
-
-      local extmarks =
-        vim.api.nvim_buf_get_extmarks(diff_bufnr, merge.get_namespace(), 0, -1, { details = true })
-      local has_resolved_text = false
-      for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].virt_text then
-          for _, chunk in ipairs(mark[4].virt_text) do
-            if chunk[1]:match('resolved') then
-              has_resolved_text = true
-            end
-          end
-        end
-      end
-      assert.is_true(has_resolved_text)
-
-      cleanup()
-    end)
-
     it('matches and resolves conflicts from generated single-rail hunks', function()
       local working_path = '/tmp/diffs_test_single_rail_resolve.lua'
       local w_bufnr = create_working_buffer({
@@ -751,66 +725,7 @@ describe('merge', function()
     end)
   end)
 
-  describe('hunk hints', function()
-    it('does not add keymap hints without keymaps', function()
-      local d_bufnr = create_diff_buffer({
-        'diff --git a/file.lua b/file.lua',
-        '--- a/file.lua',
-        '+++ b/file.lua',
-        '@@ -1,1 +1,1 @@',
-        '-local x = 1',
-        '+local x = 2',
-      })
-
-      merge.setup_keymaps(d_bufnr, default_config())
-
-      local extmarks =
-        vim.api.nvim_buf_get_extmarks(d_bufnr, merge.get_namespace(), 0, -1, { details = true })
-      local hint_marks = {}
-      for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].virt_text then
-          table.insert(hint_marks, mark)
-        end
-      end
-      assert.are.equal(0, #hint_marks)
-
-      helpers.delete_buffer(d_bufnr)
-    end)
-
-    it('adds keymap hints on hunk header lines when keymaps are configured', function()
-      local d_bufnr = create_diff_buffer({
-        'diff --git a/file.lua b/file.lua',
-        '--- a/file.lua',
-        '+++ b/file.lua',
-        '@@ -1,1 +1,1 @@',
-        '-local x = 1',
-        '+local x = 2',
-      })
-
-      merge.setup_keymaps(d_bufnr, default_config({ keymaps = helpers.default_conflict_keymaps() }))
-
-      local extmarks =
-        vim.api.nvim_buf_get_extmarks(d_bufnr, merge.get_namespace(), 0, -1, { details = true })
-      local hint_marks = {}
-      for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].virt_text then
-          local text = ''
-          for _, chunk in ipairs(mark[4].virt_text) do
-            text = text .. chunk[1]
-          end
-          table.insert(hint_marks, { line = mark[2], text = text })
-        end
-      end
-      assert.are.equal(1, #hint_marks)
-      assert.are.equal(3, hint_marks[1].line)
-      assert.is_truthy(hint_marks[1].text:find('go'))
-      assert.is_truthy(hint_marks[1].text:find('gt'))
-
-      helpers.delete_buffer(d_bufnr)
-    end)
-  end)
-
-  describe('setup_keymaps', function()
+  describe('attach', function()
     it('clears resolved state on re-init', function()
       local working_path = '/tmp/diffs_test_reinit.lua'
       local w_bufnr = create_working_buffer({
@@ -836,27 +751,18 @@ describe('merge', function()
       merge.resolve_ours(d_bufnr, cfg)
       assert.is_true(merge.is_resolved(d_bufnr, 1))
 
-      local extmarks =
-        vim.api.nvim_buf_get_extmarks(d_bufnr, merge.get_namespace(), 0, -1, { details = true })
-      assert.is_true(#extmarks > 0)
-
-      merge.setup_keymaps(d_bufnr, cfg)
+      local ready_bufnr
+      vim.api.nvim_create_autocmd('User', {
+        pattern = 'DiffsMergeReady',
+        once = true,
+        callback = function(event)
+          ready_bufnr = event.data.bufnr
+        end,
+      })
+      merge.attach(d_bufnr, cfg)
+      assert.are.equal(d_bufnr, ready_bufnr)
 
       assert.is_false(merge.is_resolved(d_bufnr, 1))
-      extmarks =
-        vim.api.nvim_buf_get_extmarks(d_bufnr, merge.get_namespace(), 0, -1, { details = true })
-      local resolved_count = 0
-      for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].virt_text then
-          for _, chunk in ipairs(mark[4].virt_text) do
-            if chunk[1]:match('resolved') then
-              resolved_count = resolved_count + 1
-            end
-          end
-        end
-      end
-      assert.are.equal(0, resolved_count)
-
       helpers.delete_buffer(d_bufnr)
       helpers.delete_buffer(w_bufnr)
     end)
@@ -873,14 +779,14 @@ describe('merge', function()
       vim.keymap.set('n', 'gt', '<Nop>', { buffer = d_bufnr, desc = 'user theirs' })
       local cfg = default_config({ keymaps = helpers.default_conflict_keymaps() })
 
-      merge.setup_keymaps(d_bufnr, cfg)
+      merge.attach(d_bufnr, cfg)
 
       local theirs = helpers.get_keymap(d_bufnr, 'gt')
       local ours = helpers.get_keymap(d_bufnr, 'go')
       assert.are.equal('user theirs', theirs.desc)
       assert.are.equal('<Plug>(diffs-merge-ours)', ours.rhs)
 
-      merge.setup_keymaps(d_bufnr, default_config())
+      merge.attach(d_bufnr, default_config())
 
       theirs = helpers.get_keymap(d_bufnr, 'gt')
       assert.are.equal('user theirs', theirs.desc)
@@ -900,11 +806,11 @@ describe('merge', function()
       })
       local cfg = default_config({ keymaps = helpers.default_conflict_keymaps() })
 
-      merge.setup_keymaps(d_bufnr, cfg)
+      merge.attach(d_bufnr, cfg)
       assert.are.equal('<Plug>(diffs-merge-ours)', helpers.get_keymap(d_bufnr, 'go').rhs)
 
       vim.keymap.set('n', 'go', '<Nop>', { buffer = d_bufnr, desc = 'user ours' })
-      merge.setup_keymaps(d_bufnr, default_config())
+      merge.attach(d_bufnr, default_config())
 
       local ours = helpers.get_keymap(d_bufnr, 'go')
       assert.are.equal('user ours', ours.desc)

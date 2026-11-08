@@ -98,14 +98,17 @@ describe('diffs.diffargs', function()
     for _, stage in ipairs({ 1, 2, 3 }) do
       local result = parse((':%d:%%'):format(stage))
 
-      assert.are.same(diffspec.stage_to_worktree(stage, path), result.spec)
+      assert.are.same(diffspec.file(diffspec.stage(stage), diffspec.worktree(), path), result.spec)
     end
   end)
 
   it('maps merge-stage explicit-path objects to stage -> worktree of that path', function()
     local result = parse(':3:lua/bar.lua')
 
-    assert.are.same(diffspec.stage_to_worktree(3, 'lua/bar.lua'), result.spec)
+    assert.are.same(
+      diffspec.file(diffspec.stage(3), diffspec.worktree(), 'lua/bar.lua'),
+      result.spec
+    )
   end)
 
   it('pins explicit-path objects to the worktree even in a staged context', function()

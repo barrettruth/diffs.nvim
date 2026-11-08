@@ -34,11 +34,8 @@ local fast_hl_opts = {} ---@type diffs.HunkOpts
 ---@type table<integer, boolean>
 local attached_buffers = {}
 
----@type table<integer, boolean>
+---@type table<integer, string>
 local diff_windows = {}
-
----@type fun(bufnr: integer): boolean
-M.is_fugitive_buffer = attach_mod.is_fugitive_buffer
 
 local function compute_highlight_groups(is_default)
   local result = highlight_groups.apply(config, is_default)
@@ -68,6 +65,14 @@ local function init()
     log.notify(
       'libvscodediff support will be removed on 30 November 2026. '
         .. "Remove highlights.intra.algorithm to use Neovim's diff.",
+      vim.log.levels.WARN
+    )
+  end
+
+  if config.conflict and config.conflict.keymaps then
+    log.notify(
+      'conflict.keymaps will be removed on 30 November 2026. '
+        .. 'Use vim.keymap.set(). See :help diffs.nvim-conflict-keymaps.',
       vim.log.levels.WARN
     )
   end
@@ -165,24 +170,6 @@ function M.get_fugitive_config()
   return config.integrations.fugitive == true
 end
 
----@return boolean
-function M.get_neojj_config()
-  init()
-  return config.integrations.neojj == true
-end
-
----@return boolean
-function M.get_committia_config()
-  init()
-  return config.integrations.committia == true
-end
-
----@return boolean
-function M.get_telescope_config()
-  init()
-  return config.integrations.telescope == true
-end
-
 ---@return diffs.ConflictConfig|false
 function M.get_conflict_config()
   init()
@@ -216,7 +203,6 @@ M._test = {
   invalidate_cache = function(bufnr)
     cache:invalidate(bufnr)
   end,
-  hunks_eq = cache_mod.hunks_eq,
   process_pending_clear = function(bufnr)
     cache:process_pending_clear(bufnr)
   end,

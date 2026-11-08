@@ -25,16 +25,6 @@ local function blend_color(hex, bg_hex, alpha)
   ---@diagnostic enable: undefined-global
 end
 
----@param name string
----@return table
-local function resolve_hl(name)
-  local hl = vim.api.nvim_get_hl(0, { name = name })
-  while hl.link do
-    hl = vim.api.nvim_get_hl(0, { name = hl.link })
-  end
-  return hl
-end
-
 ---@param config diffs.Config
 ---@param is_default? boolean
 ---@return { transparent: boolean }
@@ -43,8 +33,8 @@ function M.apply(config, is_default)
   local diff_add = vim.api.nvim_get_hl(0, { name = 'DiffAdd' })
   local diff_delete = vim.api.nvim_get_hl(0, { name = 'DiffDelete' })
   local line_nr = vim.api.nvim_get_hl(0, { name = 'LineNr' })
-  local diff_added = resolve_hl('diffAdded')
-  local diff_removed = resolve_hl('diffRemoved')
+  local diff_added = vim.api.nvim_get_hl(0, { name = 'diffAdded', link = false })
+  local diff_removed = vim.api.nvim_get_hl(0, { name = 'diffRemoved', link = false })
 
   local dark = vim.o.background ~= 'light'
   local transparent = not normal.bg
@@ -109,8 +99,8 @@ function M.apply(config, is_default)
   log.dbg('DiffsAdd.bg=#%06x DiffsAddText.bg=#%06x', blended_add, blended_add_text)
   log.dbg('DiffsDelete.bg=#%06x DiffsDeleteText.bg=#%06x', blended_del, blended_del_text)
 
-  local diff_change = resolve_hl('DiffChange')
-  local diff_text = resolve_hl('DiffText')
+  local diff_change = vim.api.nvim_get_hl(0, { name = 'DiffChange', link = false })
+  local diff_text = vim.api.nvim_get_hl(0, { name = 'DiffText', link = false })
 
   vim.api.nvim_set_hl(0, 'DiffsDiffAdd', { default = dflt, bg = diff_add.bg })
   vim.api.nvim_set_hl(
@@ -138,7 +128,6 @@ function M.apply(config, is_default)
   vim.api.nvim_set_hl(0, 'DiffsConflictTheirs', { default = dflt, bg = blended_theirs })
   vim.api.nvim_set_hl(0, 'DiffsConflictBase', { default = dflt, bg = blended_base })
   vim.api.nvim_set_hl(0, 'DiffsConflictMarker', { default = dflt, fg = 0x808080, bold = true })
-  vim.api.nvim_set_hl(0, 'DiffsConflictActions', { default = dflt, fg = 0x808080 })
   vim.api.nvim_set_hl(
     0,
     'DiffsConflictOursNr',
@@ -162,6 +151,8 @@ function M.apply(config, is_default)
     vim.api.nvim_set_hl(0, 'NeogitDiffAddInline', {})
     vim.api.nvim_set_hl(0, 'NeogitDiffDeleteInline', {})
   end
+
+  vim.api.nvim_exec_autocmds('User', { pattern = 'DiffsHighlights', modeline = false })
 
   return { transparent = transparent }
 end
