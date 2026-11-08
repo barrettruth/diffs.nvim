@@ -7,6 +7,7 @@ local git = require('diffs.git')
 
 ---@class diffs.RenderFileOpts
 ---@field worktree_lines? diffs.ContentLines|string[]
+---@field worktree_buf? integer
 ---@field empty_on_missing? boolean
 ---@field old_path? string
 ---@field new_path? string
@@ -138,6 +139,15 @@ function M.read_endpoint(endpoint, filepath, opts)
     lines, err = git.get_index_content(filepath)
   elseif endpoint.kind == diffspec.endpoint_kind.worktree then
     lines = opts.worktree_lines
+    local buf = opts.worktree_buf
+    if
+      not lines
+      and buf
+      and vim.api.nvim_buf_is_loaded(buf)
+      and vim.api.nvim_buf_get_name(buf) == filepath
+    then
+      lines = content.from_buffer(buf)
+    end
     if not lines then
       lines, err = git.get_working_content(filepath)
     end
@@ -296,6 +306,7 @@ function M.file(diff_spec, repo_root, opts)
 
   local old_lines, old_err, old_missing = M.read_endpoint(diff_spec.left, old_filepath, {
     worktree_lines = opts.worktree_lines,
+    worktree_buf = opts.worktree_buf,
     empty_on_missing = true,
   })
   if not old_lines then
@@ -304,6 +315,7 @@ function M.file(diff_spec, repo_root, opts)
 
   local new_lines, new_err, new_missing = M.read_endpoint(diff_spec.right, new_filepath, {
     worktree_lines = opts.worktree_lines,
+    worktree_buf = opts.worktree_buf,
     empty_on_missing = true,
   })
   if not new_lines then

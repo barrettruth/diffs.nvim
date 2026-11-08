@@ -49,6 +49,7 @@ local split_statuscolumn = "%!v:lua.require'diffs.split'.statuscolumn()"
 ---@field repo_root string
 ---@field filetype? string
 ---@field worktree_lines? diffs.ContentLines|string[]
+---@field worktree_buf? integer
 ---@field diff_lines? string[]
 ---@field hunk_index? integer
 ---@field quickfix? boolean
@@ -58,6 +59,7 @@ local split_statuscolumn = "%!v:lua.require'diffs.split'.statuscolumn()"
 ---@class diffs.SplitEndpointSource
 ---@field version integer
 ---@field kind "split_endpoint"
+---@field worktree_buf? integer
 ---@field repo_root string
 ---@field spec diffs.DiffSpec
 ---@field side "left"|"right"
@@ -111,6 +113,7 @@ local function endpoint_lines(source, opts)
     abs_path(source.repo_root, source.path),
     {
       worktree_lines = opts.worktree_lines,
+      worktree_buf = source.worktree_buf,
       empty_on_missing = true,
     }
   )
@@ -977,6 +980,7 @@ function M.open(opts)
     path = path,
     filetype = filetype,
     quickfix = opts.quickfix,
+    worktree_buf = opts.worktree_buf,
   }
 
   local left_source =
@@ -1086,6 +1090,7 @@ function normalize_source(source)
     path = source.path,
     filetype = source.filetype,
     quickfix = source.quickfix,
+    worktree_buf = source.worktree_buf,
   }
 end
 
@@ -1125,7 +1130,9 @@ function M.read_buffer(bufnr, source, opts)
 
   local split_hunks
   if peer_source then
-    local diff_lines, diff_err = render.file(source.spec, source.repo_root)
+    local diff_lines, diff_err = render.file(source.spec, source.repo_root, {
+      worktree_buf = source.worktree_buf,
+    })
     if not diff_lines then
       return false, diff_err
     end

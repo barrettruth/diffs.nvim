@@ -1772,6 +1772,35 @@ describe('commands', function()
   end)
 
   describe('diff real repository rendering', function()
+    for _, layout in ipairs({ 'unified', 'stacked', 'split' }) do
+      it('reloads live worktree content in ' .. layout .. ' views', function()
+        local repo_root = create_repo()
+        local source_buf = edit_file(repo_root .. '/file.txt')
+        vim.api.nvim_buf_set_lines(source_buf, 0, -1, false, { 'unsaved first' })
+        mock_runtime_attach(function() end)
+        commands.diff('++layout=' .. layout, false)
+        local diff_buf = vim.api.nvim_get_current_buf()
+        test_buffers[#test_buffers + 1] = diff_buf
+        if layout == 'split' then
+          local peer = vim.b[diff_buf].diffs_split_peer
+          test_buffers[#test_buffers + 1] = peer
+          if vim.b[diff_buf].diffs_split_side == 'left' then
+            diff_buf = peer
+          end
+        end
+        assert.is_true(buffer_text(diff_buf):find('unsaved first', 1, true) ~= nil)
+
+        vim.api.nvim_buf_set_lines(source_buf, 0, -1, false, { 'unsaved second' })
+        commands.refresh(diff_buf)
+        assert.is_true(buffer_text(diff_buf):find('unsaved second', 1, true) ~= nil)
+        assert.are.same({ 'line 1', 'line 2' }, vim.fn.readfile(repo_root .. '/file.txt'))
+
+        vim.api.nvim_buf_delete(source_buf, { force = true })
+        commands.refresh(diff_buf)
+        assert.is_nil(buffer_text(diff_buf):find('unsaved second', 1, true))
+      end)
+    end
+
     it('reports no unstaged changes for staged-only tracked files', function()
       local repo_root = create_repo()
       local filepath = repo_root .. '/file.txt'
@@ -2152,7 +2181,7 @@ describe('commands', function()
 
     it('routes direct :Diff on unmerged files to the generated unmerged view', function()
       local repo_root, filepath = create_conflicted_repo()
-      edit_file(filepath)
+      local source_buf = edit_file(filepath)
       local source_win = vim.api.nvim_get_current_win()
       mock_runtime_attach(function() end)
       mock_conflict_config({
@@ -2250,6 +2279,7 @@ describe('commands', function()
         kind = 'file',
         repo_root = repo_root,
         spec = diffspec.rev_to_worktree('HEAD', 'file.txt'),
+        worktree_buf = source_buf,
       }, vim.api.nvim_buf_get_var(revision_buf, 'diffs_source'))
       assert.is_false(has_buf_var(revision_buf, 'diffs_unmerged'))
       assert.is_true(revision_text:find('+<<<<<<<', 1, true) ~= nil)
