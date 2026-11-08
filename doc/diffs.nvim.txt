@@ -94,7 +94,6 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
         blend_alpha = 0.6,
         warn_max_lines = true,
         vim = true,
-        intra = true,
       },
       conflict = true,
     }
@@ -198,7 +197,8 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              See |diffs.nvim.VimConfig| for fields.
 
         {intra}              (boolean|table, default: true)
-                             Character-level (intra-line) diff highlighting.
+                             Boolean values are deprecated.
+                             See |diffs.nvim-intra-toggle|.
                              See |diffs.nvim.IntraConfig| for fields.
 
         {overrides}          (table, default: {})
@@ -718,6 +718,19 @@ Inline granularity: ~                                      *diffs.nvim-inline*
     `highlights.intra.algorithm` chooses the engine that finds the differences,
     and `highlights.intra = false` turns the feature off regardless of
     'diffopt'.
+
+                                                *diffs.nvim-intra-toggle*
+    To replace `highlights.intra = false`, remove that setting and disable
+    intra-line highlighting with |'diffopt'|: >lua
+        vim.opt.diffopt:remove({ 'inline:simple', 'inline:char', 'inline:word' })
+        vim.opt.diffopt:append('inline:none')
+<
+    To enable word-level highlighting: >lua
+        vim.opt.diffopt:remove({ 'inline:none', 'inline:simple', 'inline:char' })
+        vim.opt.diffopt:append('inline:word')
+<
+    Remove `highlights.intra = true` to use the defaults. The table form
+    remains available for `max_lines` and `algorithm`.
 
     Limitations: ~
     - `inline:word` is produced by growing character-level spans to the word
