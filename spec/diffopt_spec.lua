@@ -233,7 +233,7 @@ describe('line-level whitespace handling', function()
   end)
 end)
 
-describe('intra-line whitespace handling (default algorithm)', function()
+describe('intra-line whitespace handling', function()
   local saved
 
   before_each(function()
@@ -246,39 +246,39 @@ describe('intra-line whitespace handling (default algorithm)', function()
 
   it('highlights a whitespace-only intra change by default', function()
     vim.o.diffopt = 'internal'
-    local result = diff.compute_intra_hunks({ '-foo bar', '+foo  bar' }, 'default')
+    local result = diff.compute_intra_hunks({ '-foo bar', '+foo  bar' })
     assert.is_not_nil(result)
     assert.is_true(#result.add_spans > 0 or #result.del_spans > 0)
   end)
 
   it('drops whitespace-only intra spans when iwhiteall is set', function()
     vim.o.diffopt = 'internal,iwhiteall'
-    local result = diff.compute_intra_hunks({ '-foo bar', '+foo  bar' }, 'default')
+    local result = diff.compute_intra_hunks({ '-foo bar', '+foo  bar' })
     assert.is_nil(result)
   end)
 
   it('keeps content spans while dropping whitespace spans under iwhiteall', function()
     vim.o.diffopt = 'internal,iwhiteall'
-    local result = diff.compute_intra_hunks({ '-foo', '+bar  ' }, 'default')
+    local result = diff.compute_intra_hunks({ '-foo', '+bar  ' })
     assert.is_not_nil(result)
     assert.is_true(#result.add_spans > 0)
   end)
 
   it('keeps whitespace intra spans under iwhite (only iwhiteall drops them)', function()
     vim.o.diffopt = 'internal,iwhite'
-    local result = diff.compute_intra_hunks({ '-ab', '+a b' }, 'default')
+    local result = diff.compute_intra_hunks({ '-ab', '+a b' })
     assert.is_not_nil(result)
   end)
 
   it('drops only end-of-line whitespace spans under iwhiteeol', function()
     vim.o.diffopt = 'internal,iwhiteeol'
-    assert.is_nil(diff.compute_intra_hunks({ '-foo', '+foo  ' }, 'default'))
-    assert.is_not_nil(diff.compute_intra_hunks({ '-foo  bar', '+foo bar' }, 'default'))
+    assert.is_nil(diff.compute_intra_hunks({ '-foo', '+foo  ' }))
+    assert.is_not_nil(diff.compute_intra_hunks({ '-foo  bar', '+foo bar' }))
   end)
 
   it('does not drop a multibyte content change under iwhiteall', function()
     vim.o.diffopt = 'internal,iwhiteall'
-    local result = diff.compute_intra_hunks({ '-café', '+cafe' }, 'default')
+    local result = diff.compute_intra_hunks({ '-café', '+cafe' })
     assert.is_not_nil(result)
   end)
 end)

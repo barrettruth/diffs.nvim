@@ -626,7 +626,7 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     and (hunk._hl_line_count or #hunk.lines) <= intra_cfg.max_lines
   then
     dbg('computing intra for hunk %s:%d (%d lines)', hunk.filename, hunk.start_line, #hunk.lines)
-    intra = diff.compute_intra_hunks(hunk.lines, intra_cfg.algorithm)
+    intra = diff.compute_intra_hunks(hunk.lines)
     if intra then
       dbg('intra result: %d add spans, %d del spans', #intra.add_spans, #intra.del_spans)
     else

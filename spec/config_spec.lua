@@ -30,7 +30,6 @@ describe('diffs.config', function()
             treesitter = { max_lines = 1000 },
             vim = false,
             intra = {
-              algorithm = 'vscode',
               max_lines = 250,
             },
           },
@@ -162,21 +161,6 @@ describe('diffs.config', function()
         assert.is_false(ok)
         assert.matches(case.message, err, 1, true)
       end
-    end)
-
-    it('validates intra diff algorithm names', function()
-      local ok, err = pcall(config.new, {
-        highlights = {
-          intra = {
-            algorithm = 'other',
-          },
-        },
-      })
-
-      assert.is_false(ok)
-      assert.matches('highlights.intra.algorithm', err, 1, true)
-      assert.matches('default', err, 1, true)
-      assert.matches('vscode', err, 1, true)
     end)
 
     it('validates conflict keymap values', function()

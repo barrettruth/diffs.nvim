@@ -9,7 +9,6 @@ local integration_metadata = require('diffs.integrations')
 ---@field max_lines integer
 
 ---@class diffs.IntraConfig
----@field algorithm string
 ---@field max_lines integer
 
 ---@class diffs.ViewConfig
@@ -75,7 +74,6 @@ local DEFAULTS = {
       max_lines = 200,
     },
     intra = {
-      algorithm = 'default',
       max_lines = 500,
     },
   },
@@ -135,12 +133,6 @@ function M.validate(opts)
           error('diffs: ' .. path .. '.max_lines must be >= 1')
         end
       end
-    end
-
-    if type(opts.highlights.intra) == 'table' then
-      vim.validate('highlights.intra.algorithm', opts.highlights.intra.algorithm, function(v)
-        return v == nil or v == 'default' or v == 'vscode'
-      end, "'default' or 'vscode'")
     end
   end
 
