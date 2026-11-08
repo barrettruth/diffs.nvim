@@ -159,9 +159,6 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              Use `{ args = {...} }` to forward flags. See
                              |diffs.nvim-difftastic|.
 
-        {extra_filetypes}    (table, default: {})
-                             Deprecated. See |diffs.nvim-extra-filetypes|.
-
         {highlights}         (table, default: see below)
                              Controls which highlight features are enabled.
                              See |diffs.nvim.Highlights| for fields.
@@ -1200,8 +1197,7 @@ API                                                           *diffs.nvim-api*
 
 attach({bufnr})                                          *diffs.nvim.attach()*
     Attach highlighting to a buffer. Called automatically when the buffer's
-    filetype matches `git`, `gitcommit`, an enabled integration filetype,
-    or any entry in the deprecated `extra_filetypes` option.
+    filetype matches `git`, `gitcommit`, or an enabled integration filetype.
     Direct calls work with any filetype. For automatic attachment to other
     filetypes, see |diffs.nvim-extra-filetypes|.
 

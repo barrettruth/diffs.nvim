@@ -51,7 +51,6 @@ local integration_metadata = require('diffs.integrations')
 ---@class diffs.Config
 ---@field debug boolean|string
 ---@field view diffs.ViewConfig
----@field extra_filetypes string[]
 ---@field highlights diffs.Highlights
 ---@field integrations diffs.IntegrationsConfig
 ---@field conflict diffs.ConflictConfig|false
@@ -63,7 +62,6 @@ local DEFAULTS = {
     default_layout = 'unified',
     prefix = true,
   },
-  extra_filetypes = {},
   highlights = {
     background = true,
     warn_max_lines = true,
@@ -112,7 +110,6 @@ function M.validate(opts)
       vim.validate('integrations.difftastic.args[' .. i .. ']', arg, 'string')
     end
   end
-  vim.validate('extra_filetypes', opts.extra_filetypes, 'table', true)
   vim.validate('highlights', opts.highlights, 'table', true)
 
   if opts.highlights then
