@@ -3,41 +3,73 @@ local log = require('diffs.log')
 
 local M = {}
 
----@class diffs.AttachOpts
+---@class diffs.AttachOptions
+---@field hunks? fun(bufnr: integer): diffs.Hunk[]
+---@field intra? boolean
+
+---@class diffs.Attachment: diffs.AttachOptions
+---@field augroup integer
+
+---@class diffs.DetachOpts
 ---@field cache diffs.Cache
----@field attached_buffers table<integer, boolean>
+---@field attached_buffers table<integer, diffs.Attachment>
+
+---@class diffs.AttachOpts: diffs.DetachOpts
 ---@field get_config fun(): diffs.Config
 ---@field refresh fun(bufnr?: integer)
 
+---@param opts diffs.DetachOpts
+---@param bufnr? integer
+function M.detach(opts, bufnr)
+  if not bufnr or bufnr == 0 then
+    bufnr = vim.api.nvim_get_current_buf()
+  end
+  local attachment = opts.attached_buffers[bufnr]
+  if not attachment then
+    return
+  end
+  opts.attached_buffers[bufnr] = nil
+  opts.cache:delete(bufnr)
+  vim.api.nvim_del_augroup_by_id(attachment.augroup)
+  if vim.api.nvim_buf_is_valid(bufnr) then
+    vim.api.nvim_buf_clear_namespace(bufnr, opts.cache.ns, 0, -1)
+  end
+end
+
 ---@param opts diffs.AttachOpts
 ---@param bufnr? integer
-function M.attach(opts, bufnr)
-  bufnr = bufnr or vim.api.nvim_get_current_buf()
-
+---@param options? diffs.AttachOptions
+function M.attach(opts, bufnr, options)
+  if not bufnr or bufnr == 0 then
+    bufnr = vim.api.nvim_get_current_buf()
+  end
   if not vim.api.nvim_buf_is_valid(bufnr) then
     return
   end
-
   if opts.attached_buffers[bufnr] then
-    return
+    if not options then
+      return
+    end
+    M.detach(opts, bufnr)
   end
-  opts.attached_buffers[bufnr] = true
-
+  local attachment = {
+    hunks = options and options.hunks,
+    intra = options and options.intra,
+    augroup = vim.api.nvim_create_augroup('diffs_buffer_' .. bufnr, { clear = true }),
+  }
+  opts.attached_buffers[bufnr] = attachment
   local config = opts.get_config()
-  local integration_augroup
-  for key, event in pairs({ neogit = 'NeogitDiffLoaded', neojj = 'NeojjDiffLoaded' }) do
+  for name, event in pairs({ neogit = 'NeogitDiffLoaded', neojj = 'NeojjDiffLoaded' }) do
     if
-      integrations.is_enabled(config.integrations[key])
-      and integrations.matches_filetype(key, vim.bo[bufnr].filetype)
+      integrations.is_enabled(config.integrations[name])
+      and integrations.matches_filetype(name, vim.bo[bufnr].filetype)
     then
-      vim.b[bufnr][key .. '_disable_hunk_highlight'] = true
-      integration_augroup =
-        vim.api.nvim_create_augroup('diffs_' .. key .. '_' .. bufnr, { clear = true })
+      vim.b[bufnr][name .. '_disable_hunk_highlight'] = true
       vim.api.nvim_create_autocmd('User', {
         pattern = event,
-        group = integration_augroup,
+        group = attachment.augroup,
         callback = function()
-          if vim.api.nvim_buf_is_valid(bufnr) and opts.attached_buffers[bufnr] then
+          if vim.api.nvim_buf_is_valid(bufnr) and opts.attached_buffers[bufnr] == attachment then
             opts.refresh(bufnr)
           end
         end,
@@ -45,21 +77,17 @@ function M.attach(opts, bufnr)
       break
     end
   end
-
   log.dbg('attaching to buffer %d', bufnr)
-
-  opts.cache:ensure(bufnr)
-
   vim.api.nvim_create_autocmd('BufWipeout', {
     buffer = bufnr,
+    group = attachment.augroup,
     callback = function()
-      opts.attached_buffers[bufnr] = nil
-      opts.cache:delete(bufnr)
-      if integration_augroup then
-        pcall(vim.api.nvim_del_augroup_by_id, integration_augroup)
+      if opts.attached_buffers[bufnr] == attachment then
+        M.detach(opts, bufnr)
       end
     end,
   })
+  opts.cache:ensure(bufnr)
 end
 
 return M

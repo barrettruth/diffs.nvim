@@ -10,6 +10,7 @@
 ---@field header_lines string[]?
 ---@field prefix_width integer
 ---@field quote_width integer
+---@field column_offset integer?
 ---@field rail_width integer?
 ---@field rail_style diffs.RailStyle?
 ---@field _hl_line_count integer?

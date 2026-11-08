@@ -7,7 +7,7 @@ local M = {}
 ---@class diffs.DecoratorOpts
 ---@field ns integer
 ---@field cache diffs.Cache
----@field attached_buffers table<integer, boolean>
+---@field attached_buffers table<integer, diffs.Attachment>
 ---@field get_config fun(): diffs.Config
 ---@field get_fast_hl_opts fun(): diffs.HunkOpts
 
@@ -35,6 +35,11 @@ function M.setup(opts)
         return false
       end
       local entry = cache.hunk_cache[bufnr]
+      if attached_buffers[bufnr].hunks and entry and entry.tick == -1 then
+        cache:ensure(bufnr)
+        cache:process_pending_clear(bufnr)
+        entry = cache.hunk_cache[bufnr]
+      end
       if not entry then
         return
       end
@@ -47,11 +52,13 @@ function M.setup(opts)
       local deferred_syntax = {}
       local skipped_count = 0
       local count = 0
-      local fast_hl_opts = opts.get_fast_hl_opts()
+      local attachment = attached_buffers[bufnr]
+      local fast_hl_opts =
+        vim.tbl_extend('force', opts.get_fast_hl_opts(), { intra = attachment.intra })
       for i = first, last do
         if not entry.highlighted[i] then
           local hunk = entry.hunks[i]
-          local clear_start = hunk.start_line - 1
+          local clear_start = math.max(0, hunk.start_line - 1)
           local clear_end = hunk.start_line + #hunk.lines
           if hunk.header_start_line then
             clear_start = hunk.header_start_line - 1
@@ -72,6 +79,9 @@ function M.setup(opts)
         entry.warned_max_lines = true
         local n = skipped_count
         vim.schedule(function()
+          if attached_buffers[bufnr] ~= attachment then
+            return
+          end
           log.notify(
             (
               'Syntax highlighting skipped for %d hunk(s) — too large.'
@@ -86,11 +96,11 @@ function M.setup(opts)
         local changedtick = vim.api.nvim_buf_get_changedtick(bufnr)
         local job_id = cache:next_syntax_job(bufnr)
         log.dbg(
-          'deferred syntax scheduled: %d hunks tick=%d changedtick=%d job=%d',
+          'deferred syntax scheduled: %d hunks tick=%d changedtick=%d job=%s',
           #deferred_syntax,
           tick,
           changedtick,
-          job_id
+          tostring(job_id)
         )
         vim.schedule(function()
           cache:run_deferred_syntax(bufnr, tick, changedtick, job_id, deferred_syntax)

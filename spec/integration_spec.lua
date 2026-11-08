@@ -164,7 +164,7 @@ describe('integration', function()
       local entry = runtime._test.hunk_cache[bufnr]
       assert.is_not_nil(entry)
       assert.is_nil(entry.hunks[1].ft)
-      assert.is_true(runtime._test.ft_retry_pending[bufnr] == true)
+      assert.is_truthy(runtime._test.ft_retry_pending[bufnr])
       delete_buffer(bufnr)
     end)
 
@@ -177,7 +177,7 @@ describe('integration', function()
         '+    listen 8080;',
       })
       runtime.attach(bufnr)
-      assert.is_true(runtime._test.ft_retry_pending[bufnr] == true)
+      assert.is_truthy(runtime._test.ft_retry_pending[bufnr])
 
       run_scheduled_callbacks()
 
