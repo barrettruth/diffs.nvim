@@ -96,7 +96,6 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
         treesitter = true,
         vim = true,
         intra = true,
-        overrides = {},
       },
       conflict = {
         disable_diagnostics = true,
@@ -209,11 +208,7 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              See |diffs.nvim.IntraConfig| for fields.
 
         {overrides}          (table, default: {})
-                             Map of highlight group names to highlight
-                             definitions (see `nvim_set_hl()`). Applied
-                             after all computed groups without `default`,
-                             so overrides always win over both computed
-                             defaults and colorscheme definitions.
+                             Deprecated. See |diffs.nvim-highlights|.
 
                                                  *diffs.nvim.TreesitterConfig*
     Treesitter config fields: ~
@@ -1431,11 +1426,6 @@ mis-identified, which can degrade its syntax highlighting or hunk navigation.
 ==============================================================================
 HIGHLIGHT GROUPS                                       *diffs.nvim-highlights*
 
-diffs.nvim defines custom highlight groups with `default = true`. Colorschemes
-can override them before diffs.nvim loads, or users can override them with
-`highlights.overrides`.
-
-
 Diff and generated rail highlights: ~
                                                                   *DiffsClear*
     DiffsClear          Clears underlying diff foreground colors while preserving
@@ -1528,19 +1518,12 @@ Diff mode window highlights: ~ These are used for 'winhighlight' remapping in
                                                                *DiffsDiffText*
     DiffsDiffText       Background-only replacement for `DiffText`.
 
-To customize these in your colorscheme: >lua
+Customize with |nvim_set_hl()|: >lua
     vim.api.nvim_set_hl(0, 'DiffsAdd', { bg = '#2e4a3a' })
     vim.api.nvim_set_hl(0, 'DiffsDiffDelete', { link = 'DiffDelete' })
-< Or via `highlights.overrides` in config: >lua
-    vim.g.diffs = {
-      highlights = {
-        overrides = {
-          DiffsAdd = { bg = '#2e4a3a' },
-          DiffsDiffDelete = { link = 'DiffDelete' },
-        },
-      },
-    }
 <
+
+diffs.nvim recomputes these groups on |ColorScheme|.
 
 ==============================================================================
 HEALTH CHECK                                               *diffs.nvim-health*
