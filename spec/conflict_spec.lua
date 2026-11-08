@@ -18,7 +18,13 @@ local function create_file_buffer(lines)
 end
 
 local function get_extmarks(bufnr)
-  return vim.api.nvim_buf_get_extmarks(bufnr, conflict.get_namespace(), 0, -1, { details = true })
+  return vim.api.nvim_buf_get_extmarks(
+    bufnr,
+    vim.api.nvim_get_namespaces()['diffs-conflict'],
+    0,
+    -1,
+    { details = true }
+  )
 end
 
 describe('conflict', function()

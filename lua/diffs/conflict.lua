@@ -447,9 +447,4 @@ function M.attach(bufnr, config)
   emit('DiffsConflictDetected', bufnr)
 end
 
----@return integer
-function M.get_namespace()
-  return ns
-end
-
 return M

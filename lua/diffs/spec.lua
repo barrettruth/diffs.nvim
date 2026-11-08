@@ -180,13 +180,6 @@ function M.rev_to_rev(left_rev, right_rev, path)
   return M.file(M.tree(left_rev), M.tree(right_rev), path)
 end
 
----@param stage 1|2|3
----@param path string
----@return diffs.DiffSpec
-function M.stage_to_worktree(stage, path)
-  return M.file(M.stage(stage), M.worktree(), path)
-end
-
 ---@param endpoint diffs.Endpoint
 ---@return string
 function M.endpoint_label(endpoint)
@@ -253,34 +246,6 @@ function M.patch_actions(diff_spec)
       and diff_spec.right.kind == M.endpoint_kind.worktree,
     can_obtain = diff_spec.left.kind == M.endpoint_kind.tree
       and diff_spec.right.kind == M.endpoint_kind.index,
-  }
-end
-
----@param diff_spec diffs.DiffSpec
----@return boolean
-function M.is_index_target(diff_spec)
-  return M.mutation_target(diff_spec) == M.endpoint_kind.index
-end
-
----@param diff_spec diffs.DiffSpec
----@return boolean
-function M.is_worktree_target(diff_spec)
-  return M.mutation_target(diff_spec) == M.endpoint_kind.worktree
-end
-
----@param diff_spec diffs.DiffSpec
----@return boolean
-function M.is_read_only(diff_spec)
-  return M.mutation_target(diff_spec) == nil
-end
-
----@param diff_spec diffs.DiffSpec
----@return { read_only: boolean, target: "index"|"worktree"|nil }
-function M.mutability(diff_spec)
-  local target = M.mutation_target(diff_spec)
-  return {
-    read_only = target == nil,
-    target = target,
   }
 end
 

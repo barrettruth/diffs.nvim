@@ -671,10 +671,6 @@ function M.open(spec, deps)
     source = generated.review_source(review.repo_root, M.stored_review_spec(review)),
     rail_style = deps.rail_style,
     vars = {
-      diffs_review_base = review.base,
-      diffs_review_target = review.target,
-      diffs_review_mode = review.mode,
-      diffs_review_untracked = review.untracked,
       diffs_review = { display = review.display, layout = review_layout },
     },
   })
@@ -700,20 +696,6 @@ function M.open(spec, deps)
   dbg('opened review buffer %d (%s)', diff_buf, review.display)
 
   return diff_buf
-end
-
----@param buf integer
----@param lnum integer
----@return string?
-function M.file_at_line(buf, lnum)
-  local lines = vim.api.nvim_buf_get_lines(buf, 0, lnum, false)
-  for i = #lines, 1, -1 do
-    local file = lines[i]:match('^diff %-%-git %a/.+ %a/(.+)$')
-    if file then
-      return file
-    end
-  end
-  return nil
 end
 
 ---@param review_spec diffs.ReviewSpec?

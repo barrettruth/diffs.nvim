@@ -3,30 +3,9 @@ local M = {}
 local log = require('diffs.log')
 
 local dbg = log.dbg
-local notify = log.notify
 
 ---@type table?
 local cached_handle = nil
-
----@type boolean
-local download_in_progress = false
-
----@type fun(handle: table?)[]
-local pending_callbacks = {}
-
----@return string
-local function get_os()
-  local os_name = jit.os:lower()
-  if os_name == 'osx' then
-    return 'macos'
-  end
-  return os_name
-end
-
----@return string
-local function get_arch()
-  return jit.arch:lower()
-end
 
 ---@return string
 local function get_ext()
@@ -48,13 +27,6 @@ end
 local function lib_path()
   return lib_dir() .. '/libvscode_diff.' .. get_ext()
 end
-
----@return string
-local function version_path()
-  return lib_dir() .. '/version'
-end
-
-local EXPECTED_VERSION = '2.49.2'
 
 ---@return boolean
 function M.has_lib()
@@ -158,70 +130,6 @@ function M.load()
 
   cached_handle = handle
   return handle
-end
-
----@param callback fun(handle: table?)
-function M.ensure(callback)
-  if cached_handle then
-    callback(cached_handle)
-    return
-  end
-
-  if M.has_lib() then
-    callback(M.load())
-    return
-  end
-
-  table.insert(pending_callbacks, callback)
-
-  if download_in_progress then
-    dbg('download already in progress, queued callback')
-    return
-  end
-
-  download_in_progress = true
-
-  local dir = lib_dir()
-  vim.fn.mkdir(dir, 'p')
-
-  local os_name = get_os()
-  local arch = get_arch()
-  local ext = get_ext()
-  local filename = ('libvscode_diff_%s_%s_%s.%s'):format(os_name, arch, EXPECTED_VERSION, ext)
-  local url = ('https://github.com/esmuellert/codediff.nvim/releases/download/v%s/%s'):format(
-    EXPECTED_VERSION,
-    filename
-  )
-
-  local dest = lib_path()
-  notify('downloading libvscode_diff...', vim.log.levels.INFO)
-
-  local cmd = { 'curl', '-fSL', '-o', dest, url }
-
-  vim.system(cmd, {}, function(result)
-    download_in_progress = false
-    vim.schedule(function()
-      local handle = nil
-      if result.code ~= 0 then
-        notify('failed to download libvscode_diff', vim.log.levels.WARN)
-        dbg('curl failed: %s', result.stderr or '')
-      else
-        local f = io.open(version_path(), 'w')
-        if f then
-          f:write(EXPECTED_VERSION)
-          f:close()
-        end
-        notify('libvscode_diff downloaded', vim.log.levels.INFO)
-        handle = M.load()
-      end
-
-      local cbs = pending_callbacks
-      pending_callbacks = {}
-      for _, cb in ipairs(cbs) do
-        cb(handle)
-      end
-    end)
-  end)
 end
 
 return M

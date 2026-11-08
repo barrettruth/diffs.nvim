@@ -603,9 +603,4 @@ function M.whitespace_only_lines(hunk_lines)
   return result
 end
 
----@return boolean
-function M.has_vscode()
-  return require('diffs.lib').has_lib()
-end
-
 return M
