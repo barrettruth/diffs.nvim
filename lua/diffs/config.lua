@@ -33,13 +33,8 @@ local integration_metadata = require('diffs.integrations')
 ---@field next string|false
 ---@field prev string|false
 
----@alias diffs.ConflictKeymapName 'ours' | 'theirs' | 'both' | 'none' | 'next' | 'prev'
-
 ---@class diffs.ConflictConfig
 ---@field disable_diagnostics boolean
----@field show_virtual_text boolean
----@field format_virtual_text? fun(side: 'ours'|'base'|'theirs', keymap: string|false): string?
----@field show_actions boolean
 ---@field keymaps diffs.ConflictKeymaps|false
 
 ---@class diffs.DifftasticConfig
@@ -87,8 +82,6 @@ local DEFAULTS = {
   integrations = {},
   conflict = {
     disable_diagnostics = true,
-    show_virtual_text = true,
-    show_actions = false,
     keymaps = false,
   },
 }
@@ -157,14 +150,6 @@ function M.validate(opts)
   end, 'boolean or table')
   if type(opts.conflict) == 'table' then
     vim.validate('conflict.disable_diagnostics', opts.conflict.disable_diagnostics, 'boolean', true)
-    vim.validate('conflict.show_virtual_text', opts.conflict.show_virtual_text, 'boolean', true)
-    vim.validate(
-      'conflict.format_virtual_text',
-      opts.conflict.format_virtual_text,
-      'function',
-      true
-    )
-    vim.validate('conflict.show_actions', opts.conflict.show_actions, 'boolean', true)
     vim.validate('conflict.keymaps', opts.conflict.keymaps, function(v)
       return v == nil or v == false or type(v) == 'table'
     end, 'table or false')

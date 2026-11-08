@@ -99,8 +99,6 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
       },
       conflict = {
         disable_diagnostics = true,
-        show_virtual_text = true,
-        show_actions = false,
         keymaps = false,
       },
     }
@@ -1092,8 +1090,6 @@ Configuration: ~
     vim.g.diffs = {
       conflict = {
         disable_diagnostics = true,
-        show_virtual_text = true,
-        show_actions = false,
         keymaps = false,
       },
     }
@@ -1120,38 +1116,6 @@ Configuration: ~
                              Diagnostics are re-enabled when all conflicts
                              are resolved. Set `false` to leave
                              diagnostics alone.
-
-        {show_virtual_text}  (boolean, default: true)
-                             Show `(current)`, `(base)`, and `(incoming)`
-                             labels at the end of `<<<<<<<`, `|||||||`, and
-                             `>>>>>>>` marker lines. The `(base)` label only
-                             appears in `diff3`/`zdiff3` conflicts, which
-                             include the `|||||||` ancestor section. Also
-                             controls hunk hints in merge diff views.
-
-        {format_virtual_text} (function|nil, default: nil)
-                             Custom formatter for virtual text labels.
-                             Receives `(side, keymap)` where `side` is
-                             `"ours"`, `"base"`, or `"theirs"` and `keymap`
-                             is the configured keymap string, or `false`
-                             (always `false` for `"base"`, which has no
-                             resolution keymap). Return a string (label text
-                             without parens) or `nil` to hide the label.
-                             Example: >lua
-                                 format_virtual_text = function(side, keymap)
-                                   if keymap then
-                                     return side .. ' [' .. keymap .. ']'
-                                   end
-                                   return side
-                                 end
-<
-
-        {show_actions}       (boolean, default: false)
-                             Show a codelens-style action line above each
-                             `<<<<<<<` marker listing available resolution
-                             keymaps. Renders as virtual lines using the
-                             `DiffsConflictActions` highlight group. Only
-                             configured keymaps appear.
 
         {keymaps}            (table|false, default: false)
                              Opt-in buffer-local keymaps for conflict
@@ -1215,9 +1179,8 @@ working file by matching diff hunks to conflict markers:
 - `c0` removes the conflict region entirely
 - `]c`/`[c` navigate between unresolved conflict hunks
 
-Resolved hunks are marked with `(resolved)` virtual text. Hunks that
-correspond to auto-merged content (no conflict markers) show an informational
-notification and are left unchanged.
+Hunks that correspond to auto-merged content (no conflict markers) show an
+informational notification and are left unchanged.
 
 The working file buffer is modified in place; save it when ready. Inline
 conflict highlights (see |diffs.nvim-conflict|) are refreshed automatically
@@ -1498,10 +1461,6 @@ Conflict highlights: ~
 
                                                          *DiffsConflictBaseNr*
     DiffsConflictBaseNr Line number for base content lines (diff3).
-
-                                                        *DiffsConflictActions*
-    DiffsConflictActions Dimmed foreground (no bold) for the codelens-style
-                        action line shown when `show_actions` is true.
 
 Diff mode window highlights: ~ These are used for 'winhighlight' remapping in
 `&diff` windows.

@@ -138,7 +138,6 @@ function M.apply(config, is_default)
   vim.api.nvim_set_hl(0, 'DiffsConflictTheirs', { default = dflt, bg = blended_theirs })
   vim.api.nvim_set_hl(0, 'DiffsConflictBase', { default = dflt, bg = blended_base })
   vim.api.nvim_set_hl(0, 'DiffsConflictMarker', { default = dflt, fg = 0x808080, bold = true })
-  vim.api.nvim_set_hl(0, 'DiffsConflictActions', { default = dflt, fg = 0x808080 })
   vim.api.nvim_set_hl(
     0,
     'DiffsConflictOursNr',

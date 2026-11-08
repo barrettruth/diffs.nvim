@@ -106,7 +106,7 @@ describe('plugin bootstrap', function()
       'vim.notify = function(message, level)',
       '_G.diffs_notifications[#_G.diffs_notifications + 1] = { message = message, level = level }',
       'end',
-      'vim.g.diffs = { view = { prefix = false }, highlights = { background = false, intra = { algorithm = "vscode" } }, conflict = { show_virtual_text = false }, integrations = { "fugitive", "neogit", "neojj", "gitsigns", "committia", "telescope" } }',
+      'vim.g.diffs = { view = { prefix = false }, highlights = { background = false, intra = { algorithm = "vscode" } }, conflict = { keymaps = false }, integrations = { "fugitive", "neogit", "neojj", "gitsigns", "committia", "telescope" } }',
       ('vim.opt.runtimepath:prepend(%s)'):format(vim.inspect(vim.fn.getcwd())),
     }
 
@@ -130,7 +130,7 @@ describe('plugin bootstrap', function()
       "print('runtime_committia=' .. tostring(runtime_config.integrations.committia))",
       "print('runtime_telescope=' .. tostring(runtime_config.integrations.telescope))",
       "print('runtime_background=' .. tostring(runtime_config.highlights.background))",
-      "print('runtime_show_virtual_text=' .. tostring(runtime_config.conflict.show_virtual_text))",
+      "print('runtime_conflict_keymaps=' .. tostring(runtime_config.conflict.keymaps))",
       "print('runtime_config_priorities=' .. tostring(runtime_config.highlights.priorities))",
       "print('highlight_priority_clear=' .. tostring(highlight_opts.highlights.priorities.clear))",
       "print('highlight_priority_syntax=' .. tostring(highlight_opts.highlights.priorities.syntax))",
@@ -170,7 +170,7 @@ describe('plugin bootstrap', function()
     assert.matches('runtime_committia=true', output, 1, true)
     assert.matches('runtime_telescope=true', output, 1, true)
     assert.matches('runtime_background=false', output, 1, true)
-    assert.matches('runtime_show_virtual_text=false', output, 1, true)
+    assert.matches('runtime_conflict_keymaps=false', output, 1, true)
     assert.matches('runtime_config_priorities=nil', output, 1, true)
     assert.matches('highlight_priority_clear=198', output, 1, true)
     assert.matches('highlight_priority_syntax=199', output, 1, true)

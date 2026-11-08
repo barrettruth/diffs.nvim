@@ -5,8 +5,6 @@ local rails = require('diffs.rails')
 local function default_config(overrides)
   local cfg = {
     disable_diagnostics = false,
-    show_virtual_text = true,
-    show_actions = false,
     keymaps = false,
   }
   if overrides then
@@ -378,29 +376,6 @@ describe('merge', function()
       cleanup()
     end)
 
-    it('adds virtual text for resolved hunks', function()
-      setup_buffers()
-      vim.api.nvim_win_set_cursor(0, { 5, 0 })
-
-      merge.resolve_ours(diff_bufnr, default_config())
-
-      local extmarks =
-        vim.api.nvim_buf_get_extmarks(diff_bufnr, merge.get_namespace(), 0, -1, { details = true })
-      local has_resolved_text = false
-      for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].virt_text then
-          for _, chunk in ipairs(mark[4].virt_text) do
-            if chunk[1]:match('resolved') then
-              has_resolved_text = true
-            end
-          end
-        end
-      end
-      assert.is_true(has_resolved_text)
-
-      cleanup()
-    end)
-
     it('matches and resolves conflicts from generated single-rail hunks', function()
       local working_path = '/tmp/diffs_test_single_rail_resolve.lua'
       local w_bufnr = create_working_buffer({
@@ -751,65 +726,6 @@ describe('merge', function()
     end)
   end)
 
-  describe('hunk hints', function()
-    it('does not add keymap hints without keymaps', function()
-      local d_bufnr = create_diff_buffer({
-        'diff --git a/file.lua b/file.lua',
-        '--- a/file.lua',
-        '+++ b/file.lua',
-        '@@ -1,1 +1,1 @@',
-        '-local x = 1',
-        '+local x = 2',
-      })
-
-      merge.setup_keymaps(d_bufnr, default_config())
-
-      local extmarks =
-        vim.api.nvim_buf_get_extmarks(d_bufnr, merge.get_namespace(), 0, -1, { details = true })
-      local hint_marks = {}
-      for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].virt_text then
-          table.insert(hint_marks, mark)
-        end
-      end
-      assert.are.equal(0, #hint_marks)
-
-      helpers.delete_buffer(d_bufnr)
-    end)
-
-    it('adds keymap hints on hunk header lines when keymaps are configured', function()
-      local d_bufnr = create_diff_buffer({
-        'diff --git a/file.lua b/file.lua',
-        '--- a/file.lua',
-        '+++ b/file.lua',
-        '@@ -1,1 +1,1 @@',
-        '-local x = 1',
-        '+local x = 2',
-      })
-
-      merge.setup_keymaps(d_bufnr, default_config({ keymaps = helpers.default_conflict_keymaps() }))
-
-      local extmarks =
-        vim.api.nvim_buf_get_extmarks(d_bufnr, merge.get_namespace(), 0, -1, { details = true })
-      local hint_marks = {}
-      for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].virt_text then
-          local text = ''
-          for _, chunk in ipairs(mark[4].virt_text) do
-            text = text .. chunk[1]
-          end
-          table.insert(hint_marks, { line = mark[2], text = text })
-        end
-      end
-      assert.are.equal(1, #hint_marks)
-      assert.are.equal(3, hint_marks[1].line)
-      assert.is_truthy(hint_marks[1].text:find('go'))
-      assert.is_truthy(hint_marks[1].text:find('gt'))
-
-      helpers.delete_buffer(d_bufnr)
-    end)
-  end)
-
   describe('setup_keymaps', function()
     it('clears resolved state on re-init', function()
       local working_path = '/tmp/diffs_test_reinit.lua'
@@ -836,27 +752,9 @@ describe('merge', function()
       merge.resolve_ours(d_bufnr, cfg)
       assert.is_true(merge.is_resolved(d_bufnr, 1))
 
-      local extmarks =
-        vim.api.nvim_buf_get_extmarks(d_bufnr, merge.get_namespace(), 0, -1, { details = true })
-      assert.is_true(#extmarks > 0)
-
       merge.setup_keymaps(d_bufnr, cfg)
 
       assert.is_false(merge.is_resolved(d_bufnr, 1))
-      extmarks =
-        vim.api.nvim_buf_get_extmarks(d_bufnr, merge.get_namespace(), 0, -1, { details = true })
-      local resolved_count = 0
-      for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].virt_text then
-          for _, chunk in ipairs(mark[4].virt_text) do
-            if chunk[1]:match('resolved') then
-              resolved_count = resolved_count + 1
-            end
-          end
-        end
-      end
-      assert.are.equal(0, resolved_count)
-
       helpers.delete_buffer(d_bufnr)
       helpers.delete_buffer(w_bufnr)
     end)

@@ -37,17 +37,6 @@ local function keymap_matches(keymap, identity)
   return (keymap.rhs or '') == identity.rhs
 end
 
----@param config diffs.ConflictConfig
----@param key diffs.ConflictKeymapName
----@return string|false
-function M.get_conflict_keymap(config, key)
-  local keymaps = config.keymaps
-  if keymaps == false then
-    return false
-  end
-  return keymaps[key] or false
-end
-
 ---@param registry table<integer, table<string, diffs.BufferKeymap>>
 ---@param bufnr integer
 function M.clear_buffer_keymaps(registry, bufnr)
