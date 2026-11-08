@@ -25,17 +25,6 @@ local integration_metadata = require('diffs.integrations')
 ---@field vim diffs.VimConfig|false
 ---@field intra diffs.IntraConfig|false
 
----@class diffs.ConflictKeymaps
----@field ours string|false
----@field theirs string|false
----@field both string|false
----@field none string|false
----@field next string|false
----@field prev string|false
-
----@class diffs.ConflictConfig
----@field keymaps diffs.ConflictKeymaps|false
-
 ---@class diffs.DifftasticConfig
 ---@field args? string[]
 
@@ -54,7 +43,7 @@ local integration_metadata = require('diffs.integrations')
 ---@field extra_filetypes string[]
 ---@field highlights diffs.Highlights
 ---@field integrations diffs.IntegrationsConfig
----@field conflict diffs.ConflictConfig|false
+---@field conflict boolean
 
 ---@type diffs.Config
 local DEFAULTS = {
@@ -79,9 +68,7 @@ local DEFAULTS = {
     },
   },
   integrations = {},
-  conflict = {
-    keymaps = false,
-  },
+  conflict = true,
 }
 
 ---@param opts? table
@@ -143,28 +130,7 @@ function M.validate(opts)
     end
   end
 
-  vim.validate('conflict', opts.conflict, function(v)
-    return v == nil or type(v) == 'boolean' or type(v) == 'table'
-  end, 'boolean or table')
-  if type(opts.conflict) == 'table' then
-    vim.validate('conflict.keymaps', opts.conflict.keymaps, function(v)
-      return v == nil or v == false or type(v) == 'table'
-    end, 'table or false')
-
-    if type(opts.conflict.keymaps) == 'table' then
-      local keymap_validator = function(v)
-        return v == nil or v == false or type(v) == 'string'
-      end
-      for _, key in ipairs({ 'ours', 'theirs', 'both', 'none', 'next', 'prev' }) do
-        vim.validate(
-          'conflict.keymaps.' .. key,
-          opts.conflict.keymaps[key],
-          keymap_validator,
-          'string or false'
-        )
-      end
-    end
-  end
+  vim.validate('conflict', opts.conflict, 'boolean', true)
 
   if
     opts.highlights
@@ -183,9 +149,6 @@ function M.new(opts)
   })
   M.validate(opts)
   local result = vim.tbl_deep_extend('force', DEFAULTS, opts)
-  if result.conflict == true then
-    result.conflict = vim.deepcopy(DEFAULTS.conflict)
-  end
   for _, key in ipairs({ 'treesitter', 'vim', 'intra' }) do
     if result.highlights[key] == true then
       result.highlights[key] = vim.deepcopy(DEFAULTS.highlights[key])
