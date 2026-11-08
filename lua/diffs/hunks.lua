@@ -247,7 +247,7 @@ function M.parse(diff_lines, diff_spec)
         hunks[#hunks + 1] = current_hunk
       elseif current_hunk then
         local prefix = line:sub(1, 1)
-        if prefix == '+' and not line:match('^%+%+%+') then
+        if prefix == '+' then
           add_line(current_hunk, {
             lnum = lnum,
             kind = 'add',
@@ -258,7 +258,7 @@ function M.parse(diff_lines, diff_spec)
             hunk_index = current_hunk.index,
           })
           new_lnum = new_lnum + 1
-        elseif prefix == '-' and not line:match('^%-%-%-') then
+        elseif prefix == '-' then
           add_line(current_hunk, {
             lnum = lnum,
             kind = 'delete',
