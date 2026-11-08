@@ -671,10 +671,6 @@ function M.open(spec, deps)
     source = generated.review_source(review.repo_root, M.stored_review_spec(review)),
     rail_style = deps.rail_style,
     vars = {
-      diffs_review_base = review.base,
-      diffs_review_target = review.target,
-      diffs_review_mode = review.mode,
-      diffs_review_untracked = review.untracked,
       diffs_review = { display = review.display, layout = review_layout },
     },
   })

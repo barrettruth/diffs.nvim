@@ -31,7 +31,8 @@ end
 ---@param bufnr integer
 ---@return diffs.DiffSpec?
 local function buffer_diff_spec(bufnr)
-  return get_buf_var(bufnr, 'diffs_spec')
+  local source = get_buf_var(bufnr, 'diffs_source')
+  return source and source.spec
 end
 
 ---@param bufnr integer
@@ -634,15 +635,8 @@ local function jump_current_quickfix_item()
     if item_win then
       local lnum = math.max(1, math.min(item.lnum or 1, vim.api.nvim_buf_line_count(item.bufnr)))
       local col = math.max(0, (item.col or 1) - 1)
-      vim.api.nvim_buf_set_var(item.bufnr, 'diffs_generated_jump_in_progress', true)
-      local ok, err = pcall(function()
-        vim.api.nvim_win_set_cursor(item_win, { lnum, col })
-        vim.api.nvim_set_current_win(item_win)
-      end)
-      pcall(vim.api.nvim_buf_del_var, item.bufnr, 'diffs_generated_jump_in_progress')
-      if not ok then
-        error(err, 0)
-      end
+      vim.api.nvim_win_set_cursor(item_win, { lnum, col })
+      vim.api.nvim_set_current_win(item_win)
       jumped = true
     end
   end

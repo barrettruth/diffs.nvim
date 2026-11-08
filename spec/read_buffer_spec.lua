@@ -202,7 +202,7 @@ describe('read_buffer', function()
       local lines = buffer_lines(bufnr)
       assert.are.equal('diff --git a/unloaded.lua b/unloaded.lua', lines[1])
       assert.are.equal('+local x = 1', lines[6])
-      assert.are.equal('/tmp', vim.api.nvim_buf_get_var(bufnr, 'diffs_repo_root'))
+      assert.are.equal('/tmp', vim.api.nvim_buf_get_var(bufnr, 'diffs_source').repo_root)
       assert.are.equal('single', vim.api.nvim_buf_get_var(bufnr, 'diffs_rail_style'))
     end)
 
@@ -232,7 +232,6 @@ describe('read_buffer', function()
           },
         },
         vars = {
-          diffs_review_base = 'origin/main',
           diffs_review = { display = 'origin/main...feature/topic', layout = 'stacked' },
         },
       })
@@ -244,7 +243,6 @@ describe('read_buffer', function()
       commands.read_buffer(bufnr)
 
       assert.are.same(review_diff_lines(), buffer_lines(bufnr))
-      assert.are.equal('origin/main', vim.api.nvim_buf_get_var(bufnr, 'diffs_review_base'))
       assert.are.same(
         { display = 'origin/main...feature/topic', layout = 'stacked' },
         vim.api.nvim_buf_get_var(bufnr, 'diffs_review')
@@ -289,7 +287,6 @@ describe('read_buffer', function()
       })
 
       local bufnr = create_diffs_buffer('diffs://metadata-only', {
-        diffs_repo_root = '/wrong',
         diffs_source = {
           version = 1,
           kind = 'file',
@@ -342,7 +339,6 @@ describe('read_buffer', function()
       assert.are.same({ '' }, vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
       assert.is_false(has_buf_var(bufnr, 'diffs_split_side'))
       assert.is_false(has_buf_var(bufnr, 'diffs_split_peer'))
-      assert.is_false(has_buf_var(bufnr, 'diffs_split_hunks'))
       assert.is_false(helpers.has_keymap(bufnr, 'q'))
       assert.is_false(helpers.has_keymap(bufnr, '<CR>'))
       assert.is_false(helpers.has_keymap(bufnr, ']c'))
@@ -385,8 +381,6 @@ describe('read_buffer', function()
       assert.is_true(vim.tbl_contains(left_lines, ''))
       assert.are.equal(right_buf, vim.api.nvim_buf_get_var(left_buf, 'diffs_split_peer'))
       assert.are.equal(left_buf, vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer'))
-      assert.are.equal(1, #vim.api.nvim_buf_get_var(left_buf, 'diffs_split_hunks'))
-      assert.are.equal(1, #vim.api.nvim_buf_get_var(right_buf, 'diffs_split_hunks'))
     end)
 
     it('does not partially reload paired split endpoints when the peer read fails', function()
@@ -522,7 +516,6 @@ describe('read_buffer', function()
       end)
 
       local bufnr = create_diffs_buffer('diffs://review:missing/ref', {
-        diffs_repo_root = '/wrong/repo',
         diffs_source = {
           version = 1,
           kind = 'review',
