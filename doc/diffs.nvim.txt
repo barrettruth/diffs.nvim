@@ -1082,31 +1082,17 @@ removed.
 
 Buffer-local mappings: ~                      *diffs.nvim-conflict-keymaps*
 
-Map the |<Plug>(diffs-conflict-ours)| family directly, or use this recipe for
-buffer-local mappings. It preserves existing mappings and user replacements: >lua
+Set buffer-local mappings when conflicts are detected: >lua
     vim.api.nvim_create_autocmd('User', {
-      pattern = {
-        'DiffsConflictDetected', 'DiffsConflictResolved',
-        'DiffsConflictDetached', 'DiffsMergeReady',
-      },
+      pattern = 'DiffsConflictDetected',
       callback = function(event)
-        local bufnr = event.data.bufnr
-        local merge = event.match == 'DiffsMergeReady'
-        local active = merge or event.match == 'DiffsConflictDetected'
-        local prefix = merge and 'diffs-merge-' or 'diffs-conflict-'
-        for lhs, action in pairs({
-          co = 'ours', ct = 'theirs', cb = 'both', c0 = 'none',
-          [']x'] = 'next', ['[x'] = 'prev',
-        }) do
-          local rhs = '<Plug>(' .. prefix .. action .. ')'
-          local current = vim.iter(vim.api.nvim_buf_get_keymap(bufnr, 'n'))
-            :find(function(map) return map.lhs == lhs end)
-          if active and not current then
-            vim.keymap.set('n', lhs, rhs, { buffer = bufnr })
-          elseif not active and current and current.rhs == rhs then
-            vim.keymap.del('n', lhs, { buffer = bufnr })
-          end
-        end
+        local opts = { buffer = event.data.bufnr }
+        vim.keymap.set('n', 'co', '<Plug>(diffs-conflict-ours)', opts)
+        vim.keymap.set('n', 'ct', '<Plug>(diffs-conflict-theirs)', opts)
+        vim.keymap.set('n', 'cb', '<Plug>(diffs-conflict-both)', opts)
+        vim.keymap.set('n', 'c0', '<Plug>(diffs-conflict-none)', opts)
+        vim.keymap.set('n', ']x', '<Plug>(diffs-conflict-next)', opts)
+        vim.keymap.set('n', '[x', '<Plug>(diffs-conflict-prev)', opts)
       end,
     })
 <
@@ -1167,14 +1153,22 @@ and intra-line highlighting. Revision comparisons such as `:Diff HEAD` keep
 rendering that revision against the conflicted worktree buffer.
 
 The |<Plug>(diffs-merge-ours)| family resolves conflicts in the working file
-by matching diff hunks to conflict markers. The recipe in
-|diffs.nvim-conflict-keymaps| uses these mappings:
+by matching diff hunks to conflict markers.
 
-- `co` replaces the conflict region with ours content
-- `ct` replaces the conflict region with theirs content
-- `cb` replaces with both (ours then theirs)
-- `c0` removes the conflict region entirely
-- `]c`/`[c` navigate between unresolved conflict hunks
+Set buffer-local mappings for merge views: >lua
+    vim.api.nvim_create_autocmd('User', {
+      pattern = 'DiffsMergeReady',
+      callback = function(event)
+        local opts = { buffer = event.data.bufnr }
+        vim.keymap.set('n', 'co', '<Plug>(diffs-merge-ours)', opts)
+        vim.keymap.set('n', 'ct', '<Plug>(diffs-merge-theirs)', opts)
+        vim.keymap.set('n', 'cb', '<Plug>(diffs-merge-both)', opts)
+        vim.keymap.set('n', 'c0', '<Plug>(diffs-merge-none)', opts)
+        vim.keymap.set('n', ']x', '<Plug>(diffs-merge-next)', opts)
+        vim.keymap.set('n', '[x', '<Plug>(diffs-merge-prev)', opts)
+      end,
+    })
+<
 
 Hunks that correspond to auto-merged content (no conflict markers) show an
 informational notification and are left unchanged.
