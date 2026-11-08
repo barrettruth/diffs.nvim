@@ -5,7 +5,7 @@
 Enhance Neovim's built-in diff mode (and much more!) with language-aware syntax
 highlighting driven by treesitter.
 
-<img width="863" height="752" alt="image" src="https://github.com/user-attachments/assets/fb67f1f5-e64b-4b67-88f4-2d8d37d9f9f2" />
+<img width="555" height="275" alt="image" src="https://github.com/user-attachments/assets/7603c5fd-386a-445e-ad78-9e6641d692bd" />
 
 ## Features
 
