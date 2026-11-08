@@ -44,11 +44,6 @@ describe('diffs.config', function()
           },
           conflict = {
             disable_diagnostics = false,
-            show_virtual_text = true,
-            format_virtual_text = function()
-              return nil
-            end,
-            show_actions = true,
             keymaps = {
               ours = 'co',
               theirs = 'ct',
@@ -122,8 +117,8 @@ describe('diffs.config', function()
       end
       assert.is_false(config.new({ conflict = false }).conflict)
       assert.are.same(
-        vim.tbl_extend('force', defaults, { show_virtual_text = false }),
-        config.new({ conflict = { show_virtual_text = false } }).conflict
+        vim.tbl_extend('force', defaults, { keymaps = { ours = 'co' } }),
+        config.new({ conflict = { keymaps = { ours = 'co' } } }).conflict
       )
     end)
 

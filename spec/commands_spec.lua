@@ -2184,7 +2184,6 @@ describe('commands', function()
       mock_runtime_attach(function() end)
       mock_conflict_config({
         keymaps = helpers.default_conflict_keymaps(),
-        show_virtual_text = false,
       })
 
       assert.is_true(git.is_unmerged(filepath))
