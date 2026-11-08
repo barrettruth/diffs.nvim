@@ -785,6 +785,9 @@ vertical
                         Re-render the current `diffs://` buffer in place,
                         preserving the cursor and view. Useful after changing
                         'diffopt' directly. Comparable to |:diffupdate|.
+                        Generated diff buffers map <C-L> to this action,
+                        clear search highlighting, update native diffs, and
+                        redraw. Existing buffer-local <C-L> mappings are kept.
 
 Example configuration: >lua
     vim.keymap.set('n', '<leader>gd', '<Plug>(diffs-diff)')
