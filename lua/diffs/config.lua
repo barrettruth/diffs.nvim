@@ -21,7 +21,7 @@ local integration_metadata = require('diffs.integrations')
 ---@field blend_alpha? number
 ---@field overrides? table<string, table>
 ---@field warn_max_lines boolean
----@field treesitter diffs.TreesitterConfig|false
+---@field treesitter diffs.TreesitterConfig
 ---@field vim diffs.VimConfig|false
 ---@field intra diffs.IntraConfig|false
 
@@ -187,7 +187,9 @@ function M.new(opts)
     result.conflict = vim.deepcopy(DEFAULTS.conflict)
   end
   for _, key in ipairs({ 'treesitter', 'vim', 'intra' }) do
-    if result.highlights[key] == true then
+    if
+      result.highlights[key] == true or (key == 'treesitter' and result.highlights[key] == false)
+    then
       result.highlights[key] = vim.deepcopy(DEFAULTS.highlights[key])
     end
   end

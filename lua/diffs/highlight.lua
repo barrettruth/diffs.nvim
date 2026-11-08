@@ -36,6 +36,7 @@ local vim_syntax_cache_limit = 128
 ---@field char_bg integer
 
 ---@class diffs.HunkHighlights: diffs.Highlights
+---@field treesitter diffs.TreesitterConfig|false
 ---@field priorities diffs.HighlightPriorities
 
 ---@type diffs.HighlightPriorities

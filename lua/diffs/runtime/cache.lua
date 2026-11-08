@@ -189,13 +189,10 @@ end
 function Cache:needs_syntax(hunk, vim_cache_hit)
   local highlights = self.get_config().highlights
   if
-    highlights.treesitter
-    and (
-      hunk.lang
-      or (hunk.header_start_line and hunk.header_lines and #hunk.header_lines > 0)
-      or (hunk.quote_width or 0) > 0
-      or (hunk.prefix_width or 1) > 1
-    )
+    hunk.lang
+    or (hunk.header_start_line and hunk.header_lines and #hunk.header_lines > 0)
+    or (hunk.quote_width or 0) > 0
+    or (hunk.prefix_width or 1) > 1
   then
     return true
   end

@@ -77,7 +77,10 @@ describe('diffs.config', function()
         for _, value in ipairs({ true, {} }) do
           assert.are.same(defaults, config.new({ highlights = { [key] = value } }).highlights[key])
         end
-        assert.is_false(config.new({ highlights = { [key] = false } }).highlights[key])
+        assert.are.same(
+          key == 'treesitter' and defaults or false,
+          config.new({ highlights = { [key] = false } }).highlights[key]
+        )
         assert.are.same(
           vim.tbl_extend('force', defaults, { max_lines = 1000 }),
           config.new({ highlights = { [key] = { max_lines = 1000 } } }).highlights[key]
