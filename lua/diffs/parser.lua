@@ -15,7 +15,6 @@
 ---@field prefix_width integer
 ---@field quote_width integer
 ---@field rail_width integer?
----@field rail_separator_width integer?
 ---@field rail_style diffs.RailStyle?
 ---@field repo_root string?
 ---@field context_before string[]?
@@ -156,13 +155,12 @@ function M.parse_buffer(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local repo_root = get_repo_root(bufnr)
   local rail_width = rails.width_for_buffer(bufnr)
-  local rail_separator_width = rails.separator_width_for_buffer(bufnr)
   local rail_style = rail_width > 0 and rails.style_for_buffer(bufnr) or nil
 
   local quote_prefix = nil
   local quote_width = 0
   for _, l in ipairs(lines) do
-    local logical = rails.strip(l, rail_width, rail_separator_width)
+    local logical = rails.strip(l, rail_width)
     local qp = logical:match('^(>+ )diff %-%-') or logical:match('^(>+ )@@ %-')
     if qp then
       quote_prefix = qp
@@ -228,7 +226,6 @@ function M.parse_buffer(bufnr)
         file_new_count = file_new_count,
         repo_root = repo_root,
         rail_width = rail_width > 0 and rail_width or nil,
-        rail_separator_width = rail_width > 0 and rail_separator_width or nil,
         rail_style = rail_style,
       }
       if hunk_count == 1 and header_start and #header_lines > 0 then
@@ -250,7 +247,7 @@ function M.parse_buffer(bufnr)
   end
 
   for i, line in ipairs(lines) do
-    local without_rails = rails.strip(line, rail_width, rail_separator_width)
+    local without_rails = rails.strip(line, rail_width)
     local logical = without_rails
     if quote_prefix then
       if without_rails:sub(1, quote_width) == quote_prefix then

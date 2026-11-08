@@ -299,7 +299,7 @@ local function buffer_lines(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local ok, rail_width = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_rail_width')
   if ok then
-    return rails.strip_lines(lines, rail_width, rails.separator_width_for_buffer(bufnr))
+    return rails.strip_lines(lines, rail_width)
   end
   return lines
 end
@@ -508,16 +508,15 @@ describe('commands', function()
     local function assert_single_rail_display(bufnr, change)
       local display_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
 
-      assert.are.equal(6, vim.api.nvim_buf_get_var(bufnr, 'diffs_rail_width'))
-      assert.are.equal(3, vim.api.nvim_buf_get_var(bufnr, 'diffs_rail_separator_width'))
+      assert.are.equal(8, vim.api.nvim_buf_get_var(bufnr, 'diffs_rail_width'))
       assert.are.equal('single', vim.api.nvim_buf_get_var(bufnr, 'diffs_rail_style'))
       assert.are.equal('single', rails.style_for_buffer(bufnr))
-      assert.are.equal('    | diff --git a/lua/foo.lua b/lua/foo.lua', display_lines[1])
-      assert.is_true(table.concat(display_lines, '\n'):find('  2 | +' .. change, 1, true) ~= nil)
+      assert.are.equal('    │ diff --git a/lua/foo.lua b/lua/foo.lua', display_lines[1])
+      assert.is_true(table.concat(display_lines, '\n'):find('  2 │ +' .. change, 1, true) ~= nil)
     end
 
     it('creates single-rail generated buffers and keeps hunk metadata raw', function()
-      mock_view_config({ prefix = true, change_bar = '▏', rail_separator = '|' })
+      mock_view_config({ prefix = true })
 
       local diff_spec = diffspec.index_to_worktree('lua/foo.lua')
       local bufnr = commands._test.create_generated_diff_buffer({
@@ -543,7 +542,7 @@ describe('commands', function()
     end)
 
     it('preserves single rails when generated buffers reload without an explicit style', function()
-      mock_view_config({ prefix = true, change_bar = '▏', rail_separator = '|' })
+      mock_view_config({ prefix = true })
       mock_runtime_attach(function() end)
       mock_systemlist(function(cmd)
         assert.are.same({
@@ -576,7 +575,7 @@ describe('commands', function()
     end)
 
     it('lets generated buffer replacement override an existing rail style', function()
-      mock_view_config({ prefix = true, change_bar = '▏', rail_separator = '|' })
+      mock_view_config({ prefix = true })
 
       local bufnr = commands._test.create_generated_diff_buffer({
         name = 'diffs://unstaged:all',
@@ -594,13 +593,12 @@ describe('commands', function()
       )
 
       local display_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-      assert.are.equal(8, vim.api.nvim_buf_get_var(bufnr, 'diffs_rail_width'))
-      assert.are.equal(3, vim.api.nvim_buf_get_var(bufnr, 'diffs_rail_separator_width'))
+      assert.are.equal(10, vim.api.nvim_buf_get_var(bufnr, 'diffs_rail_width'))
       assert.are.equal('dual', vim.api.nvim_buf_get_var(bufnr, 'diffs_rail_style'))
       assert.are.equal('dual', rails.style_for_buffer(bufnr))
-      assert.are.equal('      | diff --git a/lua/foo.lua b/lua/foo.lua', display_lines[1])
+      assert.are.equal('      │ diff --git a/lua/foo.lua b/lua/foo.lua', display_lines[1])
       assert.is_true(
-        table.concat(display_lines, '\n'):find('    2 | +local dual = true', 1, true) ~= nil
+        table.concat(display_lines, '\n'):find('    2 │ +local dual = true', 1, true) ~= nil
       )
     end)
   end)
@@ -866,7 +864,7 @@ describe('commands', function()
         return '/tmp/repo'
       end)
       mock_runtime_attach(function() end)
-      mock_view_config({ prefix = true, change_bar = '▏', rail_separator = '|' })
+      mock_view_config({ prefix = true })
 
       commands.diff(nil, false)
 
@@ -898,11 +896,12 @@ describe('commands', function()
       assert.is_true(table.concat(lines, '\n'):find('+local x = 1', 1, true) ~= nil)
 
       local display_lines = vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false)
-      assert.are.equal(8, vim.api.nvim_buf_get_var(diff_buf, 'diffs_rail_width'))
-      assert.are.equal(3, vim.api.nvim_buf_get_var(diff_buf, 'diffs_rail_separator_width'))
+      assert.are.equal(10, vim.api.nvim_buf_get_var(diff_buf, 'diffs_rail_width'))
       assert.are.equal('dual', vim.api.nvim_buf_get_var(diff_buf, 'diffs_rail_style'))
-      assert.are.equal('      | diff --git a/lua/foo.lua b/lua/foo.lua', display_lines[1])
-      assert.is_true(table.concat(display_lines, '\n'):find('    2 | +local x = 1', 1, true) ~= nil)
+      assert.are.equal('      │ diff --git a/lua/foo.lua b/lua/foo.lua', display_lines[1])
+      assert.is_true(
+        table.concat(display_lines, '\n'):find('    2 │ +local x = 1', 1, true) ~= nil
+      )
 
       local qf = quickfix_items()
       assert.are.equal(0, #qf)
@@ -935,7 +934,7 @@ describe('commands', function()
         return '/tmp/repo'
       end)
       mock_runtime_attach(function() end)
-      mock_view_config({ prefix = true, change_bar = '▏', rail_separator = '|' })
+      mock_view_config({ prefix = true })
 
       vim.fn.setqflist({}, ' ', {
         title = 'user list',
@@ -961,7 +960,7 @@ describe('commands', function()
 
     it('opens stacked :Diff as a generated buffer with single rails', function()
       mock_runtime_attach(function() end)
-      mock_view_config({ prefix = true, change_bar = '▏', rail_separator = '|' })
+      mock_view_config({ prefix = true })
       create_split_source()
 
       commands.diff('++layout=stacked', false)
@@ -975,12 +974,11 @@ describe('commands', function()
         diffspec.index_to_worktree('lua/foo.lua'),
         vim.api.nvim_buf_get_var(diff_buf, 'diffs_spec')
       )
-      assert.are.equal(6, vim.api.nvim_buf_get_var(diff_buf, 'diffs_rail_width'))
-      assert.are.equal(3, vim.api.nvim_buf_get_var(diff_buf, 'diffs_rail_separator_width'))
+      assert.are.equal(8, vim.api.nvim_buf_get_var(diff_buf, 'diffs_rail_width'))
       assert.are.equal('single', vim.api.nvim_buf_get_var(diff_buf, 'diffs_rail_style'))
       assert.are.equal('single', rails.style_for_buffer(diff_buf))
-      assert.are.equal('    | diff --git a/lua/foo.lua b/lua/foo.lua', display_lines[1])
-      assert.is_true(table.concat(display_lines, '\n'):find('  2 | +local x = 1', 1, true) ~= nil)
+      assert.are.equal('    │ diff --git a/lua/foo.lua b/lua/foo.lua', display_lines[1])
+      assert.is_true(table.concat(display_lines, '\n'):find('  2 │ +local x = 1', 1, true) ~= nil)
       assert.is_false(has_buf_var(diff_buf, 'diffs_split_peer'))
 
       for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
@@ -1037,8 +1035,6 @@ describe('commands', function()
         mock_view_config({
           default_layout = 'split',
           prefix = true,
-          change_bar = '┃',
-          rail_separator = '│',
         })
         create_split_source()
         commands.diff(nil, false)
@@ -1062,7 +1058,7 @@ describe('commands', function()
       local saved_splitright = vim.o.splitright
       vim.o.splitright = false
       local ok, err = pcall(function()
-        mock_view_config({ prefix = true, change_bar = '┃', rail_separator = '│' })
+        mock_view_config({ prefix = true })
         create_split_source()
         commands.diff('++layout=split', false)
       end)
@@ -1142,7 +1138,7 @@ describe('commands', function()
       vim.v.lnum = 2
       local rail = require('diffs.split').statuscolumn()
       assert.is_true(rail:find('DiffsAddBar', 1, true) ~= nil)
-      assert.is_true(rail:find('┃', 1, true) ~= nil)
+      assert.is_true(rail:find('▏', 1, true) ~= nil)
 
       local qf = quickfix_items()
       assert.are.equal(0, #qf)
@@ -1156,7 +1152,7 @@ describe('commands', function()
     end)
 
     it('paints the configured intra word-diff overlay on both split panes', function()
-      mock_view_config({ prefix = true, change_bar = '┃', rail_separator = '│' })
+      mock_view_config({ prefix = true })
       create_split_source({
         index_lines = { 'function f()', '  return 111', '  log()', 'end' },
         worktree_lines = { 'function f()', '  return 222', '  log()', 'end' },
@@ -1201,7 +1197,7 @@ describe('commands', function()
     end)
 
     it('skips the intra overlay when highlights.intra is disabled', function()
-      mock_view_config({ prefix = true, change_bar = '┃', rail_separator = '│' })
+      mock_view_config({ prefix = true })
       mock_highlight_opts(function(opts)
         opts.highlights.intra.enabled = false
       end)
@@ -1223,7 +1219,7 @@ describe('commands', function()
     end)
 
     it('leaves split panes untouched when attach_diff re-runs', function()
-      mock_view_config({ prefix = true, change_bar = '┃', rail_separator = '│' })
+      mock_view_config({ prefix = true })
       create_split_source()
       commands.diff('++layout=split', false)
 
@@ -1242,7 +1238,7 @@ describe('commands', function()
     end)
 
     it('renders real per-side line numbers through the statuscolumn rail', function()
-      mock_view_config({ prefix = true, change_bar = '┃', rail_separator = '│' })
+      mock_view_config({ prefix = true })
       create_split_source({
         index_lines = { 'a', 'b', 'c', 'd' },
         worktree_lines = { 'X', 'a', 'b', 'c', 'd' },
@@ -1353,7 +1349,7 @@ describe('commands', function()
       local saved_splitright = vim.o.splitright
       vim.o.splitright = false
       local ok, err = pcall(function()
-        mock_view_config({ prefix = true, change_bar = '┃', rail_separator = '│' })
+        mock_view_config({ prefix = true })
         create_split_source()
         commands.diff_command('++layout=split', true)
       end)
@@ -3384,7 +3380,7 @@ describe('commands', function()
       local repo = create_current_state_review_repo()
       edit_file(repo.repo_root .. '/lua/branch.lua')
       mock_runtime_attach(function() end)
-      mock_view_config({ prefix = true, change_bar = '▏', rail_separator = '|' })
+      mock_view_config({ prefix = true })
 
       local bufnr = commands.review_command(('++layout=stacked %s'):format(repo.base))
       assert.is_not_nil(bufnr)
@@ -3398,7 +3394,7 @@ describe('commands', function()
       assert.are.equal('single', rails.style_for_buffer(bufnr))
       assert.are.same({ display = repo.base, layout = 'stacked' }, vim.b[bufnr].diffs_review)
       assert.is_true(helpers.has_keymap(bufnr, 'gs'))
-      assert.is_true(display_lines[1]:find('    | # Branch:', 1, true) ~= nil)
+      assert.is_true(display_lines[1]:find('    │ # Branch:', 1, true) ~= nil)
       assert.is_true(text:find('# Branch:', 1, true) ~= nil)
       assert.is_true(text:find('# Staged:', 1, true) ~= nil)
       assert.is_true(text:find('# Unstaged:', 1, true) ~= nil)

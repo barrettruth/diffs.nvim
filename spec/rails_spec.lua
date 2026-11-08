@@ -20,7 +20,6 @@ describe('diffs.rails', function()
     assert.are.same({
       width = 2,
       prefix_width = 12,
-      separator_width = 5,
       style = 'dual',
     }, info)
     assert.are.equal('        │ diff --git a/file.txt b/file.txt', annotated[1])
@@ -58,7 +57,6 @@ describe('diffs.rails', function()
     assert.are.same({
       width = 2,
       prefix_width = 9,
-      separator_width = 5,
       style = 'single',
     }, info)
     assert.are.equal('     │ diff --git a/file.txt b/file.txt', annotated[1])
@@ -82,7 +80,6 @@ describe('diffs.rails', function()
     assert.are.same({
       width = 1,
       prefix_width = 10,
-      separator_width = 5,
       style = 'dual',
     }, info)
     assert.are.equal('  2 2 │', annotated[4])
@@ -103,8 +100,8 @@ describe('diffs.rails', function()
 
     assert.are.equal('  2 │', annotated[4])
     assert.is_nil(annotated[4]:match('%s$'))
-    assert.are.equal(' ', rails.strip(annotated[4], info.prefix_width, info.separator_width))
-    assert.are.same(lines, rails.strip_lines(annotated, info.prefix_width, info.separator_width))
+    assert.are.equal(' ', rails.strip(annotated[4], info.prefix_width))
+    assert.are.same(lines, rails.strip_lines(annotated, info.prefix_width))
   end)
 
   it('returns byte ranges for old and new rail number columns', function()
@@ -126,64 +123,13 @@ describe('diffs.rails', function()
         start = 5,
         finish = 7,
       },
-    }, rails.number_ranges(12, nil, 'dual'))
+    }, rails.number_ranges(12, 'dual'))
     assert.are.same({
       {
         start = 2,
         finish = 4,
       },
-    }, rails.number_ranges(9, nil, 'single'))
-  end)
-
-  it('supports custom rail separators', function()
-    local annotated, info = rails.annotate({
-      'diff --git a/file.txt b/file.txt',
-      '@@ -9,2 +10,2 @@',
-      ' alpha',
-      '+beta',
-    }, { rail_separator = '|' })
-
-    assert.are.same({
-      width = 2,
-      prefix_width = 10,
-      separator_width = 3,
-      style = 'dual',
-    }, info)
-    assert.are.equal('        | diff --git a/file.txt b/file.txt', annotated[1])
-    assert.are.equal('   9 10 |  alpha', annotated[3])
-    assert.are.equal('     11 | +beta', annotated[4])
-    assert.are.same({
-      old_start = 2,
-      old_end = 4,
-      new_start = 5,
-      new_end = 7,
-    }, rails.ranges(info.prefix_width, info.separator_width))
-  end)
-
-  it('supports empty custom rail separators for single rails', function()
-    local annotated, info = rails.annotate({
-      'diff --git a/file.txt b/file.txt',
-      '@@ -9,2 +10,2 @@',
-      ' alpha',
-      '+beta',
-    }, { rail_style = 'single', rail_separator = '' })
-
-    assert.are.same({
-      width = 2,
-      prefix_width = 6,
-      separator_width = 2,
-      style = 'single',
-    }, info)
-    assert.are.equal('      diff --git a/file.txt b/file.txt', annotated[1])
-    assert.are.equal('  10   alpha', annotated[3])
-    assert.are.equal('  11  +beta', annotated[4])
-    assert.are.equal(' alpha', rails.strip(annotated[3], info.prefix_width, info.separator_width))
-    assert.are.same({
-      {
-        start = 2,
-        finish = 4,
-      },
-    }, rails.number_ranges(info.prefix_width, info.separator_width, info.style))
+    }, rails.number_ranges(9, 'single'))
   end)
 
   it('reads buffer rail style with a dual compatibility default', function()

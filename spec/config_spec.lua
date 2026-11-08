@@ -97,12 +97,6 @@ describe('diffs.config', function()
       assert.is_nil(opts.hide_prefix)
     end)
 
-    it('defaults view glyphs', function()
-      local opts = config.new()
-      assert.are.equal('▏', opts.view.change_bar)
-      assert.are.equal('│', opts.view.rail_separator)
-    end)
-
     it('defaults view.default_layout to unified', function()
       local opts = config.new()
       assert.are.equal('unified', opts.view.default_layout)
@@ -120,29 +114,6 @@ describe('diffs.config', function()
       assert.is_false(ok)
       assert.matches('view.default_layout', err, 1, true)
       assert.matches("'unified', 'stacked', or 'split'", err, 1, true)
-    end)
-
-    it('accepts custom view glyphs', function()
-      local opts = config.new({
-        view = {
-          change_bar = '┃',
-          rail_separator = '|',
-        },
-      })
-      assert.are.equal('┃', opts.view.change_bar)
-      assert.are.equal('|', opts.view.rail_separator)
-    end)
-
-    it('validates custom view glyphs', function()
-      local ok, err = pcall(config.new, { view = { change_bar = false } })
-      assert.is_false(ok)
-      assert.matches('view.change_bar', err, 1, true)
-      assert.matches('string', err, 1, true)
-
-      ok, err = pcall(config.new, { view = { rail_separator = false } })
-      assert.is_false(ok)
-      assert.matches('view.rail_separator', err, 1, true)
-      assert.matches('string', err, 1, true)
     end)
 
     it('defaults supported config without removed fields', function()
@@ -172,6 +143,14 @@ describe('diffs.config', function()
 
     it('rejects removed config keys', function()
       local cases = {
+        {
+          input = { view = { change_bar = '┃' } },
+          message = 'diffs: view.change_bar has been removed',
+        },
+        {
+          input = { view = { rail_separator = '|' } },
+          message = 'diffs: view.rail_separator has been removed',
+        },
         {
           input = { hide_prefix = true },
           message = 'diffs: hide_prefix has been removed; use view.prefix',

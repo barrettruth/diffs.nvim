@@ -96,7 +96,6 @@ describe('parser', function()
       }, { rail_style = 'single' })
       local bufnr = create_buffer(annotated)
       vim.api.nvim_buf_set_var(bufnr, 'diffs_rail_width', info.prefix_width)
-      vim.api.nvim_buf_set_var(bufnr, 'diffs_rail_separator_width', info.separator_width)
       vim.api.nvim_buf_set_var(bufnr, 'diffs_rail_style', info.style)
 
       local hunks = parser.parse_buffer(bufnr)
@@ -104,7 +103,6 @@ describe('parser', function()
       assert.are.equal(1, #hunks)
       assert.are.equal('single', hunks[1].rail_style)
       assert.are.equal(info.prefix_width, hunks[1].rail_width)
-      assert.are.equal(info.separator_width, hunks[1].rail_separator_width)
       assert.are.same({
         ' local M = {}',
         '-local old = false',
