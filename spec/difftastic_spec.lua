@@ -6,10 +6,10 @@ local runtime = require('diffs.runtime')
 
 describe('diffs.difftastic', function()
   describe('config', function()
-    it('accepts integrations.difftastic = true', function()
-      assert.has_no.errors(function()
-        config.new({ integrations = { difftastic = true } })
-      end)
+    it('accepts difftastic in integration lists and boolean maps', function()
+      for _, integrations in ipairs({ { 'difftastic' }, { difftastic = true } }) do
+        assert.is_true(config.new({ integrations = integrations }).integrations.difftastic)
+      end
     end)
 
     it('accepts a table with args', function()
