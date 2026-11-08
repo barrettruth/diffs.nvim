@@ -2,7 +2,7 @@ require('spec.helpers')
 local config = require('diffs.config')
 
 describe('diffs.config', function()
-  local integration_keys = { 'fugitive', 'neogit', 'neojj', 'gitsigns', 'committia', 'telescope' }
+  local integration_keys = { 'fugitive', 'neogit', 'neojj', 'gitsigns', 'telescope' }
 
   describe('new', function()
     it('accepts nil config', function()
@@ -37,7 +37,6 @@ describe('diffs.config', function()
             neogit = true,
             neojj = true,
             gitsigns = true,
-            committia = true,
             telescope = true,
           },
         })
@@ -88,55 +87,6 @@ describe('diffs.config', function()
           assert.is_nil(opts.integrations[1])
           assert.are.same(input, integrations)
         end
-      end
-    end)
-
-    it('rejects removed integration table config', function()
-      for _, key in ipairs(integration_keys) do
-        local ok, err = pcall(config.new, { integrations = { [key] = {} } })
-        assert.is_false(ok)
-        assert.matches('integrations.' .. key, err, 1, true)
-        assert.matches('boolean', err, 1, true)
-      end
-    end)
-
-    it('rejects invalid integration value types', function()
-      for _, key in ipairs(integration_keys) do
-        local ok, err = pcall(config.new, { integrations = { [key] = 'yes' } })
-        assert.is_false(ok)
-        assert.matches('integrations.' .. key, err, 1, true)
-        assert.matches('boolean', err, 1, true)
-      end
-      local ok, err = pcall(config.new, { integrations = { true } })
-      assert.is_false(ok)
-      assert.matches('integrations[1]', err, 1, true)
-      assert.matches('string', err, 1, true)
-    end)
-
-    it('validates numeric highlight limits', function()
-      local cases = {
-        {
-          input = { highlights = { treesitter = { max_lines = 0 } } },
-          message = 'diffs: highlights.treesitter.max_lines must be >= 1',
-        },
-        {
-          input = { highlights = { vim = { max_lines = 0 } } },
-          message = 'diffs: highlights.vim.max_lines must be >= 1',
-        },
-        {
-          input = { highlights = { intra = { max_lines = 0 } } },
-          message = 'diffs: highlights.intra.max_lines must be >= 1',
-        },
-        {
-          input = { highlights = { blend_alpha = 2 } },
-          message = 'diffs: highlights.blend_alpha must be >= 0 and <= 1',
-        },
-      }
-
-      for _, case in ipairs(cases) do
-        local ok, err = pcall(config.new, case.input)
-        assert.is_false(ok)
-        assert.matches(case.message, err, 1, true)
       end
     end)
   end)

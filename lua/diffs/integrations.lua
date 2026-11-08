@@ -1,6 +1,6 @@
 local M = {}
 
-local keys = { 'fugitive', 'neogit', 'neojj', 'gitsigns', 'committia', 'telescope' }
+local keys = { 'fugitive', 'neogit', 'neojj' }
 
 local metadata = {
   fugitive = {
@@ -16,19 +16,12 @@ local metadata = {
   },
 }
 
----@return string[]
-function M.keys()
-  return vim.deepcopy(keys)
-end
-
 ---@param values table?
 ---@return diffs.IntegrationsConfig
 function M.normalize(values)
-  vim.validate('integrations', values, 'table', true)
   local result = {}
   for key, value in pairs(values or {}) do
     if type(key) == 'number' then
-      vim.validate('integrations[' .. key .. ']', value, 'string')
       result[value] = true
     else
       result[key] = value

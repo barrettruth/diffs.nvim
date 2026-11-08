@@ -8,12 +8,6 @@ function M.check()
   else
     vim.health.error('diffs.nvim requires Neovim 0.12.0+')
   end
-
-  if pcall(vim.treesitter.language.add, 'diff') then
-    vim.health.ok('Treesitter diff parser available')
-  else
-    vim.health.info('Treesitter diff parser unavailable. Diffs uses its Lua parser.')
-  end
 end
 
 return M

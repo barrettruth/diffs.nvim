@@ -96,12 +96,8 @@ INTEGRATIONS                                       *diffs.nvim-integrations*
 
 Enable integrations by name: >lua
     vim.g.diffs = {
-      integrations = { 'fugitive', 'neogit', 'neojj', 'gitsigns',
-        'committia', 'telescope' },
+      integrations = { 'fugitive', 'neogit', 'neojj', 'gitsigns', 'telescope' },
     }
-<
-A map is also accepted: >lua
-    vim.g.diffs = { integrations = { fugitive = true, neogit = true } }
 <
 Fugitive
     Attach to `fugitive` buffers.
@@ -116,8 +112,8 @@ neojj
 Gitsigns
     Highlight unified diff previews and blame popups.
 
-committia
-    Highlight the diff buffer in the commit layout.
+Committia
+    Diff panes receive highlighting automatically.
 
 Telescope
     Highlight diff buffers in Telescope previews.
@@ -209,13 +205,10 @@ expression can have incomplete syntax highlighting.
 Vim syntax fallback runs after redraw. A new hunk can appear without syntax
 colors for one frame. Language parsers and queries load on first use.
 
-Other plugins that change diff highlights can produce conflicting colors.
-
 ==============================================================================
 HEALTH                                                  *diffs.nvim-health*
 
-Run |:checkhealth| diffs to inspect the Neovim version and the Treesitter diff
-parser. Diffs uses its Lua parser when the Treesitter diff parser is unavailable.
+Run `:checkhealth diffs` to check the required Neovim version (0.12.0+).
 
 ==============================================================================
 vim:tw=78:ts=8:ft=help:norl:

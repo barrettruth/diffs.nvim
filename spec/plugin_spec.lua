@@ -52,7 +52,7 @@ describe('plugin bootstrap', function()
       'vim.notify = function(message, level)',
       '_G.diffs_notifications[#_G.diffs_notifications + 1] = { message = message, level = level }',
       'end',
-      'vim.g.diffs = { view = { prefix = false }, highlights = { background = false }, integrations = { "fugitive", "neogit", "neojj", "gitsigns", "committia", "telescope" } }',
+      'vim.g.diffs = { view = { prefix = false }, highlights = { background = false }, integrations = { "fugitive", "neogit", "neojj", "gitsigns", "telescope" } }',
       ('vim.opt.runtimepath:prepend(%s)'):format(vim.inspect(vim.fn.getcwd())),
     }
 
@@ -71,7 +71,6 @@ describe('plugin bootstrap', function()
       "print('runtime_neogit=' .. tostring(runtime_config.integrations.neogit))",
       "print('runtime_neojj=' .. tostring(runtime_config.integrations.neojj))",
       "print('runtime_gitsigns=' .. tostring(runtime_config.integrations.gitsigns))",
-      "print('runtime_committia=' .. tostring(runtime_config.integrations.committia))",
       "print('runtime_telescope=' .. tostring(runtime_config.integrations.telescope))",
       "print('runtime_background=' .. tostring(runtime_config.highlights.background))",
       "print('runtime_config_priorities=' .. tostring(runtime_config.highlights.priorities))",
@@ -107,7 +106,6 @@ describe('plugin bootstrap', function()
     assert.matches('runtime_neogit=true', output, 1, true)
     assert.matches('runtime_neojj=true', output, 1, true)
     assert.matches('runtime_gitsigns=true', output, 1, true)
-    assert.matches('runtime_committia=true', output, 1, true)
     assert.matches('runtime_telescope=true', output, 1, true)
     assert.matches('runtime_background=false', output, 1, true)
     assert.matches('runtime_config_priorities=nil', output, 1, true)
