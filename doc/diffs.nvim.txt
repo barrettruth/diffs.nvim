@@ -91,7 +91,6 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
       integrations = {},
       highlights = {
         background = true,
-        blend_alpha = 0.6,
         warn_max_lines = true,
         treesitter = true,
         vim = true,
@@ -183,10 +182,7 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              from `DiffAdd`/`DiffDelete` backgrounds).
 
         {blend_alpha}        (number, default: 0.6)
-                             Alpha value for diff line background intensity.
-                             Controls how strongly diff lines (adds/deletes)
-                             stand out from the editor background. Must be
-                             between 0 and 1 (inclusive).
+                             Deprecated. See |diffs.nvim-blend-alpha|.
 
         {warn_max_lines}     (boolean, default: true)
                              Show a `vim.notify()` warning when syntax
@@ -1492,6 +1488,83 @@ After diffs.nvim initializes, customize with |nvim_set_hl()| and
     })
     vim.schedule(set_highlights)
 <
+
+Background colors ~
+                                                     *diffs.nvim-blend-alpha*
+Use one of these alternatives in `set_highlights()` above.
+
+Use colorscheme backgrounds for lines and changed characters: >lua
+    local function set_highlights()
+      local add = vim.api.nvim_get_hl(0, { name = 'DiffAdd', link = false })
+      local delete = vim.api.nvim_get_hl(0, { name = 'DiffDelete', link = false })
+      local text = vim.api.nvim_get_hl(0, { name = 'DiffText', link = false })
+      vim.api.nvim_set_hl(0, 'DiffsAdd', { bg = add.bg })
+      vim.api.nvim_set_hl(0, 'DiffsDelete', { bg = delete.bg })
+      vim.api.nvim_set_hl(0, 'DiffsAddText', { bg = text.bg })
+      vim.api.nvim_set_hl(0, 'DiffsDeleteText', { bg = text.bg })
+    end
+<
+Blend colors dynamically: >lua
+    local function set_highlights()
+      local alpha = 0.6
+      local function get(name)
+        return vim.api.nvim_get_hl(0, { name = name, link = false })
+      end
+      local function blend(color, bg, amount)
+        local result = 0
+        for shift = 0, 16, 8 do
+          local c = math.floor(color / 2 ^ shift) % 256
+          local b = math.floor(bg / 2 ^ shift) % 256
+          result = result + math.floor(c * amount + b * (1 - amount)) * 2 ^ shift
+        end
+        return result
+      end
+      local function background(groups, color)
+        for _, group in ipairs(groups) do
+          local hl = get(group)
+          hl.default = nil
+          hl.bg = color
+          vim.api.nvim_set_hl(0, group, hl)
+        end
+      end
+
+      local dark = vim.o.background == 'dark'
+      local normal = get('Normal')
+      local bg = normal.bg or (dark and 0x1a1a1a or 0xf0f0f0)
+      local fg = normal.fg or (dark and 0xcccccc or 0x333333)
+      local add = get('DiffAdd').bg or (dark and 0x1a3a1a or 0xd0ffd0)
+      local delete = get('DiffDelete').bg or (dark and 0x3a1a1a or 0xffd0d0)
+      local change = get('DiffChange').bg or 0x3a3a4a
+      local text = get('DiffText').bg or 0x4a4a5a
+
+      background({ 'DiffsAdd', 'DiffsAddRailNr', 'DiffsAddBar',
+        'DiffsConflictOurs', 'DiffsConflictOursNr' }, blend(add, bg, alpha))
+      background({ 'DiffsDelete', 'DiffsDeleteRailNr', 'DiffsDeleteBar' },
+        blend(delete, bg, alpha))
+      background({ 'DiffsConflictTheirs', 'DiffsConflictTheirsNr' },
+        blend(change, bg, alpha))
+      background({ 'DiffsConflictBase', 'DiffsConflictBaseNr' },
+        blend(text, bg, math.max(alpha - 0.1, 0)))
+      background({ 'DiffsAddText' }, add)
+      background({ 'DiffsDeleteText' }, delete)
+      background({ 'DiffsDim' }, blend(fg, bg, 0.04))
+    end
+<
+For a transparent colorscheme, set the `bg` fallback to your terminal background.
+
+Or copy the current colors. After opening a diff, inspect the groups: >vim
+    :hi DiffsAdd
+    :hi DiffsDelete
+    :filter /^Diffs/ highlight
+<
+Use the displayed `guibg` values in `set_highlights()`: >lua
+    local function set_highlights()
+      vim.api.nvim_set_hl(0, 'DiffsAdd', { bg = '#2e4a3a' })
+      vim.api.nvim_set_hl(0, 'DiffsDelete', { bg = '#4a2e2e' })
+    end
+<
+For rails and conflict line numbers, copy `guifg` and attributes such as
+`nocombine` too. |nvim_set_hl()| replaces the complete group definition.
 
 ==============================================================================
 HEALTH CHECK                                               *diffs.nvim-health*

@@ -64,6 +64,14 @@ local function init()
   end
   log.set_enabled(config.debug)
 
+  if config.highlights.blend_alpha ~= nil then
+    log.notify(
+      'highlights.blend_alpha is deprecated. Support ends on November 30, 2026. '
+        .. 'See :help diffs.nvim-blend-alpha.',
+      vim.log.levels.WARN
+    )
+  end
+
   if config.highlights.overrides and next(config.highlights.overrides) then
     log.notify(
       'highlights.overrides is deprecated. Support ends on November 30, 2026. '
