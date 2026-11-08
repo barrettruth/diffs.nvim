@@ -905,9 +905,6 @@ For other filetypes, register a FileType autocmd before opening the buffers.
     })
 <
 
-Plugin authors can call |diffs.nvim.attach()| directly without registering a
-filetype. See |diffs.nvim-plugin-authors|.
-
 ------------------------------------------------------------------------------
 FUGITIVE                                                 *diffs.nvim-fugitive*
 
@@ -1394,35 +1391,6 @@ select_review_file({bufnr})                  *diffs.nvim.select_review_file()*
 <
     Parameters: ~
         {bufnr}  (integer, optional) Buffer number. Defaults to current buffer.
-
-------------------------------------------------------------------------------
-PLUGIN AUTHORS                                     *diffs.nvim-plugin-authors*
-
-For unified diff buffers, the host plugin manages the buffer and its lifecycle.
-Optionally set `b:diffs_repo_root`. Call
-|diffs.nvim.attach()| after writing the diff contents, and call
-|diffs.nvim.refresh()| after regenerating the buffer.
-
-Example: >lua
-    local bufnr = vim.api.nvim_create_buf(false, true)
-
-    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, diff_lines)
-    vim.b[bufnr].diffs_repo_root = repo_root
-    vim.bo[bufnr].filetype = 'myplugin-diff'
-
-    require('diffs').attach(bufnr)
-<
-
-`b:diffs_repo_root` is the only supported `b:diffs_*` variable to set on
-external buffers. On its own review maps and review-split panes |diffs.nvim|
-also exposes a read-only `b:diffs_review` table with `display` and `layout`
-fields (`layout` is `"unified"`, `"stacked"`, or `"split"`), so statuslines
-and other plugins can detect and identify a review buffer without calling the
-API. Treat it as identity only; live position and the file list come from
-|diffs.nvim.review_current()| and |diffs.nvim.review_files()|. Other
-`b:diffs_*` variables, generated `diffs://` buffer names, hunk/spec/source
-metadata, quickfix/location-list `user_data`, and non-root `lua/diffs/`
-modules are internal unless documented here.
 
 ==============================================================================
 KNOWN LIMITATIONS                                     *diffs.nvim-limitations*
