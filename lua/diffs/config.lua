@@ -184,7 +184,7 @@ function M.new(opts)
   if opts.highlights and type(opts.highlights.intra) == 'boolean' then
     vim.notify_once(
       '[diffs]: Boolean highlights.intra is deprecated. Support ends on November 30, 2026. '
-        .. 'See :help diffs.nvim-intra-toggle.',
+        .. 'See :help diffs.nvim-diffopt.',
       vim.log.levels.WARN
     )
   end

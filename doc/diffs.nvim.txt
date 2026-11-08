@@ -198,7 +198,7 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
 
         {intra}              (boolean|table, default: true)
                              Boolean values are deprecated.
-                             See |diffs.nvim-intra-toggle|.
+                             See |diffs.nvim-diffopt|.
                              See |diffs.nvim.IntraConfig| for fields.
 
         {overrides}          (table, default: {})
@@ -714,14 +714,10 @@ Inline granularity: ~                                      *diffs.nvim-inline*
     above, so a plain `:set`, an unimpaired-style toggle, or an autocmd all
     work. There is no dedicated mapping.
 
-    `highlights.intra` stays orthogonal: `inline:` chooses the granularity,
-    `highlights.intra.algorithm` chooses the engine that finds the differences,
-    and `highlights.intra = false` turns the feature off regardless of
-    'diffopt'.
+                                                *diffs.nvim-diffopt*
+    Intra-line highlighting is controlled by |'diffopt'|.
 
-                                                *diffs.nvim-intra-toggle*
-    To replace `highlights.intra = false`, remove that setting and disable
-    intra-line highlighting with |'diffopt'|: >lua
+    Disable intra-line highlighting: >lua
         vim.opt.diffopt:remove({ 'inline:simple', 'inline:char', 'inline:word' })
         vim.opt.diffopt:append('inline:none')
 <
