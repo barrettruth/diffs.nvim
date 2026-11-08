@@ -23,7 +23,7 @@ local integration_metadata = require('diffs.integrations')
 ---@field warn_max_lines boolean
 ---@field treesitter diffs.TreesitterConfig
 ---@field vim diffs.VimConfig|false
----@field intra diffs.IntraConfig|false
+---@field intra diffs.IntraConfig
 
 ---@class diffs.ConflictKeymaps
 ---@field ours string|false
@@ -125,7 +125,7 @@ function M.validate(opts)
     for _, key in ipairs({ 'treesitter', 'vim', 'intra' }) do
       local path = 'highlights.' .. key
       local value = opts.highlights[key]
-      local types = key == 'treesitter' and 'table' or { 'boolean', 'table' }
+      local types = key == 'vim' and { 'boolean', 'table' } or 'table'
       vim.validate(path, value, types, true)
       if type(value) == 'table' then
         vim.validate(path .. '.max_lines', value.max_lines, 'number', true)
@@ -181,21 +181,12 @@ function M.new(opts)
     integrations = integration_metadata.normalize(opts and opts.integrations),
   })
   M.validate(opts)
-  if opts.highlights and type(opts.highlights.intra) == 'boolean' then
-    vim.notify_once(
-      '[diffs]: Boolean highlights.intra is deprecated. Support ends on November 30, 2026. '
-        .. 'See :help diffs.nvim-intra-toggle.',
-      vim.log.levels.WARN
-    )
-  end
   local result = vim.tbl_deep_extend('force', DEFAULTS, opts)
   if result.conflict == true then
     result.conflict = vim.deepcopy(DEFAULTS.conflict)
   end
-  for _, key in ipairs({ 'vim', 'intra' }) do
-    if result.highlights[key] == true then
-      result.highlights[key] = vim.deepcopy(DEFAULTS.highlights[key])
-    end
+  if result.highlights.vim == true then
+    result.highlights.vim = vim.deepcopy(DEFAULTS.highlights.vim)
   end
   return result
 end
