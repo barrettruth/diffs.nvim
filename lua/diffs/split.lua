@@ -319,7 +319,7 @@ local function set_split_intra(bufnr, info, hunks)
     end
 
     if #texts > 0 and #texts <= intra_cfg.max_lines then
-      local intra = diff.compute_intra_hunks(texts, intra_cfg.algorithm)
+      local intra = diff.compute_intra_hunks(texts)
       local spans = intra and intra[cfg.spans] or {}
       for _, span in ipairs(spans) do
         local ref = refs[span.line]

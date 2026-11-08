@@ -106,7 +106,7 @@ describe('plugin bootstrap', function()
       'vim.notify = function(message, level)',
       '_G.diffs_notifications[#_G.diffs_notifications + 1] = { message = message, level = level }',
       'end',
-      'vim.g.diffs = { view = { prefix = false }, highlights = { background = false, intra = { algorithm = "vscode" } }, conflict = { show_virtual_text = false }, integrations = { "fugitive", "neogit", "neojj", "gitsigns", "committia", "telescope" } }',
+      'vim.g.diffs = { view = { prefix = false }, highlights = { background = false }, conflict = { show_virtual_text = false }, integrations = { "fugitive", "neogit", "neojj", "gitsigns", "committia", "telescope" } }',
       ('vim.opt.runtimepath:prepend(%s)'):format(vim.inspect(vim.fn.getcwd())),
     }
 
@@ -116,9 +116,6 @@ describe('plugin bootstrap', function()
       "print('runtime_loaded_at_startup=' .. tostring(package.loaded['diffs.runtime'] ~= nil))",
       "local runtime = require('diffs.runtime')",
       'runtime.attach(0)',
-      'runtime.attach(0)',
-      "print('warning=' .. _G.diffs_notifications[1].message)",
-      "print('warning_level=' .. _G.diffs_notifications[1].level)",
       "print('after_attach_notifications=' .. #(_G.diffs_notifications or {}))",
       'local runtime_config = runtime._test.get_config()',
       'local highlight_opts = runtime.get_highlight_opts()',
@@ -158,10 +155,7 @@ describe('plugin bootstrap', function()
 
     assert.matches('loaded=1', output, 1, true)
     assert.matches('notifications=0', output, 1, true)
-    assert.matches('after_attach_notifications=1', output, 1, true)
-    assert.matches('libvscodediff support will be removed on 30 November 2026.', output, 1, true)
-    assert.matches('Remove highlights.intra.algorithm', output, 1, true)
-    assert.matches('warning_level=' .. vim.log.levels.WARN, output, 1, true)
+    assert.matches('after_attach_notifications=0', output, 1, true)
     assert.matches('runtime_view_prefix=false', output, 1, true)
     assert.matches('runtime_fugitive=true', output, 1, true)
     assert.matches('runtime_neogit=true', output, 1, true)

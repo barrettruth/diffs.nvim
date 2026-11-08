@@ -14,10 +14,7 @@
 local M = {}
 
 local dbg = require('diffs.log').dbg
-local notify = require('diffs.log').notify
 local diffopt = require('diffs.diffopt')
-
-local warned_vscode_whitespace = false
 
 ---@param hunk_lines string[]
 ---@return diffs.ChangeGroup[]
@@ -380,90 +377,9 @@ local function diff_group_native(group, diff_opts)
   return all_del, all_add
 end
 
----@param group diffs.ChangeGroup
----@param handle table
----@param diff_opts? diffs.DiffOpts
----@return diffs.CharSpan[], diffs.CharSpan[]
-local function diff_group_vscode(group, handle, diff_opts)
-  ---@type diffs.CharSpan[]
-  local all_del = {}
-  ---@type diffs.CharSpan[]
-  local all_add = {}
-
-  local ffi = require('ffi')
-
-  local old_texts = {}
-  for _, l in ipairs(group.del_lines) do
-    table.insert(old_texts, l.text)
-  end
-  local new_texts = {}
-  for _, l in ipairs(group.add_lines) do
-    table.insert(new_texts, l.text)
-  end
-
-  local orig_arr = ffi.new('const char*[?]', #old_texts)
-  for i, t in ipairs(old_texts) do
-    orig_arr[i - 1] = t
-  end
-
-  local mod_arr = ffi.new('const char*[?]', #new_texts)
-  for i, t in ipairs(new_texts) do
-    mod_arr[i - 1] = t
-  end
-
-  local ignore_trim = false
-  if diff_opts then
-    ignore_trim = diff_opts.ignore_whitespace == true
-      or diff_opts.ignore_whitespace_change == true
-      or diff_opts.ignore_whitespace_change_at_eol == true
-  end
-
-  local opts = ffi.new('DiffsDiffOptions', {
-    ignore_trim_whitespace = ignore_trim,
-    max_computation_time_ms = 1000,
-    compute_moves = false,
-    extend_to_subwords = false,
-  })
-
-  local result = handle.compute_diff(orig_arr, #old_texts, mod_arr, #new_texts, opts)
-  if result == nil then
-    return all_del, all_add
-  end
-
-  for ci = 0, result.changes.count - 1 do
-    local mapping = result.changes.mappings[ci]
-    for ii = 0, mapping.inner_change_count - 1 do
-      local inner = mapping.inner_changes[ii]
-
-      local orig_line = inner.original.start_line
-      if group.del_lines[orig_line] then
-        table.insert(all_del, {
-          line = group.del_lines[orig_line].idx,
-          col_start = inner.original.start_col,
-          col_end = inner.original.end_col,
-        })
-      end
-
-      local mod_line = inner.modified.start_line
-      if group.add_lines[mod_line] then
-        table.insert(all_add, {
-          line = group.add_lines[mod_line].idx,
-          col_start = inner.modified.start_col,
-          col_end = inner.modified.end_col,
-        })
-      end
-    end
-  end
-
-  handle.free_lines_diff(result)
-
-  return all_del, all_add
-end
-
 ---@param hunk_lines string[]
----@param algorithm? string
 ---@return diffs.IntraChanges?
-function M.compute_intra_hunks(hunk_lines, algorithm)
+function M.compute_intra_hunks(hunk_lines)
   local inline = diffopt.inline()
   if inline == 'none' then
     dbg('intra skipped: diffopt inline:none')
@@ -475,16 +391,6 @@ function M.compute_intra_hunks(hunk_lines, algorithm)
     return nil
   end
 
-  algorithm = algorithm or 'default'
-
-  local vscode_handle = nil
-  if algorithm == 'vscode' then
-    vscode_handle = require('diffs.lib').load()
-    if not vscode_handle then
-      dbg('vscode algorithm requested but library not available, falling back to default')
-    end
-  end
-
   local diff_opts = diffopt.resolve()
   if diff_opts.algorithm then
     dbg('diffopt algorithm: %s', diff_opts.algorithm)
@@ -493,36 +399,16 @@ function M.compute_intra_hunks(hunk_lines, algorithm)
     dbg('diffopt linematch: %d', diff_opts.linematch)
   end
 
-  if vscode_handle and diff_opts.ignore_whitespace and not warned_vscode_whitespace then
-    warned_vscode_whitespace = true
-    notify(
-      'the vscode intra-line algorithm ignores only leading/trailing whitespace; '
-        .. 'internal whitespace differences are still highlighted. Set '
-        .. 'highlights.intra.algorithm = "default" for full whitespace handling.',
-      vim.log.levels.WARN
-    )
-  end
-
   ---@type diffs.CharSpan[]
   local all_add = {}
   ---@type diffs.CharSpan[]
   local all_del = {}
 
-  dbg(
-    'intra: %d change groups, algorithm=%s, vscode=%s',
-    #groups,
-    algorithm,
-    vscode_handle and 'yes' or 'no'
-  )
+  dbg('intra: %d change groups', #groups)
 
   for gi, group in ipairs(groups) do
     dbg('group %d: %d del lines, %d add lines', gi, #group.del_lines, #group.add_lines)
-    local ds, as
-    if vscode_handle then
-      ds, as = diff_group_vscode(group, vscode_handle, diff_opts)
-    else
-      ds, as = diff_group_native(group, diff_opts)
-    end
+    local ds, as = diff_group_native(group, diff_opts)
     dbg('group %d result: %d del spans, %d add spans', gi, #ds, #as)
     for _, s in ipairs(ds) do
       dbg('  del span: line=%d col=%d..%d', s.line, s.col_start, s.col_end)
@@ -601,11 +487,6 @@ function M.whitespace_only_lines(hunk_lines)
     end
   end
   return result
-end
-
----@return boolean
-function M.has_vscode()
-  return require('diffs.lib').has_lib()
 end
 
 return M

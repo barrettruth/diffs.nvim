@@ -64,14 +64,6 @@ local function init()
   end
   log.set_enabled(config.debug)
 
-  if config.highlights.intra and config.highlights.intra.algorithm == 'vscode' then
-    log.notify(
-      'libvscodediff support will be removed on 30 November 2026. '
-        .. "Remove highlights.intra.algorithm to use Neovim's diff.",
-      vim.log.levels.WARN
-    )
-  end
-
   fast_hl_opts = highlight.hunk_opts(config, {
     highlights = {
       treesitter = false,

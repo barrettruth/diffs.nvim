@@ -73,17 +73,17 @@ describe('diff', function()
 
   describe('compute_intra_hunks', function()
     it('returns nil for all-addition hunks', function()
-      local result = diff.compute_intra_hunks({ '+line1', '+line2' }, 'default')
+      local result = diff.compute_intra_hunks({ '+line1', '+line2' })
       assert.is_nil(result)
     end)
 
     it('returns nil for all-deletion hunks', function()
-      local result = diff.compute_intra_hunks({ '-line1', '-line2' }, 'default')
+      local result = diff.compute_intra_hunks({ '-line1', '-line2' })
       assert.is_nil(result)
     end)
 
     it('returns nil for context-only hunks', function()
-      local result = diff.compute_intra_hunks({ ' line1', ' line2' }, 'default')
+      local result = diff.compute_intra_hunks({ ' line1', ' line2' })
       assert.is_nil(result)
     end)
 
@@ -91,7 +91,7 @@ describe('diff', function()
       local result = diff.compute_intra_hunks({
         '-local x = 1',
         '+local x = 2',
-      }, 'default')
+      })
       assert.is_not_nil(result)
       assert.is_true(#result.del_spans > 0)
       assert.is_true(#result.add_spans > 0)
@@ -101,7 +101,7 @@ describe('diff', function()
       local result = diff.compute_intra_hunks({
         '-local x = 1',
         '+local x = 2',
-      }, 'default')
+      })
       assert.is_not_nil(result)
 
       assert.are.equal(1, #result.del_spans)
@@ -121,7 +121,7 @@ describe('diff', function()
         ' local b = 3',
         '-local c = 4',
         '+local c = 5',
-      }, 'default')
+      })
       assert.is_not_nil(result)
       assert.is_true(#result.del_spans >= 2)
       assert.is_true(#result.add_spans >= 2)
@@ -132,7 +132,7 @@ describe('diff', function()
         '-line one',
         '-line two',
         '+line combined',
-      }, 'default')
+      })
       assert.is_not_nil(result)
     end)
 
@@ -140,7 +140,7 @@ describe('diff', function()
       local result = diff.compute_intra_hunks({
         '-local x = "héllo"',
         '+local x = "wörld"',
-      }, 'default')
+      })
       assert.is_not_nil(result)
       assert.is_true(#result.del_spans > 0)
       assert.is_true(#result.add_spans > 0)
@@ -150,7 +150,7 @@ describe('diff', function()
       local result = diff.compute_intra_hunks({
         '-local x = 1',
         '+local x = 1',
-      }, 'default')
+      })
       assert.is_nil(result)
     end)
   end)
@@ -211,7 +211,7 @@ describe('diff', function()
     ---@param lines string[]
     ---@return string[]
     local function add_texts(lines)
-      local result = diff.compute_intra_hunks(lines, 'default')
+      local result = diff.compute_intra_hunks(lines)
       if not result then
         return {}
       end
@@ -227,7 +227,7 @@ describe('diff', function()
 
     it('skips intra-line work entirely on inline:none', function()
       vim.o.diffopt = 'internal,filler,inline:none'
-      assert.is_nil(diff.compute_intra_hunks(changed, 'default'))
+      assert.is_nil(diff.compute_intra_hunks(changed))
     end)
 
     it('spans first to last difference on inline:simple', function()
@@ -254,12 +254,6 @@ describe('diff', function()
     it('falls back to simple when diffopt sets no inline value', function()
       vim.o.diffopt = 'internal,filler'
       assert.are.same({ 'z = 2' }, add_texts(changed))
-    end)
-  end)
-
-  describe('has_vscode', function()
-    it('returns false in test environment', function()
-      assert.is_false(diff.has_vscode())
     end)
   end)
 end)
