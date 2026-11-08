@@ -55,7 +55,7 @@ CONTENTS                                                 *diffs.nvim-contents*
 ==============================================================================
 REQUIREMENTS                                         *diffs.nvim-requirements*
 
-- Neovim 0.9.0+
+- Neovim 0.12.0+
 - Treesitter parsers for languages you want highlighted
 - Optional: the Treesitter `diff` parser for the best experience
 
@@ -1499,7 +1499,7 @@ HEALTH CHECK                                               *diffs.nvim-health*
 Run `:checkhealth diffs` to verify your setup.
 
 Checks performed:
-- Neovim version >= 0.9.0
+- Neovim version >= 0.12.0
 - vim-fugitive is installed (optional)
 - libvscode_diff shared library is available (optional)
 

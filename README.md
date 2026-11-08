@@ -25,7 +25,7 @@ highlighting driven by treesitter.
 
 ## Requirements
 
-- Neovim 0.9.0+
+- Neovim 0.12.0+
 - Optional: the Treesitter `diff` parser for the best experience
 
 ## Installation
