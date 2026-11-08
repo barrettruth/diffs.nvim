@@ -108,7 +108,7 @@ function M.validate(opts)
       local types = key == 'vim' and { 'boolean', 'table' } or 'table'
       vim.validate(path, value, types, true)
       if type(value) == 'table' then
-        vim.validate(path .. '.enabled', value.enabled, 'boolean', true)
+        vim.validate(path .. '.enabled', value.enabled, 'nil')
         vim.validate(path .. '.max_lines', value.max_lines, 'number', true)
         if value.max_lines and value.max_lines < 1 then
           error('diffs: ' .. path .. '.max_lines must be >= 1')
