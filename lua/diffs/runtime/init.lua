@@ -154,25 +154,25 @@ end
 ---@return boolean
 function M.get_fugitive_config()
   init()
-  return config.integrations.fugitive
+  return config.integrations.fugitive == true
 end
 
 ---@return boolean
 function M.get_neojj_config()
   init()
-  return config.integrations.neojj
+  return config.integrations.neojj == true
 end
 
 ---@return boolean
 function M.get_committia_config()
   init()
-  return config.integrations.committia
+  return config.integrations.committia == true
 end
 
 ---@return boolean
 function M.get_telescope_config()
   init()
-  return config.integrations.telescope
+  return config.integrations.telescope == true
 end
 
 ---@return diffs.ConflictConfig

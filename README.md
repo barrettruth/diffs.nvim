@@ -5,7 +5,7 @@
 Enhance Neovim's built-in diff mode (and much more!) with language-aware syntax
 highlighting driven by treesitter.
 
-<img width="1920" height="1200" alt="image" src="https://github.com/user-attachments/assets/457730f9-d512-408a-81bf-4492d2848b7e" />
+<img width="863" height="752" alt="image" src="https://github.com/user-attachments/assets/fb67f1f5-e64b-4b67-88f4-2d8d37d9f9f2" />
 
 ## Features
 
@@ -53,12 +53,7 @@ Yes. Enable integrations in your config:
 
 ```lua
 vim.g.diffs = {
-  integrations = {
-    fugitive = true,
-    neogit = true,
-    neojj = true,
-    gitsigns = true,
-  }
+  integrations = { 'fugitive', 'neogit', 'neojj', 'gitsigns' },
 }
 ```
 

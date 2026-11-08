@@ -4,27 +4,15 @@ local keys = { 'fugitive', 'neogit', 'neojj', 'gitsigns', 'committia', 'telescop
 
 local metadata = {
   fugitive = {
-    default = false,
     filetypes = { 'fugitive' },
   },
   neogit = {
-    default = false,
     filetypes = { 'NeogitStatus', 'NeogitCommitView', 'NeogitDiffView' },
     filetype_pattern = '^Neogit',
   },
   neojj = {
-    default = false,
     filetypes = { 'NeojjStatus', 'NeojjCommitView', 'NeojjDiffView' },
     filetype_pattern = '^Neojj',
-  },
-  gitsigns = {
-    default = false,
-  },
-  committia = {
-    default = false,
-  },
-  telescope = {
-    default = false,
   },
 }
 
@@ -33,11 +21,18 @@ function M.keys()
   return vim.deepcopy(keys)
 end
 
----@return table<string, boolean>
-function M.defaults()
+---@param values table?
+---@return diffs.IntegrationsConfig
+function M.normalize(values)
+  vim.validate('integrations', values, 'table', true)
   local result = {}
-  for _, key in ipairs(keys) do
-    result[key] = metadata[key].default
+  for key, value in pairs(values or {}) do
+    if type(key) == 'number' then
+      vim.validate('integrations[' .. key .. ']', value, 'string')
+      result[value] = true
+    else
+      result[key] = value
+    end
   end
   return result
 end
@@ -52,10 +47,10 @@ end
 ---@return string[]
 function M.filetypes(opts)
   local fts = { 'git', 'gitcommit' }
-  local intg = opts.integrations or {}
+  local intg = M.normalize(opts.integrations)
   for _, key in ipairs(keys) do
     if M.is_enabled(intg[key]) then
-      for _, filetype in ipairs(metadata[key].filetypes or {}) do
+      for _, filetype in ipairs(metadata[key] and metadata[key].filetypes or {}) do
         table.insert(fts, filetype)
       end
     end

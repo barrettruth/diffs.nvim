@@ -22,8 +22,6 @@ local integration_metadata = require('diffs.integrations')
 ---@class diffs.ViewConfig
 ---@field default_layout "unified"|"stacked"|"split"
 ---@field prefix boolean
----@field change_bar string
----@field rail_separator string
 
 ---@class diffs.Highlights
 ---@field background boolean
@@ -57,12 +55,12 @@ local integration_metadata = require('diffs.integrations')
 ---@field args? string[]
 
 ---@class diffs.IntegrationsConfig
----@field fugitive boolean
----@field neogit boolean
----@field neojj boolean
----@field gitsigns boolean
----@field committia boolean
----@field telescope boolean
+---@field fugitive? boolean
+---@field neogit? boolean
+---@field neojj? boolean
+---@field gitsigns? boolean
+---@field committia? boolean
+---@field telescope? boolean
 ---@field difftastic? boolean|diffs.DifftasticConfig
 
 ---@class diffs.Config
@@ -79,8 +77,6 @@ local DEFAULTS = {
   view = {
     default_layout = 'unified',
     prefix = true,
-    change_bar = '▏',
-    rail_separator = '│',
   },
   extra_filetypes = {},
   highlights = {
@@ -104,7 +100,7 @@ local DEFAULTS = {
       max_lines = 500,
     },
   },
-  integrations = integration_metadata.defaults(),
+  integrations = {},
   conflict = {
     enabled = true,
     disable_diagnostics = true,
@@ -114,34 +110,6 @@ local DEFAULTS = {
   },
 }
 
----@param path string
----@param replacement? string
-local function reject_removed_key(path, replacement)
-  local message = 'diffs: ' .. path .. ' has been removed'
-  if replacement then
-    message = message .. '; use ' .. replacement
-  end
-  error(message)
-end
-
----@param opts table
-local function reject_removed_config(opts)
-  if opts.hide_prefix ~= nil then
-    reject_removed_key('hide_prefix', 'view.prefix')
-  end
-  if type(opts.highlights) == 'table' then
-    if opts.highlights.gutter ~= nil then
-      reject_removed_key('highlights.gutter')
-    end
-    if opts.highlights.priorities ~= nil then
-      reject_removed_key('highlights.priorities')
-    end
-  end
-  if type(opts.conflict) == 'table' and opts.conflict.priority ~= nil then
-    reject_removed_key('conflict.priority')
-  end
-end
-
 ---@param opts? table
 ---@return string[]
 function M.compute_filetypes(opts)
@@ -150,15 +118,12 @@ end
 
 ---@param opts table
 function M.validate(opts)
-  reject_removed_config(opts)
   vim.validate('debug', opts.debug, function(v)
     return v == nil or type(v) == 'boolean' or type(v) == 'string'
   end, 'boolean or string (file path)')
   vim.validate('view', opts.view, 'table', true)
   if opts.view then
     vim.validate('view.prefix', opts.view.prefix, 'boolean', true)
-    vim.validate('view.change_bar', opts.view.change_bar, 'string', true)
-    vim.validate('view.rail_separator', opts.view.rail_separator, 'string', true)
   end
   vim.validate('integrations', opts.integrations, 'table', true)
   local integrations = opts.integrations or {}
@@ -295,7 +260,9 @@ end
 ---@param opts? table
 ---@return diffs.Config
 function M.new(opts)
-  opts = opts or {}
+  opts = vim.tbl_extend('force', opts or {}, {
+    integrations = integration_metadata.normalize(opts and opts.integrations),
+  })
   M.validate(opts)
   return vim.tbl_deep_extend('force', DEFAULTS, opts)
 end

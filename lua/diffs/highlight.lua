@@ -4,8 +4,6 @@ local dbg = require('diffs.log').dbg
 local diff = require('diffs.diff')
 local rails = require('diffs.rails')
 
-local default_change_bar = '▏'
-
 ---@param start_col integer?
 ---@param end_col integer?
 ---@param raw_len integer?
@@ -185,7 +183,6 @@ end
 
 ---@class diffs.HunkOpts
 ---@field hide_prefix boolean
----@field change_bar string
 ---@field highlights diffs.HunkHighlights
 ---@field defer_vim_syntax? boolean
 ---@field syntax_only? boolean
@@ -204,7 +201,6 @@ function M.hunk_opts(config, overrides)
   })
   local opts = {
     hide_prefix = not config.view.prefix,
-    change_bar = config.view.change_bar,
     highlights = highlights,
   }
   if not overrides then
@@ -883,8 +879,7 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
           })
 
           local rail_style = hunk.rail_style or 'dual'
-          local rail_number_ranges =
-            rails.number_ranges(hunk.rail_width, hunk.rail_separator_width, rail_style)
+          local rail_number_ranges = rails.number_ranges(hunk.rail_width, rail_style)
           if rail_number_ranges then
             for _, range in ipairs(rail_number_ranges) do
               local nr_start, nr_end = clamp_cols(range.start, range.finish, raw_len)
@@ -945,7 +940,7 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
 
       if hunk.rail_width and is_diff_line and opts.highlights.background and not dehl then
         pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, buf_line, 0, {
-          virt_text = { { opts.change_bar or default_change_bar, bar_hl } },
+          virt_text = { { '▏', bar_hl } },
           virt_text_pos = 'overlay',
           hl_mode = 'replace',
           priority = p.char_bg + 10,

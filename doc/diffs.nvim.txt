@@ -87,17 +87,8 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
       view = {
         default_layout = 'unified',
         prefix = true,
-        change_bar = '▏',
-        rail_separator = '│',
       },
-      integrations = {
-        fugitive = false,
-        neogit = false,
-        neojj = false,
-        gitsigns = false,
-        committia = false,
-        telescope = false,
-      },
+      integrations = {},
       extra_filetypes = {},
       highlights = {
         background = true,
@@ -158,45 +149,36 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              When `highlights.background` is also enabled,
                              the overlay inherits the line's background color.
 
-        {change_bar}         (string, default: '▏')
-                             Glyph for changed-line bars in diffs.nvim-owned
-                             views. Colors come from `DiffsAddBar` and
-                             `DiffsDeleteBar`.
-
-        {rail_separator}     (string, default: '│')
-                             Glyph between the generated line-number area and
-                             diff text. Surrounding padding is managed
-                             internally.
-
-        {integrations}       (table, default: all false)
-                             Integration toggles. Each key accepts `true` or
-                             `false`. See |diffs.nvim-integrations|.
+        {integrations}       (table, default: {})
+                             List of enabled integration names, such as
+                             `{ 'fugitive', 'neogit' }`.
+                             See |diffs.nvim-integrations|.
                                                *diffs.nvim.IntegrationsConfig*
-                             Fields: ~
+                             Names: ~
 
-            {fugitive}       (boolean, default: false)
+            {fugitive}
                              Enable vim-fugitive support. See
                              |diffs.nvim-fugitive|.
 
-            {neogit}         (boolean, default: false)
+            {neogit}
                              Enable Neogit support. See |diffs.nvim-neogit|.
 
-            {neojj}          (boolean, default: false)
+            {neojj}
                              Enable neojj support. See |diffs.nvim-neojj|.
 
-            {gitsigns}       (boolean, default: false)
+            {gitsigns}
                              Enable gitsigns.nvim popup support. See
                              |diffs.nvim-gitsigns|.
 
-            {committia}      (boolean, default: false)
+            {committia}
                              Enable committia.vim diff-pane support. See
                              |diffs.nvim-committia|.
 
-            {telescope}      (boolean, default: false)
+            {telescope}
                              Enable telescope.nvim preview support. See
                              |diffs.nvim-telescope|.
 
-            {difftastic}     (boolean|table, default: false)
+            {difftastic}
                              Enable structural diffing via the `difft` binary.
                              Use `{ args = {...} }` to forward flags. See
                              |diffs.nvim-difftastic|.
@@ -645,8 +627,9 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     file index; the location list holds the active file's hunks
     (`:lnext`/`:lprev`). A quickfix from another surface
     (such as an open review map) is left untouched, so `:cnext`/`:cprev` follow
-    that list. `]c`/`[c` navigate hunks within the active file across both panes,
-    and `q` closes the pair.
+    that list. If the review map is hidden, <CR> on its quickfix file entries
+    selects the file in the matching visible split review. `]c`/`[c` navigate
+    hunks within the active file across both panes, and `q` closes the pair.
 
     Prefix with |:vertical| to open the generated `unified` and `stacked`
     review maps in a vertical split (`:vertical Diff review`). As with |:Diff|,
@@ -961,17 +944,11 @@ INTEGRATIONS                                         *diffs.nvim-integrations*
 
 diffs.nvim integrates with several plugins. There are two attachment patterns:
 
-Automatic: ~ Enable via config toggles. The plugin registers `FileType`
+Automatic: ~ List integrations in the config. The plugin registers `FileType`
 autocmds for each integration's filetypes and attaches automatically.
 >lua
     vim.g.diffs = {
-      integrations = {
-        fugitive = true,
-        neogit = true,
-        neojj = true,
-        gitsigns = true,
-        committia = true,
-      },
+      integrations = { 'fugitive', 'neogit', 'neojj', 'gitsigns', 'committia' },
     }
 <
 
@@ -989,7 +966,7 @@ metadata; see |diffs.nvim-plugin-authors|.
 FUGITIVE                                                 *diffs.nvim-fugitive*
 
 Enable vim-fugitive (https://github.com/tpope/vim-fugitive) support: >lua
-    vim.g.diffs = { integrations = { fugitive = true } }
+    vim.g.diffs = { integrations = { 'fugitive' } }
 <
 
 `:Git` status and commit views receive treesitter syntax, line backgrounds,
@@ -1037,19 +1014,17 @@ This status-row behavior is intentionally narrower than Fugitive
 Configuration: ~
 >lua
     vim.g.diffs = {
-      integrations = {
-        fugitive = true,
-      },
+      integrations = { 'fugitive' },
     }
 <
-    Use `fugitive = false` to disable. Status keymaps are fixed at `du` and
-    `dU`.
+    Remove `'fugitive'` from the list to disable it. Status keymaps are fixed
+    at `du` and `dU`.
 
 ------------------------------------------------------------------------------
 NEOGIT                                                     *diffs.nvim-neogit*
 
 Enable Neogit (https://github.com/NeogitOrg/neogit) support: >lua
-    vim.g.diffs = { integrations = { neogit = true } }
+    vim.g.diffs = { integrations = { 'neogit' } }
 <
 
 Expanding a diff in a Neogit buffer (e.g., TAB on a file in the status view)
@@ -1062,7 +1037,7 @@ Configuration: ~
 NEOJJ                                                       *diffs.nvim-neojj*
 
 Enable neojj (https://github.com/NicholasZolton/neojj) support: >lua
-    vim.g.diffs = { integrations = { neojj = true } }
+    vim.g.diffs = { integrations = { 'neojj' } }
 <
 
 Expanding a diff in a neojj buffer (e.g., TAB on a file in the status view)
@@ -1076,7 +1051,7 @@ GITSIGNS                                                 *diffs.nvim-gitsigns*
 
 Enable gitsigns.nvim (https://github.com/lewis6991/gitsigns.nvim) popup
 integration for blame hunk previews: >lua
-    vim.g.diffs = { integrations = { gitsigns = true } }
+    vim.g.diffs = { integrations = { 'gitsigns' } }
 <
 
 Configuration: ~
@@ -1093,7 +1068,7 @@ COMMITTIA                                               *diffs.nvim-committia*
 
 Enable committia.vim (https://github.com/rhysd/committia.vim) diff-pane
 support: >lua
-    vim.g.diffs = { integrations = { committia = true } }
+    vim.g.diffs = { integrations = { 'committia' } }
 <
 
 Use `committia = false` to disable.
@@ -1103,7 +1078,7 @@ TELESCOPE                                               *diffs.nvim-telescope*
 
 Enable telescope.nvim (https://github.com/nvim-telescope/telescope.nvim)
 preview highlighting: >lua
-    vim.g.diffs = { integrations = { telescope = true } }
+    vim.g.diffs = { integrations = { 'telescope' } }
 <
 
 Telescope does not set `filetype=diff` on preview buffers — it calls
@@ -1127,7 +1102,7 @@ Enable structural diffing via difftastic
 (https://github.com/Wilfred/difftastic). This integration is different from
 the others: difftastic is not a plugin whose buffers are decorated, but an
 external `difft` binary used as a structural diff engine. >lua
-    vim.g.diffs = { integrations = { difftastic = true } }
+    vim.g.diffs = { integrations = { 'difftastic' } }
     vim.g.diffs = { integrations = { difftastic = { args = { '--ignore-comments' } } } }
 <
 
@@ -1590,6 +1565,12 @@ Diff and generated rail highlights: ~
 
                                                               *DiffsDeleteBar*
     DiffsDeleteBar      Change bar for `-` lines in diffs.nvim-owned views.
+
+                                                               *DiffsAddCount*
+    DiffsAddCount       Added-line counts in the quickfix file list.
+
+                                                            *DiffsDeleteCount*
+    DiffsDeleteCount    Deleted-line counts in the quickfix file list.
 
                                                                 *DiffsAddText*
     DiffsAddText        Character-level background for changed characters

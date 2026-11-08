@@ -95,7 +95,7 @@ describe('plugin bootstrap', function()
       'vim.notify = function(message, level)',
       '_G.diffs_notifications[#_G.diffs_notifications + 1] = { message = message, level = level }',
       'end',
-      'vim.g.diffs = { view = { prefix = false }, highlights = { background = false }, conflict = { show_virtual_text = false }, integrations = { fugitive = true, neogit = true, neojj = true, gitsigns = true, committia = true, telescope = true } }',
+      'vim.g.diffs = { view = { prefix = false }, highlights = { background = false }, conflict = { show_virtual_text = false }, integrations = { "fugitive", "neogit", "neojj", "gitsigns", "committia", "telescope" } }',
       ('vim.opt.runtimepath:prepend(%s)'):format(vim.inspect(vim.fn.getcwd())),
     }
 
@@ -164,19 +164,6 @@ describe('plugin bootstrap', function()
     assert.matches('has_neogit_autocmd=true', output, 1, true)
     assert.matches('has_neojj_autocmd=true', output, 1, true)
     assert.matches('has_telescope_autocmd=true', output, 1, true)
-  end)
-
-  it('rejects removed config during plugin startup', function()
-    local init_lines = {
-      'vim.g.diffs = { hide_prefix = true, highlights = { gutter = false, priorities = { syntax = 250 } }, conflict = { priority = 250 }, integrations = { fugitive = {} } }',
-      ('vim.opt.runtimepath:prepend(%s)'):format(vim.inspect(vim.fn.getcwd())),
-    }
-
-    local shell_error, output = run_child_result(init_lines, {})
-
-    assert.are.equal(0, shell_error)
-    assert.matches('Error in ', output, 1, true)
-    assert.matches('diffs: hide_prefix has been removed; use view.prefix', output, 1, true)
   end)
 
   it('navigates both review panes and preserves quickfix entries across reloads', function()

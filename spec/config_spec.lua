@@ -12,9 +12,7 @@ describe('diffs.config', function()
     end)
 
     it('accepts empty config', function()
-      assert.has_no.errors(function()
-        config.new({})
-      end)
+      assert.are.same({}, config.new({}).integrations)
     end)
 
     it('accepts full config', function()
@@ -97,35 +95,6 @@ describe('diffs.config', function()
       assert.is_nil(opts.hide_prefix)
     end)
 
-    it('defaults view glyphs', function()
-      local opts = config.new()
-      assert.are.equal('▏', opts.view.change_bar)
-      assert.are.equal('│', opts.view.rail_separator)
-    end)
-
-    it('accepts custom view glyphs', function()
-      local opts = config.new({
-        view = {
-          change_bar = '┃',
-          rail_separator = '|',
-        },
-      })
-      assert.are.equal('┃', opts.view.change_bar)
-      assert.are.equal('|', opts.view.rail_separator)
-    end)
-
-    it('validates custom view glyphs', function()
-      local ok, err = pcall(config.new, { view = { change_bar = false } })
-      assert.is_false(ok)
-      assert.matches('view.change_bar', err, 1, true)
-      assert.matches('string', err, 1, true)
-
-      ok, err = pcall(config.new, { view = { rail_separator = false } })
-      assert.is_false(ok)
-      assert.matches('view.rail_separator', err, 1, true)
-      assert.matches('string', err, 1, true)
-    end)
-
     it('defaults supported config without removed fields', function()
       local opts = config.new()
 
@@ -151,37 +120,15 @@ describe('diffs.config', function()
       assert.is_nil(opts.conflict.priority)
     end)
 
-    it('rejects removed config keys', function()
-      local cases = {
-        {
-          input = { hide_prefix = true },
-          message = 'diffs: hide_prefix has been removed; use view.prefix',
-        },
-        {
-          input = { highlights = { gutter = false } },
-          message = 'diffs: highlights.gutter has been removed',
-        },
-        {
-          input = { highlights = { priorities = { syntax = 250 } } },
-          message = 'diffs: highlights.priorities has been removed',
-        },
-        {
-          input = { conflict = { priority = 250 } },
-          message = 'diffs: conflict.priority has been removed',
-        },
-      }
-
-      for _, case in ipairs(cases) do
-        local ok, err = pcall(config.new, case.input)
-        assert.is_false(ok)
-        assert.matches(case.message, err, 1, true)
-      end
-    end)
-
-    it('keeps boolean integration toggles as the supported enable path', function()
+    it('accepts integration lists and boolean maps', function()
       for _, key in ipairs(integration_keys) do
-        local opts = config.new({ integrations = { [key] = true } })
-        assert.is_true(opts.integrations[key])
+        for _, integrations in ipairs({ { key }, { [key] = true }, { [key] = false } }) do
+          local input = vim.deepcopy(integrations)
+          local opts = config.new({ integrations = integrations })
+          assert.are.equal(integrations[key] ~= false, opts.integrations[key])
+          assert.is_nil(opts.integrations[1])
+          assert.are.same(input, integrations)
+        end
       end
     end)
 
@@ -201,6 +148,10 @@ describe('diffs.config', function()
         assert.matches('integrations.' .. key, err, 1, true)
         assert.matches('boolean', err, 1, true)
       end
+      local ok, err = pcall(config.new, { integrations = { true } })
+      assert.is_false(ok)
+      assert.matches('integrations[1]', err, 1, true)
+      assert.matches('string', err, 1, true)
     end)
 
     it('validates numeric highlight limits', function()
@@ -272,9 +223,11 @@ describe('diffs.config', function()
       assert.are.same({ 'git', 'gitcommit' }, fts)
     end)
 
-    it('includes fugitive when integrations.fugitive = true', function()
-      local fts = compute({ integrations = { fugitive = true } })
-      assert.is_true(vim.tbl_contains(fts, 'fugitive'))
+    it('includes fugitive from integration lists and boolean maps', function()
+      for _, integrations in ipairs({ { 'fugitive' }, { fugitive = true } }) do
+        local fts = compute({ integrations = integrations })
+        assert.is_true(vim.tbl_contains(fts, 'fugitive'))
+      end
     end)
 
     it('excludes fugitive when integrations.fugitive is a table', function()

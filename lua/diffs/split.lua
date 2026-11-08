@@ -29,7 +29,6 @@ local win_closed_registered = false
 ---@field rows diffs.SplitRow[]
 ---@field side "left"|"right"
 ---@field rail_width integer
----@field change_bar string
 ---@field anchors integer[]
 ---@field difft_intra? table<integer, {col_start: integer, col_end: integer}[]>
 
@@ -37,7 +36,6 @@ local win_closed_registered = false
 local pane_info = {}
 local split_line_ns = vim.api.nvim_create_namespace('diffs_split_line')
 local split_intra_ns = vim.api.nvim_create_namespace('diffs_split_intra')
-local default_change_bar = '▏'
 local split_statuscolumn = "%!v:lua.require'diffs.split'.statuscolumn()"
 
 ---@class diffs.SplitReuseWins
@@ -52,7 +50,6 @@ local split_statuscolumn = "%!v:lua.require'diffs.split'.statuscolumn()"
 ---@field diff_lines? string[]
 ---@field hunk_index? integer
 ---@field quickfix? boolean
----@field change_bar? string
 ---@field title? string
 ---@field reuse_wins? diffs.SplitReuseWins
 
@@ -207,7 +204,7 @@ local function rail_segment(info, lnum, number)
   if row.kind == cfg.kind then
     return ('%%C%%s%%#%s#%s%%#%s#%s%%#%s# '):format(
       cfg.bar_hl,
-      info.change_bar,
+      '▏',
       cfg.nr_hl,
       numstr,
       cfg.line_hl
@@ -933,20 +930,17 @@ end
 ---@param old_lines string[]
 ---@param new_lines string[]
 ---@param hunks diffs.DiffHunk[]
----@param change_bar? string
 ---@param difft? diffs.DifftAlignment precomputed difftastic alignment
 ---@return diffs.SplitAlignment, diffs.SplitPaneInfo, diffs.SplitPaneInfo
-local function build_pane_infos(old_lines, new_lines, hunks, change_bar, difft)
+local function build_pane_infos(old_lines, new_lines, hunks, difft)
   local use_difft = difft ~= nil and difft.changed
   local alignment = use_difft and difft or split_align.align(old_lines, new_lines, hunks)
   local max_lnum = math.max(#old_lines, #new_lines, 1)
   local rail_width = math.max(2, #tostring(max_lnum))
-  local bar = change_bar or default_change_bar
   local left_info = {
     rows = alignment.left_rows,
     side = 'left',
     rail_width = rail_width,
-    change_bar = bar,
     anchors = alignment.anchors,
     difft_intra = use_difft and difft.left_intra or nil,
   }
@@ -954,7 +948,6 @@ local function build_pane_infos(old_lines, new_lines, hunks, change_bar, difft)
     rows = alignment.right_rows,
     side = 'right',
     rail_width = rail_width,
-    change_bar = bar,
     anchors = alignment.anchors,
     difft_intra = use_difft and difft.right_intra or nil,
   }
@@ -995,7 +988,7 @@ function M.open(opts)
     log.notify('difftastic: no structural changes (formatting only)', vim.log.levels.INFO)
   end
   local alignment, left_info, right_info =
-    build_pane_infos(old_content, new_content, split_hunks, opts.change_bar, difft)
+    build_pane_infos(old_content, new_content, split_hunks, difft)
 
   local reuse = opts.reuse_wins
   local invoking_win = vim.api.nvim_get_current_win()
@@ -1087,7 +1080,7 @@ end
 
 ---@param bufnr integer
 ---@param source table
----@param opts? { change_bar?: string, quickfix?: boolean }
+---@param opts? { quickfix?: boolean }
 ---@return boolean, string?
 function M.read_buffer(bufnr, source, opts)
   opts = opts or {}
@@ -1141,7 +1134,7 @@ function M.read_buffer(bufnr, source, opts)
 
   local difft = difft_alignment(source.spec, old_content, new_content)
   local alignment, left_info, right_info =
-    build_pane_infos(old_content, new_content, split_hunks or {}, opts.change_bar, difft)
+    build_pane_infos(old_content, new_content, split_hunks or {}, difft)
   apply_buffer_lines(left_buf, left_source, alignment.left_lines, left_info, split_hunks or {})
   apply_buffer_lines(right_buf, right_source, alignment.right_lines, right_info, split_hunks or {})
   set_peers(left_buf, right_buf)
