@@ -18,7 +18,6 @@ local integration_metadata = require('diffs.integrations')
 ---@class diffs.Highlights
 ---@field background boolean
 ---@field blend_alpha? number
----@field overrides? table<string, table>
 ---@field warn_max_lines boolean
 ---@field treesitter diffs.TreesitterConfig
 ---@field vim diffs.VimConfig|false
@@ -115,7 +114,6 @@ function M.validate(opts)
   if opts.highlights then
     vim.validate('highlights.background', opts.highlights.background, 'boolean', true)
     vim.validate('highlights.blend_alpha', opts.highlights.blend_alpha, 'number', true)
-    vim.validate('highlights.overrides', opts.highlights.overrides, 'table', true)
     vim.validate('highlights.warn_max_lines', opts.highlights.warn_max_lines, 'boolean', true)
 
     for _, key in ipairs({ 'treesitter', 'vim', 'intra' }) do

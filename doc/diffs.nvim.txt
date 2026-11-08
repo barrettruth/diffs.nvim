@@ -198,9 +198,6 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              See |diffs.nvim-diffopt|.
                              See |diffs.nvim.IntraConfig| for fields.
 
-        {overrides}          (table, default: {})
-                             Deprecated. See |diffs.nvim-highlights|.
-
                                                  *diffs.nvim.TreesitterConfig*
     Treesitter config fields: ~
         {max_lines}          (integer, default: 500)
@@ -1478,6 +1475,8 @@ After diffs.nvim initializes, customize with |nvim_set_hl()| and
     })
     vim.schedule(set_highlights)
 <
+
+diffs.nvim recomputes these groups on |ColorScheme|.
 
 ==============================================================================
 HEALTH CHECK                                               *diffs.nvim-health*
