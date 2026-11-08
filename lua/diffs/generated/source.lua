@@ -229,6 +229,10 @@ end
 ---@return diffs.GeneratedBufferSource?, string?
 function M.source(bufnr)
   local raw = M.get_var(bufnr, 'diffs_source')
+  if raw == nil and not vim.api.nvim_buf_is_loaded(bufnr) then
+    local vars = restorable[bufnr]
+    raw = vars and vars.diffs_source
+  end
   if raw == nil then
     return nil, nil
   end

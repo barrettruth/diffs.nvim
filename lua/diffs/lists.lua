@@ -7,6 +7,7 @@ local generated_list_autocmds = {}
 local generated_list_state = {}
 local quickfix_keymap_autocmd
 local quickfix_enter_desc = 'Open quickfix item'
+local quickfix_ns = vim.api.nvim_create_namespace('diffs_quickfix')
 
 local group = vim.api.nvim_create_augroup('diffs_generated_lists', { clear = false })
 
@@ -139,16 +140,6 @@ local function metadata_for_line(opts, lnum, file)
   return {}
 end
 
----@param entry table
----@return string
-local function entry_display_file(entry)
-  local file = entry.skipped and (entry.file .. ' (skipped)') or entry.file
-  if type(entry.section_label) == 'string' and entry.section_label ~= '' then
-    return ('[%s] %s'):format(entry.section_label, file)
-  end
-  return file
-end
-
 ---@param hunk diffs.DiffHunk?
 ---@return string?
 local function hunk_key(hunk)
@@ -204,11 +195,12 @@ end
 
 ---@param entries table[]
 local function format_file_text(entries)
-  local max_fname = 0
+  local max_fname, max_section = 0, 0
   local max_add, max_del = 0, 0
   for _, entry in ipairs(entries) do
-    entry.display_file = entry_display_file(entry)
-    max_fname = math.max(max_fname, #entry.display_file)
+    entry.display_file = entry.skipped and (entry.file .. ' (skipped)') or entry.file
+    max_fname = math.max(max_fname, vim.fn.strdisplaywidth(entry.display_file))
+    max_section = math.max(max_section, entry.section_label and #entry.section_label + 2 or 0)
     if entry.adds > 0 then
       max_add = math.max(max_add, #tostring(entry.adds) + 1)
     end
@@ -218,8 +210,13 @@ local function format_file_text(entries)
   end
 
   for _, entry in ipairs(entries) do
-    local padded = entry.display_file .. string.rep(' ', max_fname - #entry.display_file)
-    local parts = { padded }
+    entry.display_file = entry.display_file
+      .. string.rep(' ', max_fname - vim.fn.strdisplaywidth(entry.display_file))
+    local parts = {}
+    if max_section > 0 then
+      local section = entry.section_label and ('[' .. entry.section_label .. ']') or ''
+      parts[#parts + 1] = section .. string.rep(' ', max_section - #section)
+    end
     if max_add > 0 then
       parts[#parts + 1] = entry.adds > 0 and string.format('%' .. max_add .. 's', '+' .. entry.adds)
         or string.rep(' ', max_add)
@@ -243,6 +240,7 @@ local function quickfix_items(bufnr, entries)
       bufnr = bufnr,
       lnum = entry.lnum,
       col = 1,
+      module = entry.display_file,
       text = entry.text,
       user_data = {
         diffs = {
@@ -332,6 +330,7 @@ local function loclist_items(bufnr, hunks, entry)
         bufnr = bufnr,
         lnum = hunk.buffer_range.start,
         col = 1,
+        module = hfile,
         text = ('%s (hunk %d) %s'):format(display, file_hunk_count[count_key], hunk.header),
         user_data = {
           diffs = {
@@ -648,6 +647,10 @@ local function jump_current_quickfix_item()
     end
   end
   if not jumped then
+    if not is_loclist and require('diffs.commands').review_quickfix_jump(item) then
+      vim.fn.setqflist({}, 'a', { idx = row })
+      return
+    end
     vim.cmd(command .. ' ' .. row)
   end
   sync_split_item(item)
@@ -728,6 +731,31 @@ local function enter_keymap(bufnr)
 end
 
 ---@param bufnr integer
+local highlight_quickfix = vim.schedule_wrap(function(bufnr)
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return
+  end
+  vim.api.nvim_buf_clear_namespace(bufnr, quickfix_ns, 0, -1)
+  local qf = vim.fn.getqflist({ qfbufnr = 0, items = 0 })
+  if qf.qfbufnr ~= bufnr then
+    return
+  end
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  for row, item in ipairs(qf.items) do
+    local data = item_diffs_data(item)
+    if data and data.kind == 'file' and lines[row] then
+      local offset = #lines[row] - #item.text
+      for first, count, last in item.text:gmatch('()([+-]%d+)()') do
+        vim.api.nvim_buf_set_extmark(bufnr, quickfix_ns, row - 1, offset + first - 1, {
+          end_col = offset + last - 1,
+          hl_group = count:sub(1, 1) == '+' and 'DiffsAddCount' or 'DiffsDeleteCount',
+        })
+      end
+    end
+  end
+end)
+
+---@param bufnr integer
 local function set_quickfix_keymap(bufnr)
   local existing = enter_keymap(bufnr)
   if existing and existing.desc ~= quickfix_enter_desc then
@@ -749,6 +777,7 @@ function M.ensure_quickfix_keymap()
     pattern = 'qf',
     callback = function(args)
       set_quickfix_keymap(args.buf)
+      highlight_quickfix(args.buf)
     end,
   })
 
@@ -758,6 +787,7 @@ function M.ensure_quickfix_keymap()
       and vim.api.nvim_get_option_value('filetype', { buf = bufnr }) == 'qf'
     then
       set_quickfix_keymap(bufnr)
+      highlight_quickfix(bufnr)
     end
   end
 end
@@ -765,23 +795,14 @@ end
 -- selene: allow(global_usage)
 function _G._diffs_qftf(info)
   local items = quickfix_text_items(info)
-  local max_lnum = 0
-  for i = info.start_idx, info.end_idx do
-    local e = items[i]
-    if e and e.lnum > 0 then
-      max_lnum = math.max(max_lnum, #tostring(e.lnum))
-    end
-  end
-  local lnum_fmt = '%' .. math.max(max_lnum, 1) .. 'd'
   local lines = {}
   for i = info.start_idx, info.end_idx do
     local e = items[i] or {}
-    local text = e.text or ''
-    if max_lnum > 0 and e.lnum and e.lnum > 0 then
-      lines[#lines + 1] = ('%s  %s'):format(lnum_fmt:format(e.lnum), text)
-    else
-      lines[#lines + 1] = text
-    end
+    local data = item_diffs_data(e)
+    lines[#lines + 1] = data
+        and data.kind == 'file'
+        and ('%s|| %s'):format(e.module or '', e.text or '')
+      or ''
   end
   return lines
 end
@@ -901,6 +922,7 @@ local function split_loclist_items(left_buf, right_buf, hunks, anchors, side)
       bufnr = split_target_buf(hunk, side, left_buf, right_buf),
       lnum = split_anchor_lnum(hunk, anchors),
       col = 1,
+      module = hunk_file(hunk),
       text = ('%s (hunk %d) %s'):format(hunk_file(hunk), i, hunk.header),
       user_data = {
         diffs = {
@@ -933,6 +955,7 @@ local function split_quickfix_items(opts)
       bufnr = target_buf,
       lnum = lnum,
       col = 1,
+      module = entry.display_file,
       text = entry.text,
       user_data = {
         diffs = {
