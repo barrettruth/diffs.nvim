@@ -14,13 +14,15 @@ local M = {}
 ---@class diffs.Cache
 ---@field ns integer
 ---@field get_config fun(): diffs.Config
+---@field get_attachment? fun(bufnr: integer): diffs.Attachment?
 ---@field hunk_cache table<integer, diffs.HunkCacheEntry>
----@field ft_retry_pending table<integer, boolean>
----@field syntax_jobs table<integer, integer>
+---@field ft_retry_pending table<integer, table>
+---@field syntax_jobs table<integer, table>
 
 ---@class diffs.CacheOpts
 ---@field ns integer
 ---@field get_config fun(): diffs.Config
+---@field get_attachment? fun(bufnr: integer): diffs.Attachment?
 
 local Cache = {}
 Cache.__index = Cache
@@ -40,7 +42,7 @@ function M.find_visible_hunks(hunks, toprow, botrow)
   while lo < hi do
     local mid = math.floor((lo + hi) / 2)
     local h = hunks[mid]
-    local bottom = h.start_line - 1 + #h.lines - 1
+    local bottom = h.start_line + #h.lines - 1
     if bottom < toprow then
       lo = mid + 1
     else
@@ -94,6 +96,7 @@ end
 function M.new(opts)
   return setmetatable({
     ns = opts.ns,
+    get_attachment = opts.get_attachment,
     get_config = opts.get_config,
     hunk_cache = {},
     ft_retry_pending = {},
@@ -102,9 +105,9 @@ function M.new(opts)
 end
 
 ---@param bufnr integer
----@return integer
+---@return table
 function Cache:next_syntax_job(bufnr)
-  local job_id = (self.syntax_jobs[bufnr] or 0) + 1
+  local job_id = {}
   self.syntax_jobs[bufnr] = job_id
   return job_id
 end
@@ -140,7 +143,7 @@ end
 ---@param bufnr integer
 ---@param tick integer
 ---@param changedtick integer
----@param job_id integer
+---@param job_id table
 ---@param deferred_syntax diffs.Hunk[]
 ---@return boolean
 function Cache:run_deferred_syntax(bufnr, tick, changedtick, job_id, deferred_syntax)
@@ -149,9 +152,9 @@ function Cache:run_deferred_syntax(bufnr, tick, changedtick, job_id, deferred_sy
   end
   if self.syntax_jobs[bufnr] ~= job_id then
     log.dbg(
-      'deferred syntax job superseded: cur=%s job=%d',
+      'deferred syntax job superseded: cur=%s job=%s',
       tostring(self.syntax_jobs[bufnr]),
-      job_id
+      tostring(job_id)
     )
     return false
   end
@@ -205,7 +208,7 @@ end
 
 ---@param bufnr integer
 function Cache:invalidate(bufnr)
-  self.syntax_jobs[bufnr] = (self.syntax_jobs[bufnr] or 0) + 1
+  self.syntax_jobs[bufnr] = {}
   local entry = self.hunk_cache[bufnr]
   if entry then
     entry.tick = -1
@@ -223,7 +226,9 @@ function Cache:ensure(bufnr)
   if entry and entry.tick == tick then
     return
   end
-  local hunks = parser.parse_buffer(bufnr)
+  local attachment = self.get_attachment and self.get_attachment(bufnr)
+  local hunks = attachment and attachment.hunks and vim.deepcopy(attachment.hunks(bufnr))
+    or parser.parse_buffer(bufnr)
   log.dbg('parsed %d hunks in buffer %d (tick %d)', #hunks, bufnr, tick)
   self.hunk_cache[bufnr] = {
     hunks = hunks,
@@ -239,9 +244,18 @@ function Cache:ensure(bufnr)
       has_nil_ft = true
     end
   end
-  if has_nil_ft and vim.fn.did_filetype() ~= 0 and not self.ft_retry_pending[bufnr] then
-    self.ft_retry_pending[bufnr] = true
+  if
+    not (attachment and attachment.hunks)
+    and has_nil_ft
+    and vim.fn.did_filetype() ~= 0
+    and not self.ft_retry_pending[bufnr]
+  then
+    local retry = {}
+    self.ft_retry_pending[bufnr] = retry
     vim.schedule(function()
+      if self.ft_retry_pending[bufnr] ~= retry then
+        return
+      end
       if vim.api.nvim_buf_is_valid(bufnr) and self.hunk_cache[bufnr] then
         log.dbg('retrying filetype detection for buffer %d (was blocked by did_filetype)', bufnr)
         self:invalidate(bufnr)
