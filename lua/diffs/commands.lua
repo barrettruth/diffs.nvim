@@ -598,16 +598,16 @@ local function files_source_new_lines(source)
 end
 
 ---@param source diffs.GeneratedBufferSource
----@return string[]?, diffs.DiffSpec?, string?, table?
+---@return string[]?, diffs.DiffSpec?, string?, table?, diffs.ContentLines|string[]?, diffs.ContentLines|string[]?
 local function render_source(source)
   if source.kind == 'file' then
-    local diff_lines, read_err = render.file(source.spec, source.repo_root, {
+    local diff_lines, read_err, old_lines, new_lines = render.file(source.spec, source.repo_root, {
       empty_on_missing = true,
     })
     if not diff_lines then
       return nil, nil, read_err, nil
     end
-    return diff_lines, source.spec, diffspec.label(source.spec), nil
+    return diff_lines, source.spec, diffspec.label(source.spec), nil, old_lines, new_lines
   end
 
   if source.kind == 'files' then
@@ -622,7 +622,9 @@ local function render_source(source)
     return render.unified_lines(old_lines, new_lines, source.left_name, source.right_name),
       nil,
       'files:' .. source.left_name .. ' -> ' .. files_side_display(source.right_name, buffered),
-      nil
+      nil,
+      old_lines,
+      new_lines
   end
 
   if source.kind == 'file_pair' then
@@ -642,7 +644,9 @@ local function render_source(source)
     return render.unified_lines(old_lines, new_lines, source.old_path, source.path),
       nil,
       source.edge .. ':' .. source.path,
-      nil
+      nil,
+      old_lines,
+      new_lines
   end
 
   if source.kind == 'section' then
@@ -2341,7 +2345,7 @@ function M.read_buffer(bufnr, opts)
     return
   end
 
-  local diff_lines, stored_spec, render_err, list_opts = render_source(source)
+  local diff_lines, stored_spec, render_err, list_opts, old_lines, new_lines = render_source(source)
   if not diff_lines then
     notify(render_err or 'cannot reload diffs:// buffer', vim.log.levels.WARN)
     return
@@ -2372,6 +2376,10 @@ function M.read_buffer(bufnr, opts)
   dbg('reloaded diff buffer %d (%s)', bufnr, debug_label)
 
   runtime.attach(bufnr)
+  local relpath = stored_spec and stored_spec.scope.path or source.right_name or source.path
+  if relpath then
+    apply_difft_unified(bufnr, diff_lines, stored_spec, old_lines, new_lines, relpath)
+  end
 end
 
 --- Re-render every visible diffs:// buffer in place, preserving each window's
@@ -2391,7 +2399,7 @@ function M.refresh_visible()
   local done = {}
   for _, entry in ipairs(views) do
     local buf = vim.api.nvim_win_is_valid(entry.win) and vim.api.nvim_win_get_buf(entry.win)
-    if buf and not done[buf] and not difftastic.is_active(buf) then
+    if buf and not done[buf] then
       done[buf] = true
       local ok, peer = pcall(vim.api.nvim_buf_get_var, buf, 'diffs_split_peer')
       if ok and type(peer) == 'number' then

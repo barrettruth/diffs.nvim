@@ -265,7 +265,7 @@ end
 ---@param diff_spec diffs.DiffSpec
 ---@param repo_root string
 ---@param opts? diffs.RenderFileOpts
----@return string[]?, string?
+---@return string[]?, string?, diffs.ContentLines|string[]?, diffs.ContentLines|string[]?
 function M.file(diff_spec, repo_root, opts)
   diff_spec = diffspec.new(diff_spec)
   opts = opts or {}
@@ -330,7 +330,7 @@ function M.file(diff_spec, repo_root, opts)
     return nil, 'diff does not support mode-only changes'
   end
 
-  return diff_lines, nil
+  return diff_lines, nil, old_lines, new_lines
 end
 
 return M

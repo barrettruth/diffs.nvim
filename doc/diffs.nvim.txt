@@ -94,7 +94,6 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
         blend_alpha = 0.6,
         warn_max_lines = true,
         vim = true,
-        intra = true,
       },
       conflict = true,
     }
@@ -198,7 +197,8 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              See |diffs.nvim.VimConfig| for fields.
 
         {intra}              (boolean|table, default: true)
-                             Character-level (intra-line) diff highlighting.
+                             Boolean values are deprecated.
+                             See |diffs.nvim-diffopt|.
                              See |diffs.nvim.IntraConfig| for fields.
 
         {overrides}          (table, default: {})
@@ -717,18 +717,24 @@ Inline granularity: ~                                      *diffs.nvim-inline*
     above, so a plain `:set`, an unimpaired-style toggle, or an autocmd all
     work. There is no dedicated mapping.
 
-    `highlights.intra` stays orthogonal: `inline:` chooses the granularity,
-    `highlights.intra.algorithm` chooses the engine that finds the differences,
-    and `highlights.intra = false` turns the feature off regardless of
-    'diffopt'.
+                                                *diffs.nvim-diffopt*
+    Intra-line highlighting is controlled by |'diffopt'|.
 
-    Limitations: ~
-    - `inline:word` is produced by growing character-level spans to the word
-      boundaries they touch, not by re-diffing the line word by word. The
-      result matches Neovim's own `inline:word` rendering on ordinary source
-      lines, but the two are not guaranteed identical in every case.
-    - difftastic-rendered diffs keep their structural token spans; `inline:`
-      does not apply to them (see |diffs.nvim-difftastic|).
+    Disable intra-line highlighting: >lua
+        vim.opt.diffopt:remove({ 'inline:simple', 'inline:char', 'inline:word' })
+        vim.opt.diffopt:append('inline:none')
+<
+    To enable word-level highlighting when opening a diff buffer: >lua
+        vim.api.nvim_create_autocmd('FileType', {
+          pattern = { 'diff', 'git', 'gitcommit' },
+          callback = function()
+            vim.opt.diffopt:remove({ 'inline:none', 'inline:simple', 'inline:char' })
+            vim.opt.diffopt:append('inline:word')
+          end,
+        })
+<
+    'diffopt' is global: this changes all diff views. For attachment to `diff`
+    buffers, see |diffs.nvim-extra-filetypes|.
 
 ==============================================================================
 MAPPINGS                                                 *diffs.nvim-mappings*
