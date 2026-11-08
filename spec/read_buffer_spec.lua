@@ -9,6 +9,8 @@ local runtime = require('diffs.runtime')
 local saved_git = {}
 local saved_notify
 local saved_systemlist
+local saved_jobstart
+local saved_jobwait
 local test_buffers = {}
 
 local function mock_git(overrides)
@@ -33,6 +35,23 @@ end
 
 local function mock_systemlist(fn)
   saved_systemlist = vim.fn.systemlist
+  saved_jobstart = vim.fn.jobstart
+  saved_jobwait = vim.fn.jobwait
+  local exit_code
+  vim.fn.jobstart = function(cmd, opts)
+    local result, code, stderr = fn(cmd)
+    exit_code = code or 0
+    local stdout = exit_code == 0 and vim.deepcopy(result or {}) or {}
+    stderr = stderr or (exit_code ~= 0 and vim.deepcopy(result or {}) or {})
+    stdout[#stdout + 1] = ''
+    stderr[#stderr + 1] = ''
+    opts.on_stdout(1, stdout)
+    opts.on_stderr(1, stderr)
+    return 1
+  end
+  vim.fn.jobwait = function()
+    return { exit_code }
+  end
   vim.fn.systemlist = function(cmd)
     local result, shell_error = fn(cmd)
     if shell_error and shell_error ~= 0 then
@@ -57,6 +76,14 @@ local function restore_mocks()
   if saved_notify then
     vim.notify = saved_notify
     saved_notify = nil
+  end
+  if saved_jobstart then
+    vim.fn.jobstart = saved_jobstart
+    saved_jobstart = nil
+  end
+  if saved_jobwait then
+    vim.fn.jobwait = saved_jobwait
+    saved_jobwait = nil
   end
   if saved_systemlist then
     vim.fn.systemlist = saved_systemlist
@@ -819,8 +846,10 @@ describe('read_buffer', function()
         '--no-color',
         '--src-prefix=a/',
         '--dst-prefix=b/',
+        '--end-of-options',
         'base-sha',
         'HEAD',
+        '--',
       }, captured_cmds[1])
 
       local lines = buffer_lines(bufnr)
@@ -861,9 +890,9 @@ describe('read_buffer', function()
         '--no-color',
         '--src-prefix=a/',
         '--dst-prefix=b/',
-        '--merge-base',
-        'origin/main',
-        'refs/forge/pr/42',
+        '--end-of-options',
+        'origin/main...refs/forge/pr/42',
+        '--',
       }, captured_cmd)
     end)
 
@@ -894,8 +923,9 @@ describe('read_buffer', function()
         '--no-color',
         '--src-prefix=a/',
         '--dst-prefix=b/',
-        'origin/main',
-        'feature/topic',
+        '--end-of-options',
+        'origin/main..feature/topic',
+        '--',
       }, captured_cmd)
     end)
 
@@ -908,8 +938,8 @@ describe('read_buffer', function()
       mock_systemlist(function(cmd)
         if cmd[4] == 'diff' then
           called_diff = true
-        elseif cmd[4] == 'rev-parse' then
-          return {}, 1
+        elseif cmd[4] == 'merge-base' then
+          return { 'fatal: Not a valid object name missing/ref' }, 128
         end
         return {}
       end)
@@ -926,27 +956,23 @@ describe('read_buffer', function()
       assert.is_not_nil(notification)
       assert.are.equal(vim.log.levels.WARN, notification.level)
       assert.is_true(
-        notification.message:find(
-          'review base ref not found: missing/ref (spec: missing/ref)',
-          1,
-          true
-        ) ~= nil
+        notification.message:find('fatal: Not a valid object name missing/ref', 1, true) ~= nil
       )
     end)
 
     it('reports missing review refs from source metadata without replacing buffer lines', function()
       local called_diff = false
       local notification
-      local validation_repo
+      local operation_repo
       mock_notify(function(message, level)
         notification = { message = message, level = level }
       end)
       mock_systemlist(function(cmd)
         if cmd[4] == 'diff' then
           called_diff = true
-        elseif cmd[4] == 'rev-parse' then
-          validation_repo = cmd[3]
-          return {}, 1
+        elseif cmd[4] == 'merge-base' then
+          operation_repo = cmd[3]
+          return { 'fatal: Not a valid object name missing/ref' }, 128
         end
         return {}
       end)
@@ -967,16 +993,12 @@ describe('read_buffer', function()
       commands.read_buffer(bufnr)
 
       assert.is_false(called_diff)
-      assert.are.equal('/home/test/repo', validation_repo)
+      assert.are.equal('/home/test/repo', operation_repo)
       assert.are.same({ 'stale review' }, vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
       assert.is_not_nil(notification)
       assert.are.equal(vim.log.levels.WARN, notification.level)
       assert.is_true(
-        notification.message:find(
-          'review base ref not found: missing/ref (spec: missing/ref)',
-          1,
-          true
-        ) ~= nil
+        notification.message:find('fatal: Not a valid object name missing/ref', 1, true) ~= nil
       )
     end)
   end)

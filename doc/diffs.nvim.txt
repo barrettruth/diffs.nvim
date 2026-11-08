@@ -572,6 +572,10 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     using merge-base semantics. With `A..B`, reviews explicit target `B`
     against base `A` as a direct two-endpoint comparison.
 
+    Git resolves the revisions and reports invalid revisions. In `A..B` and
+    `A...B`, an omitted endpoint defaults to `HEAD`. If `A...B` has multiple
+    merge bases, Git selects the base for the comparison.
+
     A current-state review (no explicit target) ends with an Untracked
     section listing files not yet tracked by git. Pass `++nountracked` to
     omit it. To omit it every time, wrap the command, for example: >vim

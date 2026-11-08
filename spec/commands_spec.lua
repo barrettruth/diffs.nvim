@@ -15,7 +15,8 @@ local saved_runtime_get_view_config
 local saved_runtime_get_highlight_opts
 local saved_schedule
 local saved_systemlist
-local saved_system
+local saved_jobstart
+local saved_jobwait
 local saved_notify
 local test_buffers = {}
 local test_repos = {}
@@ -32,19 +33,22 @@ end
 
 local function mock_systemlist(fn)
   saved_systemlist = vim.fn.systemlist
-  saved_system = vim.system
-  vim.system = function(cmd)
-    local result, code = fn(cmd)
-    local output = table.concat(result or {}, '\n')
-    return {
-      wait = function()
-        return {
-          code = code or 0,
-          stdout = (code or 0) == 0 and output or '',
-          stderr = (code or 0) ~= 0 and output or '',
-        }
-      end,
-    }
+  saved_jobstart = vim.fn.jobstart
+  saved_jobwait = vim.fn.jobwait
+  local exit_code
+  vim.fn.jobstart = function(cmd, opts)
+    local result, code, stderr = fn(cmd)
+    exit_code = code or 0
+    local stdout = exit_code == 0 and vim.deepcopy(result or {}) or {}
+    stderr = stderr or (exit_code ~= 0 and vim.deepcopy(result or {}) or {})
+    stdout[#stdout + 1] = ''
+    stderr[#stderr + 1] = ''
+    opts.on_stdout(1, stdout)
+    opts.on_stderr(1, stderr)
+    return 1
+  end
+  vim.fn.jobwait = function()
+    return { exit_code }
   end
   vim.fn.systemlist = function(cmd)
     local result, shell_error = fn(cmd)
@@ -411,9 +415,13 @@ local function restore_mocks()
     vim.fn.systemlist = saved_systemlist
     saved_systemlist = nil
   end
-  if saved_system then
-    vim.system = saved_system
-    saved_system = nil
+  if saved_jobstart then
+    vim.fn.jobstart = saved_jobstart
+    saved_jobstart = nil
+  end
+  if saved_jobwait then
+    vim.fn.jobwait = saved_jobwait
+    saved_jobwait = nil
   end
   if saved_notify then
     vim.notify = saved_notify
@@ -2578,7 +2586,7 @@ describe('commands', function()
         then
           return {}
         end
-        if contains_cmd_arg(cmd, '--merge-base') then
+        if contains_cmd_arg(cmd, 'origin/main...refs/forge/pr/42') then
           return review_lines
         end
         return section_lines
@@ -3114,36 +3122,31 @@ describe('commands', function()
       end
     )
 
-    it('keeps successful Git warnings out of review buffers', function()
+    it('reports successful Git warnings without inserting them into review buffers', function()
       mock_repo_root(function()
         return '/tmp/repo'
       end)
       mock_runtime_attach(function() end)
-      saved_system = vim.system
-      vim.system = function()
+      local notifications = capture_notifications()
+      mock_systemlist(function()
         return {
-          wait = function()
-            return {
-              code = 0,
-              stdout = table.concat({
-                'diff --git a/file.lua b/file.lua',
-                '--- a/file.lua',
-                '+++ b/file.lua',
-                '@@ -1 +1 @@',
-                '-old',
-                '+new',
-                '',
-              }, '\n'),
-              stderr = 'warning: multiple merge bases\n',
-            }
-          end,
-        }
-      end
+          'diff --git a/file.lua b/file.lua',
+          '--- a/file.lua',
+          '+++ b/file.lua',
+          '@@ -1 +1 @@',
+          '-old',
+          '+new',
+        },
+          0,
+          { 'warning: multiple merge bases' }
+      end)
       local bufnr = commands.review({ base = 'main', target = 'topic', repo = '/tmp/repo' })
       assert.is_not_nil(bufnr)
       test_buffers[#test_buffers + 1] = bufnr
       assert.is_nil(buffer_text(bufnr):find('warning:', 1, true))
       assert.is_true(buffer_text(bufnr):find('+new', 1, true) ~= nil)
+      assert.are.equal(vim.log.levels.WARN, notifications[1].level)
+      assert.is_true(notifications[1].message:find('warning: multiple merge bases', 1, true) ~= nil)
     end)
 
     it('opens a review buffer for an explicit merge-base target', function()
@@ -3191,10 +3194,8 @@ describe('commands', function()
         '--no-color',
         '--src-prefix=a/',
         '--dst-prefix=b/',
-        '--merge-base',
         '--end-of-options',
-        'origin/main',
-        'refs/forge/pr/42',
+        'origin/main...refs/forge/pr/42',
         '--',
       }, captured_cmd)
       assert.are.equal(

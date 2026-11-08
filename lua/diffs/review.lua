@@ -37,7 +37,6 @@ end
 ---@field vertical boolean
 ---@field untracked boolean
 ---@field display string
----@field exec_args string[]
 
 ---@class diffs.ReviewDeps
 ---@field create_generated_diff_buffer fun(opts: diffs.GeneratedDiffBufferOpts): integer
@@ -101,12 +100,32 @@ end
 ---@param cmd string[]
 ---@return string[]?, string?
 local function git_lines(cmd)
-  local result = vim.system(cmd):wait()
-  if result.code ~= 0 then
-    return nil, vim.trim(result.stderr or '')
+  local stdout, stderr = {}, {}
+  local job = vim.fn.jobstart(cmd, {
+    stdout_buffered = true,
+    stderr_buffered = true,
+    on_stdout = function(_, data)
+      stdout = data
+    end,
+    on_stderr = function(_, data)
+      stderr = data
+    end,
+  })
+  if job <= 0 then
+    return nil, 'could not start Git'
   end
-  local output = (result.stdout or ''):gsub('\n$', '')
-  return output == '' and {} or vim.split(output, '\n', { plain = true }), nil
+  local code = vim.fn.jobwait({ job })[1]
+  local message = vim.trim(table.concat(stderr, '\n'))
+  if code ~= 0 then
+    return nil, message
+  end
+  if message ~= '' then
+    notify(message, vim.log.levels.WARN)
+  end
+  if stdout[#stdout] == '' then
+    table.remove(stdout)
+  end
+  return stdout, nil
 end
 
 ---@param repo_root string
@@ -115,7 +134,7 @@ end
 ---@return string?, string?
 local function merge_base(repo_root, base, target)
   local result, err =
-    git_lines({ 'git', '-C', repo_root, 'merge-base', '--end-of-options', base, target })
+    git_lines({ 'git', '-C', repo_root, 'merge-base', '--all', '--end-of-options', base, target })
   if not result then
     return nil, err ~= '' and err or 'no merge base for ' .. base .. ' and ' .. target
   end
@@ -129,20 +148,14 @@ function M.parse_arg(arg)
     return {}, nil
   end
 
-  local base, target = arg:match('^(.-)%.%.%.(.+)$')
+  local base, separator, target = arg:match('^(.-)(%.%.%.?)(.*)$')
   if base then
-    if base == '' or target == '' then
-      return nil, 'invalid review spec'
-    end
-    return { base = base, target = target, mode = 'merge-base' }, nil
-  end
-
-  base, target = arg:match('^(.-)%.%.(.+)$')
-  if base then
-    if base == '' or target == '' then
-      return nil, 'invalid review spec'
-    end
-    return { base = base, target = target, mode = 'direct' }, nil
+    return {
+      base = base ~= '' and base or 'HEAD',
+      target = target ~= '' and target or 'HEAD',
+      mode = separator == '...' and 'merge-base' or 'direct',
+    },
+      nil
   end
 
   return { base = arg }, nil
@@ -253,17 +266,7 @@ function M.normalize(spec, repo_root_override)
     error('diffs: review.mode requires review.target')
   end
 
-  local display = base
-  local exec_args = { '--end-of-options', base }
-  if target then
-    if mode == 'merge-base' then
-      display = base .. '...' .. target
-      exec_args = { '--merge-base', '--end-of-options', base, target }
-    else
-      display = base .. '..' .. target
-      exec_args = { '--end-of-options', base, target }
-    end
-  end
+  local display = target and (base .. (mode == 'merge-base' and '...' or '..') .. target) or base
 
   local untracked = true
   if spec.untracked ~= nil then
@@ -278,14 +281,14 @@ function M.normalize(spec, repo_root_override)
     vertical = spec.vertical or false,
     untracked = untracked,
     display = display,
-    exec_args = exec_args,
   },
     nil
 end
 
 ---@param review diffs.NormalizedReview
+---@param args string[]
 ---@return string[]
-function M.build_cmd(review)
+local function diff_cmd(review, args)
   local cmd = {
     'git',
     '-C',
@@ -297,9 +300,15 @@ function M.build_cmd(review)
     '--dst-prefix=b/',
   }
   vim.list_extend(cmd, diffopt.git_flags())
-  vim.list_extend(cmd, review.exec_args)
+  vim.list_extend(cmd, args)
   cmd[#cmd + 1] = '--'
   return cmd
+end
+
+---@param review diffs.NormalizedReview
+---@return string[]
+function M.build_cmd(review)
+  return diff_cmd(review, { '--end-of-options', review.display })
 end
 
 ---@param line string
@@ -365,43 +374,14 @@ end
 ---@param base_rev string
 ---@return string[]?, string?
 local function branch_lines(review, base_rev)
-  local args = {
-    'git',
-    '-C',
-    review.repo_root,
-    'diff',
-    '--no-ext-diff',
-    '--no-color',
-    '--src-prefix=a/',
-    '--dst-prefix=b/',
-  }
-  vim.list_extend(args, diffopt.git_flags())
-  args[#args + 1] = '--end-of-options'
-  args[#args + 1] = base_rev
-  args[#args + 1] = 'HEAD'
-  args[#args + 1] = '--'
-  return git_lines(args)
+  return git_lines(diff_cmd(review, { '--end-of-options', base_rev, 'HEAD' }))
 end
 
 ---@param review diffs.NormalizedReview
 ---@param cached boolean
 ---@return string[]?, string?
 local function worktree_edge_lines(review, cached)
-  local args = {
-    'git',
-    '-C',
-    review.repo_root,
-    'diff',
-    '--no-ext-diff',
-    '--no-color',
-    '--src-prefix=a/',
-    '--dst-prefix=b/',
-  }
-  vim.list_extend(args, diffopt.git_flags())
-  if cached then
-    args[#args + 1] = '--cached'
-  end
-  return git_lines(args)
+  return git_lines(diff_cmd(review, cached and { '--cached' } or {}))
 end
 
 ---@param review diffs.NormalizedReview
@@ -684,43 +664,12 @@ end
 ---@param arglead string
 ---@return string[]
 function M.complete(arglead)
-  local refs = list_refs(resolve_repo_root(nil))
-  if arglead == '' then
-    return refs
-  end
-
-  local base, tail = arglead:match('^(.-)%.%.%.(.*)$')
-  if base then
-    if base == '' then
-      return {}
-    end
-    local matches = {}
-    for _, ref in ipairs(refs) do
-      if ref:find(tail, 1, true) == 1 then
-        table.insert(matches, base .. '...' .. ref)
-      end
-    end
-    return matches
-  end
-
-  base, tail = arglead:match('^(.-)%.%.(.*)$')
-  if base then
-    if base == '' then
-      return {}
-    end
-    local matches = {}
-    for _, ref in ipairs(refs) do
-      if ref:find(tail, 1, true) == 1 then
-        table.insert(matches, base .. '..' .. ref)
-      end
-    end
-    return matches
-  end
-
+  local prefix, tail = arglead:match('^(.-%.%.%.?)(.*)$')
+  prefix, tail = prefix or '', tail or arglead
   local matches = {}
-  for _, ref in ipairs(refs) do
-    if ref:find(arglead, 1, true) == 1 then
-      table.insert(matches, ref)
+  for _, ref in ipairs(list_refs(resolve_repo_root(nil))) do
+    if ref:find(tail, 1, true) == 1 then
+      table.insert(matches, prefix .. ref)
     end
   end
   return matches
