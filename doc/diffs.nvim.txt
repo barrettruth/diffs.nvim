@@ -895,7 +895,6 @@ autocmds for each integration's filetypes and attaches automatically.
 Opt-in: ~                                          *diffs.nvim-extra-filetypes*
 
 For other filetypes, register a FileType autocmd before opening the buffers.
-Use `diff` for `.diff` and `.patch` files. Add custom filetypes to `pattern`.
 >lua
     vim.api.nvim_create_autocmd('FileType', {
       group = vim.api.nvim_create_augroup('MyDiffs', { clear = true }),
@@ -905,8 +904,6 @@ Use `diff` for `.diff` and `.patch` files. Add custom filetypes to `pattern`.
       end,
     })
 <
-
-Replace `extra_filetypes` with this autocmd to stop the deprecation warning.
 
 Plugin authors can call |diffs.nvim.attach()| directly without registering a
 filetype. See |diffs.nvim-plugin-authors|.
