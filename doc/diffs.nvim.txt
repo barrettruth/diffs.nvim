@@ -168,8 +168,7 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              |diffs.nvim-difftastic|.
 
         {extra_filetypes}    (table, default: {})
-                             Deprecated. Use the FileType autocmd
-                             recipe at |diffs.nvim-extra-filetypes|.
+                             Deprecated. See |diffs.nvim-extra-filetypes|.
 
         {highlights}         (table, default: see below)
                              Controls which highlight features are enabled.
