@@ -138,6 +138,7 @@ end
 ---@field left_name? string
 ---@field right_name? string
 ---@field right_buf? integer
+---@field worktree_buf? integer
 
 ---@param source table
 ---@return diffs.GeneratedBufferSource?
@@ -237,13 +238,15 @@ end
 
 ---@param repo_root string
 ---@param diff_spec diffs.DiffSpec
+---@param worktree_buf? integer
 ---@return diffs.GeneratedBufferSource
-function M.file_source(repo_root, diff_spec)
+function M.file_source(repo_root, diff_spec, worktree_buf)
   return {
     version = 1,
     kind = 'file',
     repo_root = repo_root,
     spec = diff_spec,
+    worktree_buf = worktree_buf,
   }
 end
 
@@ -319,7 +322,7 @@ function M.review_source(repo_root, review)
   }
 end
 
----@param opts { repo_root: string, spec: diffs.DiffSpec, side: "left"|"right", path: string, filetype?: string, quickfix?: boolean }
+---@param opts { repo_root: string, spec: diffs.DiffSpec, side: "left"|"right", path: string, filetype?: string, quickfix?: boolean, worktree_buf?: integer }
 ---@return diffs.SplitEndpointSource
 function M.split_endpoint_source(opts)
   return {
@@ -331,6 +334,7 @@ function M.split_endpoint_source(opts)
     path = opts.path,
     filetype = opts.filetype,
     quickfix = opts.quickfix,
+    worktree_buf = opts.worktree_buf,
   }
 end
 

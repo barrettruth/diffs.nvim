@@ -610,6 +610,7 @@ end
 local function render_source(source)
   if source.kind == 'file' then
     local diff_lines, read_err, old_lines, new_lines = render.file(source.spec, source.repo_root, {
+      worktree_buf = source.worktree_buf,
       empty_on_missing = true,
     })
     if not diff_lines then
@@ -2081,6 +2082,7 @@ function M.diff(args, vertical, opts)
       repo_root = repo_root,
       filetype = vim.api.nvim_get_option_value('filetype', { buf = bufnr }),
       worktree_lines = worktree_lines,
+      worktree_buf = worktree_lines and bufnr or nil,
       diff_lines = diff_lines,
     })
     if not opened then
@@ -2094,7 +2096,7 @@ function M.diff(args, vertical, opts)
     lines = diff_lines,
     repo_root = repo_root,
     diff_spec = diff_spec,
-    source = generated.file_source(repo_root, diff_spec),
+    source = generated.file_source(repo_root, diff_spec, worktree_lines and bufnr or nil),
     rail_style = rail_style,
   })
   show_generated_diff_buffer(diff_buf, vertical)
