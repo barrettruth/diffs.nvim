@@ -1426,24 +1426,6 @@ function M.goto_prev(bufnr)
 end
 
 ---@param bufnr integer
----@param hunk_index integer?
----@return boolean
-function M.move_pair_to_hunk_index(bufnr, hunk_index)
-  if type(hunk_index) ~= 'number' then
-    return false
-  end
-
-  local info = pane_info[bufnr]
-  local row = info and info.anchors and info.anchors[hunk_index]
-  if not row then
-    return false
-  end
-
-  move_pair_to_row(bufnr, row)
-  return true
-end
-
----@param bufnr integer
 function M.sync_cursor_to_hunk(bufnr)
   local win = current_or_first_window_for_buffer(bufnr)
   if not win then

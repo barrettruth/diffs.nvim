@@ -698,20 +698,6 @@ function M.open(spec, deps)
   return diff_buf
 end
 
----@param buf integer
----@param lnum integer
----@return string?
-function M.file_at_line(buf, lnum)
-  local lines = vim.api.nvim_buf_get_lines(buf, 0, lnum, false)
-  for i = #lines, 1, -1 do
-    local file = lines[i]:match('^diff %-%-git %a/.+ %a/(.+)$')
-    if file then
-      return file
-    end
-  end
-  return nil
-end
-
 ---@param review_spec diffs.ReviewSpec?
 ---@param repo_root string
 ---@param deps diffs.ReviewDeps
