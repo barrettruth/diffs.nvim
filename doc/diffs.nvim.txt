@@ -725,21 +725,20 @@ Inline granularity: ~                                      *diffs.nvim-inline*
         vim.opt.diffopt:remove({ 'inline:simple', 'inline:char', 'inline:word' })
         vim.opt.diffopt:append('inline:none')
 <
-    To enable word-level highlighting: >lua
-        vim.opt.diffopt:remove({ 'inline:none', 'inline:simple', 'inline:char' })
-        vim.opt.diffopt:append('inline:word')
+    To enable word-level highlighting when opening a diff buffer: >lua
+        vim.api.nvim_create_autocmd('FileType', {
+          pattern = { 'diff', 'git', 'gitcommit' },
+          callback = function()
+            vim.opt.diffopt:remove({ 'inline:none', 'inline:simple', 'inline:char' })
+            vim.opt.diffopt:append('inline:word')
+          end,
+        })
 <
+    'diffopt' is global: this changes all diff views. For attachment to `diff`
+    buffers, see |diffs.nvim-extra-filetypes|.
+
     Remove `highlights.intra = true` to use the defaults. The table form
     remains available for `max_lines` and `algorithm`.
-
-    Limitations: ~
-    - `inline:word` is produced by growing character-level spans to the word
-      boundaries they touch, not by re-diffing the line word by word. The
-      result matches Neovim's own `inline:word` rendering on ordinary source
-      lines, but the two are not guaranteed identical in every case.
-    - `inline:none` hides difftastic token highlights. Other `inline:` modes
-      preserve its structural spans. Run `:Diff refresh` after changing this
-      setting in an open difftastic view (see |diffs.nvim-difftastic|).
 
 ==============================================================================
 MAPPINGS                                                 *diffs.nvim-mappings*
@@ -1080,6 +1079,8 @@ When difftastic finds no structural change (e.g. a reformat-only edit), it
 emits an informational message and renders no token highlights. The 'diffopt'
 whitespace handling does not apply to a structural diff; such buffers are left
 unchanged.
+
+Run `:Diff refresh` after changing `inline:` in an open difftastic view.
 
 Run |:checkhealth| diffs to confirm `difft` is detected.
 
