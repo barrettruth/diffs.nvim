@@ -105,7 +105,7 @@ vim.api.nvim_create_autocmd('BufReadPost', {
     local runtime = get_runtime()
     local conflict_config = runtime.get_conflict_config()
     if conflict_config then
-      require('diffs.conflict').attach(args.buf)
+      require('diffs.conflict').attach(args.buf, conflict_config)
     end
   end,
 })
@@ -174,7 +174,7 @@ local function conflict_action(fn)
   local runtime = get_runtime()
   local conflict_config = runtime.get_conflict_config()
   if conflict_config then
-    fn(bufnr)
+    fn(bufnr, conflict_config)
   end
 end
 

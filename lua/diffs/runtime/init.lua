@@ -80,6 +80,14 @@ local function init()
     )
   end
 
+  if config.conflict and config.conflict.keymaps then
+    log.notify(
+      'conflict.keymaps will be removed on 30 November 2026. '
+        .. 'Use vim.keymap.set(). See :help diffs.nvim-conflict-keymaps.',
+      vim.log.levels.WARN
+    )
+  end
+
   fast_hl_opts = highlight.hunk_opts(config, {
     highlights = {
       treesitter = false,
@@ -191,7 +199,7 @@ function M.get_telescope_config()
   return config.integrations.telescope == true
 end
 
----@return boolean
+---@return diffs.ConflictConfig|false
 function M.get_conflict_config()
   init()
   return config.conflict

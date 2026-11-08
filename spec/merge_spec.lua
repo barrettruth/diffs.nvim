@@ -2,6 +2,16 @@ local helpers = require('spec.helpers')
 local merge = require('diffs.merge')
 local rails = require('diffs.rails')
 
+local function default_config(overrides)
+  local cfg = {
+    keymaps = false,
+  }
+  if overrides then
+    cfg = vim.tbl_deep_extend('force', cfg, overrides)
+  end
+  return cfg
+end
+
 local function create_diff_buffer(lines, working_path)
   local bufnr = helpers.create_buffer(lines)
   if working_path then
@@ -305,7 +315,7 @@ describe('merge', function()
       setup_buffers()
       vim.api.nvim_win_set_cursor(0, { 5, 0 })
 
-      merge.resolve_ours(diff_bufnr)
+      merge.resolve_ours(diff_bufnr, default_config())
 
       local lines = vim.api.nvim_buf_get_lines(working_bufnr, 0, -1, false)
       assert.are.equal(1, #lines)
@@ -318,7 +328,7 @@ describe('merge', function()
       setup_buffers()
       vim.api.nvim_win_set_cursor(0, { 5, 0 })
 
-      merge.resolve_theirs(diff_bufnr)
+      merge.resolve_theirs(diff_bufnr, default_config())
 
       local lines = vim.api.nvim_buf_get_lines(working_bufnr, 0, -1, false)
       assert.are.equal(1, #lines)
@@ -331,7 +341,7 @@ describe('merge', function()
       setup_buffers()
       vim.api.nvim_win_set_cursor(0, { 5, 0 })
 
-      merge.resolve_both(diff_bufnr)
+      merge.resolve_both(diff_bufnr, default_config())
 
       local lines = vim.api.nvim_buf_get_lines(working_bufnr, 0, -1, false)
       assert.are.equal(2, #lines)
@@ -345,7 +355,7 @@ describe('merge', function()
       setup_buffers()
       vim.api.nvim_win_set_cursor(0, { 5, 0 })
 
-      merge.resolve_none(diff_bufnr)
+      merge.resolve_none(diff_bufnr, default_config())
 
       local lines = vim.api.nvim_buf_get_lines(working_bufnr, 0, -1, false)
       assert.are.equal(1, #lines)
@@ -359,7 +369,7 @@ describe('merge', function()
       vim.api.nvim_win_set_cursor(0, { 5, 0 })
 
       assert.is_false(merge.is_resolved(diff_bufnr, 1))
-      merge.resolve_ours(diff_bufnr)
+      merge.resolve_ours(diff_bufnr, default_config())
       assert.is_true(merge.is_resolved(diff_bufnr, 1))
 
       cleanup()
@@ -395,7 +405,7 @@ describe('merge', function()
       assert.is_not_nil(merge.match_hunk_to_conflict(hunks[1], w_bufnr))
 
       vim.api.nvim_win_set_cursor(0, { 5, 0 })
-      merge.resolve_theirs(d_bufnr)
+      merge.resolve_theirs(d_bufnr, default_config())
 
       local lines = vim.api.nvim_buf_get_lines(w_bufnr, 0, -1, false)
       assert.are.same({ 'local x = 2' }, lines)
@@ -408,7 +418,7 @@ describe('merge', function()
       setup_buffers()
       vim.api.nvim_win_set_cursor(0, { 5, 0 })
 
-      merge.resolve_ours(diff_bufnr)
+      merge.resolve_ours(diff_bufnr, default_config())
 
       local notified = false
       local orig_notify = vim.notify
@@ -418,7 +428,7 @@ describe('merge', function()
         end
       end
 
-      merge.resolve_ours(diff_bufnr)
+      merge.resolve_ours(diff_bufnr, default_config())
       vim.notify = orig_notify
 
       assert.is_true(notified)
@@ -451,7 +461,7 @@ describe('merge', function()
         end
       end
 
-      merge.resolve_ours(d_bufnr)
+      merge.resolve_ours(d_bufnr, default_config())
       vim.notify = orig_notify
 
       assert.is_true(notified)
@@ -704,7 +714,7 @@ describe('merge', function()
       vim.api.nvim_set_current_buf(d_bufnr)
       vim.api.nvim_win_set_cursor(0, { 5, 0 })
 
-      merge.resolve_ours(d_bufnr)
+      merge.resolve_ours(d_bufnr, default_config())
 
       vim.api.nvim_win_set_cursor(0, { 1, 0 })
       merge.goto_next(d_bufnr)
@@ -737,7 +747,8 @@ describe('merge', function()
       vim.api.nvim_set_current_buf(d_bufnr)
       vim.api.nvim_win_set_cursor(0, { 5, 0 })
 
-      merge.resolve_ours(d_bufnr)
+      local cfg = default_config()
+      merge.resolve_ours(d_bufnr, cfg)
       assert.is_true(merge.is_resolved(d_bufnr, 1))
 
       local ready_bufnr
@@ -748,12 +759,64 @@ describe('merge', function()
           ready_bufnr = event.data.bufnr
         end,
       })
-      merge.attach(d_bufnr)
+      merge.attach(d_bufnr, cfg)
       assert.are.equal(d_bufnr, ready_bufnr)
 
       assert.is_false(merge.is_resolved(d_bufnr, 1))
       helpers.delete_buffer(d_bufnr)
       helpers.delete_buffer(w_bufnr)
+    end)
+
+    it('does not replace pre-existing buffer-local keymaps', function()
+      local d_bufnr = create_diff_buffer({
+        'diff --git a/file.lua b/file.lua',
+        '--- a/file.lua',
+        '+++ b/file.lua',
+        '@@ -1,1 +1,1 @@',
+        '-local x = 1',
+        '+local x = 2',
+      })
+      vim.keymap.set('n', 'gt', '<Nop>', { buffer = d_bufnr, desc = 'user theirs' })
+      local cfg = default_config({ keymaps = helpers.default_conflict_keymaps() })
+
+      merge.attach(d_bufnr, cfg)
+
+      local theirs = helpers.get_keymap(d_bufnr, 'gt')
+      local ours = helpers.get_keymap(d_bufnr, 'go')
+      assert.are.equal('user theirs', theirs.desc)
+      assert.are.equal('<Plug>(diffs-merge-ours)', ours.rhs)
+
+      merge.attach(d_bufnr, default_config())
+
+      theirs = helpers.get_keymap(d_bufnr, 'gt')
+      assert.are.equal('user theirs', theirs.desc)
+      assert.is_false(helpers.has_keymap(d_bufnr, 'go'))
+
+      helpers.delete_buffer(d_bufnr)
+    end)
+
+    it('does not remove a user replacement during cleanup', function()
+      local d_bufnr = create_diff_buffer({
+        'diff --git a/file.lua b/file.lua',
+        '--- a/file.lua',
+        '+++ b/file.lua',
+        '@@ -1,1 +1,1 @@',
+        '-local x = 1',
+        '+local x = 2',
+      })
+      local cfg = default_config({ keymaps = helpers.default_conflict_keymaps() })
+
+      merge.attach(d_bufnr, cfg)
+      assert.are.equal('<Plug>(diffs-merge-ours)', helpers.get_keymap(d_bufnr, 'go').rhs)
+
+      vim.keymap.set('n', 'go', '<Nop>', { buffer = d_bufnr, desc = 'user ours' })
+      merge.attach(d_bufnr, default_config())
+
+      local ours = helpers.get_keymap(d_bufnr, 'go')
+      assert.are.equal('user ours', ours.desc)
+      assert.is_false(helpers.has_keymap(d_bufnr, 'gt'))
+
+      helpers.delete_buffer(d_bufnr)
     end)
   end)
 

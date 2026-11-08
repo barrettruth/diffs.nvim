@@ -1,5 +1,15 @@
 local conflict = require('diffs.conflict')
 
+local function default_config(overrides)
+  local cfg = {
+    keymaps = false,
+  }
+  if overrides then
+    cfg = vim.tbl_deep_extend('force', cfg, overrides)
+  end
+  return cfg
+end
+
 local function create_file_buffer(lines)
   local bufnr = vim.api.nvim_create_buf(false, false)
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines or {})
@@ -78,7 +88,7 @@ describe('jj conflict markers', function()
       local bufnr = create_file_buffer(snapshot_lines())
       vim.api.nvim_set_current_buf(bufnr)
       vim.api.nvim_win_set_cursor(0, { 4, 0 })
-      conflict.resolve_ours(bufnr)
+      conflict.resolve_ours(bufnr, default_config())
       assert.are.same({ 'line1', 'AAA', 'line3' }, vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
@@ -87,7 +97,7 @@ describe('jj conflict markers', function()
       local bufnr = create_file_buffer(snapshot_lines())
       vim.api.nvim_set_current_buf(bufnr)
       vim.api.nvim_win_set_cursor(0, { 4, 0 })
-      conflict.resolve_theirs(bufnr)
+      conflict.resolve_theirs(bufnr, default_config())
       assert.are.same({ 'line1', 'BBB', 'line3' }, vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
@@ -96,14 +106,14 @@ describe('jj conflict markers', function()
       local bufnr = create_file_buffer(snapshot_lines())
       vim.api.nvim_set_current_buf(bufnr)
       vim.api.nvim_win_set_cursor(0, { 2, 0 })
-      conflict.resolve_none(bufnr)
+      conflict.resolve_none(bufnr, default_config())
       assert.are.same({ 'line1', 'line3' }, vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
 
     it('highlights the opening marker', function()
       local bufnr = create_file_buffer(snapshot_lines())
-      conflict.attach(bufnr)
+      conflict.attach(bufnr, default_config())
       local rows = {}
       for _, mark in
         ipairs(
@@ -134,7 +144,7 @@ describe('jj conflict markers', function()
 
     it('does not attach when nothing parses', function()
       local bufnr = create_file_buffer(diff_lines())
-      conflict.attach(bufnr)
+      conflict.attach(bufnr, default_config({ keymaps = { ours = 'gto' } }))
       assert.are.equal(
         0,
         #vim.api.nvim_buf_get_extmarks(bufnr, conflict.get_namespace(), 0, -1, {})

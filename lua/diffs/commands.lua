@@ -2259,7 +2259,7 @@ function M.diff_file(filepath, opts)
     vim.api.nvim_buf_set_var(diff_buf, 'diffs_working_path', filepath)
     local conflict_config = runtime.get_conflict_config()
     if conflict_config then
-      require('diffs.merge').attach(diff_buf)
+      require('diffs.merge').attach(diff_buf, conflict_config)
     end
   end
 

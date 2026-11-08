@@ -2182,7 +2182,9 @@ describe('commands', function()
       edit_file(filepath)
       local source_win = vim.api.nvim_get_current_win()
       mock_runtime_attach(function() end)
-      mock_conflict_config(true)
+      mock_conflict_config({
+        keymaps = helpers.default_conflict_keymaps(),
+      })
 
       assert.is_true(git.is_unmerged(filepath))
 
@@ -2214,8 +2216,8 @@ describe('commands', function()
         assert.is_true(text:find('--- /dev/null', 1, true) == nil)
         assert.is_true(text:find('new file mode', 1, true) == nil)
         assert.is_true(text:find('<<<<<<<', 1, true) == nil)
-        assert.is_false(helpers.has_keymap(bufnr, 'go'))
-        assert.is_false(helpers.has_keymap(bufnr, 'gt'))
+        assert.is_true(helpers.has_keymap(bufnr, 'go'))
+        assert.is_true(helpers.has_keymap(bufnr, 'gt'))
         if expected_rail_style then
           assert.are.equal(expected_rail_style, vim.api.nvim_buf_get_var(bufnr, 'diffs_rail_style'))
         end

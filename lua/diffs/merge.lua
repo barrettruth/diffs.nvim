@@ -1,11 +1,15 @@
 local M = {}
 
 local conflict = require('diffs.conflict')
+local keymaps = require('diffs.keymaps')
 local notify = require('diffs.log').notify
 local rails = require('diffs.rails')
 
 ---@type table<integer, table<integer, true>>
 local resolved_hunks = {}
+
+---@type table<integer, table<string, diffs.BufferKeymap>>
+local buffer_keymaps = {}
 
 ---@class diffs.MergeHunkInfo
 ---@field index integer
@@ -141,8 +145,9 @@ function M.is_resolved(diff_bufnr, hunk_index)
 end
 
 ---@param diff_bufnr integer
+---@param config diffs.ConflictConfig
 ---@param side 'ours'|'theirs'|'both'|'none'
-local function resolve(diff_bufnr, side)
+local function resolve(diff_bufnr, config, side)
   local hunk = M.find_hunk_at_cursor(diff_bufnr)
   if not hunk then
     return
@@ -165,28 +170,32 @@ local function resolve(diff_bufnr, side)
     region,
     conflict.replacement_lines(working_bufnr, region, side)
   )
-  conflict.refresh(working_bufnr)
+  conflict.refresh(working_bufnr, config)
   mark_resolved(diff_bufnr, hunk.index)
 end
 
 ---@param bufnr integer
-function M.resolve_ours(bufnr)
-  resolve(bufnr, 'ours')
+---@param config diffs.ConflictConfig
+function M.resolve_ours(bufnr, config)
+  resolve(bufnr, config, 'ours')
 end
 
 ---@param bufnr integer
-function M.resolve_theirs(bufnr)
-  resolve(bufnr, 'theirs')
+---@param config diffs.ConflictConfig
+function M.resolve_theirs(bufnr, config)
+  resolve(bufnr, config, 'theirs')
 end
 
 ---@param bufnr integer
-function M.resolve_both(bufnr)
-  resolve(bufnr, 'both')
+---@param config diffs.ConflictConfig
+function M.resolve_both(bufnr, config)
+  resolve(bufnr, config, 'both')
 end
 
 ---@param bufnr integer
-function M.resolve_none(bufnr)
-  resolve(bufnr, 'none')
+---@param config diffs.ConflictConfig
+function M.resolve_none(bufnr, config)
+  resolve(bufnr, config, 'none')
 end
 
 ---@param bufnr integer
@@ -247,12 +256,28 @@ function M.goto_prev(bufnr)
 end
 
 ---@param bufnr integer
-function M.attach(bufnr)
+---@param config diffs.ConflictConfig
+function M.attach(bufnr, config)
   resolved_hunks[bufnr] = nil
+
+  local km = config.keymaps
+  if km ~= false then
+    keymaps.set_buffer_keymaps(buffer_keymaps, bufnr, {
+      { km.ours, '<Plug>(diffs-merge-ours)' },
+      { km.theirs, '<Plug>(diffs-merge-theirs)' },
+      { km.both, '<Plug>(diffs-merge-both)' },
+      { km.none, '<Plug>(diffs-merge-none)' },
+      { km.next, '<Plug>(diffs-merge-next)' },
+      { km.prev, '<Plug>(diffs-merge-prev)' },
+    })
+  else
+    keymaps.clear_buffer_keymaps(buffer_keymaps, bufnr)
+  end
 
   vim.api.nvim_create_autocmd('BufWipeout', {
     buffer = bufnr,
     callback = function()
+      keymaps.clear_buffer_keymaps(buffer_keymaps, bufnr)
       resolved_hunks[bufnr] = nil
     end,
   })
