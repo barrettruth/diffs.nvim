@@ -87,6 +87,19 @@ describe('plugin bootstrap', function()
         "vim.fn.maparg('<Plug>(diffs-conflict-ours)', 'n', false, true).callback()",
         "print('unchanged=' .. tostring(vim.deep_equal(lines, vim.api.nvim_buf_get_lines(0, 0, -1, false))))",
         'end',
+        "for _, kind in ipairs({ 'conflict', 'merge' }) do",
+        "if kind == 'merge' then",
+        'local buf = vim.api.nvim_create_buf(false, true)',
+        "vim.api.nvim_buf_set_lines(buf, 0, -1, false, { '@@ -1 +1 @@', '-old', '+new' })",
+        'vim.b[buf].diffs_working_path = path',
+        'vim.api.nvim_set_current_buf(buf)',
+        'end',
+        "for _, direction in ipairs({ 'next', 'prev' }) do",
+        'vim.api.nvim_win_set_cursor(0, { 2, 0 })',
+        "vim.fn.maparg('<Plug>(diffs-' .. kind .. '-' .. direction .. ')', 'n', false, true).callback()",
+        "print(kind .. '_' .. direction .. '=' .. vim.api.nvim_win_get_cursor(0)[1])",
+        'end',
+        'end',
         'vim.fn.delete(path)',
       }
 
@@ -94,6 +107,11 @@ describe('plugin bootstrap', function()
 
       assert.matches('runtime_loaded=' .. tostring(enabled), output, 1, true)
       assert.matches('conflict_loaded=' .. tostring(enabled), output, 1, true)
+      for _, kind in ipairs({ 'conflict', 'merge' }) do
+        for _, direction in ipairs({ 'next', 'prev' }) do
+          assert.matches(kind .. '_' .. direction .. '=' .. (enabled and 1 or 2), output, 1, true)
+        end
+      end
       if not enabled then
         assert.matches('unchanged=true', output, 1, true)
       end
