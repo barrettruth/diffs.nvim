@@ -518,6 +518,9 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     already exists in the current tabpage, the new diff replaces its buffer
     instead of creating another split.
 
+    Reloads require the source metadata stored when the plugin creates the
+    view. If that metadata is unavailable, reopen the view with |:Diff-review|.
+
     With `++layout=split`, |:Diff-review| opens one review file as a paired
     side-by-side diff instead of the full review map: the old/removed endpoint
     on the left, the new/added endpoint on the right. Both panes are read-only
@@ -1071,8 +1074,6 @@ When difftastic finds no structural change (e.g. a reformat-only edit), it
 emits an informational message and renders no token highlights. The 'diffopt'
 whitespace handling does not apply to a structural diff; such buffers are left
 unchanged.
-
-Use |<Plug>(diffs-refresh)| after changing `inline:` in an open difftastic view.
 
 Run |:checkhealth| diffs to confirm `difft` is detected.
 

@@ -86,22 +86,6 @@ function M.set_spec(bufnr, diff_spec)
 end
 
 ---@param bufnr integer
----@return diffs.DiffSpec?, string?
-function M.spec(bufnr)
-  local raw = M.get_var(bufnr, 'diffs_spec')
-  if raw == nil then
-    return nil, nil
-  end
-
-  local ok, parsed = pcall(diffspec.new, raw)
-  if not ok then
-    return nil, tostring(parsed)
-  end
-
-  return parsed, nil
-end
-
----@param bufnr integer
 ---@return boolean, any
 function M.raw_hunks(bufnr)
   return pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_hunks')

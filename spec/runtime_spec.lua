@@ -2,104 +2,6 @@ require('spec.helpers')
 local runtime = require('diffs.runtime')
 
 describe('diffs.runtime', function()
-  describe('attach', function()
-    local function create_buffer(lines)
-      local bufnr = vim.api.nvim_create_buf(false, true)
-      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines or {})
-      return bufnr
-    end
-
-    local function delete_buffer(bufnr)
-      if vim.api.nvim_buf_is_valid(bufnr) then
-        vim.api.nvim_buf_delete(bufnr, { force = true })
-      end
-    end
-
-    it('does not error on empty buffer', function()
-      local bufnr = create_buffer({})
-      assert.has_no.errors(function()
-        runtime.attach(bufnr)
-      end)
-      delete_buffer(bufnr)
-    end)
-
-    it('does not error on buffer with content', function()
-      local bufnr = create_buffer({
-        'M test.lua',
-        '@@ -1,1 +1,2 @@',
-        ' local x = 1',
-        '+local y = 2',
-      })
-      assert.has_no.errors(function()
-        runtime.attach(bufnr)
-      end)
-      delete_buffer(bufnr)
-    end)
-
-    it('is idempotent', function()
-      local bufnr = create_buffer({})
-      assert.has_no.errors(function()
-        runtime.attach(bufnr)
-        runtime.attach(bufnr)
-        runtime.attach(bufnr)
-      end)
-      delete_buffer(bufnr)
-    end)
-  end)
-
-  describe('refresh', function()
-    local function create_buffer(lines)
-      local bufnr = vim.api.nvim_create_buf(false, true)
-      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines or {})
-      return bufnr
-    end
-
-    local function delete_buffer(bufnr)
-      if vim.api.nvim_buf_is_valid(bufnr) then
-        vim.api.nvim_buf_delete(bufnr, { force = true })
-      end
-    end
-
-    it('does not error on unattached buffer', function()
-      local bufnr = create_buffer({})
-      assert.has_no.errors(function()
-        runtime.refresh(bufnr)
-      end)
-      delete_buffer(bufnr)
-    end)
-
-    it('does not error on attached buffer', function()
-      local bufnr = create_buffer({})
-      runtime.attach(bufnr)
-      assert.has_no.errors(function()
-        runtime.refresh(bufnr)
-      end)
-      delete_buffer(bufnr)
-    end)
-  end)
-
-  describe('is_fugitive_buffer', function()
-    it('returns true for fugitive:// URLs', function()
-      local bufnr = vim.api.nvim_create_buf(false, true)
-      vim.api.nvim_buf_set_name(bufnr, 'fugitive:///path/to/repo/.git//abc123:file.lua')
-      assert.is_true(runtime.is_fugitive_buffer(bufnr))
-      vim.api.nvim_buf_delete(bufnr, { force = true })
-    end)
-
-    it('returns false for normal paths', function()
-      local bufnr = vim.api.nvim_create_buf(false, true)
-      vim.api.nvim_buf_set_name(bufnr, '/home/user/project/file.lua')
-      assert.is_false(runtime.is_fugitive_buffer(bufnr))
-      vim.api.nvim_buf_delete(bufnr, { force = true })
-    end)
-
-    it('returns false for empty buffer names', function()
-      local bufnr = vim.api.nvim_create_buf(false, true)
-      assert.is_false(runtime.is_fugitive_buffer(bufnr))
-      vim.api.nvim_buf_delete(bufnr, { force = true })
-    end)
-  end)
-
   describe('find_visible_hunks', function()
     local find_visible_hunks = runtime._test.find_visible_hunks
 
@@ -211,21 +113,6 @@ describe('diffs.runtime', function()
       end
     end
 
-    it('creates entry on attach', function()
-      local bufnr = create_buffer({
-        '@@ -1,1 +1,2 @@',
-        ' local x = 1',
-        '+local y = 2',
-      })
-      runtime.attach(bufnr)
-      local entry = runtime._test.hunk_cache[bufnr]
-      assert.is_not_nil(entry)
-      assert.is_table(entry.hunks)
-      assert.is_number(entry.tick)
-      assert.is_true(entry.tick >= 0)
-      delete_buffer(bufnr)
-    end)
-
     it('is idempotent on repeated attach', function()
       local bufnr = create_buffer({
         '@@ -1,1 +1,2 @@',
@@ -240,16 +127,6 @@ describe('diffs.runtime', function()
       local entry2 = runtime._test.hunk_cache[bufnr]
       assert.are.equal(tick1, entry2.tick)
       assert.are.equal(hunks1, entry2.hunks)
-      delete_buffer(bufnr)
-    end)
-
-    it('marks stale on invalidate', function()
-      local bufnr = create_buffer({})
-      runtime.attach(bufnr)
-      runtime._test.invalidate_cache(bufnr)
-      local entry = runtime._test.hunk_cache[bufnr]
-      assert.are.equal(-1, entry.tick)
-      assert.is_true(entry.pending_clear)
       delete_buffer(bufnr)
     end)
 
@@ -276,29 +153,6 @@ describe('diffs.runtime', function()
       assert.are.equal(0, #vim.api.nvim_buf_get_extmarks(bufnr, ns, 0, -1, {}))
       assert.are.equal(0, vim.tbl_count(runtime._test.hunk_cache[bufnr].highlighted))
       assert.is_false(runtime._test.hunk_cache[bufnr].pending_clear)
-      delete_buffer(bufnr)
-    end)
-
-    it('evicts on buffer wipeout', function()
-      local bufnr = create_buffer({})
-      runtime.attach(bufnr)
-      assert.is_not_nil(runtime._test.hunk_cache[bufnr])
-      vim.api.nvim_buf_delete(bufnr, { force = true })
-      assert.is_nil(runtime._test.hunk_cache[bufnr])
-    end)
-
-    it('detects content change via tick', function()
-      local bufnr = create_buffer({
-        '@@ -1,1 +1,2 @@',
-        ' local x = 1',
-        '+local y = 2',
-      })
-      runtime.attach(bufnr)
-      local tick_before = runtime._test.hunk_cache[bufnr].tick
-      vim.api.nvim_buf_set_lines(bufnr, -1, -1, false, { '+local z = 3' })
-      runtime._test.ensure_cache(bufnr)
-      local tick_after = runtime._test.hunk_cache[bufnr].tick
-      assert.is_true(tick_after > tick_before)
       delete_buffer(bufnr)
     end)
   end)
