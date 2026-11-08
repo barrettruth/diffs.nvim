@@ -1,6 +1,5 @@
 require('spec.helpers')
 local parser = require('diffs.parser')
-local rails = require('diffs.rails')
 
 describe('parser', function()
   describe('parse_buffer', function()
@@ -53,61 +52,6 @@ describe('parser', function()
       assert.are.equal('lua', hunks[1].lang)
       assert.are.equal(3, hunks[1].start_line)
       assert.are.equal(3, #hunks[1].lines)
-      delete_buffer(bufnr)
-    end)
-
-    it('strips generated line-number rails before parsing hunks', function()
-      local annotated, info = rails.annotate({
-        'diff --git a/lua/test.lua b/lua/test.lua',
-        '--- a/lua/test.lua',
-        '+++ b/lua/test.lua',
-        '@@ -1,2 +1,3 @@',
-        ' local M = {}',
-        '+local new = true',
-        ' return M',
-      })
-      local bufnr = create_buffer(annotated)
-      vim.api.nvim_buf_set_var(bufnr, 'diffs_rail_width', info.prefix_width)
-
-      local hunks = parser.parse_buffer(bufnr)
-
-      assert.are.equal(1, #hunks)
-      assert.are.equal('lua/test.lua', hunks[1].filename)
-      assert.are.equal(info.prefix_width, hunks[1].quote_width)
-      assert.are.equal(info.prefix_width, hunks[1].rail_width)
-      assert.are.equal(4, hunks[1].start_line)
-      assert.are.same({
-        ' local M = {}',
-        '+local new = true',
-        ' return M',
-      }, hunks[1].lines)
-      delete_buffer(bufnr)
-    end)
-
-    it('records single generated rail style and keeps parsed hunk lines rail-free', function()
-      local annotated, info = rails.annotate({
-        'diff --git a/lua/test.lua b/lua/test.lua',
-        '--- a/lua/test.lua',
-        '+++ b/lua/test.lua',
-        '@@ -1,2 +1,3 @@',
-        ' local M = {}',
-        '-local old = false',
-        '+local new = true',
-      }, { rail_style = 'single' })
-      local bufnr = create_buffer(annotated)
-      vim.api.nvim_buf_set_var(bufnr, 'diffs_rail_width', info.prefix_width)
-      vim.api.nvim_buf_set_var(bufnr, 'diffs_rail_style', info.style)
-
-      local hunks = parser.parse_buffer(bufnr)
-
-      assert.are.equal(1, #hunks)
-      assert.are.equal('single', hunks[1].rail_style)
-      assert.are.equal(info.prefix_width, hunks[1].rail_width)
-      assert.are.same({
-        ' local M = {}',
-        '-local old = false',
-        '+local new = true',
-      }, hunks[1].lines)
       delete_buffer(bufnr)
     end)
 
@@ -432,33 +376,6 @@ describe('parser', function()
       delete_buffer(bufnr)
     end)
 
-    it('uses filetype from existing buffer when available', function()
-      local repo_root = '/tmp/test-repo'
-      local file_path = repo_root .. '/build'
-
-      local file_buf = vim.api.nvim_create_buf(false, true)
-      vim.api.nvim_buf_set_name(file_buf, file_path)
-      vim.api.nvim_set_option_value('filetype', 'bash', { buf = file_buf })
-
-      local diff_buf = create_buffer({
-        'M build',
-        '@@ -1,2 +1,3 @@',
-        ' echo "hello"',
-        '+set -e',
-        ' echo "done"',
-      })
-      vim.api.nvim_buf_set_var(diff_buf, 'diffs_source', { repo_root = repo_root })
-
-      local hunks = parser.parse_buffer(diff_buf)
-
-      assert.are.equal(1, #hunks)
-      assert.are.equal('build', hunks[1].filename)
-      assert.are.equal('bash', hunks[1].ft)
-
-      delete_buffer(file_buf)
-      delete_buffer(diff_buf)
-    end)
-
     it('uses filetype from existing buffer via git_dir', function()
       local git_dir = '/tmp/test-repo/.git'
       local repo_root = '/tmp/test-repo'
@@ -505,7 +422,7 @@ describe('parser', function()
         '+set -e',
         ' echo "hello"',
       })
-      vim.api.nvim_buf_set_var(diff_buf, 'diffs_source', { repo_root = repo_root })
+      vim.api.nvim_buf_set_var(diff_buf, 'git_dir', repo_root .. '/.git')
 
       local hunks = parser.parse_buffer(diff_buf)
 

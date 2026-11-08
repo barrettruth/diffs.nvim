@@ -29,28 +29,6 @@ describe('plugin bootstrap', function()
     return output
   end
 
-  it('registers entry points without loading implementation modules', function()
-    local init_lines = {
-      ('vim.opt.runtimepath:prepend(%s)'):format(vim.inspect(vim.fn.getcwd())),
-    }
-    local after_lines = {
-      'local commands = vim.api.nvim_get_commands({})',
-      "print('has_diff_command=' .. tostring(commands.Diff ~= nil))",
-      "print('diff_bar=' .. tostring(commands.Diff and commands.Diff.bar == true))",
-      "print('commands_loaded=' .. tostring(package.loaded['diffs.commands'] ~= nil))",
-      "print('runtime_loaded=' .. tostring(package.loaded['diffs.runtime'] ~= nil))",
-      "print('highlight_loaded=' .. tostring(package.loaded['diffs.highlight'] ~= nil))",
-    }
-
-    local output = run_child(init_lines, after_lines)
-
-    assert.matches('has_diff_command=true', output, 1, true)
-    assert.matches('diff_bar=true', output, 1, true)
-    assert.matches('commands_loaded=false', output, 1, true)
-    assert.matches('runtime_loaded=false', output, 1, true)
-    assert.matches('highlight_loaded=false', output, 1, true)
-  end)
-
   it('does not load runtime for an ordinary file', function()
     local init_lines = {
       ('vim.opt.runtimepath:prepend(%s)'):format(vim.inspect(vim.fn.getcwd())),
@@ -60,67 +38,12 @@ describe('plugin bootstrap', function()
       "vim.fn.writefile({ 'ordinary source line' }, path)",
       'vim.cmd.edit(path)',
       "print('runtime_loaded=' .. tostring(package.loaded['diffs.runtime'] ~= nil))",
-      "print('conflict_loaded=' .. tostring(package.loaded['diffs.conflict'] ~= nil))",
       'vim.fn.delete(path)',
     }
 
     local output = run_child(init_lines, after_lines)
 
     assert.matches('runtime_loaded=false', output, 1, true)
-    assert.matches('conflict_loaded=false', output, 1, true)
-  end)
-
-  it('respects the conflict setting', function()
-    for _, enabled in ipairs({ true, false }) do
-      local init_lines = {
-        ('vim.g.diffs = { conflict = %s }'):format(tostring(enabled)),
-        ('vim.opt.runtimepath:prepend(%s)'):format(vim.inspect(vim.fn.getcwd())),
-      }
-      local after_lines = vim.split(
-        [[
-local path = vim.fn.tempname()
-vim.fn.writefile({ '<<<<<<< ours', 'old', '=======', 'new', '>>>>>>> theirs' }, path)
-vim.cmd.edit(path)
-print('runtime_loaded=' .. tostring(package.loaded['diffs.runtime'] ~= nil))
-print('conflict_loaded=' .. tostring(package.loaded['diffs.conflict'] ~= nil))
-
-if not vim.g.diffs.conflict then
-  local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
-  vim.fn.maparg('<Plug>(diffs-conflict-ours)', 'n', false, true).callback()
-  print('unchanged=' .. tostring(vim.deep_equal(lines, vim.api.nvim_buf_get_lines(0, 0, -1, false))))
-end
-
-for _, kind in ipairs({ 'conflict', 'merge' }) do
-  if kind == 'merge' then
-    local buf = vim.api.nvim_create_buf(false, true)
-    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { '@@ -1 +1 @@', '-old', '+new' })
-    vim.b[buf].diffs_source = { working_path = path }
-    vim.api.nvim_set_current_buf(buf)
-  end
-  for _, direction in ipairs({ 'next', 'prev' }) do
-    vim.api.nvim_win_set_cursor(0, { 2, 0 })
-    vim.fn.maparg('<Plug>(diffs-' .. kind .. '-' .. direction .. ')', 'n', false, true).callback()
-    print(kind .. '_' .. direction .. '=' .. vim.api.nvim_win_get_cursor(0)[1])
-  end
-end
-vim.fn.delete(path)
-]],
-        '\n'
-      )
-
-      local output = run_child(init_lines, after_lines)
-
-      assert.matches('runtime_loaded=' .. tostring(enabled), output, 1, true)
-      assert.matches('conflict_loaded=' .. tostring(enabled), output, 1, true)
-      for _, kind in ipairs({ 'conflict', 'merge' }) do
-        for _, direction in ipairs({ 'next', 'prev' }) do
-          assert.matches(kind .. '_' .. direction .. '=' .. (enabled and 1 or 2), output, 1, true)
-        end
-      end
-      if not enabled then
-        assert.matches('unchanged=true', output, 1, true)
-      end
-    end
   end)
 
   it('loads supported config during plugin startup', function()
@@ -129,7 +52,7 @@ vim.fn.delete(path)
       'vim.notify = function(message, level)',
       '_G.diffs_notifications[#_G.diffs_notifications + 1] = { message = message, level = level }',
       'end',
-      'vim.g.diffs = { view = { prefix = false }, highlights = { background = false }, conflict = false, integrations = { "fugitive", "neogit", "neojj", "gitsigns", "committia", "telescope" } }',
+      'vim.g.diffs = { view = { prefix = false }, highlights = { background = false }, integrations = { "fugitive", "neogit", "neojj", "gitsigns", "committia", "telescope" } }',
       ('vim.opt.runtimepath:prepend(%s)'):format(vim.inspect(vim.fn.getcwd())),
     }
 
@@ -151,7 +74,6 @@ vim.fn.delete(path)
       "print('runtime_committia=' .. tostring(runtime_config.integrations.committia))",
       "print('runtime_telescope=' .. tostring(runtime_config.integrations.telescope))",
       "print('runtime_background=' .. tostring(runtime_config.highlights.background))",
-      "print('runtime_conflict=' .. tostring(runtime_config.conflict))",
       "print('runtime_config_priorities=' .. tostring(runtime_config.highlights.priorities))",
       "print('highlight_priority_clear=' .. tostring(highlight_opts.highlights.priorities.clear))",
       "print('highlight_priority_syntax=' .. tostring(highlight_opts.highlights.priorities.syntax))",
@@ -188,7 +110,6 @@ vim.fn.delete(path)
     assert.matches('runtime_committia=true', output, 1, true)
     assert.matches('runtime_telescope=true', output, 1, true)
     assert.matches('runtime_background=false', output, 1, true)
-    assert.matches('runtime_conflict=false', output, 1, true)
     assert.matches('runtime_config_priorities=nil', output, 1, true)
     assert.matches('highlight_priority_clear=198', output, 1, true)
     assert.matches('highlight_priority_syntax=199', output, 1, true)
@@ -199,113 +120,6 @@ vim.fn.delete(path)
     assert.matches('has_neogit_autocmd=true', output, 1, true)
     assert.matches('has_neojj_autocmd=true', output, 1, true)
     assert.matches('has_telescope_autocmd=true', output, 1, true)
-  end)
-
-  it('navigates both review panes and preserves quickfix entries across reloads', function()
-    local init_lines = {
-      ('vim.opt.runtimepath:prepend(%s)'):format(vim.inspect(vim.fn.getcwd())),
-      'vim.g.diffs = { integrations = { difftastic = false } }',
-    }
-    local after_lines = vim.split(
-      [[
-local repo = vim.fn.resolve(vim.fn.tempname())
-vim.fn.mkdir(repo, 'p')
-local function git(...)
-  local output = vim.fn.systemlist({ 'git', '-C', repo, ... })
-  assert(vim.v.shell_error == 0, table.concat(output, '\n'))
-end
-local ok, err = pcall(function()
-  git('init', '-q')
-  git('config', 'user.name', 'Test')
-  git('config', 'user.email', 'test@example.com')
-  for _, file in ipairs({ 'one.lua', 'three.lua', 'two.lua' }) do
-    vim.fn.writefile({ 'old' }, repo .. '/' .. file)
-  end
-  git('add', '.')
-  git('commit', '-qm', 'base')
-  for _, file in ipairs({ 'one.lua', 'three.lua', 'two.lua' }) do
-    vim.fn.writefile({ 'new' }, repo .. '/' .. file)
-  end
-  git('commit', '-qam', 'target')
-  vim.cmd.cd(repo)
-  vim.cmd('Diff review HEAD~1')
-  local buf = vim.api.nvim_get_current_buf()
-  local window_count = #vim.api.nvim_tabpage_list_wins(0)
-  local statuscolumn = vim.wo.statuscolumn
-  local before = vim.fn.getqflist({ id = 0, items = 0 })
-  assert(#before.items == 3)
-  vim.keymap.set('n', ']q', '<cmd>cnext<cr>')
-  vim.keymap.set('n', '[q', '<cmd>cprevious<cr>')
-  vim.cmd('normal gs')
-  assert(not vim.api.nvim_buf_is_loaded(buf))
-  local pair_wins = vim.tbl_filter(function(win)
-    return require('diffs').review_current(vim.api.nvim_win_get_buf(win)) ~= nil
-  end, vim.api.nvim_tabpage_list_wins(0))
-  assert(#pair_wins == 2)
-  local reads = 0
-  local autocmd = vim.api.nvim_create_autocmd('BufReadCmd', {
-    pattern = 'diffs://review:*',
-    callback = function() reads = reads + 1 end,
-  })
-  local function check_pair(index)
-    assert(#vim.api.nvim_tabpage_list_wins(0) == window_count + 1)
-    for _, win in ipairs(pair_wins) do
-      local pane = vim.api.nvim_win_get_buf(win)
-      local current = require('diffs').review_current(pane)
-      assert(current and current.index == index, vim.inspect(current))
-      assert(vim.bo[pane].modifiable == false)
-      assert(vim.wo[win].scrollbind and vim.wo[win].cursorbind)
-    end
-    assert(reads == 0)
-    assert(vim.fn.getqflist({ id = 0 }).id == before.id)
-  end
-  check_pair(1)
-  vim.cmd('normal ]q')
-  check_pair(2)
-  vim.api.nvim_set_current_win(pair_wins[1])
-  vim.cmd('normal ]q')
-  check_pair(3)
-  vim.cmd('normal ]q')
-  check_pair(1)
-  vim.cmd('normal [q')
-  check_pair(3)
-  vim.cmd('normal 2[q')
-  check_pair(1)
-  vim.cmd('normal 2]q')
-  check_pair(3)
-  vim.api.nvim_del_autocmd(autocmd)
-  vim.cmd('normal gs')
-  assert(#vim.api.nvim_tabpage_list_wins(0) == window_count)
-  buf = vim.api.nvim_get_current_buf()
-  assert(vim.b[buf].diffs_review.layout == 'unified')
-  before = vim.fn.getqflist({ id = 0, items = 0 })
-  vim.cmd('normal gs')
-  assert(require('diffs').review_current().index == 3)
-  vim.cmd('normal q')
-  local remaining_windows = #vim.api.nvim_tabpage_list_wins(0)
-  vim.cmd('cc 2')
-  local after = vim.fn.getqflist({ id = 0, idx = 0 })
-  assert(after.id == before.id)
-  assert(after.idx == 2)
-  assert(vim.api.nvim_get_current_buf() == buf)
-  assert(vim.api.nvim_win_get_cursor(0)[1] == before.items[2].lnum)
-  assert(#vim.api.nvim_tabpage_list_wins(0) == remaining_windows)
-  assert(not vim.wo.scrollbind)
-  assert(not vim.wo.cursorbind)
-  assert(vim.wo.statuscolumn == statuscolumn)
-  vim.fn.writefile({ 'new file' }, repo .. '/four.lua')
-  vim.cmd('edit')
-  assert(#vim.fn.getqflist() == 4)
-end)
-vim.fn.delete(repo, 'rf')
-assert(ok, err)
-print('quickfix_reloaded=true')
-]],
-      '\n'
-    )
-
-    local output = run_child(init_lines, after_lines)
-    assert.matches('quickfix_reloaded=true', output, 1, true)
   end)
 
   it('enhances native diff windows opened at startup with nvim -d', function()

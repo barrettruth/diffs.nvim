@@ -9,20 +9,10 @@ function M.check()
     vim.health.error('diffs.nvim requires Neovim 0.12.0+')
   end
 
-  local fugitive_loaded = vim.fn.exists(':Git') == 2
-  if fugitive_loaded then
-    vim.health.ok('vim-fugitive detected')
+  if pcall(vim.treesitter.language.add, 'diff') then
+    vim.health.ok('Treesitter diff parser available')
   else
-    vim.health.warn('vim-fugitive not detected (required for unified diff highlighting)')
-  end
-
-  local difftastic = require('diffs.difftastic')
-  if not difftastic.resolve().enabled then
-    vim.health.info('difftastic not enabled (optional, set integrations.difftastic)')
-  elseif difftastic.available() then
-    vim.health.ok('difftastic (difft) found on PATH')
-  else
-    vim.health.warn('integrations.difftastic is enabled but difft was not found on PATH')
+    vim.health.info('Treesitter diff parser unavailable. Diffs uses its Lua parser.')
   end
 end
 

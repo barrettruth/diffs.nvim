@@ -1,7 +1,6 @@
 require('spec.helpers')
 local config = require('diffs.config')
 local highlight = require('diffs.highlight')
-local rails = require('diffs.rails')
 
 describe('highlight', function()
   describe('hunk_opts', function()
@@ -49,7 +48,6 @@ describe('highlight', function()
       vim.api.nvim_set_hl(0, 'DiffsClear', { fg = normal.fg or 0xc0c0c0 })
       vim.api.nvim_set_hl(0, 'DiffsAdd', { bg = diff_add.bg })
       vim.api.nvim_set_hl(0, 'DiffsDelete', { bg = diff_delete.bg })
-      vim.api.nvim_set_hl(0, 'DiffsConflictMarker', { fg = 0x808080, bold = true })
     end)
 
     after_each(function()
@@ -92,6 +90,7 @@ describe('highlight', function()
         if overrides.highlights then
           opts.highlights = vim.tbl_deep_extend('force', opts.highlights, overrides.highlights)
         end
+        opts.intra = overrides.intra
         if overrides.hide_prefix ~= nil then
           opts.hide_prefix = overrides.hide_prefix
         end
@@ -231,7 +230,7 @@ describe('highlight', function()
       delete_buffer(bufnr)
     end)
 
-    it('keeps whitespace-only highlighting on difftastic-active buffers', function()
+    it('keeps line backgrounds when intra highlighting is disabled', function()
       local saved = vim.o.diffopt
       vim.o.diffopt = 'internal,iwhiteall'
 
@@ -240,7 +239,6 @@ describe('highlight', function()
         '-  return a + b',
         '+    return a + b',
       })
-      vim.b[bufnr].diffs_difft_active = true
       local hunk = {
         filename = 'test.lua',
         start_line = 1,
@@ -253,7 +251,7 @@ describe('highlight', function()
         bufnr,
         ns,
         hunk,
-        default_opts({ highlights = { background = true } })
+        default_opts({ intra = false, highlights = { background = true } })
       )
       vim.o.diffopt = saved
 
@@ -782,380 +780,6 @@ describe('highlight', function()
       end
       assert.is_true(add_prefix, '@diff.plus on + prefix')
       assert.is_true(del_prefix, '@diff.minus on - prefix')
-      delete_buffer(bufnr)
-    end)
-
-    it('draws generated rail change bars before line-number columns', function()
-      local bufnr = create_buffer({
-        '      │ @@ -1,1 +1,1 @@',
-        '  1   │ -old',
-        '    1 │ +new',
-      })
-
-      local hunk = {
-        filename = 'test.lua',
-        lang = 'lua',
-        start_line = 1,
-        lines = { '-old', '+new' },
-        prefix_width = 1,
-        quote_width = 10,
-        rail_width = 10,
-      }
-
-      highlight.highlight_hunk(
-        bufnr,
-        ns,
-        hunk,
-        default_opts({
-          hide_prefix = true,
-          highlights = {
-            background = true,
-            treesitter = false,
-          },
-        })
-      )
-
-      local bars = {}
-      for _, mark in ipairs(get_extmarks(bufnr)) do
-        local d = mark[4]
-        if d and d.virt_text and d.virt_text[1] then
-          local group = d.virt_text[1][2]
-          if group == 'DiffsAddBar' or group == 'DiffsDeleteBar' then
-            bars[mark[2]] = group
-            assert.are.equal('▏', d.virt_text[1][1])
-            assert.are.equal(0, mark[3])
-          end
-        end
-      end
-
-      assert.are.equal('DiffsDeleteBar', bars[1])
-      assert.are.equal('DiffsAddBar', bars[2])
-      delete_buffer(bufnr)
-    end)
-
-    it('highlights generated rail numbers', function()
-      local bufnr = create_buffer({
-        '      │ @@ -1,1 +1,1 @@',
-        '  1   │ -old',
-        '    1 │ +new',
-      })
-
-      local hunk = {
-        filename = 'test.lua',
-        lang = 'lua',
-        start_line = 1,
-        lines = { '-old', '+new' },
-        prefix_width = 1,
-        quote_width = 10,
-        rail_width = 10,
-      }
-
-      highlight.highlight_hunk(
-        bufnr,
-        ns,
-        hunk,
-        default_opts({
-          hide_prefix = true,
-          highlights = {
-            background = true,
-            treesitter = false,
-          },
-        })
-      )
-
-      local rail_marks = {}
-      local rail_numbers = {}
-      for _, mark in ipairs(get_extmarks(bufnr)) do
-        local d = mark[4]
-        if d and d.hl_group == 'DiffsRail' then
-          rail_marks[#rail_marks + 1] = { row = mark[2], col = mark[3], end_col = d.end_col }
-        end
-        if d and d.hl_group == 'DiffsRailNr' then
-          rail_numbers[#rail_numbers + 1] = { row = mark[2], col = mark[3], end_col = d.end_col }
-        end
-      end
-
-      assert.are.same({
-        { row = 1, col = 0, end_col = 10 },
-        { row = 2, col = 0, end_col = 10 },
-      }, rail_marks)
-      assert.are.same({
-        { row = 1, col = 2, end_col = 3 },
-        { row = 1, col = 4, end_col = 5 },
-        { row = 2, col = 2, end_col = 3 },
-        { row = 2, col = 4, end_col = 5 },
-      }, rail_numbers)
-      delete_buffer(bufnr)
-    end)
-
-    it('keeps hide_prefix overlay off generated line-number rails', function()
-      local bufnr = create_buffer({
-        '      │ @@ -1,1 +1,1 @@',
-        '  1   │ -old',
-        '    1 │ +new',
-      })
-
-      local hunk = {
-        filename = 'test.lua',
-        lang = 'lua',
-        start_line = 1,
-        lines = { '-old', '+new' },
-        prefix_width = 1,
-        quote_width = 10,
-        rail_width = 10,
-      }
-
-      highlight.highlight_hunk(
-        bufnr,
-        ns,
-        hunk,
-        default_opts({
-          hide_prefix = true,
-          highlights = {
-            background = true,
-            treesitter = false,
-          },
-        })
-      )
-
-      local overlays = {}
-      local rail_marks = {}
-      local base_rail_numbers = {}
-      local rail_numbers = {}
-      for _, mark in ipairs(get_extmarks(bufnr)) do
-        local d = mark[4]
-        if d and d.virt_text and d.virt_text[1] then
-          local text, group = d.virt_text[1][1], d.virt_text[1][2]
-          if group == 'DiffsAdd' or group == 'DiffsDelete' then
-            overlays[#overlays + 1] = { row = mark[2], col = mark[3], text = text, group = group }
-          end
-        end
-        if d and d.hl_group == 'DiffsRail' then
-          rail_marks[#rail_marks + 1] = { row = mark[2], col = mark[3], end_col = d.end_col }
-        end
-        if d and d.hl_group == 'DiffsRailNr' then
-          base_rail_numbers[#base_rail_numbers + 1] =
-            { row = mark[2], col = mark[3], end_col = d.end_col }
-        end
-        if d and (d.hl_group == 'DiffsAddRailNr' or d.hl_group == 'DiffsDeleteRailNr') then
-          rail_numbers[#rail_numbers + 1] =
-            { row = mark[2], col = mark[3], end_col = d.end_col, group = d.hl_group }
-        end
-      end
-
-      assert.are.same({
-        { row = 1, col = 10, text = ' ', group = 'DiffsDelete' },
-        { row = 2, col = 10, text = ' ', group = 'DiffsAdd' },
-      }, overlays)
-      assert.are.same({
-        { row = 1, col = 0, end_col = 10 },
-        { row = 2, col = 0, end_col = 10 },
-      }, rail_marks)
-      assert.are.same({
-        { row = 1, col = 2, end_col = 3 },
-        { row = 1, col = 4, end_col = 5 },
-        { row = 2, col = 2, end_col = 3 },
-        { row = 2, col = 4, end_col = 5 },
-      }, base_rail_numbers)
-      assert.are.same({
-        { row = 1, col = 2, end_col = 5, group = 'DiffsDeleteRailNr' },
-        { row = 2, col = 2, end_col = 5, group = 'DiffsAddRailNr' },
-      }, rail_numbers)
-      delete_buffer(bufnr)
-    end)
-
-    it('highlights single generated rail numbers for context and changed lines', function()
-      local annotated, info = rails.annotate({
-        '@@ -1,2 +1,2 @@',
-        ' local M = {}',
-        '-local old = false',
-        '+local new = true',
-      }, { rail_style = 'single' })
-      local bufnr = create_buffer(annotated)
-
-      local hunk = {
-        filename = 'test.lua',
-        lang = 'lua',
-        start_line = 1,
-        lines = {
-          ' local M = {}',
-          '-local old = false',
-          '+local new = true',
-        },
-        prefix_width = 1,
-        quote_width = info.prefix_width,
-        rail_width = info.prefix_width,
-        rail_style = info.style,
-      }
-
-      highlight.highlight_hunk(
-        bufnr,
-        ns,
-        hunk,
-        default_opts({
-          highlights = {
-            treesitter = false,
-          },
-        })
-      )
-
-      local rail_marks = {}
-      local base_numbers = {}
-      local changed_numbers = {}
-      for _, mark in ipairs(get_extmarks(bufnr)) do
-        local d = mark[4]
-        if d and d.hl_group == 'DiffsRail' then
-          rail_marks[#rail_marks + 1] = { row = mark[2], col = mark[3], end_col = d.end_col }
-        end
-        if d and d.hl_group == 'DiffsRailNr' then
-          base_numbers[#base_numbers + 1] = { row = mark[2], col = mark[3], end_col = d.end_col }
-        end
-        if d and (d.hl_group == 'DiffsAddRailNr' or d.hl_group == 'DiffsDeleteRailNr') then
-          changed_numbers[#changed_numbers + 1] =
-            { row = mark[2], col = mark[3], end_col = d.end_col, group = d.hl_group }
-        end
-      end
-
-      assert.are.same({
-        { row = 1, col = 0, end_col = info.prefix_width },
-        { row = 2, col = 0, end_col = info.prefix_width },
-        { row = 3, col = 0, end_col = info.prefix_width },
-      }, rail_marks)
-      assert.are.same({
-        { row = 1, col = 2, end_col = 3 },
-        { row = 2, col = 2, end_col = 3 },
-        { row = 3, col = 2, end_col = 3 },
-      }, base_numbers)
-      assert.are.same({
-        { row = 2, col = 2, end_col = 3, group = 'DiffsDeleteRailNr' },
-        { row = 3, col = 2, end_col = 3, group = 'DiffsAddRailNr' },
-      }, changed_numbers)
-      delete_buffer(bufnr)
-    end)
-
-    it('keeps hide_prefix overlay off single generated line-number rails', function()
-      local annotated, info = rails.annotate({
-        '@@ -1,1 +1,1 @@',
-        '-old',
-        '+new',
-      }, { rail_style = 'single' })
-      local bufnr = create_buffer(annotated)
-
-      local hunk = {
-        filename = 'test.lua',
-        lang = 'lua',
-        start_line = 1,
-        lines = { '-old', '+new' },
-        prefix_width = 1,
-        quote_width = info.prefix_width,
-        rail_width = info.prefix_width,
-        rail_style = info.style,
-      }
-
-      highlight.highlight_hunk(
-        bufnr,
-        ns,
-        hunk,
-        default_opts({
-          hide_prefix = true,
-          highlights = {
-            background = true,
-            treesitter = false,
-          },
-        })
-      )
-
-      local overlays = {}
-      for _, mark in ipairs(get_extmarks(bufnr)) do
-        local d = mark[4]
-        if d and d.virt_text and d.virt_text[1] then
-          local text, group = d.virt_text[1][1], d.virt_text[1][2]
-          if group == 'DiffsAdd' or group == 'DiffsDelete' then
-            overlays[#overlays + 1] = { row = mark[2], col = mark[3], text = text, group = group }
-            assert.is_true(mark[3] >= info.prefix_width)
-          end
-        end
-      end
-
-      assert.are.same({
-        { row = 1, col = info.prefix_width, text = ' ', group = 'DiffsDelete' },
-        { row = 2, col = info.prefix_width, text = ' ', group = 'DiffsAdd' },
-      }, overlays)
-      delete_buffer(bufnr)
-    end)
-
-    it('leaves generated context prefix cells unpainted for cursorline', function()
-      local bufnr = create_buffer({
-        '  1 1 │  local M = {}',
-      })
-
-      local hunk = {
-        filename = 'test.lua',
-        lang = 'lua',
-        start_line = 0,
-        lines = { ' local M = {}' },
-        prefix_width = 1,
-        quote_width = 10,
-        rail_width = 10,
-      }
-
-      highlight.highlight_hunk(
-        bufnr,
-        ns,
-        hunk,
-        default_opts({
-          hide_prefix = true,
-          highlights = {
-            background = true,
-            treesitter = false,
-          },
-        })
-      )
-
-      for _, mark in ipairs(get_extmarks(bufnr)) do
-        local d = mark[4]
-        if d and d.virt_text_pos == 'overlay' then
-          error('unexpected hide_prefix overlay on generated context line')
-        end
-        if d and d.hl_group == 'DiffsClear' then
-          assert.are.equal(0, mark[3])
-          assert.are.equal(10, d.end_col)
-        end
-      end
-
-      delete_buffer(bufnr)
-    end)
-
-    it('does not apply DiffsClear over generated rail source content', function()
-      local bufnr = create_buffer({
-        '      │ @@ -0,0 +1,1 @@',
-        '    1 │ +local untracked = {}',
-      })
-
-      local hunk = {
-        filename = 'test.lua',
-        lang = 'lua',
-        start_line = 1,
-        lines = { '+local untracked = {}' },
-        prefix_width = 1,
-        quote_width = 10,
-        rail_width = 10,
-      }
-
-      highlight.highlight_hunk(bufnr, ns, hunk, default_opts())
-
-      local has_keyword = false
-      for _, mark in ipairs(get_extmarks(bufnr)) do
-        local d = mark[4]
-        if mark[2] == 1 and d and d.hl_group == '@keyword.lua' then
-          has_keyword = true
-        end
-        if mark[2] == 1 and d and d.hl_group == 'DiffsClear' then
-          assert.is_true(mark[3] < 11, 'DiffsClear starts on generated content at col ' .. mark[3])
-        end
-      end
-
-      assert.is_true(has_keyword, 'treesitter keyword highlight was applied')
       delete_buffer(bufnr)
     end)
 
@@ -1804,105 +1428,6 @@ describe('highlight', function()
         local d = mark[4]
         assert.is_not_equal('DiffsAddText', d and d.hl_group)
         assert.is_not_equal('DiffsDeleteText', d and d.hl_group)
-      end
-      delete_buffer(bufnr)
-    end)
-
-    it('applies DiffsConflictMarker text on markers with DiffsAdd bg', function()
-      local bufnr = create_buffer({
-        '@@@ -1,5 -1,5 +1,9 @@@',
-        '  local M = {}',
-        '++<<<<<<< HEAD',
-        '+ local x = 1',
-        '++||||||| base',
-        '++=======',
-        ' +local y = 2',
-        '++>>>>>>> feature',
-        '  return M',
-      })
-
-      local hunk = {
-        filename = 'test.lua',
-        lang = 'lua',
-        start_line = 1,
-        prefix_width = 2,
-        lines = {
-          '  local M = {}',
-          '++<<<<<<< HEAD',
-          '+ local x = 1',
-          '++||||||| base',
-          '++=======',
-          ' +local y = 2',
-          '++>>>>>>> feature',
-          '  return M',
-        },
-      }
-
-      highlight.highlight_hunk(
-        bufnr,
-        ns,
-        hunk,
-        default_opts({ highlights = { background = true } })
-      )
-
-      local extmarks = get_extmarks(bufnr)
-      local line_bgs = {}
-      local marker_text = {}
-      for _, mark in ipairs(extmarks) do
-        local d = mark[4]
-        if d and (d.hl_group == 'DiffsAdd' or d.hl_group == 'DiffsDelete') then
-          line_bgs[mark[2]] = d.hl_group
-        end
-        if d and d.hl_group == 'DiffsConflictMarker' then
-          marker_text[mark[2]] = true
-        end
-      end
-
-      assert.is_nil(line_bgs[1])
-      assert.are.equal('DiffsAdd', line_bgs[2])
-      assert.are.equal('DiffsAdd', line_bgs[3])
-      assert.are.equal('DiffsAdd', line_bgs[4])
-      assert.are.equal('DiffsAdd', line_bgs[5])
-      assert.are.equal('DiffsAdd', line_bgs[6])
-      assert.are.equal('DiffsAdd', line_bgs[7])
-      assert.is_nil(line_bgs[8])
-
-      assert.is_true(marker_text[2] ~= nil)
-      assert.is_nil(marker_text[3])
-      assert.is_true(marker_text[4] ~= nil)
-      assert.is_true(marker_text[5] ~= nil)
-      assert.is_nil(marker_text[6])
-      assert.is_true(marker_text[7] ~= nil)
-      delete_buffer(bufnr)
-    end)
-
-    it('does not apply DiffsConflictMarker in unified diffs', function()
-      local bufnr = create_buffer({
-        '@@ -1,1 +1,4 @@',
-        ' local M = {}',
-        '+<<<<<<< HEAD',
-        '+local x = 1',
-        '+=======',
-      })
-
-      local hunk = {
-        filename = 'test.lua',
-        lang = 'lua',
-        start_line = 1,
-        lines = { ' local M = {}', '+<<<<<<< HEAD', '+local x = 1', '+=======' },
-      }
-
-      highlight.highlight_hunk(
-        bufnr,
-        ns,
-        hunk,
-        default_opts({ highlights = { background = true } })
-      )
-
-      local extmarks = get_extmarks(bufnr)
-      for _, mark in ipairs(extmarks) do
-        local d = mark[4]
-        assert.is_not_equal('DiffsConflictMarker', d and d.hl_group)
       end
       delete_buffer(bufnr)
     end)

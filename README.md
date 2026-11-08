@@ -1,125 +1,78 @@
 # diffs.nvim
 
-**Treesitter-powered Diff Syntax highlighting for Neovim**
+Language syntax highlighting for unified diffs in Neovim.
 
-Enhance Neovim's built-in diff mode (and much more!) with language-aware syntax
-highlighting driven by treesitter.
+Diffs uses Treesitter or Vim syntax to highlight the code inside diff hunks.
+It adds line backgrounds and intra-line highlights, and adjusts colors in native
+diff windows.
 
 <img width="863" height="752" alt="image" src="https://github.com/user-attachments/assets/fb67f1f5-e64b-4b67-88f4-2d8d37d9f9f2" />
-
-## Features
-
-- Treesitter syntax highlighting in
-  [vim-fugitive](https://github.com/tpope/vim-fugitive),
-  [Neogit](https://github.com/NeogitOrg/neogit), builtin `diff` filetype, and
-  more!
-- Word- and character-level diff highlighting, driven by `'diffopt'` `inline:`
-- `:Diff` for [pierre-style](https://diffs.com) unified, stacked, or split diffs against any revision
-- `:Diff review` full-repo review diff with qflist/loclist navigation
-- `:Diff files` to diff two arbitrary files, or the buffer against its last save
-- Inline and 3-way merge conflict detection, highlighting, and resolution
-- Email quoting/patch syntax support (`> diff ...`)
-- Vim syntax fallback
-- [Difftastic](https://difftastic.wilfred.me.uk/) highlight support
-- Configurable highlighting
 
 ## Requirements
 
 - Neovim 0.12.0+
-- Optional: the Treesitter `diff` parser for the best experience
+- Optional: Treesitter parsers for the languages in your diffs and the `diff` parser
 
 ## Installation
 
-With `vim.pack` (Neovim 0.12+):
-
 ```lua
-vim.pack.add({
-  'https://github.com/barrettruth/diffs.nvim',
-})
+vim.pack.add({ 'https://github.com/barrettruth/diffs.nvim' })
 ```
 
-## Documentation
-
-```vim
-:help diffs.nvim
-```
-
-## FAQ
-
-**Q: Does diffs.nvim support
-[vim-fugitive](https://github.com/tpope/vim-fugitive)/[Neogit](https://github.com/NeogitOrg/neogit)/[neojj](https://github.com/NicholasZolton/neojj)/[gitsigns](https://github.com/lewis6991/gitsigns.nvim)/[fzf-lua](https://github.com/ibhagwan/fzf-lua)?**
-
-Yes. Enable integrations in your config:
+Diffs attaches to `git` and `gitcommit` buffers by default. Enable integrations
+before the plugin loads:
 
 ```lua
 vim.g.diffs = {
-  integrations = { 'fugitive', 'neogit', 'neojj', 'gitsigns' },
+  integrations = { 'fugitive', 'neogit', 'neojj', 'gitsigns', 'committia', 'telescope' },
 }
 ```
 
-fzf-lua is supported out-of-the-box.
+To highlight patch files with the `diff` filetype:
 
-See the documentation for more information.
+```lua
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = 'diff',
+  callback = function(event)
+    require('diffs').attach(event.buf)
+  end,
+})
+```
 
-**Q: Can I use diffs.nvim as a Git mergetool?**
+Use `'diffopt'` to select intra-line highlighting:
 
-Yes. Configure Git to open `$MERGED` with Neovim; diffs.nvim will detect
-conflict markers automatically. See `:help diffs.nvim-git-mergetool`.
+```vim
+set diffopt+=inline:word
+```
 
-**Q: Can I exclude untracked files from `:Diff review`?**
+See `:help diffs.nvim` for configuration and the Lua API. Run `:checkhealth diffs`
+for dependency information.
 
-Yes. Run `:Diff review ++nountracked`. To make it the default, wrap it in your
-own command, e.g. `:command! Review Diff review ++nountracked`.
+## Diff commands and conflicts
 
-## Known Limitations
+[diffs-collection.nvim](https://github.com/barrettruth/diffs-collection.nvim)
+contains file comparison, repository review, split views, quickfix navigation,
+and conflict resolution. Install it alongside diffs.nvim for these workflows.
 
-- **Incomplete syntax context**: Treesitter parses each diff hunk in isolation.
-  Hunks that start or end mid-expression may produce imperfect highlights due to
-  treesitter error recovery.
+## Limitations
 
-- **Syntax "flashing"**: `diffs.nvim` hooks into the `FileType fugitive` event
-  triggered by `vim-fugitive`, at which point the buffer is preliminarily
-  painted. The decoration provider applies highlights on the next redraw cycle,
-  so a brief first-paint flash may still occur.
+Treesitter parses each hunk separately. Hunks that start or end inside an
+expression can have incomplete syntax highlighting.
 
-- **Cold Start**: Treesitter grammar loading (~10ms) and query compilation
-  (~4ms) are one-time costs per language per Neovim session. Each language pays
-  this cost on first encounter, which may cause a brief stutter when a diff
-  containing a new language first enters the viewport.
+Vim syntax fallback runs after redraw. A new hunk can appear without syntax
+colors for one frame. Language parsers and queries also load on first use.
 
-- **Vim syntax fallback is deferred**: The vim syntax fallback (for languages
-  without a treesitter parser) cannot run inside the decoration provider's
-  redraw cycle due to Neovim's restriction on buffer mutations. Vim syntax
-  highlights for cold hunks may appear one frame later. Warm hunks can reuse
-  cached vim syntax spans, and stale deferred renders are ignored after buffer
-  changes. The plugin reparses hunks after buffer edits and redraws visible
-  highlights.
+Other plugins that change diff highlights can produce conflicting colors.
 
-- **Conflicting diff plugins**: `diffs.nvim` may not interact well with other
-  plugins that modify diff highlighting. Known plugins that may conflict:
-  - [`diffview.nvim`](https://github.com/sindrets/diffview.nvim) - provides its
-    own diff highlighting and conflict resolution UI
-  - [`mini.diff`](https://github.com/echasnovski/mini.diff) - visualizes buffer
-    differences with its own highlighting system
-  - [`gitsigns.nvim`](https://github.com/lewis6991/gitsigns.nvim) - generally
-    compatible, but both plugins modifying line highlights may produce
-    unexpected results
-  - [`git-conflict.nvim`](https://github.com/akinsho/git-conflict.nvim) -
-    `diffs.nvim` now includes built-in conflict resolution; disable one or the
-    other to avoid overlap
+## Acknowledgements
 
-# Acknowledgements
-
-- [`vim-fugitive`](https://github.com/tpope/vim-fugitive)
-- [`diffview.nvim`](https://github.com/sindrets/diffview.nvim)
-- [`difftastic`](https://github.com/Wilfred/difftastic)
-- [`mini.diff`](https://github.com/echasnovski/mini.diff)
-- [`gitsigns.nvim`](https://github.com/lewis6991/gitsigns.nvim)
-- [`git-conflict.nvim`](https://github.com/akinsho/git-conflict.nvim)
-- [@phanen](https://github.com/phanen) - diff header highlighting, unknown
-  filetype fix, shebang/modeline detection, treesitter injection support,
-  decoration provider highlighting architecture, gitsigns blame popup
-  highlighting, intra-line bg visibility fix
-- [@tris203](https://github.com/tris203) - support for transparent backgrounds
-- [@letientai299](https://github.com/letientai299) - `diff.mnemonicPrefix`
-  support
+- [vim-fugitive](https://github.com/tpope/vim-fugitive)
+- [diffview.nvim](https://github.com/sindrets/diffview.nvim)
+- [difftastic](https://github.com/Wilfred/difftastic)
+- [mini.diff](https://github.com/echasnovski/mini.diff)
+- [gitsigns.nvim](https://github.com/lewis6991/gitsigns.nvim)
+- [git-conflict.nvim](https://github.com/akinsho/git-conflict.nvim)
+- [@phanen](https://github.com/phanen) — header highlighting, filetype detection,
+  Treesitter injections, decoration providers, Gitsigns popups, and intra-line colors
+- [@tris203](https://github.com/tris203) — transparent backgrounds
+- [@letientai299](https://github.com/letientai299) — `diff.mnemonicPrefix` support
