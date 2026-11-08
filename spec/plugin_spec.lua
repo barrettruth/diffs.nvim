@@ -70,38 +70,43 @@ describe('plugin bootstrap', function()
     assert.matches('conflict_loaded=false', output, 1, true)
   end)
 
-  it('loads conflict handling only when enabled', function()
+  it('respects the conflict setting', function()
     for _, enabled in ipairs({ true, false }) do
       local init_lines = {
         ('vim.g.diffs = { conflict = %s }'):format(tostring(enabled)),
         ('vim.opt.runtimepath:prepend(%s)'):format(vim.inspect(vim.fn.getcwd())),
       }
-      local after_lines = {
-        'local path = vim.fn.tempname()',
-        "vim.fn.writefile({ '<<<<<<< ours', 'old', '=======', 'new', '>>>>>>> theirs' }, path)",
-        'vim.cmd.edit(path)',
-        "print('runtime_loaded=' .. tostring(package.loaded['diffs.runtime'] ~= nil))",
-        "print('conflict_loaded=' .. tostring(package.loaded['diffs.conflict'] ~= nil))",
-        'if not vim.g.diffs.conflict then',
-        'local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)',
-        "vim.fn.maparg('<Plug>(diffs-conflict-ours)', 'n', false, true).callback()",
-        "print('unchanged=' .. tostring(vim.deep_equal(lines, vim.api.nvim_buf_get_lines(0, 0, -1, false))))",
-        'end',
-        "for _, kind in ipairs({ 'conflict', 'merge' }) do",
-        "if kind == 'merge' then",
-        'local buf = vim.api.nvim_create_buf(false, true)',
-        "vim.api.nvim_buf_set_lines(buf, 0, -1, false, { '@@ -1 +1 @@', '-old', '+new' })",
-        'vim.b[buf].diffs_working_path = path',
-        'vim.api.nvim_set_current_buf(buf)',
-        'end',
-        "for _, direction in ipairs({ 'next', 'prev' }) do",
-        'vim.api.nvim_win_set_cursor(0, { 2, 0 })',
-        "vim.fn.maparg('<Plug>(diffs-' .. kind .. '-' .. direction .. ')', 'n', false, true).callback()",
-        "print(kind .. '_' .. direction .. '=' .. vim.api.nvim_win_get_cursor(0)[1])",
-        'end',
-        'end',
-        'vim.fn.delete(path)',
-      }
+      local after_lines = vim.split(
+        [[
+local path = vim.fn.tempname()
+vim.fn.writefile({ '<<<<<<< ours', 'old', '=======', 'new', '>>>>>>> theirs' }, path)
+vim.cmd.edit(path)
+print('runtime_loaded=' .. tostring(package.loaded['diffs.runtime'] ~= nil))
+print('conflict_loaded=' .. tostring(package.loaded['diffs.conflict'] ~= nil))
+
+if not vim.g.diffs.conflict then
+  local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+  vim.fn.maparg('<Plug>(diffs-conflict-ours)', 'n', false, true).callback()
+  print('unchanged=' .. tostring(vim.deep_equal(lines, vim.api.nvim_buf_get_lines(0, 0, -1, false))))
+end
+
+for _, kind in ipairs({ 'conflict', 'merge' }) do
+  if kind == 'merge' then
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { '@@ -1 +1 @@', '-old', '+new' })
+    vim.b[buf].diffs_working_path = path
+    vim.api.nvim_set_current_buf(buf)
+  end
+  for _, direction in ipairs({ 'next', 'prev' }) do
+    vim.api.nvim_win_set_cursor(0, { 2, 0 })
+    vim.fn.maparg('<Plug>(diffs-' .. kind .. '-' .. direction .. ')', 'n', false, true).callback()
+    print(kind .. '_' .. direction .. '=' .. vim.api.nvim_win_get_cursor(0)[1])
+  end
+end
+vim.fn.delete(path)
+]],
+        '\n'
+      )
 
       local output = run_child(init_lines, after_lines)
 
