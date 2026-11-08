@@ -1493,18 +1493,12 @@ Background colors ~
                                                      *diffs.nvim-blend-alpha*
 Use one of these alternatives in `set_highlights()` above.
 
-Use colorscheme backgrounds for lines and changed characters: >lua
-    local function set_highlights()
-      local add = vim.api.nvim_get_hl(0, { name = 'DiffAdd', link = false })
-      local delete = vim.api.nvim_get_hl(0, { name = 'DiffDelete', link = false })
-      local text = vim.api.nvim_get_hl(0, { name = 'DiffText', link = false })
-      vim.api.nvim_set_hl(0, 'DiffsAdd', { bg = add.bg })
-      vim.api.nvim_set_hl(0, 'DiffsDelete', { bg = delete.bg })
-      vim.api.nvim_set_hl(0, 'DiffsAddText', { bg = text.bg })
-      vim.api.nvim_set_hl(0, 'DiffsDeleteText', { bg = text.bg })
-    end
+1. Set the highlight groups yourself (see |diffs.nvim-highlights|).
+
+To reuse existing colors, inspect the groups after opening a diff: >vim
+    :filter /^Diff/ highlight
 <
-Blend colors dynamically: >lua
+2. Do the blending yourself: >lua
     local function set_highlights()
       local alpha = 0.6
       local function get(name)
@@ -1551,20 +1545,6 @@ Blend colors dynamically: >lua
     end
 <
 For a transparent colorscheme, set the `bg` fallback to your terminal background.
-
-Or copy the current colors. After opening a diff, inspect the groups: >vim
-    :hi DiffsAdd
-    :hi DiffsDelete
-    :filter /^Diffs/ highlight
-<
-Use the displayed `guibg` values in `set_highlights()`: >lua
-    local function set_highlights()
-      vim.api.nvim_set_hl(0, 'DiffsAdd', { bg = '#2e4a3a' })
-      vim.api.nvim_set_hl(0, 'DiffsDelete', { bg = '#4a2e2e' })
-    end
-<
-For rails and conflict line numbers, copy `guifg` and attributes such as
-`nocombine` too. |nvim_set_hl()| replaces the complete group definition.
 
 ==============================================================================
 HEALTH CHECK                                               *diffs.nvim-health*
