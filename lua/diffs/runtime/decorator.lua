@@ -63,12 +63,7 @@ function M.setup(opts)
           if hunk._skipped_max_lines then
             skipped_count = skipped_count + 1
           end
-          local has_syntax = hunk.lang and config.highlights.treesitter.enabled
-          local needs_vim = not hunk.lang
-            and hunk.ft
-            and config.highlights.vim.enabled
-            and not vim_cache_hit
-          if has_syntax or needs_vim then
+          if cache:needs_syntax(hunk, vim_cache_hit) then
             table.insert(deferred_syntax, hunk)
           end
         end

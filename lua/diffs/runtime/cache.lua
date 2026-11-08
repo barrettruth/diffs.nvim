@@ -249,15 +249,31 @@ function Cache:next_syntax_job(bufnr)
   return job_id
 end
 
+---@param hunk diffs.Hunk
+---@param vim_cache_hit? boolean
+---@return boolean
+function Cache:needs_syntax(hunk, vim_cache_hit)
+  local highlights = self.get_config().highlights
+  if
+    highlights.treesitter.enabled
+    and (
+      hunk.lang
+      or (hunk.header_start_line and hunk.header_lines and #hunk.header_lines > 0)
+      or (hunk.quote_width or 0) > 0
+      or (hunk.prefix_width or 1) > 1
+    )
+  then
+    return true
+  end
+  return not hunk.lang and hunk.ft ~= nil and highlights.vim.enabled and not vim_cache_hit
+end
+
 ---@param hunks diffs.Hunk[]?
 ---@return diffs.Hunk[]
 function Cache:collect_syntax_hunks(hunks)
-  local config = self.get_config()
   local syntax_hunks = {}
   for _, hunk in ipairs(hunks or {}) do
-    local has_syntax = hunk.lang and config.highlights.treesitter.enabled
-    local needs_vim = not hunk.lang and hunk.ft and config.highlights.vim.enabled
-    if has_syntax or needs_vim then
+    if self:needs_syntax(hunk) then
       syntax_hunks[#syntax_hunks + 1] = hunk
     end
   end

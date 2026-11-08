@@ -1266,7 +1266,7 @@ describe('highlight', function()
       delete_buffer(bufnr)
     end)
 
-    it('uses cached vim syntax extmarks when defer_vim_syntax enabled', function()
+    it('keeps cached Vim syntax and schedules diff headers', function()
       local orig_synID = vim.fn.synID
       local orig_synIDtrans = vim.fn.synIDtrans
       local orig_synIDattr = vim.fn.synIDattr
@@ -1283,12 +1283,14 @@ describe('highlight', function()
       highlight._test.clear_vim_syntax_cache()
 
       local warm_bufnr = create_buffer({
+        'diff --git a/video.txt b/video.txt',
         '@@ -1,1 +1,2 @@',
         ' alpha',
         '+beta',
       })
 
       local cached_bufnr = create_buffer({
+        'diff --git a/video.txt b/video.txt',
         '@@ -1,1 +1,2 @@',
         ' alpha',
         '+beta',
@@ -1298,7 +1300,7 @@ describe('highlight', function()
         filename = 'video.txt',
         ft = 'text',
         lang = nil,
-        start_line = 1,
+        start_line = 2,
         lines = { ' alpha', '+beta' },
       }
 
@@ -1313,7 +1315,7 @@ describe('highlight', function()
         highlights = { treesitter = { enabled = false }, vim = { enabled = true } },
       })
       opts.defer_vim_syntax = true
-      highlight.highlight_hunk(cached_bufnr, ns, hunk, opts)
+      local _, cache_hit = highlight.highlight_hunk(cached_bufnr, ns, hunk, opts)
 
       vim.fn.synID = orig_synID
       vim.fn.synIDtrans = orig_synIDtrans
@@ -1328,6 +1330,17 @@ describe('highlight', function()
         end
       end
       assert.is_true(has_syntax_hl)
+      assert.is_true(cache_hit)
+
+      local cache = require('diffs.runtime.cache').new({ ns = ns, get_config = config.new })
+      assert.is_false(cache:needs_syntax(hunk, cache_hit))
+      hunk.header_start_line = 1
+      hunk.header_lines = { 'diff --git a/video.txt b/video.txt' }
+      assert.is_true(cache:needs_syntax(hunk, cache_hit))
+      hunk.ft = nil
+      assert.is_true(cache:needs_syntax(hunk, cache_hit))
+      assert.are.same({ hunk }, cache:collect_syntax_hunks({ hunk }))
+
       delete_buffer(warm_bufnr)
       delete_buffer(cached_bufnr)
       highlight._test.clear_vim_syntax_cache()
