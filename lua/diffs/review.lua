@@ -98,29 +98,15 @@ local function default_branch(repo_root)
   return (ref[1]:gsub('^refs/remotes/', ''))
 end
 
----@param repo_root string
----@param args string[]
----@return boolean
-local function git_exits_zero(repo_root, args)
-  local cmd = { 'git', '-C', repo_root }
-  vim.list_extend(cmd, args)
-  vim.fn.systemlist(cmd)
-  return vim.v.shell_error == 0
-end
-
----@param repo_root string
----@param ref string
----@return boolean
-local function ref_exists(repo_root, ref)
-  return git_exits_zero(repo_root, { 'rev-parse', '--verify', '--quiet', ref .. '^{commit}' })
-end
-
----@param repo_root string
----@param base string
----@param target string
----@return boolean
-local function merge_base_exists(repo_root, base, target)
-  return git_exits_zero(repo_root, { 'merge-base', base, target })
+---@param cmd string[]
+---@return string[]?, string?
+local function git_lines(cmd)
+  local result = vim.system(cmd):wait()
+  if result.code ~= 0 then
+    return nil, vim.trim(result.stderr or '')
+  end
+  local output = (result.stdout or ''):gsub('\n$', '')
+  return output == '' and {} or vim.split(output, '\n', { plain = true }), nil
 end
 
 ---@param repo_root string
@@ -128,33 +114,12 @@ end
 ---@param target string
 ---@return string?, string?
 local function merge_base(repo_root, base, target)
-  local result = vim.fn.systemlist({ 'git', '-C', repo_root, 'merge-base', base, target })
-  if vim.v.shell_error ~= 0 or not result[1] or result[1] == '' then
-    return nil, 'review merge base not found for spec: ' .. base .. '...' .. target
+  local result, err =
+    git_lines({ 'git', '-C', repo_root, 'merge-base', '--end-of-options', base, target })
+  if not result then
+    return nil, err ~= '' and err or 'no merge base for ' .. base .. ' and ' .. target
   end
   return result[1], nil
-end
-
----@param repo_root string
----@param base string
----@param target string?
----@param mode string?
----@param display string
----@return string?
-local function validate_refs(repo_root, base, target, mode, display)
-  if not ref_exists(repo_root, base) then
-    return ('review base ref not found: %s (spec: %s)'):format(base, display)
-  end
-
-  if target and not ref_exists(repo_root, target) then
-    return ('review target ref not found: %s (spec: %s)'):format(target, display)
-  end
-
-  if target and mode == 'merge-base' and not merge_base_exists(repo_root, base, target) then
-    return 'review merge base not found for spec: ' .. display
-  end
-
-  return nil
 end
 
 ---@param arg? string
@@ -289,20 +254,15 @@ function M.normalize(spec, repo_root_override)
   end
 
   local display = base
-  local exec_args = { base }
+  local exec_args = { '--end-of-options', base }
   if target then
     if mode == 'merge-base' then
       display = base .. '...' .. target
-      exec_args = { '--merge-base', base, target }
+      exec_args = { '--merge-base', '--end-of-options', base, target }
     else
       display = base .. '..' .. target
-      exec_args = { base, target }
+      exec_args = { '--end-of-options', base, target }
     end
-  end
-
-  local ref_err = validate_refs(repo_root, base, target, mode, display)
-  if ref_err then
-    return nil, ref_err
   end
 
   local untracked = true
@@ -338,20 +298,8 @@ function M.build_cmd(review)
   }
   vim.list_extend(cmd, diffopt.git_flags())
   vim.list_extend(cmd, review.exec_args)
+  cmd[#cmd + 1] = '--'
   return cmd
-end
-
----@param repo_root string
----@param args string[]
----@return string[]?, string?
-local function git_lines(repo_root, args)
-  local cmd = { 'git', '-C', repo_root }
-  vim.list_extend(cmd, args)
-  local result = vim.fn.systemlist(cmd)
-  if vim.v.shell_error ~= 0 then
-    return nil, table.concat(result or {}, '\n')
-  end
-  return result, nil
 end
 
 ---@param line string
@@ -417,23 +365,43 @@ end
 ---@param base_rev string
 ---@return string[]?, string?
 local function branch_lines(review, base_rev)
-  local args = { 'diff', '--no-ext-diff', '--no-color', '--src-prefix=a/', '--dst-prefix=b/' }
+  local args = {
+    'git',
+    '-C',
+    review.repo_root,
+    'diff',
+    '--no-ext-diff',
+    '--no-color',
+    '--src-prefix=a/',
+    '--dst-prefix=b/',
+  }
   vim.list_extend(args, diffopt.git_flags())
+  args[#args + 1] = '--end-of-options'
   args[#args + 1] = base_rev
   args[#args + 1] = 'HEAD'
-  return git_lines(review.repo_root, args)
+  args[#args + 1] = '--'
+  return git_lines(args)
 end
 
 ---@param review diffs.NormalizedReview
 ---@param cached boolean
 ---@return string[]?, string?
 local function worktree_edge_lines(review, cached)
-  local args = { 'diff', '--no-ext-diff', '--no-color', '--src-prefix=a/', '--dst-prefix=b/' }
+  local args = {
+    'git',
+    '-C',
+    review.repo_root,
+    'diff',
+    '--no-ext-diff',
+    '--no-color',
+    '--src-prefix=a/',
+    '--dst-prefix=b/',
+  }
   vim.list_extend(args, diffopt.git_flags())
   if cached then
     args[#args + 1] = '--cached'
   end
-  return git_lines(review.repo_root, args)
+  return git_lines(args)
 end
 
 ---@param review diffs.NormalizedReview
@@ -762,9 +730,9 @@ end
 ---@param deps diffs.ReviewDeps
 ---@return string[]?, string?
 function M.run(review, deps)
-  local result = vim.fn.systemlist(M.build_cmd(review))
-  if vim.v.shell_error ~= 0 then
-    return nil, 'git diff failed for review spec: ' .. review.display
+  local result, err = git_lines(M.build_cmd(review))
+  if not result then
+    return nil, err
   end
   return deps.replace_combined_diffs(result, review.repo_root), nil
 end

@@ -15,6 +15,7 @@ local saved_runtime_get_view_config
 local saved_runtime_get_highlight_opts
 local saved_schedule
 local saved_systemlist
+local saved_system
 local saved_notify
 local test_buffers = {}
 local test_repos = {}
@@ -31,6 +32,20 @@ end
 
 local function mock_systemlist(fn)
   saved_systemlist = vim.fn.systemlist
+  saved_system = vim.system
+  vim.system = function(cmd)
+    local result, code = fn(cmd)
+    local output = table.concat(result or {}, '\n')
+    return {
+      wait = function()
+        return {
+          code = code or 0,
+          stdout = (code or 0) == 0 and output or '',
+          stderr = (code or 0) ~= 0 and output or '',
+        }
+      end,
+    }
+  end
   vim.fn.systemlist = function(cmd)
     local result, shell_error = fn(cmd)
     if shell_error and shell_error ~= 0 then
@@ -395,6 +410,10 @@ local function restore_mocks()
   if saved_systemlist then
     vim.fn.systemlist = saved_systemlist
     saved_systemlist = nil
+  end
+  if saved_system then
+    vim.system = saved_system
+    saved_system = nil
   end
   if saved_notify then
     vim.notify = saved_notify
@@ -2925,10 +2944,7 @@ describe('commands', function()
         { 'git', '-C', '/tmp/repo', 'symbolic-ref', 'refs/remotes/origin/HEAD' },
         captured_cmds[1]
       )
-      assert.are.same(
-        { 'git', '-C', '/tmp/repo', 'rev-parse', '--verify', '--quiet', 'origin/main^{commit}' },
-        captured_cmds[2]
-      )
+      assert.are.equal(1, #captured_cmds)
     end)
 
     it('completes target refs after merge-base separator', function()
@@ -3035,112 +3051,99 @@ describe('commands', function()
   end)
 
   describe('review', function()
-    it('reports a missing base ref before rendering', function()
-      local called_diff = false
-      local notifications = capture_notifications()
-      mock_repo_root(function(path)
-        assert.are.equal('/tmp/repo/.', path)
-        return '/tmp/repo'
-      end)
-      mock_systemlist(function(cmd)
-        if cmd[4] == 'diff' then
-          called_diff = true
-        end
-        if cmd[4] == 'rev-parse' then
-          return {}, 1
-        end
-        return {}
-      end)
+    it('reports Git errors from the operation without preflight ref checks', function()
+      for _, case in ipairs({
+        {
+          base = 'missing/ref',
+          operation = 'merge-base',
+          message = 'fatal: Not a valid object name missing/ref',
+        },
+        {
+          base = 'HEAD',
+          target = 'missing/target',
+          operation = 'diff',
+          message = "fatal: bad revision 'missing/target'",
+        },
+        {
+          base = 'HEAD',
+          target = 'other',
+          operation = 'diff',
+          message = 'fatal: no merge base found',
+        },
+      }) do
+        local called = {}
+        local notifications = capture_notifications()
+        mock_repo_root(function()
+          return '/tmp/repo'
+        end)
+        mock_systemlist(function(cmd)
+          called[#called + 1] = cmd[4]
+          return { case.message }, 128
+        end)
 
-      local bufnr = commands.review({
-        base = 'missing/ref',
-        repo = '/tmp/repo',
-      })
+        local bufnr = commands.review({
+          base = case.base,
+          target = case.target,
+          repo = '/tmp/repo',
+        })
 
-      assert.is_nil(bufnr)
-      assert.is_false(called_diff)
-      assert.are.equal(vim.log.levels.ERROR, notifications[#notifications].level)
-      assert.is_true(
-        notifications[#notifications].message:find(
-          'review base ref not found: missing/ref (spec: missing/ref)',
-          1,
-          true
-        ) ~= nil
-      )
+        assert.is_nil(bufnr)
+        assert.are.same({ case.operation }, called)
+        assert.are.equal(vim.log.levels.ERROR, notifications[#notifications].level)
+        assert.is_true(notifications[#notifications].message:find(case.message, 1, true) ~= nil)
+        restore_mocks()
+      end
     end)
 
-    it('reports a missing target ref before rendering', function()
-      local called_diff = false
-      local called_merge_base = false
-      local notifications = capture_notifications()
-      mock_repo_root(function(path)
-        assert.are.equal('/tmp/repo/.', path)
+    it(
+      'passes invalid revision arguments to Git without treating them as paths or flags',
+      function()
+        local repo_root = create_repo()
+        local notifications = capture_notifications()
+        for _, target in ipairs({ 'file.txt', '--stat' }) do
+          local bufnr = commands.review({
+            base = 'HEAD',
+            target = target,
+            mode = 'direct',
+            repo = repo_root,
+          })
+          assert.is_nil(bufnr)
+          assert.are.equal(vim.log.levels.ERROR, notifications[#notifications].level)
+          assert.is_true(notifications[#notifications].message:find(target, 1, true) ~= nil)
+        end
+      end
+    )
+
+    it('keeps successful Git warnings out of review buffers', function()
+      mock_repo_root(function()
         return '/tmp/repo'
       end)
-      mock_systemlist(function(cmd)
-        if cmd[4] == 'diff' then
-          called_diff = true
-        elseif cmd[4] == 'merge-base' then
-          called_merge_base = true
-        elseif cmd[4] == 'rev-parse' and cmd[7] == 'missing/target^{commit}' then
-          return {}, 1
-        end
-        return {}
-      end)
-
-      local bufnr = commands.review({
-        base = 'HEAD',
-        target = 'missing/target',
-        mode = 'merge-base',
-        repo = '/tmp/repo',
-      })
-
-      assert.is_nil(bufnr)
-      assert.is_false(called_diff)
-      assert.is_false(called_merge_base)
-      assert.are.equal(vim.log.levels.ERROR, notifications[#notifications].level)
-      assert.is_true(
-        notifications[#notifications].message:find(
-          'review target ref not found: missing/target (spec: HEAD...missing/target)',
-          1,
-          true
-        ) ~= nil
-      )
-    end)
-
-    it('reports a missing merge base before rendering merge-base reviews', function()
-      local called_diff = false
-      local notifications = capture_notifications()
-      mock_repo_root(function(path)
-        assert.are.equal('/tmp/repo/.', path)
-        return '/tmp/repo'
-      end)
-      mock_systemlist(function(cmd)
-        if cmd[4] == 'diff' then
-          called_diff = true
-        elseif cmd[4] == 'merge-base' then
-          return {}, 1
-        end
-        return {}
-      end)
-
-      local bufnr = commands.review({
-        base = 'HEAD',
-        target = 'other',
-        mode = 'merge-base',
-        repo = '/tmp/repo',
-      })
-
-      assert.is_nil(bufnr)
-      assert.is_false(called_diff)
-      assert.are.equal(vim.log.levels.ERROR, notifications[#notifications].level)
-      assert.is_true(
-        notifications[#notifications].message:find(
-          'review merge base not found for spec: HEAD...other',
-          1,
-          true
-        ) ~= nil
-      )
+      mock_runtime_attach(function() end)
+      saved_system = vim.system
+      vim.system = function()
+        return {
+          wait = function()
+            return {
+              code = 0,
+              stdout = table.concat({
+                'diff --git a/file.lua b/file.lua',
+                '--- a/file.lua',
+                '+++ b/file.lua',
+                '@@ -1 +1 @@',
+                '-old',
+                '+new',
+                '',
+              }, '\n'),
+              stderr = 'warning: multiple merge bases\n',
+            }
+          end,
+        }
+      end
+      local bufnr = commands.review({ base = 'main', target = 'topic', repo = '/tmp/repo' })
+      assert.is_not_nil(bufnr)
+      test_buffers[#test_buffers + 1] = bufnr
+      assert.is_nil(buffer_text(bufnr):find('warning:', 1, true))
+      assert.is_true(buffer_text(bufnr):find('+new', 1, true) ~= nil)
     end)
 
     it('opens a review buffer for an explicit merge-base target', function()
@@ -3189,8 +3192,10 @@ describe('commands', function()
         '--src-prefix=a/',
         '--dst-prefix=b/',
         '--merge-base',
+        '--end-of-options',
         'origin/main',
         'refs/forge/pr/42',
+        '--',
       }, captured_cmd)
       assert.are.equal(
         'diffs://review:origin/main...refs/forge/pr/42',
