@@ -1175,7 +1175,7 @@ Save and quit after resolving conflicts. Use `:cq` to abort.
 API                                                           *diffs.nvim-api*
 
 attach({bufnr}, {options})                               *diffs.nvim.attach()*
-    Attach highlighting to a buffer. Called automatically when the buffer's
+    Attach highlighting to a buffer.  Called automatically when the buffer's
     filetype matches `git`, `gitcommit`, an enabled integration filetype,
     or any entry in the deprecated `extra_filetypes` option.
     Direct calls work with any filetype. For automatic attachment to other
@@ -1185,73 +1185,68 @@ attach({bufnr}, {options})                               *diffs.nvim.attach()*
         {bufnr}  (integer, optional) Buffer number. Omit or use 0 for current.
         {options} (table, optional) ~
                  • {hunks} (function, optional) Receives the buffer number.
-                   Returns a list of |diffs.Hunk| tables in buffer order.
-                   Core copies these hunks instead of parsing the buffer.
-                 • {intra} (boolean, optional) Set false to suppress
-                   intra-line highlighting for this attachment. When omitted,
-                   core retains its automatic Difftastic detection.
+                   Returns |diffs.Hunk| tables in buffer order.
+                 • {intra} (boolean, optional) Set false to disable intra-line
+                   highlighting.  Omit for automatic Difftastic detection.
 
-    Without {options}, repeated calls do nothing. With {options}, a call
-    replaces the existing attachment. The callback runs on attachment, after
-    buffer edits, and after |diffs.nvim.refresh()| when core redraws the buffer.
+    Pass {options} to replace an attachment.  Without it, repeated calls do
+    nothing.  The {hunks} callback runs on attachment and on redraw after edits
+    or |diffs.nvim.refresh()|.
 
                                                                 *diffs.Hunk*
-    A supplied hunk describes logical diff lines and their buffer positions: ~
-        {filename}       (string) Source filename for diagnostics.
-        {start_line}     (integer) One-based hunk header line. Use 0 when the
+    Hunk fields: ~
+        {filename}       (string) Source filename.
+        {start_line}     (integer) One-based hunk header line.  Use 0 when the
                          body starts on the first buffer line without a header.
-        {lines}          (string[]) Body lines, including diff prefixes.
-                         Element i maps to buffer row start_line + i - 1
-                         (zero-based). Exclude display columns before prefixes.
+        {lines}          (string[]) Diff body, including diff prefixes.
+                         Element i is buffer line start_line + i (one-based).
+                         Exclude display columns before the diff prefixes.
         {column_offset}  (integer, default: 0) Extra bytes before each prefix
                          in the displayed buffer.
         {prefix_width}   (integer, default: 1) Diff prefix width in bytes.
         {quote_width}    (integer, default: 0) Quote prefix width in bytes.
         {ft}             (string, optional) Vim syntax filetype.
         {lang}           (string, optional) Treesitter parser language.
-
-    Core does not infer {ft} or {lang} for supplied hunks. Optional header
-    fields are {header_start_line} (one-based), {header_lines} (string[]),
-    {header_context} (string), and {header_context_col} (zero-based byte column,
-    excluding {column_offset}).
+        {header_start_line} (integer, optional) First file header line
+                         (one-based).
+        {header_lines}   (string[], optional) File header lines.
+        {header_context} (string, optional) Code after the hunk header.
+        {header_context_col} (integer, optional) Zero-based byte column of
+                         {header_context}, excluding {column_offset}.
 
 detach({bufnr})                                          *diffs.nvim.detach()*
-    Remove the attachment, its autocmds, and its highlights. Pending syntax
-    callbacks cannot apply highlights after detachment.
+    Stop highlighting the buffer and clear its highlights.
 
     Parameters: ~
         {bufnr}  (integer, optional) Buffer number. Omit or use 0 for current.
 
 refresh({bufnr})                                        *diffs.nvim.refresh()*
-    Manually refresh highlighting for a buffer. Useful after external changes
-    or for debugging. For supplied hunks, core calls the provider again on
-    redraw, including when the buffer text is unchanged.
+    Refresh highlighting on the next redraw.  If supplied, the {hunks}
+    callback runs again even when the buffer text is unchanged.
 
     Parameters: ~
         {bufnr}  (integer, optional) Buffer number. Omit or use 0 for current.
 
 highlight_options()                          *diffs.nvim.highlight_options()*
-    Initialize the highlight groups and return a copy of the effective
-    {hide_prefix} and {highlights} settings. The {highlights.priorities} table
-    contains {clear}, {syntax}, {line_bg}, and {char_bg} extmark priorities.
+    Initialize highlight groups and return {hide_prefix} and {highlights}.
+    The {highlights.priorities} fields are {clear}, {syntax}, {line_bg},
+    and {char_bg}.
 
 diff_options()                                    *diffs.nvim.diff_options()*
     Return options from 'diffopt': {algorithm}, {linematch}, {inline}, and
     the whitespace flags {ignore_whitespace}, {ignore_whitespace_change},
     {ignore_whitespace_change_at_eol}, and {ignore_blank_lines}.
-    Unset options are absent. An absent {inline} means "simple".
+    Unset options are absent.  An absent {inline} means "simple".
 
 compute_intra_hunks({lines})                *diffs.nvim.compute_intra_hunks()*
-    Compute intra-line changes with Neovim and the current 'diffopt'.
-    {lines} contains logical body lines with one diff prefix byte per line.
-    Return {add_spans} and {del_spans}, or nil when no spans apply.
-    Each span contains {line}, {col_start}, and {col_end}. Line indexes refer
-    to {lines} and are one-based. Columns are one-based byte positions in
-    the text after the diff prefix. {col_end} is exclusive.
+    Return {add_spans} and {del_spans} using 'diffopt', or nil when no spans apply.
+    {lines} contains diff body lines with one prefix byte per line.
+    Each span has a one-based {line} index into {lines}, and one-based byte
+    columns {col_start} and {col_end} after the prefix.  {col_end} is exclusive.
 
 whitespace_only_lines({lines})            *diffs.nvim.whitespace_only_lines()*
     Return a table of one-based line indexes with value true for changes
-    ignored by the whitespace options in 'diffopt'. {lines} has the same
+    ignored by the whitespace options in 'diffopt'.  {lines} has the same
     format as |diffs.nvim.compute_intra_hunks()|.
 
                                                             *diffs.ReviewSpec*
