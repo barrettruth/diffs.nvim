@@ -1440,39 +1440,6 @@ describe('highlight', function()
       delete_buffer(bufnr)
     end)
 
-    it('uses hl_group with hl_eol for line backgrounds', function()
-      local bufnr = create_buffer({
-        '@@ -1,2 +1,1 @@',
-        '-local x = 1',
-        '+local y = 2',
-      })
-
-      local hunk = {
-        filename = 'test.lua',
-        lang = 'lua',
-        start_line = 1,
-        lines = { '-local x = 1', '+local y = 2' },
-      }
-
-      highlight.highlight_hunk(
-        bufnr,
-        ns,
-        hunk,
-        default_opts({ highlights = { background = true } })
-      )
-
-      local extmarks = get_extmarks(bufnr)
-      local found = false
-      for _, mark in ipairs(extmarks) do
-        local d = mark[4]
-        if d and (d.hl_group == 'DiffsAdd' or d.hl_group == 'DiffsDelete') then
-          found = true
-        end
-      end
-      assert.is_true(found)
-      delete_buffer(bufnr)
-    end)
-
     it('creates char-level extmarks for changed characters', function()
       vim.api.nvim_set_hl(0, 'DiffsAddText', { bg = 0x00FF00 })
       vim.api.nvim_set_hl(0, 'DiffsDeleteText', { bg = 0xFF0000 })

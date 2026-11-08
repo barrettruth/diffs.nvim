@@ -9,12 +9,6 @@ local M = {}
 ---@field get_config fun(): diffs.Config
 ---@field refresh fun(bufnr?: integer)
 
----@param bufnr integer
----@return boolean
-function M.is_fugitive_buffer(bufnr)
-  return vim.api.nvim_buf_get_name(bufnr):match('^fugitive://') ~= nil
-end
-
 ---@param opts diffs.AttachOpts
 ---@param bufnr? integer
 function M.attach(opts, bufnr)

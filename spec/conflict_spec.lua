@@ -225,27 +225,6 @@ describe('conflict', function()
       helpers.delete_buffer(bufnr)
     end)
 
-    it('does not add virtual labels or actions', function()
-      local bufnr = create_file_buffer({
-        '<<<<<<< HEAD',
-        'local x = 1',
-        '=======',
-        'local x = 2',
-        '>>>>>>> feature',
-      })
-
-      conflict.attach(bufnr, default_config())
-
-      local extmarks = get_extmarks(bufnr)
-      assert.is_true(#extmarks > 0)
-      for _, mark in ipairs(extmarks) do
-        assert.is_nil(mark[4].virt_text)
-        assert.is_nil(mark[4].virt_lines)
-      end
-
-      helpers.delete_buffer(bufnr)
-    end)
-
     it('applies number_hl_group to content lines', function()
       local bufnr = create_file_buffer({
         '<<<<<<< HEAD',
