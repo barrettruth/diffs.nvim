@@ -40,7 +40,6 @@ describe('diffs.config', function()
             committia = true,
             telescope = true,
           },
-          conflict = false,
         })
       end)
     end)
@@ -78,12 +77,6 @@ describe('diffs.config', function()
       local opts = config.new()
       assert.is_true(opts.view.prefix)
       assert.is_nil(opts.hide_prefix)
-    end)
-
-    it('accepts boolean conflict settings', function()
-      assert.is_true(config.new().conflict)
-      assert.is_true(config.new({ conflict = true }).conflict)
-      assert.is_false(config.new({ conflict = false }).conflict)
     end)
 
     it('accepts integration lists and boolean maps', function()

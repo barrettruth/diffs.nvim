@@ -164,7 +164,7 @@ describe('integration', function()
       local entry = runtime._test.hunk_cache[bufnr]
       assert.is_not_nil(entry)
       assert.is_nil(entry.hunks[1].ft)
-      assert.is_true(runtime._test.ft_retry_pending[bufnr] == true)
+      assert.is_not_nil(runtime._test.ft_retry_pending[bufnr])
       delete_buffer(bufnr)
     end)
 
@@ -177,10 +177,33 @@ describe('integration', function()
         '+    listen 8080;',
       })
       runtime.attach(bufnr)
-      assert.is_true(runtime._test.ft_retry_pending[bufnr] == true)
+      assert.is_not_nil(runtime._test.ft_retry_pending[bufnr])
 
       run_scheduled_callbacks()
 
+      assert.is_nil(runtime._test.ft_retry_pending[bufnr])
+      delete_buffer(bufnr)
+    end)
+
+    it('does not refresh a new attachment from an old filetype retry', function()
+      local bufnr = create_buffer({
+        'diff --git a/app.conf b/app.conf',
+        '@@ -1 +1 @@',
+        '-old',
+        '+new',
+      })
+      runtime.attach(bufnr)
+      assert.is_not_nil(runtime._test.ft_retry_pending[bufnr])
+      runtime.detach(bufnr)
+      local calls = 0
+      runtime.attach(bufnr, {
+        hunks = function()
+          calls = calls + 1
+          return {}
+        end,
+      })
+      run_scheduled_callbacks()
+      assert.are.equal(1, calls)
       assert.is_nil(runtime._test.ft_retry_pending[bufnr])
       delete_buffer(bufnr)
     end)

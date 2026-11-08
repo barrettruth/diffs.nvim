@@ -10,15 +10,13 @@
 ---@field header_lines string[]?
 ---@field prefix_width integer
 ---@field quote_width integer
----@field rail_width integer?
----@field rail_style diffs.RailStyle?
+---@field column_offset integer?
 ---@field _hl_line_count integer?
 ---@field _skipped_max_lines boolean?
 
 local M = {}
 
 local dbg = require('diffs.log').dbg
-local rails = require('diffs.rails')
 
 ---@type table<string, {ft: string?, lang: string?}>
 local ft_lang_cache = {}
@@ -110,11 +108,6 @@ end
 ---@param bufnr integer
 ---@return string?
 local function get_repo_root(bufnr)
-  local ok, source = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_source')
-  if ok and source.repo_root then
-    return source.repo_root
-  end
-
   local ok2, git_dir = pcall(vim.api.nvim_buf_get_var, bufnr, 'git_dir')
   if ok2 and git_dir then
     return vim.fn.fnamemodify(git_dir, ':h')
@@ -138,8 +131,7 @@ local function get_repo_root(bufnr)
   end
 
   local cwd = vim.fn.getcwd()
-  local git = require('diffs.git')
-  return git.get_repo_root(cwd .. '/.')
+  return vim.fs.root(cwd, '.git')
 end
 
 ---@param bufnr integer
@@ -147,13 +139,11 @@ end
 function M.parse_buffer(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local repo_root = get_repo_root(bufnr)
-  local rail_width = rails.width_for_buffer(bufnr)
-  local rail_style = rail_width > 0 and rails.style_for_buffer(bufnr) or nil
 
   local quote_prefix = nil
   local quote_width = 0
   for _, l in ipairs(lines) do
-    local logical = rails.strip(l, rail_width)
+    local logical = l
     local qp = logical:match('^(>+ )diff %-%-') or logical:match('^(>+ )@@ %-')
     if qp then
       quote_prefix = qp
@@ -205,8 +195,6 @@ function M.parse_buffer(bufnr)
         lines = hunk_lines,
         prefix_width = hunk_prefix_width,
         quote_width = current_quote_width,
-        rail_width = rail_width > 0 and rail_width or nil,
-        rail_style = rail_style,
       }
       if hunk_count == 1 and header_start and #header_lines > 0 then
         hunk.header_start_line = header_start
@@ -223,12 +211,11 @@ function M.parse_buffer(bufnr)
   end
 
   for i, line in ipairs(lines) do
-    local without_rails = rails.strip(line, rail_width)
-    local logical = without_rails
+    local logical = line
     if quote_prefix then
-      if without_rails:sub(1, quote_width) == quote_prefix then
-        logical = without_rails:sub(quote_width + 1)
-      elseif without_rails:match('^>+$') then
+      if line:sub(1, quote_width) == quote_prefix then
+        logical = line:sub(quote_width + 1)
+      elseif line:match('^>+$') then
         logical = ''
       end
     end
@@ -254,7 +241,7 @@ function M.parse_buffer(bufnr)
     if filename then
       flush_hunk()
       current_filename = filename
-      current_quote_width = rail_width + ((logical ~= without_rails) and quote_width or 0)
+      current_quote_width = (logical ~= line) and quote_width or 0
       local cache_key = (repo_root or '') .. '\0' .. filename
       local cached = ft_lang_cache[cache_key]
       if cached then
@@ -315,6 +302,8 @@ function M.parse_buffer(bufnr)
         if new_remaining and (prefix == ' ' or prefix == '+') then
           new_remaining = new_remaining - 1
         end
+      elseif logical:match('^\\ No newline') then
+        table.insert(hunk_lines, logical)
       elseif
         logical == ''
         and old_remaining

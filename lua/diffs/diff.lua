@@ -44,7 +44,7 @@ function M.extract_change_groups(hunk_lines)
     elseif prefix == '+' then
       in_del = false
       table.insert(add_buf, { idx = i, text = line:sub(2) })
-    else
+    elseif not line:match('^\\ No newline') then
       if #del_buf > 0 and #add_buf > 0 then
         table.insert(groups, { del_lines = del_buf, add_lines = add_buf })
       end
