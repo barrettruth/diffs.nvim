@@ -13,21 +13,21 @@ describe('highlight', function()
         { clear = 198, syntax = 199, line_bg = 200, char_bg = 201 },
         opts.highlights.priorities
       )
-      assert.is_true(opts.highlights.treesitter.enabled)
-      assert.is_true(opts.highlights.vim.enabled)
+      assert.is_table(opts.highlights.treesitter)
+      assert.is_table(opts.highlights.vim)
     end)
 
     it('applies highlight overrides without mutating config', function()
       local cfg = config.new()
       local opts = highlight.hunk_opts(cfg, {
         highlights = {
-          treesitter = { enabled = false },
+          treesitter = false,
         },
         defer_vim_syntax = true,
       })
 
-      assert.is_false(opts.highlights.treesitter.enabled)
-      assert.is_true(cfg.highlights.treesitter.enabled)
+      assert.is_false(opts.highlights.treesitter)
+      assert.is_table(cfg.highlights.treesitter)
       assert.is_true(opts.defer_vim_syntax)
       assert.is_nil(cfg.highlights.priorities)
       assert.are.same(
@@ -78,14 +78,8 @@ describe('highlight', function()
         highlights = {
           background = false,
           context = { enabled = false, lines = 0 },
-          treesitter = {
-            enabled = true,
-            max_lines = 500,
-          },
-          vim = {
-            enabled = false,
-            max_lines = 200,
-          },
+          treesitter = { max_lines = 500 },
+          vim = false,
           intra = {
             enabled = false,
             algorithm = 'default',
@@ -608,7 +602,7 @@ describe('highlight', function()
           bufnr,
           ns,
           hunk,
-          default_opts({ highlights = { background = true, treesitter = { enabled = false } } })
+          default_opts({ highlights = { background = true, treesitter = false } })
         )
 
         local last_body_row = hunk.start_line + #hunk.lines - 1
@@ -654,7 +648,7 @@ describe('highlight', function()
           bufnr,
           ns,
           hunk,
-          default_opts({ highlights = { background = true, treesitter = { enabled = false } } })
+          default_opts({ highlights = { background = true, treesitter = false } })
         )
 
         local last_body_row = hunk.start_line + #hunk.lines - 1
@@ -703,7 +697,7 @@ describe('highlight', function()
         bufnr,
         ns,
         hunk,
-        default_opts({ highlights = { background = true, treesitter = { enabled = false } } })
+        default_opts({ highlights = { background = true, treesitter = false } })
       )
 
       local last_body_row = hunk.start_line + #hunk.lines - 1
@@ -740,7 +734,7 @@ describe('highlight', function()
         bufnr,
         ns,
         hunk,
-        default_opts({ highlights = { treesitter = { enabled = false }, background = true } })
+        default_opts({ highlights = { treesitter = false, background = true } })
       )
 
       local extmarks = get_extmarks(bufnr)
@@ -774,7 +768,7 @@ describe('highlight', function()
         bufnr,
         ns,
         hunk,
-        default_opts({ highlights = { background = true, treesitter = { enabled = false } } })
+        default_opts({ highlights = { background = true, treesitter = false } })
       )
 
       local extmarks = get_extmarks(bufnr)
@@ -821,7 +815,7 @@ describe('highlight', function()
           hide_prefix = true,
           highlights = {
             background = true,
-            treesitter = { enabled = false },
+            treesitter = false,
           },
         })
       )
@@ -869,7 +863,7 @@ describe('highlight', function()
           hide_prefix = true,
           highlights = {
             background = true,
-            treesitter = { enabled = false },
+            treesitter = false,
           },
         })
       )
@@ -924,7 +918,7 @@ describe('highlight', function()
           hide_prefix = true,
           highlights = {
             background = true,
-            treesitter = { enabled = false },
+            treesitter = false,
           },
         })
       )
@@ -1005,7 +999,7 @@ describe('highlight', function()
         hunk,
         default_opts({
           highlights = {
-            treesitter = { enabled = false },
+            treesitter = false,
           },
         })
       )
@@ -1071,7 +1065,7 @@ describe('highlight', function()
           hide_prefix = true,
           highlights = {
             background = true,
-            treesitter = { enabled = false },
+            treesitter = false,
           },
         })
       )
@@ -1118,7 +1112,7 @@ describe('highlight', function()
           hide_prefix = true,
           highlights = {
             background = true,
-            treesitter = { enabled = false },
+            treesitter = false,
           },
         })
       )
@@ -1189,7 +1183,7 @@ describe('highlight', function()
         bufnr,
         ns,
         hunk,
-        default_opts({ highlights = { background = true, treesitter = { enabled = false } } })
+        default_opts({ highlights = { background = true, treesitter = false } })
       )
 
       local extmarks = get_extmarks(bufnr)
@@ -1206,7 +1200,7 @@ describe('highlight', function()
       delete_buffer(bufnr)
     end)
 
-    it('applies vim syntax extmarks when vim.enabled and no TS parser', function()
+    it('applies vim syntax extmarks with Vim syntax and no TS parser', function()
       local orig_synID = vim.fn.synID
       local orig_synIDtrans = vim.fn.synIDtrans
       local orig_synIDattr = vim.fn.synIDattr
@@ -1238,7 +1232,7 @@ describe('highlight', function()
         bufnr,
         ns,
         hunk,
-        default_opts({ highlights = { vim = { enabled = true } } })
+        default_opts({ highlights = { vim = { max_lines = 200 } } })
       )
 
       vim.fn.synID = orig_synID
@@ -1299,11 +1293,11 @@ describe('highlight', function()
         warm_bufnr,
         ns,
         hunk,
-        default_opts({ highlights = { treesitter = { enabled = false }, vim = { enabled = true } } })
+        default_opts({ highlights = { treesitter = false, vim = { max_lines = 200 } } })
       )
 
       local opts = default_opts({
-        highlights = { treesitter = { enabled = false }, vim = { enabled = true } },
+        highlights = { treesitter = false, vim = { max_lines = 200 } },
       })
       opts.defer_vim_syntax = true
       local _, cache_hit = highlight.highlight_hunk(cached_bufnr, ns, hunk, opts)
@@ -1358,7 +1352,7 @@ describe('highlight', function()
         bufnr,
         ns,
         hunk,
-        default_opts({ highlights = { vim = { enabled = true, max_lines = 200 } } })
+        default_opts({ highlights = { vim = { max_lines = 200 } } })
       )
 
       local extmarks = get_extmarks(bufnr)
@@ -1385,7 +1379,7 @@ describe('highlight', function()
         bufnr,
         ns,
         hunk,
-        default_opts({ highlights = { vim = { enabled = true }, background = true } })
+        default_opts({ highlights = { vim = { max_lines = 200 }, background = true } })
       )
 
       local extmarks = get_extmarks(bufnr)
@@ -1432,7 +1426,7 @@ describe('highlight', function()
         bufnr,
         ns,
         hunk,
-        default_opts({ highlights = { vim = { enabled = true } } })
+        default_opts({ highlights = { vim = { max_lines = 200 } } })
       )
 
       vim.fn.synID = orig_synID
@@ -1996,7 +1990,7 @@ describe('highlight', function()
 
       local fast = default_opts({
         highlights = {
-          treesitter = { enabled = false },
+          treesitter = false,
           background = true,
           intra = { enabled = true, algorithm = 'default', max_lines = 500 },
         },
@@ -2004,7 +1998,7 @@ describe('highlight', function()
 
       local syntax = default_opts({
         highlights = {
-          treesitter = { enabled = true },
+          treesitter = { max_lines = 500 },
           background = true,
           intra = { enabled = true, algorithm = 'default', max_lines = 500 },
         },
@@ -2052,14 +2046,14 @@ describe('highlight', function()
 
       local fast = default_opts({
         highlights = {
-          treesitter = { enabled = false },
+          treesitter = false,
           background = true,
         },
       })
 
       local syntax = default_opts({
         highlights = {
-          treesitter = { enabled = true },
+          treesitter = { max_lines = 500 },
           background = true,
         },
       })
@@ -2115,8 +2109,8 @@ describe('highlight', function()
         highlights = {
           background = false,
           context = { enabled = false, lines = 0 },
-          treesitter = { enabled = true, max_lines = 500 },
-          vim = { enabled = false, max_lines = 200 },
+          treesitter = { max_lines = 500 },
+          vim = false,
           priorities = { clear = 198, syntax = 199, line_bg = 200, char_bg = 201 },
         },
       }
@@ -2699,8 +2693,8 @@ describe('highlight', function()
         highlights = {
           background = false,
           context = { enabled = false, lines = 0 },
-          treesitter = { enabled = true, max_lines = 500 },
-          vim = { enabled = false, max_lines = 200 },
+          treesitter = { max_lines = 500 },
+          vim = false,
           priorities = { clear = 198, syntax = 199, line_bg = 200, char_bg = 201 },
         },
       }

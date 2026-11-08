@@ -66,7 +66,7 @@ local function init()
 
   fast_hl_opts = highlight.hunk_opts(config, {
     highlights = {
-      treesitter = { enabled = false },
+      treesitter = false,
     },
     defer_vim_syntax = true,
   })

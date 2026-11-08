@@ -255,7 +255,7 @@ end
 function Cache:needs_syntax(hunk, vim_cache_hit)
   local highlights = self.get_config().highlights
   if
-    highlights.treesitter.enabled
+    highlights.treesitter
     and (
       hunk.lang
       or (hunk.header_start_line and hunk.header_lines and #hunk.header_lines > 0)
@@ -265,7 +265,7 @@ function Cache:needs_syntax(hunk, vim_cache_hit)
   then
     return true
   end
-  return not hunk.lang and hunk.ft ~= nil and highlights.vim.enabled and not vim_cache_hit
+  return not hunk.lang and hunk.ft ~= nil and highlights.vim and not vim_cache_hit
 end
 
 ---@param hunks diffs.Hunk[]?

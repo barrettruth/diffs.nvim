@@ -3,11 +3,9 @@ local M = {}
 local integration_metadata = require('diffs.integrations')
 
 ---@class diffs.TreesitterConfig
----@field enabled boolean
 ---@field max_lines integer
 
 ---@class diffs.VimConfig
----@field enabled boolean
 ---@field max_lines integer
 
 ---@class diffs.IntraConfig
@@ -29,8 +27,8 @@ local integration_metadata = require('diffs.integrations')
 ---@field overrides? table<string, table>
 ---@field warn_max_lines boolean
 ---@field context diffs.ContextConfig
----@field treesitter diffs.TreesitterConfig
----@field vim diffs.VimConfig
+---@field treesitter diffs.TreesitterConfig|false
+---@field vim diffs.VimConfig|false
 ---@field intra diffs.IntraConfig
 
 ---@class diffs.ConflictKeymaps
@@ -87,11 +85,9 @@ local DEFAULTS = {
       lines = 25,
     },
     treesitter = {
-      enabled = true,
       max_lines = 500,
     },
     vim = {
-      enabled = true,
       max_lines = 200,
     },
     intra = {
@@ -151,8 +147,6 @@ function M.validate(opts)
     vim.validate('highlights.overrides', opts.highlights.overrides, 'table', true)
     vim.validate('highlights.warn_max_lines', opts.highlights.warn_max_lines, 'boolean', true)
     vim.validate('highlights.context', opts.highlights.context, 'table', true)
-    vim.validate('highlights.treesitter', opts.highlights.treesitter, 'table', true)
-    vim.validate('highlights.vim', opts.highlights.vim, 'table', true)
     vim.validate('highlights.intra', opts.highlights.intra, 'table', true)
 
     if opts.highlights.context then
@@ -160,24 +154,18 @@ function M.validate(opts)
       vim.validate('highlights.context.lines', opts.highlights.context.lines, 'number', true)
     end
 
-    if opts.highlights.treesitter then
-      vim.validate(
-        'highlights.treesitter.enabled',
-        opts.highlights.treesitter.enabled,
-        'boolean',
-        true
-      )
-      vim.validate(
-        'highlights.treesitter.max_lines',
-        opts.highlights.treesitter.max_lines,
-        'number',
-        true
-      )
-    end
-
-    if opts.highlights.vim then
-      vim.validate('highlights.vim.enabled', opts.highlights.vim.enabled, 'boolean', true)
-      vim.validate('highlights.vim.max_lines', opts.highlights.vim.max_lines, 'number', true)
+    for _, key in ipairs({ 'treesitter', 'vim' }) do
+      local path = 'highlights.' .. key
+      local value = opts.highlights[key]
+      vim.validate(path, value, function(v)
+        return v == nil or type(v) == 'boolean' or type(v) == 'table'
+      end, 'boolean or table')
+      if type(value) == 'table' then
+        vim.validate(path .. '.max_lines', value.max_lines, 'number', true)
+        if value.max_lines and value.max_lines < 1 then
+          error('diffs: ' .. path .. '.max_lines must be >= 1')
+        end
+      end
     end
 
     if opts.highlights.intra then
@@ -229,22 +217,6 @@ function M.validate(opts)
   end
   if
     opts.highlights
-    and opts.highlights.treesitter
-    and opts.highlights.treesitter.max_lines
-    and opts.highlights.treesitter.max_lines < 1
-  then
-    error('diffs: highlights.treesitter.max_lines must be >= 1')
-  end
-  if
-    opts.highlights
-    and opts.highlights.vim
-    and opts.highlights.vim.max_lines
-    and opts.highlights.vim.max_lines < 1
-  then
-    error('diffs: highlights.vim.max_lines must be >= 1')
-  end
-  if
-    opts.highlights
     and opts.highlights.intra
     and opts.highlights.intra.max_lines
     and opts.highlights.intra.max_lines < 1
@@ -267,7 +239,13 @@ function M.new(opts)
     integrations = integration_metadata.normalize(opts and opts.integrations),
   })
   M.validate(opts)
-  return vim.tbl_deep_extend('force', DEFAULTS, opts)
+  local result = vim.tbl_deep_extend('force', DEFAULTS, opts)
+  for _, key in ipairs({ 'treesitter', 'vim' }) do
+    if result.highlights[key] == true then
+      result.highlights[key] = vim.deepcopy(DEFAULTS.highlights[key])
+    end
+  end
+  return result
 end
 
 return M
