@@ -22,7 +22,6 @@ describe('diffs.config', function()
           view = {
             prefix = true,
           },
-          extra_filetypes = { 'diff' },
           highlights = {
             background = true,
             blend_alpha = 0.4,
@@ -268,22 +267,6 @@ describe('diffs.config', function()
     it('excludes neogit when integrations.neogit is nil', function()
       local fts = compute({ integrations = {} })
       assert.is_false(vim.tbl_contains(fts, 'NeogitStatus'))
-    end)
-
-    it('includes extra_filetypes', function()
-      local fts = compute({ extra_filetypes = { 'diff' } })
-      assert.is_true(vim.tbl_contains(fts, 'diff'))
-    end)
-
-    it('combines integrations and extra_filetypes', function()
-      local fts = compute({
-        integrations = { fugitive = true, neogit = true },
-        extra_filetypes = { 'diff' },
-      })
-      assert.is_true(vim.tbl_contains(fts, 'git'))
-      assert.is_true(vim.tbl_contains(fts, 'fugitive'))
-      assert.is_true(vim.tbl_contains(fts, 'NeogitStatus'))
-      assert.is_true(vim.tbl_contains(fts, 'diff'))
     end)
   end)
 end)
