@@ -1499,6 +1499,16 @@ alternatives in `set_highlights()` above.
 To reuse existing colors, inspect the groups after opening a diff: >vim
     :filter /^Diff/ highlight
 <
+Replace the example colors below with the displayed `guibg` values: >lua
+    local function set_highlights()
+      vim.api.nvim_set_hl(0, 'DiffsAdd', { bg = '#2e4a3a' })
+      vim.api.nvim_set_hl(0, 'DiffsDelete', { bg = '#4a2e2e' })
+    end
+<
+Copy foreground colors and attributes too: `guifg` becomes `fg`, and
+`gui=nocombine` becomes `nocombine = true`. |nvim_set_hl()| replaces the
+complete group definition.
+
 2. Do the blending yourself: >lua
     local function set_highlights()
       local alpha = 0.6
