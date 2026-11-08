@@ -238,6 +238,9 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              inherited from `'diffopt'` (`algorithm` and
                              `linematch`). `'vscode'`: use libvscodediff FFI
                              (falls back to default if not available).
+                             libvscodediff support will be removed on
+                             30 November 2026. Remove `highlights.intra.algorithm`
+                             to use Neovim's diff.
 
         {max_lines}          (integer, default: 500)
                              Skip character-level highlighting for hunks with
