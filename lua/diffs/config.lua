@@ -23,18 +23,6 @@ local integration_metadata = require('diffs.integrations')
 ---@field vim diffs.VimConfig|false
 ---@field intra diffs.IntraConfig|false
 
----@class diffs.ConflictKeymaps
----@field ours string|false
----@field theirs string|false
----@field both string|false
----@field none string|false
----@field next string|false
----@field prev string|false
-
----@class diffs.ConflictConfig
----@field enabled? boolean Deprecated.
----@field keymaps diffs.ConflictKeymaps|false
-
 ---@class diffs.DifftasticConfig
 ---@field args? string[]
 
@@ -52,7 +40,7 @@ local integration_metadata = require('diffs.integrations')
 ---@field view diffs.ViewConfig
 ---@field highlights diffs.Highlights
 ---@field integrations diffs.IntegrationsConfig
----@field conflict diffs.ConflictConfig|false
+---@field conflict boolean
 
 ---@type diffs.Config
 local DEFAULTS = {
@@ -75,9 +63,7 @@ local DEFAULTS = {
     },
   },
   integrations = {},
-  conflict = {
-    keymaps = false,
-  },
+  conflict = true,
 }
 
 ---@param opts? table
@@ -131,29 +117,7 @@ function M.validate(opts)
     end
   end
 
-  vim.validate('conflict', opts.conflict, function(v)
-    return v == nil or type(v) == 'boolean' or type(v) == 'table'
-  end, 'boolean or table')
-  if type(opts.conflict) == 'table' then
-    vim.validate('conflict.enabled', opts.conflict.enabled, 'boolean', true)
-    vim.validate('conflict.keymaps', opts.conflict.keymaps, function(v)
-      return v == nil or v == false or type(v) == 'table'
-    end, 'table or false')
-
-    if type(opts.conflict.keymaps) == 'table' then
-      local keymap_validator = function(v)
-        return v == nil or v == false or type(v) == 'string'
-      end
-      for _, key in ipairs({ 'ours', 'theirs', 'both', 'none', 'next', 'prev' }) do
-        vim.validate(
-          'conflict.keymaps.' .. key,
-          opts.conflict.keymaps[key],
-          keymap_validator,
-          'string or false'
-        )
-      end
-    end
-  end
+  vim.validate('conflict', opts.conflict, 'boolean', true)
 
   if
     opts.highlights
@@ -205,42 +169,6 @@ function M.new(opts)
   end
   local result = vim.tbl_deep_extend('force', DEFAULTS, opts)
   for _, key in ipairs({ 'treesitter', 'vim', 'intra' }) do
-    local value = result.highlights[key]
-    if type(value) == 'table' and value.enabled ~= nil then
-      local migration = key == 'treesitter'
-          and 'The enabled field is ignored. Tree-sitter highlighting is always enabled. Remove enabled.'
-        or key == 'intra' and 'Remove enabled and use diffopt. See :help diffs.nvim-diffopt.'
-        or 'Use highlights.vim = false to disable Vim syntax. Otherwise remove enabled.'
-      vim.notify_once(
-        '[diffs]: highlights.'
-          .. key
-          .. '.enabled is deprecated. Support ends on November 30, 2026. '
-          .. migration,
-        vim.log.levels.WARN
-      )
-      if key ~= 'treesitter' and value.enabled == false then
-        result.highlights[key] = false
-      else
-        value.enabled = nil
-      end
-    end
-  end
-  if type(result.conflict) == 'table' and result.conflict.enabled ~= nil then
-    vim.notify_once(
-      '[diffs]: conflict.enabled is deprecated. Support ends on November 30, 2026. '
-        .. 'Use conflict = false to disable conflict handling. Otherwise remove enabled.',
-      vim.log.levels.WARN
-    )
-    if result.conflict.enabled == false then
-      result.conflict = false
-    else
-      result.conflict.enabled = nil
-    end
-  end
-  if result.conflict == true then
-    result.conflict = vim.deepcopy(DEFAULTS.conflict)
-  end
-  for _, key in ipairs({ 'vim', 'intra' }) do
     if result.highlights[key] == true then
       result.highlights[key] = vim.deepcopy(DEFAULTS.highlights[key])
     end

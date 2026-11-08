@@ -40,16 +40,7 @@ describe('diffs.config', function()
             committia = true,
             telescope = true,
           },
-          conflict = {
-            keymaps = {
-              ours = 'co',
-              theirs = 'ct',
-              both = 'cb',
-              none = 'c0',
-              next = ']x',
-              prev = '[x',
-            },
-          },
+          conflict = false,
         })
       end)
     end)
@@ -89,16 +80,10 @@ describe('diffs.config', function()
       assert.is_nil(opts.hide_prefix)
     end)
 
-    it('accepts boolean and table conflict settings', function()
-      local defaults = config.new().conflict
-      for _, value in ipairs({ true, {} }) do
-        assert.are.same(defaults, config.new({ conflict = value }).conflict)
-      end
+    it('accepts boolean conflict settings', function()
+      assert.is_true(config.new().conflict)
+      assert.is_true(config.new({ conflict = true }).conflict)
       assert.is_false(config.new({ conflict = false }).conflict)
-      assert.are.same(
-        vim.tbl_extend('force', defaults, { keymaps = { ours = 'co' } }),
-        config.new({ conflict = { keymaps = { ours = 'co' } } }).conflict
-      )
     end)
 
     it('accepts integration lists and boolean maps', function()
@@ -162,19 +147,7 @@ describe('diffs.config', function()
       end
     end)
 
-    it('validates conflict keymap values', function()
-      local ok, err = pcall(config.new, {
-        conflict = {
-          keymaps = {
-            ours = true,
-          },
-        },
-      })
 
-      assert.is_false(ok)
-      assert.matches('conflict.keymaps.ours', err, 1, true)
-      assert.matches('string or false', err, 1, true)
-    end)
   end)
 
   describe('compute_filetypes', function()

@@ -129,7 +129,7 @@ vim.fn.delete(path)
       'vim.notify = function(message, level)',
       '_G.diffs_notifications[#_G.diffs_notifications + 1] = { message = message, level = level }',
       'end',
-      'vim.g.diffs = { view = { prefix = false }, highlights = { background = false, intra = { algorithm = "vscode" } }, conflict = { keymaps = { ours = "co" } }, integrations = { "fugitive", "neogit", "neojj", "gitsigns", "committia", "telescope" } }',
+      'vim.g.diffs = { view = { prefix = false }, highlights = { background = false, intra = { algorithm = "vscode" } }, conflict = false, integrations = { "fugitive", "neogit", "neojj", "gitsigns", "committia", "telescope" } }',
       ('vim.opt.runtimepath:prepend(%s)'):format(vim.inspect(vim.fn.getcwd())),
     }
 
@@ -155,7 +155,7 @@ vim.fn.delete(path)
       "print('runtime_committia=' .. tostring(runtime_config.integrations.committia))",
       "print('runtime_telescope=' .. tostring(runtime_config.integrations.telescope))",
       "print('runtime_background=' .. tostring(runtime_config.highlights.background))",
-      "print('runtime_conflict_keymaps=' .. tostring(runtime_config.conflict.keymaps.ours))",
+      "print('runtime_conflict=' .. tostring(runtime_config.conflict))",
       "print('runtime_config_priorities=' .. tostring(runtime_config.highlights.priorities))",
       "print('highlight_priority_clear=' .. tostring(highlight_opts.highlights.priorities.clear))",
       "print('highlight_priority_syntax=' .. tostring(highlight_opts.highlights.priorities.syntax))",
@@ -198,7 +198,7 @@ vim.fn.delete(path)
     assert.matches('runtime_committia=true', output, 1, true)
     assert.matches('runtime_telescope=true', output, 1, true)
     assert.matches('runtime_background=false', output, 1, true)
-    assert.matches('runtime_conflict_keymaps=co', output, 1, true)
+    assert.matches('runtime_conflict=false', output, 1, true)
     assert.matches('runtime_config_priorities=nil', output, 1, true)
     assert.matches('highlight_priority_clear=198', output, 1, true)
     assert.matches('highlight_priority_syntax=199', output, 1, true)

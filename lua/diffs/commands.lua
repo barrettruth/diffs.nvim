@@ -2252,7 +2252,7 @@ function M.diff_file(filepath, opts)
   if diff_label == 'unmerged' then
     local conflict_config = runtime.get_conflict_config()
     if conflict_config then
-      require('diffs.merge').attach(diff_buf, conflict_config)
+      require('diffs.merge').attach(diff_buf)
     end
   end
 
