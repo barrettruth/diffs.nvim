@@ -1,5 +1,5 @@
 ---@class diffs
----@field attach fun(bufnr?: integer)
+---@field attach fun(bufnr?: integer, options?: diffs.AttachOptions)
 ---@field refresh fun(bufnr?: integer)
 local M = {}
 
@@ -17,7 +17,13 @@ local ns = vim.api.nvim_create_namespace('diffs')
 ---@type diffs.Config
 local config = config_mod.new()
 
+---@type table<integer, diffs.Attachment>
+local attached_buffers = {}
+
 local cache = cache_mod.new({
+  get_attachment = function(bufnr)
+    return attached_buffers[bufnr]
+  end,
   ns = ns,
   get_config = function()
     return config
@@ -30,9 +36,6 @@ local hl_retry_pending = false
 
 ---@diagnostic disable-next-line: missing-fields
 local fast_hl_opts = {} ---@type diffs.HunkOpts
-
----@type table<integer, boolean>
-local attached_buffers = {}
 
 ---@type table<integer, string>
 local diff_windows = {}
@@ -133,7 +136,8 @@ function M.configure(user_config)
 end
 
 ---@param bufnr? integer
-function M.attach(bufnr)
+---@param options? diffs.AttachOptions
+function M.attach(bufnr, options)
   init()
   attach_mod.attach({
     cache = cache,
@@ -142,12 +146,19 @@ function M.attach(bufnr)
       return config
     end,
     refresh = M.refresh,
-  }, bufnr)
+  }, bufnr, options)
+end
+
+---@param bufnr? integer
+function M.detach(bufnr)
+  attach_mod.detach({ cache = cache, attached_buffers = attached_buffers }, bufnr)
 end
 
 ---@param bufnr? integer
 function M.refresh(bufnr)
-  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  if not bufnr or bufnr == 0 then
+    bufnr = vim.api.nvim_get_current_buf()
+  end
   cache:invalidate(bufnr)
 end
 
