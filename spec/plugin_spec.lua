@@ -94,7 +94,7 @@ for _, kind in ipairs({ 'conflict', 'merge' }) do
   if kind == 'merge' then
     local buf = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { '@@ -1 +1 @@', '-old', '+new' })
-    vim.b[buf].diffs_working_path = path
+    vim.b[buf].diffs_source = { working_path = path }
     vim.api.nvim_set_current_buf(buf)
   end
   for _, direction in ipairs({ 'next', 'prev' }) do

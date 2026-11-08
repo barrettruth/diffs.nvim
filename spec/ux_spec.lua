@@ -33,7 +33,7 @@ local function add_hunk_metadata(bufnr, diff_spec)
     'diffs_hunks',
     hunks.parse(lines, diff_spec or diffspec.index_to_worktree('file.lua'))
   )
-  vim.api.nvim_buf_set_var(bufnr, 'diffs_repo_root', '/tmp/repo')
+  vim.api.nvim_buf_set_var(bufnr, 'diffs_source', { repo_root = '/tmp/repo' })
 end
 
 local function keymap_desc(bufnr, lhs, mode)

@@ -113,8 +113,9 @@ end
 ---@param diff_bufnr integer
 ---@return integer?
 function M.get_or_load_working_buf(diff_bufnr)
-  local ok, working_path = pcall(vim.api.nvim_buf_get_var, diff_bufnr, 'diffs_working_path')
-  if not ok or not working_path then
+  local ok, source = pcall(vim.api.nvim_buf_get_var, diff_bufnr, 'diffs_source')
+  local working_path = ok and source.working_path
+  if not working_path then
     return nil
   end
 
