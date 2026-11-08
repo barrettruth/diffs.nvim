@@ -46,27 +46,6 @@ local function keymap_desc(bufnr, lhs, mode)
 end
 
 describe('ux', function()
-  describe('diagnostics', function()
-    it('disables diagnostics on diff buffers', function()
-      local bufnr = create_diffs_buffer()
-      commands.setup_diff_buf(bufnr)
-
-      assert.is_false(vim.diagnostic.is_enabled({ bufnr = bufnr }))
-      vim.api.nvim_buf_delete(bufnr, { force = true })
-    end)
-
-    it('does not affect other buffers', function()
-      local diff_buf = create_diffs_buffer()
-      local normal_buf = helpers.create_buffer({ 'hello' })
-
-      commands.setup_diff_buf(diff_buf)
-
-      assert.is_true(vim.diagnostic.is_enabled({ bufnr = normal_buf }))
-      vim.api.nvim_buf_delete(diff_buf, { force = true })
-      helpers.delete_buffer(normal_buf)
-    end)
-  end)
-
   describe('q keymap', function()
     it('sets q keymap on diff buffer', function()
       local bufnr = create_diffs_buffer()

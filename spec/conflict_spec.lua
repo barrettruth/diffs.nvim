@@ -1,17 +1,6 @@
 local conflict = require('diffs.conflict')
 local helpers = require('spec.helpers')
 
-local function default_config(overrides)
-  local cfg = {
-    disable_diagnostics = false,
-    keymaps = false,
-  }
-  if overrides then
-    cfg = vim.tbl_deep_extend('force', cfg, overrides)
-  end
-  return cfg
-end
-
 local function create_file_buffer(lines)
   local bufnr = vim.api.nvim_create_buf(false, false)
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines or {})
@@ -175,7 +164,7 @@ describe('conflict', function()
         '>>>>>>> feature',
       })
 
-      conflict.attach(bufnr, default_config())
+      conflict.attach(bufnr)
 
       local extmarks = get_extmarks(bufnr)
       assert.is_true(#extmarks > 0)
@@ -211,7 +200,7 @@ describe('conflict', function()
         '>>>>>>> feature',
       })
 
-      conflict.attach(bufnr, default_config())
+      conflict.attach(bufnr)
 
       local checked = 0
       for _, mark in ipairs(get_extmarks(bufnr)) do
@@ -235,7 +224,7 @@ describe('conflict', function()
         '>>>>>>> feature',
       })
 
-      conflict.attach(bufnr, default_config())
+      conflict.attach(bufnr)
 
       local extmarks = get_extmarks(bufnr)
       assert.is_true(#extmarks > 0)
@@ -256,7 +245,7 @@ describe('conflict', function()
         '>>>>>>> feature',
       })
 
-      conflict.attach(bufnr, default_config())
+      conflict.attach(bufnr)
 
       local extmarks = get_extmarks(bufnr)
       local has_ours_nr = false
@@ -287,7 +276,7 @@ describe('conflict', function()
         '>>>>>>> feature',
       })
 
-      conflict.attach(bufnr, default_config())
+      conflict.attach(bufnr)
 
       local extmarks = get_extmarks(bufnr)
       local has_base = false
@@ -311,152 +300,11 @@ describe('conflict', function()
         '>>>>>>> feature',
       })
 
-      conflict.attach(bufnr, default_config())
+      conflict.attach(bufnr)
       assert.is_true(#get_extmarks(bufnr) > 0)
 
       conflict.detach(bufnr)
       assert.are.equal(0, #get_extmarks(bufnr))
-
-      helpers.delete_buffer(bufnr)
-    end)
-  end)
-
-  describe('keymaps', function()
-    it('does not set buffer-local keymaps when disabled', function()
-      local bufnr = create_file_buffer({
-        '<<<<<<< HEAD',
-        'local x = 1',
-        '=======',
-        'local x = 2',
-        '>>>>>>> feature',
-      })
-
-      conflict.attach(bufnr, default_config())
-
-      assert.is_false(helpers.has_keymap(bufnr, 'gt'))
-
-      helpers.delete_buffer(bufnr)
-    end)
-
-    it('removes buffer-local keymaps on detach', function()
-      local bufnr = create_file_buffer({
-        '<<<<<<< HEAD',
-        'local x = 1',
-        '=======',
-        'local x = 2',
-        '>>>>>>> feature',
-      })
-      local cfg = default_config({ keymaps = helpers.default_conflict_keymaps() })
-
-      conflict.attach(bufnr, cfg)
-
-      assert.is_true(helpers.has_keymap(bufnr, 'gt'))
-
-      conflict.detach(bufnr)
-
-      assert.is_false(helpers.has_keymap(bufnr, 'gt'))
-
-      helpers.delete_buffer(bufnr)
-    end)
-
-    it('removes buffer-local keymaps when all conflicts are resolved', function()
-      local bufnr = create_file_buffer({
-        '<<<<<<< HEAD',
-        'local x = 1',
-        '=======',
-        'local x = 2',
-        '>>>>>>> feature',
-      })
-      local cfg = default_config({ keymaps = helpers.default_conflict_keymaps() })
-
-      conflict.attach(bufnr, cfg)
-
-      assert.is_true(helpers.has_keymap(bufnr, 'gt'))
-
-      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'local x = 2' })
-      conflict.refresh(bufnr, cfg)
-
-      assert.is_false(helpers.has_keymap(bufnr, 'gt'))
-
-      helpers.delete_buffer(bufnr)
-    end)
-
-    it('reinstalls buffer-local keymaps when conflicts return', function()
-      local bufnr = create_file_buffer({
-        '<<<<<<< HEAD',
-        'local x = 1',
-        '=======',
-        'local x = 2',
-        '>>>>>>> feature',
-      })
-      local cfg = default_config({ keymaps = helpers.default_conflict_keymaps() })
-
-      conflict.attach(bufnr, cfg)
-
-      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'local x = 2' })
-      conflict.refresh(bufnr, cfg)
-      assert.is_false(helpers.has_keymap(bufnr, 'gt'))
-
-      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {
-        '<<<<<<< HEAD',
-        'local x = 1',
-        '=======',
-        'local x = 2',
-        '>>>>>>> feature',
-      })
-      conflict.refresh(bufnr, cfg)
-
-      assert.is_true(helpers.has_keymap(bufnr, 'gt'))
-
-      helpers.delete_buffer(bufnr)
-    end)
-
-    it('does not replace pre-existing buffer-local keymaps', function()
-      local bufnr = create_file_buffer({
-        '<<<<<<< HEAD',
-        'local x = 1',
-        '=======',
-        'local x = 2',
-        '>>>>>>> feature',
-      })
-      vim.keymap.set('n', 'gt', '<Nop>', { buffer = bufnr, desc = 'user theirs' })
-      local cfg = default_config({ keymaps = helpers.default_conflict_keymaps() })
-
-      conflict.attach(bufnr, cfg)
-
-      local theirs = helpers.get_keymap(bufnr, 'gt')
-      local ours = helpers.get_keymap(bufnr, 'go')
-      assert.are.equal('user theirs', theirs.desc)
-      assert.are.equal('<Plug>(diffs-conflict-ours)', ours.rhs)
-
-      conflict.detach(bufnr)
-
-      theirs = helpers.get_keymap(bufnr, 'gt')
-      assert.are.equal('user theirs', theirs.desc)
-      assert.is_false(helpers.has_keymap(bufnr, 'go'))
-
-      helpers.delete_buffer(bufnr)
-    end)
-
-    it('does not remove a user replacement during cleanup', function()
-      local bufnr = create_file_buffer({
-        '<<<<<<< HEAD',
-        'local x = 1',
-        '=======',
-        'local x = 2',
-        '>>>>>>> feature',
-      })
-      local cfg = default_config({ keymaps = helpers.default_conflict_keymaps() })
-
-      conflict.attach(bufnr, cfg)
-      assert.are.equal('<Plug>(diffs-conflict-ours)', helpers.get_keymap(bufnr, 'go').rhs)
-
-      vim.keymap.set('n', 'go', '<Nop>', { buffer = bufnr, desc = 'user ours' })
-      conflict.detach(bufnr)
-
-      local ours = helpers.get_keymap(bufnr, 'go')
-      assert.are.equal('user ours', ours.desc)
-      assert.is_false(helpers.has_keymap(bufnr, 'gt'))
 
       helpers.delete_buffer(bufnr)
     end)
@@ -479,7 +327,7 @@ describe('conflict', function()
       local bufnr = make_conflict_buffer()
       vim.api.nvim_win_set_cursor(0, { 2, 0 })
 
-      conflict.resolve_ours(bufnr, default_config())
+      conflict.resolve_ours(bufnr)
 
       local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
       assert.are.equal(1, #lines)
@@ -492,7 +340,7 @@ describe('conflict', function()
       local bufnr = make_conflict_buffer()
       vim.api.nvim_win_set_cursor(0, { 2, 0 })
 
-      conflict.resolve_theirs(bufnr, default_config())
+      conflict.resolve_theirs(bufnr)
 
       local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
       assert.are.equal(1, #lines)
@@ -505,7 +353,7 @@ describe('conflict', function()
       local bufnr = make_conflict_buffer()
       vim.api.nvim_win_set_cursor(0, { 2, 0 })
 
-      conflict.resolve_both(bufnr, default_config())
+      conflict.resolve_both(bufnr)
 
       local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
       assert.are.equal(2, #lines)
@@ -519,7 +367,7 @@ describe('conflict', function()
       local bufnr = make_conflict_buffer()
       vim.api.nvim_win_set_cursor(0, { 2, 0 })
 
-      conflict.resolve_none(bufnr, default_config())
+      conflict.resolve_none(bufnr)
 
       local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
       assert.are.equal(1, #lines)
@@ -540,7 +388,7 @@ describe('conflict', function()
       vim.api.nvim_set_current_buf(bufnr)
       vim.api.nvim_win_set_cursor(0, { 1, 0 })
 
-      conflict.resolve_ours(bufnr, default_config())
+      conflict.resolve_ours(bufnr)
 
       local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
       assert.are.equal(6, #lines)
@@ -565,7 +413,7 @@ describe('conflict', function()
       vim.api.nvim_set_current_buf(bufnr)
       vim.api.nvim_win_set_cursor(0, { 2, 0 })
 
-      conflict.resolve_ours(bufnr, default_config())
+      conflict.resolve_ours(bufnr)
 
       local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
       assert.are.equal('a', lines[1])
@@ -585,7 +433,7 @@ describe('conflict', function()
       vim.api.nvim_set_current_buf(bufnr)
       vim.api.nvim_win_set_cursor(0, { 1, 0 })
 
-      conflict.resolve_ours(bufnr, default_config())
+      conflict.resolve_ours(bufnr)
 
       local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
       assert.are.equal(1, #lines)
@@ -607,7 +455,7 @@ describe('conflict', function()
       vim.api.nvim_set_current_buf(bufnr)
       vim.api.nvim_win_set_cursor(0, { 2, 0 })
 
-      conflict.resolve_theirs(bufnr, default_config())
+      conflict.resolve_theirs(bufnr)
 
       local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
       assert.are.equal(1, #lines)
@@ -781,10 +629,9 @@ describe('conflict', function()
         'b',
         '>>>>>>> feat',
       })
-      local cfg = default_config()
-      conflict.attach(bufnr, cfg)
+      conflict.attach(bufnr)
       local count1 = #get_extmarks(bufnr)
-      conflict.attach(bufnr, cfg)
+      conflict.attach(bufnr)
       local count2 = #get_extmarks(bufnr)
       assert.are.equal(count1, count2)
       conflict.detach(bufnr)
@@ -801,7 +648,7 @@ describe('conflict', function()
       })
       vim.api.nvim_set_option_value('buftype', 'nofile', { buf = bufnr })
 
-      conflict.attach(bufnr, default_config())
+      conflict.attach(bufnr)
       assert.are.equal(0, #get_extmarks(bufnr))
 
       helpers.delete_buffer(bufnr)
@@ -810,7 +657,7 @@ describe('conflict', function()
     it('skips buffers without conflict markers', function()
       local bufnr = create_file_buffer({ 'local x = 1', 'local y = 2' })
 
-      conflict.attach(bufnr, default_config())
+      conflict.attach(bufnr)
       assert.are.equal(0, #get_extmarks(bufnr))
 
       helpers.delete_buffer(bufnr)
@@ -833,15 +680,14 @@ describe('conflict', function()
         end,
       })
       vim.api.nvim_set_current_buf(bufnr)
-      local cfg = default_config()
-      conflict.attach(bufnr, cfg)
+      conflict.attach(bufnr)
 
       assert.is_true(#get_extmarks(bufnr) > 0)
 
       vim.api.nvim_win_set_cursor(0, { 2, 0 })
-      conflict.resolve_ours(bufnr, cfg)
+      conflict.resolve_ours(bufnr)
       assert.are.equal(0, #get_extmarks(bufnr))
-      conflict.refresh(bufnr, cfg)
+      conflict.refresh(bufnr)
 
       vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {
         '<<<<<<< HEAD',
@@ -854,7 +700,7 @@ describe('conflict', function()
 
       assert.is_true(#get_extmarks(bufnr) > 0)
 
-      conflict.refresh(bufnr, cfg)
+      conflict.refresh(bufnr)
       conflict.detach(bufnr)
       assert.are.same({
         'DiffsConflictDetected',
@@ -875,12 +721,12 @@ describe('conflict', function()
         '>>>>>>> feature',
       })
       vim.api.nvim_set_current_buf(bufnr)
-      conflict.attach(bufnr, default_config())
+      conflict.attach(bufnr)
 
       assert.is_true(#get_extmarks(bufnr) > 0)
 
       vim.api.nvim_win_set_cursor(0, { 2, 0 })
-      conflict.resolve_ours(bufnr, default_config())
+      conflict.resolve_ours(bufnr)
 
       assert.are.equal(0, #get_extmarks(bufnr))
 

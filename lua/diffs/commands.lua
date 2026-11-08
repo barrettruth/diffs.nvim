@@ -190,7 +190,6 @@ end
 
 ---@param bufnr integer
 function M.setup_diff_buf(bufnr)
-  vim.diagnostic.enable(false, { bufnr = bufnr })
   if not get_buffer_keymap(bufnr, 'n', 'q') then
     vim.keymap.set('n', 'q', '<cmd>close<CR>', { buffer = bufnr })
   end
@@ -2260,7 +2259,7 @@ function M.diff_file(filepath, opts)
     vim.api.nvim_buf_set_var(diff_buf, 'diffs_working_path', filepath)
     local conflict_config = runtime.get_conflict_config()
     if conflict_config then
-      require('diffs.merge').setup_keymaps(diff_buf, conflict_config)
+      require('diffs.merge').attach(diff_buf)
     end
   end
 

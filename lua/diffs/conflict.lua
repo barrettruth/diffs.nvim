@@ -13,7 +13,6 @@
 
 local M = {}
 
-local keymaps = require('diffs.keymaps')
 local notify = require('diffs.log').notify
 
 local ns = vim.api.nvim_create_namespace('diffs-conflict')
@@ -22,31 +21,10 @@ local CONFLICT_PRIORITY = 200
 ---@type table<integer, true>
 local attached_buffers = {}
 
----@type table<integer, boolean>
-local diagnostics_suppressed = {}
-
----@type table<integer, table<string, diffs.BufferKeymap>>
-local buffer_keymaps = {}
-
 ---@param event string
 ---@param bufnr integer
 local function emit(event, bufnr)
   vim.api.nvim_exec_autocmds('User', { pattern = event, data = { bufnr = bufnr } })
-end
-
----@param bufnr integer
----@param config diffs.ConflictConfig
-local function suppress_diagnostics(bufnr, config)
-  if not config.disable_diagnostics or diagnostics_suppressed[bufnr] then
-    return
-  end
-  vim.notify_once(
-    '[diffs]: conflict.disable_diagnostics will be removed on 30 November 2026. '
-      .. 'See :help diffs.nvim-conflict-diagnostics.',
-    vim.log.levels.WARN
-  )
-  pcall(vim.diagnostic.enable, false, { bufnr = bufnr })
-  diagnostics_suppressed[bufnr] = true
 end
 
 ---@param line string
@@ -173,8 +151,6 @@ local function parse_buffer(bufnr)
   return M.parse(lines)
 end
 
-local setup_keymaps
-
 ---@param bufnr integer
 ---@param row integer
 ---@param hl_group string
@@ -269,28 +245,17 @@ function M.replace_region(bufnr, region, replacement)
 end
 
 ---@param bufnr integer
----@param config diffs.ConflictConfig
-function M.refresh(bufnr, config)
+function M.refresh(bufnr)
   local had_conflicts = #vim.api.nvim_buf_get_extmarks(bufnr, ns, 0, -1, { limit = 1 }) > 0
   local regions = parse_buffer(bufnr)
   if #regions == 0 then
     vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
-    keymaps.clear_buffer_keymaps(buffer_keymaps, bufnr)
-    if diagnostics_suppressed[bufnr] then
-      pcall(vim.diagnostic.reset, nil, bufnr)
-      pcall(vim.diagnostic.enable, true, { bufnr = bufnr })
-      diagnostics_suppressed[bufnr] = nil
-    end
     if had_conflicts then
       emit('DiffsConflictResolved', bufnr)
     end
     return
   end
   apply_highlights(bufnr, regions)
-  if not buffer_keymaps[bufnr] then
-    setup_keymaps(bufnr, config)
-  end
-  suppress_diagnostics(bufnr, config)
   if not had_conflicts then
     emit('DiffsConflictDetected', bufnr)
   end
@@ -318,9 +283,8 @@ function M.replacement_lines(bufnr, region, side)
 end
 
 ---@param bufnr integer
----@param config diffs.ConflictConfig
 ---@param side 'ours'|'theirs'|'both'|'none'
-local function resolve(bufnr, config, side)
+local function resolve(bufnr, side)
   if not vim.api.nvim_get_option_value('modifiable', { buf = bufnr }) then
     notify('buffer is not modifiable', vim.log.levels.WARN)
     return
@@ -331,31 +295,27 @@ local function resolve(bufnr, config, side)
     return
   end
   M.replace_region(bufnr, region, M.replacement_lines(bufnr, region, side))
-  M.refresh(bufnr, config)
+  M.refresh(bufnr)
 end
 
 ---@param bufnr integer
----@param config diffs.ConflictConfig
-function M.resolve_ours(bufnr, config)
-  resolve(bufnr, config, 'ours')
+function M.resolve_ours(bufnr)
+  resolve(bufnr, 'ours')
 end
 
 ---@param bufnr integer
----@param config diffs.ConflictConfig
-function M.resolve_theirs(bufnr, config)
-  resolve(bufnr, config, 'theirs')
+function M.resolve_theirs(bufnr)
+  resolve(bufnr, 'theirs')
 end
 
 ---@param bufnr integer
----@param config diffs.ConflictConfig
-function M.resolve_both(bufnr, config)
-  resolve(bufnr, config, 'both')
+function M.resolve_both(bufnr)
+  resolve(bufnr, 'both')
 end
 
 ---@param bufnr integer
----@param config diffs.ConflictConfig
-function M.resolve_none(bufnr, config)
-  resolve(bufnr, config, 'none')
+function M.resolve_none(bufnr)
+  resolve(bufnr, 'none')
 end
 
 ---@param bufnr integer
@@ -398,44 +358,18 @@ function M.goto_prev(bufnr)
 end
 
 ---@param bufnr integer
----@param config diffs.ConflictConfig
-setup_keymaps = function(bufnr, config)
-  local km = config.keymaps
-  if km == false then
-    keymaps.clear_buffer_keymaps(buffer_keymaps, bufnr)
-    return
-  end
-
-  keymaps.set_buffer_keymaps(buffer_keymaps, bufnr, {
-    { km.ours, '<Plug>(diffs-conflict-ours)' },
-    { km.theirs, '<Plug>(diffs-conflict-theirs)' },
-    { km.both, '<Plug>(diffs-conflict-both)' },
-    { km.none, '<Plug>(diffs-conflict-none)' },
-    { km.next, '<Plug>(diffs-conflict-next)' },
-    { km.prev, '<Plug>(diffs-conflict-prev)' },
-  })
-end
-
----@param bufnr integer
 function M.detach(bufnr)
   local attached = attached_buffers[bufnr]
   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
-  keymaps.clear_buffer_keymaps(buffer_keymaps, bufnr)
   attached_buffers[bufnr] = nil
 
-  if diagnostics_suppressed[bufnr] then
-    pcall(vim.diagnostic.reset, nil, bufnr)
-    pcall(vim.diagnostic.enable, true, { bufnr = bufnr })
-    diagnostics_suppressed[bufnr] = nil
-  end
   if attached then
     emit('DiffsConflictDetached', bufnr)
   end
 end
 
 ---@param bufnr integer
----@param config diffs.ConflictConfig
-function M.attach(bufnr, config)
+function M.attach(bufnr)
   if attached_buffers[bufnr] then
     return
   end
@@ -454,9 +388,6 @@ function M.attach(bufnr, config)
   attached_buffers[bufnr] = true
 
   apply_highlights(bufnr, regions)
-  setup_keymaps(bufnr, config)
-
-  suppress_diagnostics(bufnr, config)
 
   vim.api.nvim_create_autocmd({ 'TextChanged', 'TextChangedI' }, {
     buffer = bufnr,
@@ -464,16 +395,14 @@ function M.attach(bufnr, config)
       if not attached_buffers[bufnr] then
         return true
       end
-      M.refresh(bufnr, config)
+      M.refresh(bufnr)
     end,
   })
 
   vim.api.nvim_create_autocmd('BufWipeout', {
     buffer = bufnr,
     callback = function()
-      keymaps.clear_buffer_keymaps(buffer_keymaps, bufnr)
       attached_buffers[bufnr] = nil
-      diagnostics_suppressed[bufnr] = nil
     end,
   })
   emit('DiffsConflictDetected', bufnr)
