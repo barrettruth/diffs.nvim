@@ -207,9 +207,6 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              Character-level (intra-line) diff highlighting.
                              See |diffs.nvim.IntraConfig| for fields.
 
-        {overrides}          (table, default: {})
-                             Deprecated. See |diffs.nvim-highlights|.
-
                                                  *diffs.nvim.TreesitterConfig*
     Treesitter config fields: ~
         {max_lines}          (integer, default: 500)
