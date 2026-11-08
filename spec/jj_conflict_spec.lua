@@ -107,7 +107,13 @@ describe('jj conflict markers', function()
       local rows = {}
       for _, mark in
         ipairs(
-          vim.api.nvim_buf_get_extmarks(bufnr, conflict.get_namespace(), 0, -1, { details = true })
+          vim.api.nvim_buf_get_extmarks(
+            bufnr,
+            vim.api.nvim_get_namespaces()['diffs-conflict'],
+            0,
+            -1,
+            { details = true }
+          )
         )
       do
         if mark[4] and mark[4].hl_group == 'DiffsConflictMarker' then
@@ -137,7 +143,13 @@ describe('jj conflict markers', function()
       conflict.attach(bufnr)
       assert.are.equal(
         0,
-        #vim.api.nvim_buf_get_extmarks(bufnr, conflict.get_namespace(), 0, -1, {})
+        #vim.api.nvim_buf_get_extmarks(
+          bufnr,
+          vim.api.nvim_get_namespaces()['diffs-conflict'],
+          0,
+          -1,
+          {}
+        )
       )
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)

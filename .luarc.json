@@ -17,5 +17,9 @@
   "workspace.checkThirdParty": false,
   "diagnostics.libraryFiles": "Disable",
   "workspace.ignoreDir": [".direnv"],
-  "completion.callSnippet": "Replace"
+  "completion.callSnippet": "Replace",
+  "diagnostics.severity": {
+    "unused-function": "Warning",
+    "unused-local": "Warning"
+  }
 }

@@ -33,13 +33,6 @@ function M.clear_active(bufnr)
   pcall(vim.api.nvim_buf_clear_namespace, bufnr, unified_ns, 0, -1)
 end
 
----@param bufnr integer
----@return boolean
-function M.is_active(bufnr)
-  local ok, value = pcall(vim.api.nvim_buf_get_var, bufnr, active_var)
-  return ok and value == true
-end
-
 ---@return { enabled: boolean, args: string[] }
 function M.resolve()
   local raw = runtime.get_difftastic_config()

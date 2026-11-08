@@ -687,13 +687,6 @@ function M.review(spec, opts)
   return review.open(spec, review_deps(opts))
 end
 
----@param buf integer
----@param lnum integer
----@return string?
-function M.review_file_at_line(buf, lnum)
-  return review.file_at_line(buf, lnum)
-end
-
 local layout_options = {
   '++layout=unified',
   '++layout=stacked',
