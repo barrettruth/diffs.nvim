@@ -21,7 +21,6 @@ local CONFLICT_PRIORITY = 200
 ---@type table<integer, true>
 local attached_buffers = {}
 
-
 ---@param event string
 ---@param bufnr integer
 local function emit(event, bufnr)

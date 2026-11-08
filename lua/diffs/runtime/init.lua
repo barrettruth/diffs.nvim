@@ -61,30 +61,6 @@ local function init()
   end
   log.set_enabled(config.debug)
 
-  if config.highlights.overrides and next(config.highlights.overrides) then
-    log.notify(
-      'highlights.overrides is deprecated. Support ends on November 30, 2026. '
-        .. 'Use vim.api.nvim_set_hl(). See :help diffs.nvim-highlights.',
-      vim.log.levels.WARN
-    )
-  end
-
-  if config.highlights.intra and config.highlights.intra.algorithm == 'vscode' then
-    log.notify(
-      'libvscodediff support will be removed on 30 November 2026. '
-        .. "Remove highlights.intra.algorithm to use Neovim's diff.",
-      vim.log.levels.WARN
-    )
-  end
-
-  if config.conflict and config.conflict.keymaps then
-    log.notify(
-      'conflict.keymaps will be removed on 30 November 2026. '
-        .. 'Use vim.keymap.set(). See :help diffs.nvim-conflict-keymaps.',
-      vim.log.levels.WARN
-    )
-  end
-
   fast_hl_opts = highlight.hunk_opts(config, {
     highlights = {
       treesitter = false,

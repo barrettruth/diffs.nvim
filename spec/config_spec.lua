@@ -146,8 +146,6 @@ describe('diffs.config', function()
         assert.matches(case.message, err, 1, true)
       end
     end)
-
-
   end)
 
   describe('compute_filetypes', function()
@@ -181,6 +179,5 @@ describe('diffs.config', function()
       local fts = compute({ integrations = { neogit = false } })
       assert.is_false(vim.tbl_contains(fts, 'NeogitStatus'))
     end)
-
   end)
 end)
