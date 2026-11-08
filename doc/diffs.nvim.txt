@@ -196,8 +196,14 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              Vim syntax fallback highlighting options.
                              See |diffs.nvim.VimConfig| for fields.
 
+<<<<<<< HEAD
         {intra}              (table, default: see below)
                              Intra-line diff highlighting options.
+=======
+        {intra}              (boolean|table, default: true)
+                             Boolean values are deprecated.
+                             See |diffs.nvim-diffopt|.
+>>>>>>> refactor/deprecate-intra-toggle
                              See |diffs.nvim.IntraConfig| for fields.
 
         {overrides}          (table, default: {})
@@ -713,8 +719,15 @@ Inline granularity: ~                                      *diffs.nvim-inline*
     above, so a plain `:set`, an unimpaired-style toggle, or an autocmd all
     work. There is no dedicated mapping.
 
+<<<<<<< HEAD
                                                 *diffs.nvim-intra-toggle*
     Disable intra-line highlighting with |'diffopt'|: >lua
+=======
+                                                *diffs.nvim-diffopt*
+    Intra-line highlighting is controlled by |'diffopt'|.
+
+    Disable intra-line highlighting: >lua
+>>>>>>> refactor/deprecate-intra-toggle
         vim.opt.diffopt:remove({ 'inline:simple', 'inline:char', 'inline:word' })
         vim.opt.diffopt:append('inline:none')
 <

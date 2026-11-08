@@ -181,6 +181,16 @@ function M.new(opts)
     integrations = integration_metadata.normalize(opts and opts.integrations),
   })
   M.validate(opts)
+<<<<<<< HEAD
+=======
+  if opts.highlights and type(opts.highlights.intra) == 'boolean' then
+    vim.notify_once(
+      '[diffs]: Boolean highlights.intra is deprecated. Support ends on November 30, 2026. '
+        .. 'See :help diffs.nvim-diffopt.',
+      vim.log.levels.WARN
+    )
+  end
+>>>>>>> refactor/deprecate-intra-toggle
   local result = vim.tbl_deep_extend('force', DEFAULTS, opts)
   if result.conflict == true then
     result.conflict = vim.deepcopy(DEFAULTS.conflict)
