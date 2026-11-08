@@ -44,16 +44,26 @@ function M.get_file_content(revision, filepath)
 
   local rel_path = relative_path(repo_root, filepath)
 
-  if not is_index_stage(revision) then
-    vim.fn.system({ 'git', '-C', repo_root, 'rev-parse', '--verify', revision .. '^{tree}' })
-    if vim.v.shell_error ~= 0 then
-      return nil, 'failed to resolve revision: ' .. revision
-    end
-  end
-
-  local result =
-    vim.fn.systemlist({ 'git', '-C', repo_root, 'show', revision .. ':' .. rel_path }, nil, 1)
+  local result = vim.fn.systemlist(
+    { 'git', '-C', repo_root, 'show', '--end-of-options', revision .. ':' .. rel_path },
+    nil,
+    1
+  )
   if vim.v.shell_error ~= 0 then
+    if not is_index_stage(revision) then
+      vim.fn.system({
+        'git',
+        '-C',
+        repo_root,
+        'rev-parse',
+        '--verify',
+        '--end-of-options',
+        revision .. '^{tree}',
+      })
+      if vim.v.shell_error ~= 0 then
+        return nil, 'failed to resolve revision: ' .. revision
+      end
+    end
     return nil, 'file not in revision: ' .. revision
   end
   return content.from_raw_lines(result), nil
