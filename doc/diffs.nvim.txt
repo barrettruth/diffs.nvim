@@ -372,7 +372,8 @@ highlight-only.
     Without `++layout`, the layout comes from `view.default_layout`; an explicit
     option takes precedence. The default remains `unified`.
 
-    If `++layout` occurs more than once, the last value applies.
+    If `++layout` occurs more than once, the last value applies. Unknown layout
+    names use the unified layout.
 
     `++layout=unified` and `++layout=stacked` create generated `diffs://`
     buffers. Unified buffers include old and new line-number rails before the
@@ -497,9 +498,9 @@ Diff files: ~                                          *diffs.nvim-diff-files*
         :Diff files ++layout=stacked a.txt b.txt
 <
     The `++layout=unified` and `++layout=stacked` layouts and the |:vertical|
-    modifier apply as they do for |:Diff|. `++layout=split` is not supported for
-    two arbitrary files; use native diff mode (`nvim -d` or |:diffsplit|) for a
-    side-by-side comparison. The view is read-only, so the hunk-staging maps
+    modifier apply as they do for |:Diff|. Other layout values use unified.
+    Use native diff mode (`nvim -d` or |:diffsplit|) for a side-by-side comparison.
+    The view is read-only, so the hunk-staging maps
     (`do`/`dp`) are not available.
 
     Errors: ~
@@ -572,11 +573,15 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     With a single ref, reviews the current repository state against that
     base ref. With `A...B`, reviews explicit target `B` against base `A`
     using merge-base semantics. With `A..B`, reviews explicit target `B`
-    against base `A` as a direct two-endpoint comparison.
+    against base `A` as a direct two-endpoint comparison. Two separate refs,
+    such as `:Diff review main feature`, also compare the two endpoints.
+    Additional revision arguments pass to Git.
 
     Git resolves the revisions and reports invalid revisions. In `A..B` and
     `A...B`, an omitted endpoint defaults to `HEAD`. If `A...B` has multiple
     merge bases, Git selects the base for the comparison.
+    Tree expressions such as `HEAD~:src..HEAD:src` compare paths relative to
+    the selected trees.
 
     A current-state review (no explicit target) ends with an Untracked
     section listing files not yet tracked by git. Pass `++nountracked` to
@@ -663,11 +668,12 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
                        - `{base}`: review current repo state against `{base}`
                        - `{base}...{target}`: merge-base review of explicit
                          target `{target}` against base `{base}`
-                       - `{base}..{target}`: direct review of explicit target
-                         `{target}` against base `{base}`
+                       - `{base}..{target}` or `{base} {target}`: direct review
+                         of explicit target `{target}` against base `{base}`
 
-    If `++layout` occurs more than once, the last value applies. Repeating
-    `++nountracked` has no additional effect.
+    If `++layout` occurs more than once, the last value applies. Unknown layout
+    names use the unified layout. Repeating `++nountracked` has no additional
+    effect.
 
     Completion covers `++layout=...`, `++nountracked`, and git refs.
 
@@ -1347,6 +1353,8 @@ refresh({bufnr})                                        *diffs.nvim.refresh()*
                                                             *diffs.ReviewSpec*
 A `diffs.ReviewSpec` says what to review, as the arguments to |:Diff-review|
 do: ~
+    {args}       (string[], optional) Git revision arguments. Overrides {base},
+                 {target}, and {mode}.
     {base}       (string, optional) The ref to review against.
     {target}     (string, optional) The ref to review. Omit for the current
                  repository state.

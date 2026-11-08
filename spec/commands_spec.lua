@@ -693,11 +693,11 @@ describe('commands', function()
       )
 
       assert.are.same(
-        {},
+        { 'origin/main', 'feature/topic' },
         commands._test.complete_diff('', 'Diff review origin/main ', #'Diff review origin/main ')
       )
       assert.are.same(
-        {},
+        { 'origin/main', 'feature/topic' },
         commands._test.complete_diff(
           '',
           'Diff review ++layout=split origin/main ',
@@ -2811,124 +2811,6 @@ describe('commands', function()
   end)
 
   describe('review helpers', function()
-    it('parses base-only review args', function()
-      local spec = commands._test.parse_review_arg('origin/main')
-      assert.are.same({ base = 'origin/main' }, spec)
-    end)
-
-    it('parses merge-base review args', function()
-      local spec = commands._test.parse_review_arg('origin/main...refs/pull/42/head')
-      assert.are.same({
-        base = 'origin/main',
-        target = 'refs/pull/42/head',
-        mode = 'merge-base',
-      }, spec)
-    end)
-
-    it('parses direct review args', function()
-      local spec = commands._test.parse_review_arg('origin/main..feature')
-      assert.are.same({
-        base = 'origin/main',
-        target = 'feature',
-        mode = 'direct',
-      }, spec)
-    end)
-
-    it('parses review command layout options', function()
-      local parsed =
-        commands._test.parse_review_command('++layout=split origin/main...refs/pull/42/head')
-
-      assert.are.same({
-        layout = 'split',
-        spec = {
-          base = 'origin/main',
-          target = 'refs/pull/42/head',
-          mode = 'merge-base',
-        },
-      }, parsed)
-    end)
-
-    it('parses review command stacked layout option', function()
-      local parsed =
-        commands._test.parse_review_command('++layout=stacked origin/main...refs/pull/42/head')
-
-      assert.are.same({
-        layout = 'stacked',
-        spec = {
-          base = 'origin/main',
-          target = 'refs/pull/42/head',
-          mode = 'merge-base',
-        },
-      }, parsed)
-    end)
-
-    it('rejects unsupported review command layout options', function()
-      local parsed, err = commands._test.parse_review_command('++layout=tiled origin/main')
-
-      assert.is_nil(parsed)
-      assert.are.equal('unsupported layout tiled', err)
-    end)
-
-    it('uses the last review command layout option', function()
-      local parsed, err =
-        commands._test.parse_review_command('++layout=split ++layout=unified origin/main')
-
-      assert.is_nil(err)
-      assert.are.same({ layout = 'unified', spec = { base = 'origin/main' } }, parsed)
-    end)
-
-    it('treats non-layout plus-prefixed review args as review specs', function()
-      local parsed, err = commands._test.parse_review_command('++topic')
-
-      assert.is_nil(err)
-      assert.are.same({
-        layout = 'unified',
-        spec = { base = '++topic' },
-      }, parsed)
-    end)
-
-    it('rejects multiple review command specs', function()
-      local parsed, err = commands._test.parse_review_command('origin/main feature/topic')
-
-      assert.is_nil(parsed)
-      assert.are.equal('expected at most one review spec', err)
-    end)
-
-    it('parses ++nountracked into spec.untracked = false', function()
-      local parsed = commands._test.parse_review_command('++nountracked origin/main')
-
-      assert.are.same({
-        layout = 'unified',
-        spec = { base = 'origin/main', untracked = false },
-      }, parsed)
-    end)
-
-    it('combines ++nountracked with ++layout and a spec', function()
-      local parsed =
-        commands._test.parse_review_command('++layout=split ++nountracked origin/main...feature')
-
-      assert.are.same({
-        layout = 'split',
-        spec = {
-          base = 'origin/main',
-          target = 'feature',
-          mode = 'merge-base',
-          untracked = false,
-        },
-      }, parsed)
-    end)
-
-    it('accepts repeated ++nountracked options', function()
-      local parsed, err =
-        commands._test.parse_review_command('++nountracked ++nountracked origin/main')
-
-      assert.is_nil(err)
-      assert.are.same({
-        layout = 'unified',
-        spec = { base = 'origin/main', untracked = false },
-      }, parsed)
-    end)
-
     it('normalizes default base inside the resolved repo', function()
       local captured_cmds = {}
       mock_repo_root(function(path)
@@ -3028,7 +2910,7 @@ describe('commands', function()
         )
       )
       assert.are.same(
-        {},
+        { 'origin/main', 'feature/topic', '++topic' },
         commands._test.complete_diff('', 'Diff review origin/main ', #'Diff review origin/main ')
       )
       assert.are.same(

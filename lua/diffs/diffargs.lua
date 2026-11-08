@@ -35,11 +35,7 @@ local function take_layout(tokens, default_layout)
   local layout = default_layout or 'unified'
   while tokens[1] and tokens[1]:match('^%+%+') do
     if tokens[1]:match('^%+%+layout=') then
-      local value = tokens[1]:match('^%+%+layout=(.+)$')
-      if value ~= 'unified' and value ~= 'stacked' and value ~= 'split' then
-        return nil, 'unsupported layout ' .. tostring(value)
-      end
-      layout = value
+      layout = tokens[1]:match('^%+%+layout=(.*)$')
       table.remove(tokens, 1)
     else
       return nil, 'unknown option ' .. tokens[1]
@@ -173,13 +169,7 @@ end
 ---@param context diffs.DiffParseContext
 ---@return diffs.DiffParseResult?, string?
 function M.parse(args, context)
-  if not context or type(context) ~= 'table' then
-    error('diffs: diff parse context must be a table')
-  end
   local path = context.path
-  if type(path) ~= 'string' or path == '' then
-    error('diffs: diff parse context path must be a non-empty string')
-  end
 
   local current = context.current and diffspec.endpoint(context.current) or diffspec.worktree()
   local tokens = split_args(args)

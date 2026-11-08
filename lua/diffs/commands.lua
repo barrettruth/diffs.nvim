@@ -866,7 +866,7 @@ end
 ---@return string[]
 local function complete_review_args(arglead, context)
   if context.has_value then
-    return {}
+    return review.complete(arglead)
   end
   if arglead:match('^%+%+') then
     local matches = {}
@@ -944,11 +944,7 @@ local open_review_split
 ---@return integer?
 function M.review_command(args, vertical, opts)
   opts = opts or {}
-  local parsed, err = review.parse_command_args(args)
-  if not parsed then
-    notify(err, vim.log.levels.ERROR)
-    return nil
-  end
+  local parsed = review.parse_command_args(args)
 
   if parsed.layout == 'split' then
     if opts.warn_vertical_split then
@@ -1025,17 +1021,8 @@ function M.diff_files_command(args, vertical)
     return nil
   end
 
-  local layout = parsed.layout
-  if layout == 'split' then
-    notify(
-      'split layout is not supported for :Diff files; use nvim -d or :diffsplit for side-by-side',
-      vim.log.levels.ERROR
-    )
-    return nil
-  end
-
   return M.diff_files(parsed.left, parsed.right, {
-    layout = layout,
+    layout = parsed.layout,
     vertical = vertical,
   })
 end
@@ -1221,17 +1208,6 @@ local function review_split_context(opts)
     nil,
     nil,
     review_buf
-end
-
----@param normalized diffs.NormalizedReview
----@return diffs.ReviewSpec
-local function stored_review_spec(normalized)
-  return {
-    base = normalized.base,
-    target = normalized.target,
-    mode = normalized.mode,
-    untracked = normalized.untracked,
-  }
 end
 
 ---@param review_spec diffs.ReviewSpec
@@ -1739,7 +1715,7 @@ open_review_split = function(spec, opts)
     return nil
   end
 
-  local review_spec = stored_review_spec(normalized)
+  local review_spec = review.stored_review_spec(normalized)
   local first = opts.selection
   local diff_spec, diff_lines
   local skipped = {}
@@ -2520,8 +2496,6 @@ M._test = {
     return review_split_states[bufnr]
   end,
   normalize_review = review.normalize,
-  parse_review_command = review.parse_command_args,
-  parse_review_arg = review.parse_arg,
 }
 
 return M

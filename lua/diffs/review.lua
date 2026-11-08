@@ -18,6 +18,7 @@ local function is_skipped_entry(entry)
 end
 
 ---@class diffs.ReviewSpec
+---@field args? string[]
 ---@field base? string
 ---@field target? string
 ---@field repo? string
@@ -30,6 +31,7 @@ end
 ---@field layout "unified"|"stacked"|"split"
 
 ---@class diffs.NormalizedReview
+---@field args? string[]
 ---@field base string
 ---@field target string?
 ---@field repo_root string
@@ -161,7 +163,7 @@ function M.parse_arg(arg)
 end
 
 ---@param args? string
----@return diffs.ReviewCommandParseResult?, string?
+---@return diffs.ReviewCommandParseResult
 function M.parse_command_args(args)
   local tokens = split_args(args)
   local layout = 'unified'
@@ -170,28 +172,20 @@ function M.parse_command_args(args)
   while tokens[1] and (tokens[1]:match('^%+%+layout=') or tokens[1] == '++nountracked') do
     local token = tokens[1]
     if token:match('^%+%+layout=') then
-      local value = token:match('^%+%+layout=(.+)$')
-      if value ~= 'unified' and value ~= 'stacked' and value ~= 'split' then
-        return nil, 'unsupported layout ' .. tostring(value)
-      end
-      layout = value
+      layout = token:match('^%+%+layout=(.*)$')
     else
       untracked = false
     end
     table.remove(tokens, 1)
   end
 
-  if #tokens > 1 then
-    return nil, 'expected at most one review spec'
-  end
-
-  local spec = M.parse_arg(tokens[1])
+  local spec = #tokens > 1 and { args = tokens } or M.parse_arg(tokens[1])
   spec.untracked = untracked
 
   return {
     spec = spec,
     layout = layout,
-  }, nil
+  }
 end
 
 ---@param spec? diffs.ReviewSpec
@@ -199,34 +193,12 @@ end
 ---@return diffs.NormalizedReview?, string?
 function M.normalize(spec, repo_root_override)
   spec = spec or {}
-  if type(spec) ~= 'table' then
-    error('diffs: review() expects a table spec')
-  end
-  if spec.base ~= nil and type(spec.base) ~= 'string' then
-    error('diffs: review.base must be a string')
-  end
-  if spec.target ~= nil and type(spec.target) ~= 'string' then
-    error('diffs: review.target must be a string')
-  end
-  if spec.repo ~= nil and type(spec.repo) ~= 'string' then
-    error('diffs: review.repo must be a string')
-  end
-  if spec.mode ~= nil and type(spec.mode) ~= 'string' then
-    error('diffs: review.mode must be a string')
-  end
-  if spec.vertical ~= nil and type(spec.vertical) ~= 'boolean' then
-    error('diffs: review.vertical must be a boolean')
-  end
-  if spec.untracked ~= nil and type(spec.untracked) ~= 'boolean' then
-    error('diffs: review.untracked must be a boolean')
-  end
-
   local repo_root = repo_root_override or resolve_repo_root(spec.repo)
   if not repo_root then
     return nil, 'not in a git repository'
   end
 
-  local base = spec.base
+  local base = spec.args and spec.args[1] or spec.base
   if not base or base == '' then
     base = default_branch(repo_root)
     if not base then
@@ -234,36 +206,19 @@ function M.normalize(spec, repo_root_override)
     end
   end
 
-  local target = spec.target
-  if target == '' then
-    error('diffs: review.target must be a non-empty string')
-  end
-
-  local mode = spec.mode
-  if target then
-    if mode == nil then
-      mode = 'merge-base'
-    elseif mode ~= 'merge-base' and mode ~= 'direct' then
-      error('diffs: review.mode must be "merge-base" or "direct"')
-    end
-  elseif mode ~= nil then
-    error('diffs: review.mode requires review.target')
-  end
-
-  local display = target and (base .. (mode == 'merge-base' and '...' or '..') .. target) or base
-
-  local untracked = true
-  if spec.untracked ~= nil then
-    untracked = spec.untracked
-  end
+  local target = spec.args and spec.args[2] or spec.target
+  local mode = spec.args and 'direct' or spec.mode or (target and 'merge-base')
+  local display = spec.args and table.concat(spec.args, ' ')
+    or (target and (base .. (mode == 'merge-base' and '...' or '..') .. target) or base)
 
   return {
+    args = spec.args,
     base = base,
     target = target,
     repo_root = repo_root,
     mode = mode,
     vertical = spec.vertical or false,
-    untracked = untracked,
+    untracked = spec.untracked ~= false,
     display = display,
   },
     nil
@@ -292,7 +247,9 @@ end
 ---@param review diffs.NormalizedReview
 ---@return string[]
 function M.build_cmd(review)
-  return diff_cmd(review, { '--end-of-options', review.display })
+  local args = { '--end-of-options' }
+  vim.list_extend(args, review.args or { review.display })
+  return diff_cmd(review, args)
 end
 
 ---@param line string
@@ -589,10 +546,6 @@ end
 ---@param selection? diffs.GeneratedFileSelection
 ---@return diffs.DiffSpec?, diffs.NormalizedReview?, string?
 function M.diff_spec_for_file(review_spec, repo_root, path, selection)
-  if type(path) ~= 'string' or path == '' then
-    return nil, nil, 'missing review file path'
-  end
-
   local normalized, normalize_err = M.normalize(review_spec, repo_root)
   if not normalized then
     return nil, nil, normalize_err
@@ -615,6 +568,19 @@ function M.diff_spec_for_file(review_spec, repo_root, path, selection)
   end
 
   return diffspec.rev_to_rev(normalized.base, normalized.target, path), normalized, nil
+end
+
+---@param normalized diffs.NormalizedReview
+---@return diffs.ReviewSpec
+function M.stored_review_spec(normalized)
+  local spec = normalized.args and { args = normalized.args }
+    or {
+      base = normalized.base,
+      target = normalized.target,
+      mode = normalized.mode,
+    }
+  spec.untracked = normalized.untracked
+  return spec
 end
 
 ---@param review diffs.NormalizedReview
@@ -713,12 +679,7 @@ function M.open(spec, deps)
     name = target_name,
     lines = result,
     repo_root = review.repo_root,
-    source = generated.review_source(review.repo_root, {
-      base = review.base,
-      target = review.target,
-      mode = review.mode,
-      untracked = review.untracked,
-    }),
+    source = generated.review_source(review.repo_root, M.stored_review_spec(review)),
     rail_style = deps.rail_style,
     vars = {
       diffs_review_base = review.base,
@@ -806,11 +767,7 @@ function M.reload(bufnr, repo_root, path, deps)
       untracked = stored_untracked,
     }
   else
-    local parse_err
-    review_spec, parse_err = M.parse_arg(path)
-    if not review_spec then
-      return nil, parse_err
-    end
+    review_spec = M.parse_arg(path)
   end
 
   return reload_spec(review_spec, repo_root, deps)
