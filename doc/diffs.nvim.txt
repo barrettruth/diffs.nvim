@@ -1148,7 +1148,7 @@ Configuration: ~
 
 Diagnostic suppression: ~                  *diffs.nvim-conflict-diagnostics*
 
-This recipe restores diagnostics only when it disabled them: >lua
+Hide diagnostics while a buffer contains merge conflicts: >lua
     vim.g.diffs = { conflict = { disable_diagnostics = false } }
 
     vim.api.nvim_create_autocmd('User', {
