@@ -9,7 +9,6 @@ local integration_metadata = require('diffs.integrations')
 ---@field max_lines integer
 
 ---@class diffs.IntraConfig
----@field enabled boolean
 ---@field algorithm string
 ---@field max_lines integer
 
@@ -24,7 +23,7 @@ local integration_metadata = require('diffs.integrations')
 ---@field warn_max_lines boolean
 ---@field treesitter diffs.TreesitterConfig|false
 ---@field vim diffs.VimConfig|false
----@field intra diffs.IntraConfig
+---@field intra diffs.IntraConfig|false
 
 ---@class diffs.ConflictKeymaps
 ---@field ours string|false
@@ -81,7 +80,6 @@ local DEFAULTS = {
       max_lines = 200,
     },
     intra = {
-      enabled = true,
       algorithm = 'default',
       max_lines = 500,
     },
@@ -132,9 +130,8 @@ function M.validate(opts)
     vim.validate('highlights.blend_alpha', opts.highlights.blend_alpha, 'number', true)
     vim.validate('highlights.overrides', opts.highlights.overrides, 'table', true)
     vim.validate('highlights.warn_max_lines', opts.highlights.warn_max_lines, 'boolean', true)
-    vim.validate('highlights.intra', opts.highlights.intra, 'table', true)
 
-    for _, key in ipairs({ 'treesitter', 'vim' }) do
+    for _, key in ipairs({ 'treesitter', 'vim', 'intra' }) do
       local path = 'highlights.' .. key
       local value = opts.highlights[key]
       vim.validate(path, value, function(v)
@@ -148,12 +145,10 @@ function M.validate(opts)
       end
     end
 
-    if opts.highlights.intra then
-      vim.validate('highlights.intra.enabled', opts.highlights.intra.enabled, 'boolean', true)
+    if type(opts.highlights.intra) == 'table' then
       vim.validate('highlights.intra.algorithm', opts.highlights.intra.algorithm, function(v)
         return v == nil or v == 'default' or v == 'vscode'
       end, "'default' or 'vscode'")
-      vim.validate('highlights.intra.max_lines', opts.highlights.intra.max_lines, 'number', true)
     end
   end
 
@@ -191,14 +186,6 @@ function M.validate(opts)
 
   if
     opts.highlights
-    and opts.highlights.intra
-    and opts.highlights.intra.max_lines
-    and opts.highlights.intra.max_lines < 1
-  then
-    error('diffs: highlights.intra.max_lines must be >= 1')
-  end
-  if
-    opts.highlights
     and opts.highlights.blend_alpha
     and (opts.highlights.blend_alpha < 0 or opts.highlights.blend_alpha > 1)
   then
@@ -217,7 +204,7 @@ function M.new(opts)
   if result.conflict == true then
     result.conflict = vim.deepcopy(DEFAULTS.conflict)
   end
-  for _, key in ipairs({ 'treesitter', 'vim' }) do
+  for _, key in ipairs({ 'treesitter', 'vim', 'intra' }) do
     if result.highlights[key] == true then
       result.highlights[key] = vim.deepcopy(DEFAULTS.highlights[key])
     end

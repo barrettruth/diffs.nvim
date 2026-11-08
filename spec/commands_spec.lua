@@ -1226,7 +1226,7 @@ describe('commands', function()
     it('skips the intra overlay when highlights.intra is disabled', function()
       mock_view_config({ prefix = true })
       mock_highlight_opts(function(opts)
-        opts.highlights.intra.enabled = false
+        opts.highlights.intra = false
       end)
       create_split_source({
         index_lines = { 'function f()', '  return 111', '  log()', 'end' },

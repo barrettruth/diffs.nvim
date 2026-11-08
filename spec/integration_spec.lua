@@ -40,7 +40,7 @@ local function highlight_opts_with_background()
       background = true,
       treesitter = { max_lines = 500 },
       vim = false,
-      intra = { enabled = false, algorithm = 'default', max_lines = 500 },
+      intra = false,
       priorities = { clear = 198, syntax = 199, line_bg = 200, char_bg = 201 },
     },
   }

@@ -96,11 +96,7 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
         warn_max_lines = true,
         treesitter = true,
         vim = true,
-        intra = {
-          enabled = true,
-          algorithm = 'default',
-          max_lines = 500,
-        },
+        intra = true,
         overrides = {},
       },
       conflict = {
@@ -220,7 +216,7 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              Vim syntax fallback highlighting options.
                              See |diffs.nvim.VimConfig| for fields.
 
-        {intra}              (table, default: see below)
+        {intra}              (boolean|table, default: true)
                              Character-level (intra-line) diff highlighting.
                              See |diffs.nvim.IntraConfig| for fields.
 
@@ -248,15 +244,6 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
 
                                                       *diffs.nvim.IntraConfig*
     Intra config fields: ~
-        {enabled}            (boolean, default: true)
-                             Enable intra-line diff highlighting within changed
-                             lines. When a line changes from `local x = 1`
-                             to `local x = 2`, only the `1`/`2` characters get
-                             an intense background overlay while the rest of the
-                             line keeps the softer line-level background. How
-                             much of the line is covered follows 'diffopt'
-                             `inline:`; see |diffs.nvim-inline|.
-
         {algorithm}          (string, default: 'default')
                              Diff algorithm for character-level analysis.
                              `'default'`: use `vim.diff()` with settings
@@ -749,7 +736,7 @@ Inline granularity: ~                                      *diffs.nvim-inline*
 
     `highlights.intra` stays orthogonal: `inline:` chooses the granularity,
     `highlights.intra.algorithm` chooses the engine that finds the differences,
-    and `highlights.intra.enabled = false` turns the feature off regardless of
+    and `highlights.intra = false` turns the feature off regardless of
     'diffopt'.
 
     Limitations: ~

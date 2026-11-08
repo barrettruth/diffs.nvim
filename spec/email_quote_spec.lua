@@ -174,11 +174,7 @@ describe('email-quoted diffs', function()
           background = true,
           treesitter = { max_lines = 500 },
           vim = false,
-          intra = {
-            enabled = false,
-            algorithm = 'default',
-            max_lines = 500,
-          },
+          intra = false,
           priorities = {
             clear = 198,
             syntax = 199,
@@ -412,7 +408,7 @@ describe('email-quoted diffs', function()
         ns,
         hunk,
         default_opts({
-          highlights = { intra = { enabled = true, algorithm = 'default', max_lines = 500 } },
+          highlights = { intra = { algorithm = 'default', max_lines = 500 } },
         })
       )
 
