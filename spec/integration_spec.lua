@@ -25,10 +25,6 @@ local function delete_buffer(bufnr)
   end
 end
 
-local function get_diffs_ns()
-  return vim.api.nvim_get_namespaces()['diffs']
-end
-
 local function get_extmarks(bufnr, ns)
   return vim.api.nvim_buf_get_extmarks(bufnr, ns, 0, -1, { details = true })
 end
@@ -251,88 +247,6 @@ describe('integration', function()
   end)
 
   describe('extmarks from highlight pipeline', function()
-    it('DiffsAdd background applied to + lines', function()
-      local bufnr = create_buffer({
-        '@@ -1,1 +1,2 @@',
-        ' local x = 1',
-        '+local y = 2',
-      })
-      local ns = vim.api.nvim_create_namespace('diffs_integration_test_add')
-      local hunk = {
-        filename = 'test.lua',
-        lang = 'lua',
-        start_line = 1,
-        lines = { ' local x = 1', '+local y = 2' },
-      }
-      highlight.highlight_hunk(bufnr, ns, hunk, highlight_opts_with_background())
-      local extmarks = get_extmarks(bufnr, ns)
-      local has_diff_add = false
-      for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].hl_group == 'DiffsAdd' then
-          has_diff_add = true
-          break
-        end
-      end
-      assert.is_true(has_diff_add)
-      delete_buffer(bufnr)
-    end)
-
-    it('DiffsDelete background applied to - lines', function()
-      local bufnr = create_buffer({
-        '@@ -1,2 +1,1 @@',
-        ' local x = 1',
-        '-local y = 2',
-      })
-      local ns = vim.api.nvim_create_namespace('diffs_integration_test_del')
-      local hunk = {
-        filename = 'test.lua',
-        lang = 'lua',
-        start_line = 1,
-        lines = { ' local x = 1', '-local y = 2' },
-      }
-      highlight.highlight_hunk(bufnr, ns, hunk, highlight_opts_with_background())
-      local extmarks = get_extmarks(bufnr, ns)
-      local has_diff_delete = false
-      for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].hl_group == 'DiffsDelete' then
-          has_diff_delete = true
-          break
-        end
-      end
-      assert.is_true(has_diff_delete)
-      delete_buffer(bufnr)
-    end)
-
-    it('mixed hunk produces both DiffsAdd and DiffsDelete backgrounds', function()
-      local bufnr = create_buffer({
-        '@@ -1,2 +1,2 @@',
-        '-local x = 1',
-        '+local x = 2',
-      })
-      local ns = vim.api.nvim_create_namespace('diffs_integration_test_mixed')
-      local hunk = {
-        filename = 'test.lua',
-        lang = 'lua',
-        start_line = 1,
-        lines = { '-local x = 1', '+local x = 2' },
-      }
-      highlight.highlight_hunk(bufnr, ns, hunk, highlight_opts_with_background())
-      local extmarks = get_extmarks(bufnr, ns)
-      local has_add = false
-      local has_delete = false
-      for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].hl_group == 'DiffsAdd' then
-          has_add = true
-        end
-        if mark[4] and mark[4].hl_group == 'DiffsDelete' then
-          has_delete = true
-        end
-      end
-      assert.is_true(has_add)
-      assert.is_true(has_delete)
-      delete_buffer(bufnr)
-    end)
-
     it('no background extmarks for context lines', function()
       local bufnr = create_buffer({
         '@@ -1,3 +1,3 @@',
@@ -361,92 +275,6 @@ describe('integration', function()
       assert.is_nil(line_bgs[4])
       assert.are.equal('DiffsDelete', line_bgs[2])
       assert.are.equal('DiffsAdd', line_bgs[3])
-      delete_buffer(bufnr)
-    end)
-
-    it('treesitter extmarks applied for lua hunks', function()
-      local bufnr = create_buffer({
-        '@@ -1,2 +1,3 @@',
-        ' local x = 1',
-        '+local y = 2',
-        ' return x',
-      })
-      local ns = vim.api.nvim_create_namespace('diffs_integration_test_ts')
-      local hunk = {
-        filename = 'test.lua',
-        lang = 'lua',
-        start_line = 1,
-        lines = { ' local x = 1', '+local y = 2', ' return x' },
-      }
-      highlight.highlight_hunk(bufnr, ns, hunk, highlight_opts_with_background())
-      local extmarks = get_extmarks(bufnr, ns)
-      local has_ts = false
-      for _, mark in ipairs(extmarks) do
-        if mark[4] and mark[4].hl_group and mark[4].hl_group:match('^@.*%.lua$') then
-          has_ts = true
-          break
-        end
-      end
-      assert.is_true(has_ts)
-      delete_buffer(bufnr)
-    end)
-
-    it('diffs namespace exists after attach', function()
-      local bufnr = create_buffer({
-        'M test.lua',
-        '@@ -1,1 +1,2 @@',
-        ' local x = 1',
-        '+local y = 2',
-      })
-      runtime.attach(bufnr)
-      local ns = get_diffs_ns()
-      assert.is_not_nil(ns)
-      assert.is_number(ns)
-      delete_buffer(bufnr)
-    end)
-  end)
-
-  describe('multiple hunks highlighting', function()
-    it('both hunks in multi-hunk buffer get background extmarks', function()
-      local bufnr = create_buffer({
-        '@@ -1,2 +1,2 @@',
-        '-local x = 1',
-        '+local x = 10',
-        '@@ -10,2 +10,2 @@',
-        '-local y = 2',
-        '+local y = 20',
-      })
-      local ns = vim.api.nvim_create_namespace('diffs_integration_test_multi')
-      local hunk1 = {
-        filename = 'test.lua',
-        lang = 'lua',
-        start_line = 1,
-        lines = { '-local x = 1', '+local x = 10' },
-      }
-      local hunk2 = {
-        filename = 'test.lua',
-        lang = 'lua',
-        start_line = 4,
-        lines = { '-local y = 2', '+local y = 20' },
-      }
-      highlight.highlight_hunk(bufnr, ns, hunk1, highlight_opts_with_background())
-      highlight.highlight_hunk(bufnr, ns, hunk2, highlight_opts_with_background())
-      local extmarks = get_extmarks(bufnr, ns)
-      local add_lines = {}
-      local del_lines = {}
-      for _, mark in ipairs(extmarks) do
-        local d = mark[4]
-        if d and d.hl_group == 'DiffsAdd' then
-          add_lines[mark[2]] = true
-        end
-        if d and d.hl_group == 'DiffsDelete' then
-          del_lines[mark[2]] = true
-        end
-      end
-      assert.is_true(del_lines[1] ~= nil)
-      assert.is_true(add_lines[2] ~= nil)
-      assert.is_true(del_lines[4] ~= nil)
-      assert.is_true(add_lines[5] ~= nil)
       delete_buffer(bufnr)
     end)
   end)

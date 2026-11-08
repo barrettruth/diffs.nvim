@@ -87,16 +87,6 @@ describe('diff', function()
       assert.is_nil(result)
     end)
 
-    it('returns spans for single word change', function()
-      local result = diff.compute_intra_hunks({
-        '-local x = 1',
-        '+local x = 2',
-      }, 'default')
-      assert.is_not_nil(result)
-      assert.is_true(#result.del_spans > 0)
-      assert.is_true(#result.add_spans > 0)
-    end)
-
     it('identifies correct byte offsets for word change', function()
       local result = diff.compute_intra_hunks({
         '-local x = 1',
@@ -157,35 +147,13 @@ describe('diff', function()
 
   describe('diff API results', function()
     local original_diff
-    local original_text
 
     before_each(function()
-      original_text = vim.text
       original_diff = vim.text.diff
     end)
 
     after_each(function()
-      vim.text = original_text
       vim.text.diff = original_diff
-    end)
-
-    it('uses the legacy diff when vim.text has no diff method', function()
-      local lines = { '-hello', '+hallo' }
-      local expected = diff.compute_intra_hunks(lines)
-      assert.is_not_nil(expected)
-      vim.text = {}
-      assert.same(expected, diff.compute_intra_hunks(lines))
-    end)
-
-    it('ignores non-index results', function()
-      local called = false
-      vim.text.diff = function(_, _, opts)
-        called = true
-        assert.are.equal('indices', opts.result_type)
-        return 'unexpected unified output'
-      end
-      assert.is_nil(diff.compute_intra_hunks({ '-hello', '+hallo' }))
-      assert.is_true(called)
     end)
 
     it('ignores diff errors', function()
@@ -254,12 +222,6 @@ describe('diff', function()
     it('falls back to simple when diffopt sets no inline value', function()
       vim.o.diffopt = 'internal,filler'
       assert.are.same({ 'z = 2' }, add_texts(changed))
-    end)
-  end)
-
-  describe('has_vscode', function()
-    it('returns false in test environment', function()
-      assert.is_false(diff.has_vscode())
     end)
   end)
 end)

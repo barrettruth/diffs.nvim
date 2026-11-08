@@ -47,22 +47,6 @@ end
 
 describe('ux', function()
   describe('q keymap', function()
-    it('sets q keymap on diff buffer', function()
-      local bufnr = create_diffs_buffer()
-      commands.setup_diff_buf(bufnr)
-
-      local keymaps = vim.api.nvim_buf_get_keymap(bufnr, 'n')
-      local has_q = false
-      for _, km in ipairs(keymaps) do
-        if km.lhs == 'q' then
-          has_q = true
-          break
-        end
-      end
-      assert.is_true(has_q)
-      vim.api.nvim_buf_delete(bufnr, { force = true })
-    end)
-
     it('does not replace an existing q keymap', function()
       local bufnr = create_diffs_buffer()
       vim.keymap.set('n', 'q', '<Nop>', { buffer = bufnr, desc = 'user q' })

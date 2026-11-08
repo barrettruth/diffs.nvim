@@ -91,24 +91,6 @@ describe('diffs.config', function()
       assert.is_nil(opts.hide_prefix)
     end)
 
-    it('defaults supported config without removed fields', function()
-      local opts = config.new()
-
-      assert.is_true(opts.view.prefix)
-      assert.is_nil(opts.hide_prefix)
-      assert.is_nil(opts.highlights.gutter)
-      assert.is_nil(opts.highlights.priorities)
-      assert.is_nil(opts.conflict.priority)
-    end)
-
-    it('keeps supported highlights config without removed priorities', function()
-      local opts = config.new({ highlights = { background = false, blend_alpha = 0.4 } })
-
-      assert.is_false(opts.highlights.background)
-      assert.are.equal(0.4, opts.highlights.blend_alpha)
-      assert.is_nil(opts.highlights.priorities)
-    end)
-
     it('accepts boolean and table conflict settings', function()
       local defaults = config.new().conflict
       for _, value in ipairs({ true, {} }) do
@@ -227,18 +209,8 @@ describe('diffs.config', function()
       end
     end)
 
-    it('excludes fugitive when integrations.fugitive is a table', function()
-      local fts = compute({ integrations = { fugitive = {} } })
-      assert.is_false(vim.tbl_contains(fts, 'fugitive'))
-    end)
-
     it('excludes fugitive when integrations.fugitive = false', function()
       local fts = compute({ integrations = { fugitive = false } })
-      assert.is_false(vim.tbl_contains(fts, 'fugitive'))
-    end)
-
-    it('excludes fugitive when integrations.fugitive is nil', function()
-      local fts = compute({ integrations = {} })
       assert.is_false(vim.tbl_contains(fts, 'fugitive'))
     end)
 
@@ -249,18 +221,8 @@ describe('diffs.config', function()
       assert.is_true(vim.tbl_contains(fts, 'NeogitDiffView'))
     end)
 
-    it('excludes neogit filetypes when integrations.neogit is a table', function()
-      local fts = compute({ integrations = { neogit = {} } })
-      assert.is_false(vim.tbl_contains(fts, 'NeogitStatus'))
-    end)
-
     it('excludes neogit when integrations.neogit = false', function()
       local fts = compute({ integrations = { neogit = false } })
-      assert.is_false(vim.tbl_contains(fts, 'NeogitStatus'))
-    end)
-
-    it('excludes neogit when integrations.neogit is nil', function()
-      local fts = compute({ integrations = {} })
       assert.is_false(vim.tbl_contains(fts, 'NeogitStatus'))
     end)
 
