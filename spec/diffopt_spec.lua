@@ -100,11 +100,11 @@ describe('git-backed diffs honor diffopt whitespace', function()
 
   it('splices whitespace flags into the review diff command', function()
     vim.o.diffopt = 'internal'
-    local plain = review.build_cmd({ repo_root = '/repo', exec_args = { 'HEAD' } })
+    local plain = review.build_cmd({ repo_root = '/repo', display = 'HEAD' })
     assert.is_false(vim.tbl_contains(plain, '--ignore-all-space'))
 
     vim.o.diffopt = 'internal,iwhiteall'
-    local ignored = review.build_cmd({ repo_root = '/repo', exec_args = { 'HEAD' } })
+    local ignored = review.build_cmd({ repo_root = '/repo', display = 'HEAD' })
     assert.is_true(vim.tbl_contains(ignored, '--ignore-all-space'))
   end)
 end)

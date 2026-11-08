@@ -643,7 +643,7 @@ describe('diffs.actions', function()
     )
   end)
 
-  it('leaves the index untouched when the apply check fails', function()
+  it('leaves the index untouched when the patch is stale', function()
     local notifications = capture_notifications()
     local repo_root = create_repo()
     write_repo_file(repo_root, file_lines({ [2] = 'line 2 changed' }))
@@ -653,8 +653,10 @@ describe('diffs.actions', function()
     git_cmd(repo_root, { 'add', 'file.txt' })
     write_repo_file(repo_root, file_lines({ [2] = 'line 2 changed' }))
     move_to_hunk(bufnr, 1)
+    local index_tree = git_text(repo_root, { 'write-tree' })
 
     assert.is_false(actions.put_hunk(bufnr))
+    assert.are.equal(index_tree, git_text(repo_root, { 'write-tree' }))
 
     local cached = git_text(
       repo_root,
@@ -662,6 +664,28 @@ describe('diffs.actions', function()
     )
     assert.is_true(cached:find('+line 2 other', 1, true) ~= nil)
     assert.is_nil(cached:find('+line 2 changed', 1, true))
+    assert.is_true(
+      notifications[#notifications].message:find('patch does not apply', 1, true) ~= nil
+    )
+  end)
+
+  it('leaves the index untouched when a selected replacement is stale', function()
+    local notifications = capture_notifications()
+    local repo_root = create_repo()
+    local changed = file_lines({ [2] = 'line 2 changed', [5] = 'line 5 changed' })
+    write_repo_file(repo_root, changed)
+    local bufnr = create_diff_buffer(repo_root, diffspec.index_to_worktree('file.txt'))
+    local first = find_hunk_line(bufnr, 'delete', '-line 2')
+    local last = find_hunk_line(bufnr, 'add', '+line 2 changed')
+
+    write_repo_file(repo_root, file_lines({ [2] = 'line 2 other' }))
+    git_cmd(repo_root, { 'add', 'file.txt' })
+    write_repo_file(repo_root, changed)
+    local index_tree = git_text(repo_root, { 'write-tree' })
+
+    assert.is_false(actions.put_range(bufnr, first.lnum, last.lnum))
+    assert.are.equal(index_tree, git_text(repo_root, { 'write-tree' }))
+    assert.are.same(changed, vim.fn.readfile(repo_root .. '/file.txt'))
     assert.is_true(
       notifications[#notifications].message:find('patch does not apply', 1, true) ~= nil
     )

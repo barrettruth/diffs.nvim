@@ -43,17 +43,44 @@ function M.get_file_content(revision, filepath)
   end
 
   local rel_path = relative_path(repo_root, filepath)
-
-  if not is_index_stage(revision) then
-    vim.fn.system({ 'git', '-C', repo_root, 'rev-parse', '--verify', revision .. '^{tree}' })
+  local object = revision
+  if revision:find(':', 1, true) and not is_index_stage(revision) then
+    local resolved = vim.fn.systemlist({
+      'git',
+      '-C',
+      repo_root,
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      '--end-of-options',
+      revision,
+    })
     if vim.v.shell_error ~= 0 then
       return nil, 'failed to resolve revision: ' .. revision
     end
+    object = resolved[1]
   end
 
-  local result =
-    vim.fn.systemlist({ 'git', '-C', repo_root, 'show', revision .. ':' .. rel_path }, nil, 1)
+  local result = vim.fn.systemlist(
+    { 'git', '-C', repo_root, 'show', '--end-of-options', object .. ':' .. rel_path },
+    nil,
+    1
+  )
   if vim.v.shell_error ~= 0 then
+    if not is_index_stage(revision) then
+      vim.fn.system({
+        'git',
+        '-C',
+        repo_root,
+        'rev-parse',
+        '--verify',
+        '--end-of-options',
+        object .. '^{tree}',
+      })
+      if vim.v.shell_error ~= 0 then
+        return nil, 'failed to resolve revision: ' .. revision
+      end
+    end
     return nil, 'file not in revision: ' .. revision
   end
   return content.from_raw_lines(result), nil
@@ -161,21 +188,6 @@ end
 
 ---@param filepath string
 ---@return boolean
-function M.file_exists_in_index(filepath)
-  local repo_root = M.get_repo_root(filepath)
-  if not repo_root then
-    return false
-  end
-
-  local rel_path = relative_path(repo_root, filepath)
-
-  local result =
-    vim.fn.systemlist({ 'git', '-C', repo_root, 'ls-files', '--stage', '--', rel_path })
-  return vim.v.shell_error == 0 and #result > 0
-end
-
----@param filepath string
----@return boolean
 function M.is_unmerged(filepath)
   local repo_root = M.get_repo_root(filepath)
   if not repo_root then
@@ -186,24 +198,6 @@ function M.is_unmerged(filepath)
   local result =
     vim.fn.systemlist({ 'git', '-C', repo_root, 'ls-files', '--unmerged', '--', rel_path })
   return vim.v.shell_error == 0 and #result > 0
-end
-
----@param revision string
----@param filepath string
----@return boolean
-function M.file_exists_at_revision(revision, filepath)
-  local repo_root = M.get_repo_root(filepath)
-  if not repo_root then
-    return false
-  end
-
-  local rel_path = M.get_relative_path(filepath)
-  if not rel_path then
-    return false
-  end
-
-  vim.fn.system({ 'git', '-C', repo_root, 'cat-file', '-e', revision .. ':' .. rel_path })
-  return vim.v.shell_error == 0
 end
 
 ---@class diffs.GitApplyOpts

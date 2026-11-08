@@ -119,9 +119,6 @@ function M.validate(opts)
   end, 'boolean or string (file path)')
   vim.validate('view', opts.view, 'table', true)
   if opts.view then
-    vim.validate('view.default_layout', opts.view.default_layout, function(v)
-      return v == nil or v == 'unified' or v == 'stacked' or v == 'split'
-    end, "'unified', 'stacked', or 'split'")
     vim.validate('view.prefix', opts.view.prefix, 'boolean', true)
   end
   vim.validate('integrations', opts.integrations, 'table', true)

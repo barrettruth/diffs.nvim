@@ -6,11 +6,10 @@ local diffspec = require('diffs.spec')
 describe('diffs.diffargs', function()
   local path = 'lua/foo.lua'
 
-  local function parse(args, current, default_layout)
+  local function parse(args, current)
     local result, err = diffargs.parse(args, {
       path = path,
       current = current or diffspec.worktree(),
-      default_layout = default_layout,
     })
     assert.is_nil(err)
     return result
@@ -21,18 +20,6 @@ describe('diffs.diffargs', function()
 
     assert.are.same(diffspec.index_to_worktree(path), result.spec)
     assert.are.equal('unified', result.layout)
-  end)
-
-  it('uses the configured default layout when no option is provided', function()
-    local result = parse(nil, nil, 'split')
-
-    assert.are.equal('split', result.layout)
-  end)
-
-  it('lets an explicit layout override the configured default', function()
-    local result = parse('++layout=stacked', nil, 'split')
-
-    assert.are.equal('stacked', result.layout)
   end)
 
   it('maps explicit revisions to revision -> worktree', function()
@@ -71,48 +58,6 @@ describe('diffs.diffargs', function()
     local result = parse('@:%', diffspec.index())
 
     assert.are.same(diffspec.head_to_index(path), result.spec)
-  end)
-
-  it('parses opt-in split layout separately from endpoint parsing', function()
-    local result = parse('++layout=split HEAD')
-
-    assert.are.same(diffspec.rev_to_worktree('HEAD', path), result.spec)
-    assert.are.equal('split', result.layout)
-  end)
-
-  it('parses opt-in stacked layout separately from endpoint parsing', function()
-    local result = parse('++layout=stacked HEAD')
-
-    assert.are.same(diffspec.rev_to_worktree('HEAD', path), result.spec)
-    assert.are.equal('stacked', result.layout)
-  end)
-
-  it('allows explicit unified layout', function()
-    local result = parse('++layout=unified HEAD')
-
-    assert.are.same(diffspec.rev_to_worktree('HEAD', path), result.spec)
-    assert.are.equal('unified', result.layout)
-  end)
-
-  it('rejects repeated layout options', function()
-    local result, err = diffargs.parse('++layout=split ++layout=unified HEAD', { path = path })
-
-    assert.is_nil(result)
-    assert.are.equal('repeated ++layout option', err)
-  end)
-
-  it('rejects unsupported layouts', function()
-    local result, err = diffargs.parse('++layout=tiled HEAD', { path = path })
-
-    assert.is_nil(result)
-    assert.are.equal('unsupported layout tiled', err)
-  end)
-
-  it('rejects unknown ++ options', function()
-    local result, err = diffargs.parse('++bogus HEAD', { path = path })
-
-    assert.is_nil(result)
-    assert.are.equal('unknown option ++bogus', err)
   end)
 
   it('rejects --staged as an unsupported flag', function()
@@ -219,31 +164,12 @@ describe('diffs.diffargs.parse_files', function()
     assert.are.equal('unified', result.layout)
   end)
 
-  it('parses a leading layout before the paths', function()
-    local result = diffargs.parse_files('++layout=stacked old.lua new.lua')
-
-    assert.are.equal('old.lua', result.left)
-    assert.are.equal('new.lua', result.right)
-    assert.are.equal('stacked', result.layout)
-  end)
-
-  it('accepts ++layout=split at parse time (rejected by the command)', function()
-    local result = diffargs.parse_files('++layout=split old.lua new.lua')
-
-    assert.are.equal('split', result.layout)
-  end)
-
   it('defaults both sides to the current buffer with no paths', function()
     local bare, bare_err = diffargs.parse_files(nil)
     assert.is_nil(bare_err)
     assert.is_nil(bare.left)
     assert.is_nil(bare.right)
     assert.are.equal('unified', bare.layout)
-
-    local layout_only = diffargs.parse_files('++layout=stacked')
-    assert.is_nil(layout_only.left)
-    assert.is_nil(layout_only.right)
-    assert.are.equal('stacked', layout_only.layout)
   end)
 
   it('rejects more than two paths', function()
@@ -251,19 +177,5 @@ describe('diffs.diffargs.parse_files', function()
 
     assert.is_nil(result)
     assert.are.equal('expected at most two file paths', err)
-  end)
-
-  it('rejects repeated and unsupported layouts and unknown options', function()
-    local repeated, repeated_err = diffargs.parse_files('++layout=unified ++layout=split a.lua')
-    assert.is_nil(repeated)
-    assert.are.equal('repeated ++layout option', repeated_err)
-
-    local bad_layout, bad_layout_err = diffargs.parse_files('++layout=tiled a.lua')
-    assert.is_nil(bad_layout)
-    assert.are.equal('unsupported layout tiled', bad_layout_err)
-
-    local unknown, unknown_err = diffargs.parse_files('++bogus a.lua')
-    assert.is_nil(unknown)
-    assert.are.equal('unknown option ++bogus', unknown_err)
   end)
 end)

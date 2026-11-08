@@ -235,22 +235,11 @@ end
 ---@param operation "stage"|"unstage"
 ---@param opts? { recount?: boolean }
 ---@return boolean, string?
-local function checked_apply(repo_root, patch, operation, opts)
+local function apply(repo_root, patch, operation, opts)
   opts = opts or {}
-  local reverse = operation == 'unstage'
   local ok, output = git.apply_patch(repo_root, patch, {
     cached = true,
-    reverse = reverse,
-    check = true,
-    recount = opts.recount,
-  })
-  if not ok then
-    return false, format_git_output(output)
-  end
-
-  ok, output = git.apply_patch(repo_root, patch, {
-    cached = true,
-    reverse = reverse,
+    reverse = operation == 'unstage',
     recount = opts.recount,
   })
   if not ok then
@@ -322,7 +311,7 @@ local function mutate_hunk(bufnr, hunk, operation, opts)
     return false
   end
 
-  local ok, err = checked_apply(repo_root, patch, operation, { recount = opts.recount })
+  local ok, err = apply(repo_root, patch, operation, { recount = opts.recount })
   if not ok then
     notify('failed to ' .. operation .. ' diff hunk: ' .. err, vim.log.levels.ERROR)
     return false

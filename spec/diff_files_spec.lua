@@ -233,13 +233,6 @@ describe('diffs.commands.diff_files_command', function()
   before_each(capture_notify)
   after_each(restore_notify)
 
-  it('refuses the split layout', function()
-    local result = commands.diff_files_command('++layout=split a.txt b.txt', false)
-
-    assert.is_nil(result)
-    assert.is_true(last_message_has('split layout is not supported for :Diff files'))
-  end)
-
   it('surfaces parser errors', function()
     local result = commands.diff_files_command('a b c', false)
 
