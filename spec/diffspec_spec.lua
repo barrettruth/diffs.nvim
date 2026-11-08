@@ -14,10 +14,6 @@ describe('diffs.spec', function()
       scope = { kind = 'file', path = path },
       mode = 'unified',
     }, spec)
-    assert.is_true(diffspec.is_worktree_target(spec))
-    assert.is_false(diffspec.is_index_target(spec))
-    assert.is_false(diffspec.is_read_only(spec))
-    assert.are.same({ read_only = false, target = 'worktree' }, diffspec.mutability(spec))
     assert.are.same({ can_put = true, can_obtain = false }, diffspec.patch_actions(spec))
     assert.are.equal('index -> worktree file:lua/foo.lua', diffspec.label(spec))
   end)
@@ -31,10 +27,6 @@ describe('diffs.spec', function()
       scope = { kind = 'file', path = path },
       mode = 'unified',
     }, spec)
-    assert.is_true(diffspec.is_index_target(spec))
-    assert.is_false(diffspec.is_worktree_target(spec))
-    assert.is_false(diffspec.is_read_only(spec))
-    assert.are.same({ read_only = false, target = 'index' }, diffspec.mutability(spec))
     assert.are.same({ can_put = false, can_obtain = true }, diffspec.patch_actions(spec))
     assert.are.equal('tree:HEAD -> index file:lua/foo.lua', diffspec.label(spec))
   end)
@@ -48,10 +40,6 @@ describe('diffs.spec', function()
       scope = { kind = 'file', path = path },
       mode = 'unified',
     }, spec)
-    assert.is_true(diffspec.is_worktree_target(spec))
-    assert.is_false(diffspec.is_index_target(spec))
-    assert.is_false(diffspec.is_read_only(spec))
-    assert.are.same({ read_only = false, target = 'worktree' }, diffspec.mutability(spec))
     assert.are.same({ can_put = false, can_obtain = false }, diffspec.patch_actions(spec))
     assert.are.equal('tree:feature~2 -> worktree file:lua/foo.lua', diffspec.label(spec))
   end)
@@ -65,16 +53,12 @@ describe('diffs.spec', function()
       scope = { kind = 'file', path = path },
       mode = 'unified',
     }, spec)
-    assert.is_false(diffspec.is_index_target(spec))
-    assert.is_false(diffspec.is_worktree_target(spec))
-    assert.is_true(diffspec.is_read_only(spec))
-    assert.are.same({ read_only = true }, diffspec.mutability(spec))
     assert.are.same({ can_put = false, can_obtain = false }, diffspec.patch_actions(spec))
     assert.are.equal('tree:origin/main -> tree:HEAD file:lua/foo.lua', diffspec.label(spec))
   end)
 
   it('represents read-only merge-stage to worktree file diffs', function()
-    local spec = diffspec.stage_to_worktree(2, path)
+    local spec = diffspec.file(diffspec.stage(2), diffspec.worktree(), path)
 
     assert.are.same({
       left = { kind = 'stage', stage = 2 },
@@ -82,10 +66,6 @@ describe('diffs.spec', function()
       scope = { kind = 'file', path = path },
       mode = 'unified',
     }, spec)
-    assert.is_false(diffspec.is_index_target(spec))
-    assert.is_false(diffspec.is_worktree_target(spec))
-    assert.is_true(diffspec.is_read_only(spec))
-    assert.are.same({ read_only = true }, diffspec.mutability(spec))
     assert.are.same({ can_put = false, can_obtain = false }, diffspec.patch_actions(spec))
     assert.are.equal('stage:2 -> worktree file:lua/foo.lua', diffspec.label(spec))
   end)

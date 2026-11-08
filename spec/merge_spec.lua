@@ -15,7 +15,7 @@ end
 local function create_diff_buffer(lines, working_path)
   local bufnr = helpers.create_buffer(lines)
   if working_path then
-    vim.api.nvim_buf_set_var(bufnr, 'diffs_working_path', working_path)
+    vim.api.nvim_buf_set_var(bufnr, 'diffs_source', { working_path = working_path })
   end
   return bufnr
 end

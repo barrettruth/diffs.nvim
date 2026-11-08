@@ -20,7 +20,8 @@ local CONFLICT_WINHIGHLIGHT = table.concat({
 ---@return boolean
 local function is_split_pane(win)
   local buf = vim.api.nvim_win_get_buf(win)
-  return pcall(vim.api.nvim_buf_get_var, buf, 'diffs_split_side')
+  local ok, source = pcall(vim.api.nvim_buf_get_var, buf, 'diffs_source')
+  return ok and source.kind == 'split_endpoint'
 end
 
 ---@param buf integer

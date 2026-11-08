@@ -133,21 +133,6 @@ local function split_hunks_for(diff_lines, spec)
   return hunk_model.parse(diff_lines, spec)
 end
 
----@param bufnr integer
----@param source diffs.SplitEndpointSource
----@param split_hunks? diffs.DiffHunk[]
-local function set_source_vars(bufnr, source, split_hunks)
-  generated.set_repo_root(bufnr, source.repo_root)
-  generated.set_spec(bufnr, source.spec)
-  generated.set_source(bufnr, source)
-  vim.api.nvim_buf_set_var(bufnr, 'diffs_split_side', source.side)
-  if split_hunks then
-    vim.api.nvim_buf_set_var(bufnr, 'diffs_split_hunks', split_hunks)
-  else
-    pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_split_hunks')
-  end
-end
-
 ---@class diffs.SplitSideConfig
 ---@field kind "delete"|"add"
 ---@field lnum "old_lnum"|"new_lnum"
@@ -440,7 +425,7 @@ end
 ---@param hunks diffs.DiffHunk[]
 local function paint_pane(bufnr, source, info, hunks)
   pane_info[bufnr] = info
-  set_source_vars(bufnr, source, hunks)
+  generated.set_source(bufnr, source)
   if info.difft_intra then
     difftastic.mark_active(bufnr)
   end
@@ -643,8 +628,6 @@ local function clear_split_state(bufnr)
 
   clear_pair_tracking(bufnr)
   pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_split_peer')
-  pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_split_hunks')
-  pcall(vim.api.nvim_buf_del_var, bufnr, 'diffs_split_side')
   vim.api.nvim_buf_clear_namespace(bufnr, split_line_ns, 0, -1)
   vim.api.nvim_buf_clear_namespace(bufnr, split_intra_ns, 0, -1)
   clear_owned_split_keymaps(bufnr)
@@ -1440,24 +1423,6 @@ end
 ---@param bufnr integer
 function M.goto_prev(bufnr)
   goto_anchor(bufnr, -1)
-end
-
----@param bufnr integer
----@param hunk_index integer?
----@return boolean
-function M.move_pair_to_hunk_index(bufnr, hunk_index)
-  if type(hunk_index) ~= 'number' then
-    return false
-  end
-
-  local info = pane_info[bufnr]
-  local row = info and info.anchors and info.anchors[hunk_index]
-  if not row then
-    return false
-  end
-
-  move_pair_to_row(bufnr, row)
-  return true
 end
 
 ---@param bufnr integer
