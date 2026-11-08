@@ -20,7 +20,10 @@ end
 describe('diffs.hunks', function()
   describe('parse', function()
     it('builds hunk and line metadata for added, deleted, and context lines', function()
-      local parsed = hunks.parse(sample_lines(), diffspec.index_to_worktree('lua/foo.lua'))
+      local lines = sample_lines()
+      lines[6] = '--- removed'
+      lines[7] = '+++ added'
+      local parsed = hunks.parse(lines, diffspec.index_to_worktree('lua/foo.lua'))
 
       assert.are.equal(1, #parsed)
       assert.are.equal('lua/foo.lua', parsed[1].file)

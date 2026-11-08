@@ -40,21 +40,21 @@ describe('split_align.align', function()
   end)
 
   it('top-aligns an unequal change and pads the shorter side with fillers', function()
-    local old_lines = { 'a', 'O1', 'O2', 'd' }
-    local new_lines = { 'a', 'N1', 'N2', 'N3', 'd' }
-    local hunks = {
-      hunk(1, 2, 2, {
-        { kind = 'delete', old_lnum = 2 },
-        { kind = 'delete', old_lnum = 3 },
-        { kind = 'add', new_lnum = 2 },
-        { kind = 'add', new_lnum = 3 },
-        { kind = 'add', new_lnum = 4 },
-      }),
-    }
+    local old_lines = { 'a', '-- old', '--- old', 'd' }
+    local new_lines = { 'a', '++ new', '+++ new', 'N3', 'd' }
+    local hunks = require('diffs.hunks').parse({
+      '@@ -2,3 +2,4 @@',
+      '--- old',
+      '---- old',
+      '+++ new',
+      '++++ new',
+      '+N3',
+      ' d',
+    })
 
     local r = align.align(old_lines, new_lines, hunks)
-    assert.are.same({ 'a', 'O1', 'O2', '', 'd' }, r.left_lines)
-    assert.are.same({ 'a', 'N1', 'N2', 'N3', 'd' }, r.right_lines)
+    assert.are.same({ 'a', '-- old', '--- old', '', 'd' }, r.left_lines)
+    assert.are.same(new_lines, r.right_lines)
     assert.are.equal(#r.left_lines, #r.right_lines)
     assert.are.same({ 'context', 'delete', 'delete', 'filler', 'context' }, kinds(r.left_rows))
     assert.are.same({ 'context', 'add', 'add', 'add', 'context' }, kinds(r.right_rows))
