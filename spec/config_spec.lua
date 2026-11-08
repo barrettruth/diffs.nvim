@@ -43,7 +43,6 @@ describe('diffs.config', function()
             telescope = true,
           },
           conflict = {
-            disable_diagnostics = false,
             keymaps = {
               ours = 'co',
               theirs = 'ct',

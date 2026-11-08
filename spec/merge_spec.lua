@@ -4,7 +4,6 @@ local rails = require('diffs.rails')
 
 local function default_config(overrides)
   local cfg = {
-    disable_diagnostics = false,
     keymaps = false,
   }
   if overrides then
@@ -726,7 +725,7 @@ describe('merge', function()
     end)
   end)
 
-  describe('setup_keymaps', function()
+  describe('attach', function()
     it('clears resolved state on re-init', function()
       local working_path = '/tmp/diffs_test_reinit.lua'
       local w_bufnr = create_working_buffer({
@@ -752,7 +751,16 @@ describe('merge', function()
       merge.resolve_ours(d_bufnr, cfg)
       assert.is_true(merge.is_resolved(d_bufnr, 1))
 
-      merge.setup_keymaps(d_bufnr, cfg)
+      local ready_bufnr
+      vim.api.nvim_create_autocmd('User', {
+        pattern = 'DiffsMergeReady',
+        once = true,
+        callback = function(event)
+          ready_bufnr = event.data.bufnr
+        end,
+      })
+      merge.attach(d_bufnr, cfg)
+      assert.are.equal(d_bufnr, ready_bufnr)
 
       assert.is_false(merge.is_resolved(d_bufnr, 1))
       helpers.delete_buffer(d_bufnr)
@@ -771,14 +779,14 @@ describe('merge', function()
       vim.keymap.set('n', 'gt', '<Nop>', { buffer = d_bufnr, desc = 'user theirs' })
       local cfg = default_config({ keymaps = helpers.default_conflict_keymaps() })
 
-      merge.setup_keymaps(d_bufnr, cfg)
+      merge.attach(d_bufnr, cfg)
 
       local theirs = helpers.get_keymap(d_bufnr, 'gt')
       local ours = helpers.get_keymap(d_bufnr, 'go')
       assert.are.equal('user theirs', theirs.desc)
       assert.are.equal('<Plug>(diffs-merge-ours)', ours.rhs)
 
-      merge.setup_keymaps(d_bufnr, default_config())
+      merge.attach(d_bufnr, default_config())
 
       theirs = helpers.get_keymap(d_bufnr, 'gt')
       assert.are.equal('user theirs', theirs.desc)
@@ -798,11 +806,11 @@ describe('merge', function()
       })
       local cfg = default_config({ keymaps = helpers.default_conflict_keymaps() })
 
-      merge.setup_keymaps(d_bufnr, cfg)
+      merge.attach(d_bufnr, cfg)
       assert.are.equal('<Plug>(diffs-merge-ours)', helpers.get_keymap(d_bufnr, 'go').rhs)
 
       vim.keymap.set('n', 'go', '<Nop>', { buffer = d_bufnr, desc = 'user ours' })
-      merge.setup_keymaps(d_bufnr, default_config())
+      merge.attach(d_bufnr, default_config())
 
       local ours = helpers.get_keymap(d_bufnr, 'go')
       assert.are.equal('user ours', ours.desc)

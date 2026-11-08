@@ -97,10 +97,7 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
         vim = true,
         intra = true,
       },
-      conflict = {
-        disable_diagnostics = true,
-        keymaps = false,
-      },
+      conflict = true,
     }
 <
 
@@ -172,8 +169,7 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              See |diffs.nvim.Highlights| for fields.
 
         {conflict}           (boolean|table, default: true)
-                             Inline merge conflict resolution options.
-                             See |diffs.nvim.ConflictConfig| for fields.
+                             Highlight and resolve inline merge conflicts.
 
                                                        *diffs.nvim.Highlights*
     Highlights table fields: ~
@@ -1077,86 +1073,75 @@ Run |:checkhealth| diffs to confirm `difft` is detected.
 CONFLICT RESOLUTION                                      *diffs.nvim-conflict*
 
 diffs.nvim detects inline merge conflict markers (`<<<<<<<`/`=======`/
-`>>>>>>>`) in working files and provides highlighting and resolution keymaps.
+`>>>>>>>`) in working files and provides highlighting and resolution actions.
 Both standard and diff3 (`|||||||`) formats are supported.
 
 Conflict regions are detected automatically on `BufReadPost` and re-scanned on
 `TextChanged`. When all conflicts in a buffer are resolved, highlighting is
-removed and diagnostics are re-enabled.
+removed.
 
-Configuration: ~
-                                                   *diffs.nvim.ConflictConfig*
->lua
-    vim.g.diffs = {
-      conflict = {
-        disable_diagnostics = true,
-        keymaps = false,
-      },
-    }
+Buffer-local mappings: ~                      *diffs.nvim-conflict-keymaps*
+
+`conflict.keymaps` is deprecated and will be removed on 30 November 2026.
+Replace it with buffer-local mappings: >lua
+    vim.api.nvim_create_autocmd('User', {
+      pattern = 'DiffsConflictDetected',
+      callback = function(event)
+        local opts = { buffer = event.data.bufnr }
+        vim.keymap.set('n', 'co', '<Plug>(diffs-conflict-ours)', opts)
+        vim.keymap.set('n', 'ct', '<Plug>(diffs-conflict-theirs)', opts)
+        vim.keymap.set('n', 'cb', '<Plug>(diffs-conflict-both)', opts)
+        vim.keymap.set('n', 'c0', '<Plug>(diffs-conflict-none)', opts)
+        vim.keymap.set('n', ']x', '<Plug>(diffs-conflict-next)', opts)
+        vim.keymap.set('n', '[x', '<Plug>(diffs-conflict-prev)', opts)
+      end,
+    })
 <
-    To opt in to buffer-local mappings, provide a table: >lua
-    vim.g.diffs = {
-      conflict = {
-        keymaps = {
-          ours = '<leader>co',
-          theirs = '<leader>ct',
-          both = '<leader>cb',
-          none = '<leader>c0',
-          next = ']x',
-          prev = '[x',
-        },
+
+Diagnostic suppression: ~                  *diffs.nvim-conflict-diagnostics*
+
+Hide diagnostics while a buffer contains merge conflicts: >lua
+    vim.api.nvim_create_autocmd('User', {
+      pattern = {
+        'DiffsConflictDetected',
+        'DiffsConflictResolved',
+        'DiffsConflictDetached',
       },
-    }
+      callback = function(event)
+        local bufnr = event.data.bufnr
+        if event.match == 'DiffsConflictDetected' then
+          if vim.diagnostic.is_enabled({ bufnr = bufnr }) then
+            vim.b[bufnr].diffs_restore_diagnostics = true
+            vim.diagnostic.enable(false, { bufnr = bufnr })
+          end
+        elseif vim.b[bufnr].diffs_restore_diagnostics then
+          vim.b[bufnr].diffs_restore_diagnostics = nil
+          vim.diagnostic.enable(true, { bufnr = bufnr })
+        end
+      end,
+    })
 <
-    Fields: ~
-        {disable_diagnostics} (boolean, default: true)
-                             Suppress LSP diagnostics on buffers with
-                             conflict markers. Markers produce syntax
-                             errors that clutter the diagnostic list.
-                             Diagnostics are re-enabled when all conflicts
-                             are resolved. Set `false` to leave
-                             diagnostics alone.
-
-        {keymaps}            (table|false, default: false)
-                             Opt-in buffer-local keymaps for conflict
-                             resolution and navigation in conflicted
-                             working buffers and merge diff views. Pass a
-                             table to enable plugin-defined mappings.
-                             Unspecified fields remain disabled.
-
-                                                  *diffs.nvim.ConflictKeymaps*
-    Keymap fields: ~
-        {ours}               (string|false, default: false)
-                             Accept current (ours) change.
-
-        {theirs}             (string|false, default: false)
-                             Accept incoming (theirs) change.
-
-        {both}               (string|false, default: false)
-                             Accept both changes (ours then theirs).
-
-        {none}               (string|false, default: false)
-                             Reject both changes (delete entire block).
-
-        {next}               (string|false, default: false)
-                             Jump to next conflict marker. Wraps around.
-
-        {prev}               (string|false, default: false)
-                             Jump to previous conflict marker. Wraps
-                             around.
 
 User events: ~
+
+All events below include their target buffer number in `event.data.bufnr`.
+Conflict events identify the working buffer. `DiffsMergeReady` identifies the
+generated merge buffer.
+
+                                                       *DiffsConflictDetected*
+    DiffsConflictDetected   Fired when conflicts first appear in an attached
+                            buffer, including when undo restores markers.
+
                                                        *DiffsConflictResolved*
-    DiffsConflictResolved   Fired when the last conflict in a buffer is
-                            resolved. Useful for triggering custom actions
-                            (e.g., auto-staging the file). >lua
-                                vim.api.nvim_create_autocmd('User', {
-                                  pattern = 'DiffsConflictResolved',
-                                  callback = function()
-                                    print('all conflicts resolved!')
-                                  end,
-                                })
-<
+    DiffsConflictResolved   Fired when the last conflict in a buffer is resolved.
+
+                                                       *DiffsConflictDetached*
+    DiffsConflictDetached   Fired when conflict highlighting is explicitly
+                            detached from a buffer.
+
+                                                             *DiffsMergeReady*
+    DiffsMergeReady         Fired after a generated merge view is initialized
+                            or refreshed.
 
 ==============================================================================
 MERGE DIFF RESOLUTION                                       *diffs.nvim-merge*
@@ -1168,16 +1153,23 @@ ours (`git show :2:path`) vs theirs (`git show :3:path`) with full treesitter
 and intra-line highlighting. Revision comparisons such as `:Diff HEAD` keep
 rendering that revision against the conflicted worktree buffer.
 
-When `conflict.keymaps` is configured, those same conflict resolution mappings
-are available on the diff buffer. The corresponding |<Plug>(diffs-merge-ours)|
-family is documented in |diffs.nvim-mappings|. They resolve conflicts in the
-working file by matching diff hunks to conflict markers:
+The |<Plug>(diffs-merge-ours)| family resolves conflicts in the working file
+by matching diff hunks to conflict markers.
 
-- `co` replaces the conflict region with ours content
-- `ct` replaces the conflict region with theirs content
-- `cb` replaces with both (ours then theirs)
-- `c0` removes the conflict region entirely
-- `]c`/`[c` navigate between unresolved conflict hunks
+Set buffer-local mappings for merge views: >lua
+    vim.api.nvim_create_autocmd('User', {
+      pattern = 'DiffsMergeReady',
+      callback = function(event)
+        local opts = { buffer = event.data.bufnr }
+        vim.keymap.set('n', 'co', '<Plug>(diffs-merge-ours)', opts)
+        vim.keymap.set('n', 'ct', '<Plug>(diffs-merge-theirs)', opts)
+        vim.keymap.set('n', 'cb', '<Plug>(diffs-merge-both)', opts)
+        vim.keymap.set('n', 'c0', '<Plug>(diffs-merge-none)', opts)
+        vim.keymap.set('n', ']x', '<Plug>(diffs-merge-next)', opts)
+        vim.keymap.set('n', '[x', '<Plug>(diffs-merge-prev)', opts)
+      end,
+    })
+<
 
 Hunks that correspond to auto-merged content (no conflict markers) show an
 informational notification and are left unchanged.
@@ -1199,8 +1191,8 @@ merged working file in Neovim:
 <
 
 When the file opens, diffs.nvim detects conflict markers automatically.
-Configure `conflict.keymaps` to enable buffer-local resolution mappings; see
-|diffs.nvim-conflict|. From a Git-unmerged file, |:Diff| can also open the
+For buffer-local resolution mappings, see |diffs.nvim-conflict-keymaps|.
+From a Git-unmerged file, |:Diff| can also open the
 generated ours-vs-theirs merge diff view documented above.
 
 Save and quit after resolving conflicts. Use `:cq` to abort.

@@ -22,11 +22,14 @@ local CONFLICT_PRIORITY = 200
 ---@type table<integer, true>
 local attached_buffers = {}
 
----@type table<integer, boolean>
-local diagnostics_suppressed = {}
-
 ---@type table<integer, table<string, diffs.BufferKeymap>>
 local buffer_keymaps = {}
+
+---@param event string
+---@param bufnr integer
+local function emit(event, bufnr)
+  vim.api.nvim_exec_autocmds('User', { pattern = event, data = { bufnr = bufnr } })
+end
 
 ---@param line string
 ---@param char string
@@ -250,25 +253,22 @@ end
 ---@param bufnr integer
 ---@param config diffs.ConflictConfig
 function M.refresh(bufnr, config)
+  local had_conflicts = #vim.api.nvim_buf_get_extmarks(bufnr, ns, 0, -1, { limit = 1 }) > 0
   local regions = parse_buffer(bufnr)
   if #regions == 0 then
     vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
     keymaps.clear_buffer_keymaps(buffer_keymaps, bufnr)
-    if diagnostics_suppressed[bufnr] then
-      pcall(vim.diagnostic.reset, nil, bufnr)
-      pcall(vim.diagnostic.enable, true, { bufnr = bufnr })
-      diagnostics_suppressed[bufnr] = nil
+    if had_conflicts then
+      emit('DiffsConflictResolved', bufnr)
     end
-    vim.api.nvim_exec_autocmds('User', { pattern = 'DiffsConflictResolved' })
     return
   end
   apply_highlights(bufnr, regions)
   if not buffer_keymaps[bufnr] then
     setup_keymaps(bufnr, config)
   end
-  if config.disable_diagnostics and not diagnostics_suppressed[bufnr] then
-    pcall(vim.diagnostic.enable, false, { bufnr = bufnr })
-    diagnostics_suppressed[bufnr] = true
+  if not had_conflicts then
+    emit('DiffsConflictDetected', bufnr)
   end
 end
 
@@ -394,14 +394,13 @@ end
 
 ---@param bufnr integer
 function M.detach(bufnr)
+  local attached = attached_buffers[bufnr]
   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
   keymaps.clear_buffer_keymaps(buffer_keymaps, bufnr)
   attached_buffers[bufnr] = nil
 
-  if diagnostics_suppressed[bufnr] then
-    pcall(vim.diagnostic.reset, nil, bufnr)
-    pcall(vim.diagnostic.enable, true, { bufnr = bufnr })
-    diagnostics_suppressed[bufnr] = nil
+  if attached then
+    emit('DiffsConflictDetached', bufnr)
   end
 end
 
@@ -428,11 +427,6 @@ function M.attach(bufnr, config)
   apply_highlights(bufnr, regions)
   setup_keymaps(bufnr, config)
 
-  if config.disable_diagnostics then
-    pcall(vim.diagnostic.enable, false, { bufnr = bufnr })
-    diagnostics_suppressed[bufnr] = true
-  end
-
   vim.api.nvim_create_autocmd({ 'TextChanged', 'TextChangedI' }, {
     buffer = bufnr,
     callback = function()
@@ -448,9 +442,9 @@ function M.attach(bufnr, config)
     callback = function()
       keymaps.clear_buffer_keymaps(buffer_keymaps, bufnr)
       attached_buffers[bufnr] = nil
-      diagnostics_suppressed[bufnr] = nil
     end,
   })
+  emit('DiffsConflictDetected', bufnr)
 end
 
 ---@return integer

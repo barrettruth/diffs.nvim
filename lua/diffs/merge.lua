@@ -257,7 +257,7 @@ end
 
 ---@param bufnr integer
 ---@param config diffs.ConflictConfig
-function M.setup_keymaps(bufnr, config)
+function M.attach(bufnr, config)
   resolved_hunks[bufnr] = nil
 
   local km = config.keymaps
@@ -281,6 +281,7 @@ function M.setup_keymaps(bufnr, config)
       resolved_hunks[bufnr] = nil
     end,
   })
+  vim.api.nvim_exec_autocmds('User', { pattern = 'DiffsMergeReady', data = { bufnr = bufnr } })
 end
 
 return M
