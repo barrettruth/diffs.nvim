@@ -8,6 +8,16 @@ local user_config = config.new(vim.deepcopy(vim.g.diffs or {}))
 
 vim.g.loaded_diffs = 1
 
+if #user_config.extra_filetypes > 0 then
+  vim.schedule(function()
+    require('diffs.log').notify(
+      'extra_filetypes is deprecated. Support ends on November 30, 2026. '
+        .. 'Use the FileType autocmd recipe: :help diffs.nvim-extra-filetypes',
+      vim.log.levels.WARN
+    )
+  end)
+end
+
 local function get_runtime()
   local runtime = require('diffs.runtime')
   runtime.configure(user_config)

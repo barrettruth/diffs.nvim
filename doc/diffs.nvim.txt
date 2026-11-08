@@ -89,7 +89,6 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
         prefix = true,
       },
       integrations = {},
-      extra_filetypes = {},
       highlights = {
         background = true,
         blend_alpha = 0.6,
@@ -169,18 +168,8 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              |diffs.nvim-difftastic|.
 
         {extra_filetypes}    (table, default: {})
-                             Additional filetypes to attach to, beyond the
-                             built-in `git`, `gitcommit`, and any enabled
-                             integration filetypes. Use this to enable
-                             highlighting in plain `.diff` / `.patch`
-                             files: >lua
-                                 vim.g.diffs = {
-                                   extra_filetypes = { 'diff' },
-                                 }
-<
-                             This also covers any other buffer (e.g.
-                             scratch preview buffers from pickers) that
-                             ends up with a registered filetype.
+                             Deprecated. Use the FileType autocmd
+                             recipe at |diffs.nvim-extra-filetypes|.
 
         {highlights}         (table, default: see below)
                              Controls which highlight features are enabled.
@@ -296,7 +285,7 @@ diffs.nvim-owned views: ~
 
 |:Diff|, |:Diff-review|, split layouts, and Fugitive status maps create
 diffs.nvim-owned `diffs://` views. Ordinary `git`, `gitcommit`, `diff`,
-`extra_filetypes`, picker previews, and third-party integration buffers remain
+custom filetypes, picker previews, and third-party integration buffers remain
 highlight-only.
 
 :Diff [++layout=unified|stacked|split] [object]                        *:Diff*
@@ -904,15 +893,24 @@ autocmds for each integration's filetypes and attaches automatically.
     }
 <
 
-Opt-in: ~ For filetypes not covered by a built-in integration, use
-`extra_filetypes` to attach to any buffer whose content looks like a diff.
+Opt-in: ~                                          *diffs.nvim-extra-filetypes*
+
+For other filetypes, register a FileType autocmd before opening the buffers.
+Use `diff` for `.diff` and `.patch` files. Add custom filetypes to `pattern`.
 >lua
-    vim.g.diffs = { extra_filetypes = { 'diff' } }
+    vim.api.nvim_create_autocmd('FileType', {
+      group = vim.api.nvim_create_augroup('MyDiffs', { clear = true }),
+      pattern = { 'diff', 'myplugin-diff' },
+      callback = function(event)
+        require('diffs').attach(event.buf)
+      end,
+    })
 <
 
-Plugin authors that render their own unified diff buffers should use this same
-path rather than depending on generated `diffs://` buffers or internal
-metadata; see |diffs.nvim-plugin-authors|.
+Replace `extra_filetypes` with this autocmd to stop the deprecation warning.
+
+Plugin authors can call |diffs.nvim.attach()| directly without registering a
+filetype. See |diffs.nvim-plugin-authors|.
 
 ------------------------------------------------------------------------------
 FUGITIVE                                                 *diffs.nvim-fugitive*
@@ -1259,7 +1257,9 @@ API                                                           *diffs.nvim-api*
 attach({bufnr})                                          *diffs.nvim.attach()*
     Attach highlighting to a buffer. Called automatically when the buffer's
     filetype matches `git`, `gitcommit`, an enabled integration filetype,
-    or any entry in `extra_filetypes`.
+    or any entry in the deprecated `extra_filetypes` option.
+    Direct calls work with any filetype. For automatic attachment to other
+    filetypes, see |diffs.nvim-extra-filetypes|.
 
     Parameters: ~
         {bufnr}  (integer, optional) Buffer number. Defaults to current buffer.
@@ -1402,17 +1402,12 @@ select_review_file({bufnr})                  *diffs.nvim.select_review_file()*
 ------------------------------------------------------------------------------
 PLUGIN AUTHORS                                     *diffs.nvim-plugin-authors*
 
-For plugin-owned unified diff buffers, keep ownership of the buffer and
-lifecycle in the host plugin. Use a filetype listed in
-`vim.g.diffs.extra_filetypes`, optionally set `b:diffs_repo_root`, call
+For unified diff buffers, the host plugin manages the buffer and its lifecycle.
+Optionally set `b:diffs_repo_root`. Call
 |diffs.nvim.attach()| after writing the diff contents, and call
 |diffs.nvim.refresh()| after regenerating the buffer.
 
-Configuration: >lua
-    vim.g.diffs = {
-      extra_filetypes = { 'myplugin-diff' },
-    }
-< Example: >lua
+Example: >lua
     local bufnr = vim.api.nvim_create_buf(false, true)
 
     vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, diff_lines)
