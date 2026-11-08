@@ -53,12 +53,7 @@ Yes. Enable integrations in your config:
 
 ```lua
 vim.g.diffs = {
-  integrations = {
-    fugitive = true,
-    neogit = true,
-    neojj = true,
-    gitsigns = true,
-  }
+  integrations = { 'fugitive', 'neogit', 'neojj', 'gitsigns' },
 }
 ```
 

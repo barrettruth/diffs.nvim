@@ -55,12 +55,12 @@ local integration_metadata = require('diffs.integrations')
 ---@field args? string[]
 
 ---@class diffs.IntegrationsConfig
----@field fugitive boolean
----@field neogit boolean
----@field neojj boolean
----@field gitsigns boolean
----@field committia boolean
----@field telescope boolean
+---@field fugitive? boolean
+---@field neogit? boolean
+---@field neojj? boolean
+---@field gitsigns? boolean
+---@field committia? boolean
+---@field telescope? boolean
 ---@field difftastic? boolean|diffs.DifftasticConfig
 
 ---@class diffs.Config
@@ -100,7 +100,7 @@ local DEFAULTS = {
       max_lines = 500,
     },
   },
-  integrations = integration_metadata.defaults(),
+  integrations = {},
   conflict = {
     enabled = true,
     disable_diagnostics = true,
@@ -263,7 +263,9 @@ end
 ---@param opts? table
 ---@return diffs.Config
 function M.new(opts)
-  opts = opts or {}
+  opts = vim.tbl_extend('force', opts or {}, {
+    integrations = integration_metadata.normalize(opts and opts.integrations),
+  })
   M.validate(opts)
   return vim.tbl_deep_extend('force', DEFAULTS, opts)
 end

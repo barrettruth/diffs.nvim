@@ -12,9 +12,7 @@ describe('diffs.config', function()
     end)
 
     it('accepts empty config', function()
-      assert.has_no.errors(function()
-        config.new({})
-      end)
+      assert.are.same({}, config.new({}).integrations)
     end)
 
     it('accepts full config', function()
@@ -141,10 +139,15 @@ describe('diffs.config', function()
       assert.is_nil(opts.conflict.priority)
     end)
 
-    it('keeps boolean integration toggles as the supported enable path', function()
+    it('accepts integration lists and boolean maps', function()
       for _, key in ipairs(integration_keys) do
-        local opts = config.new({ integrations = { [key] = true } })
-        assert.is_true(opts.integrations[key])
+        for _, integrations in ipairs({ { key }, { [key] = true }, { [key] = false } }) do
+          local input = vim.deepcopy(integrations)
+          local opts = config.new({ integrations = integrations })
+          assert.are.equal(integrations[key] ~= false, opts.integrations[key])
+          assert.is_nil(opts.integrations[1])
+          assert.are.same(input, integrations)
+        end
       end
     end)
 
@@ -164,6 +167,10 @@ describe('diffs.config', function()
         assert.matches('integrations.' .. key, err, 1, true)
         assert.matches('boolean', err, 1, true)
       end
+      local ok, err = pcall(config.new, { integrations = { true } })
+      assert.is_false(ok)
+      assert.matches('integrations[1]', err, 1, true)
+      assert.matches('string', err, 1, true)
     end)
 
     it('validates numeric highlight limits', function()
@@ -235,9 +242,11 @@ describe('diffs.config', function()
       assert.are.same({ 'git', 'gitcommit' }, fts)
     end)
 
-    it('includes fugitive when integrations.fugitive = true', function()
-      local fts = compute({ integrations = { fugitive = true } })
-      assert.is_true(vim.tbl_contains(fts, 'fugitive'))
+    it('includes fugitive from integration lists and boolean maps', function()
+      for _, integrations in ipairs({ { 'fugitive' }, { fugitive = true } }) do
+        local fts = compute({ integrations = integrations })
+        assert.is_true(vim.tbl_contains(fts, 'fugitive'))
+      end
     end)
 
     it('excludes fugitive when integrations.fugitive is a table', function()

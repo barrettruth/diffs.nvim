@@ -95,7 +95,7 @@ describe('plugin bootstrap', function()
       'vim.notify = function(message, level)',
       '_G.diffs_notifications[#_G.diffs_notifications + 1] = { message = message, level = level }',
       'end',
-      'vim.g.diffs = { view = { prefix = false }, highlights = { background = false }, conflict = { show_virtual_text = false }, integrations = { fugitive = true, neogit = true, neojj = true, gitsigns = true, committia = true, telescope = true } }',
+      'vim.g.diffs = { view = { prefix = false }, highlights = { background = false }, conflict = { show_virtual_text = false }, integrations = { "fugitive", "neogit", "neojj", "gitsigns", "committia", "telescope" } }',
       ('vim.opt.runtimepath:prepend(%s)'):format(vim.inspect(vim.fn.getcwd())),
     }
 
