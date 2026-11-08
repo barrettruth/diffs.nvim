@@ -2,21 +2,14 @@ local M = {}
 
 local hunk_model = require('diffs.hunks')
 
-local default_rail_separator = '│'
+local separator = ' │ '
 local bar_slot = '  '
 
 ---@alias diffs.RailStyle "dual"|"single"
 
----@param glyph string?
----@return string
-local function separator_for(glyph)
-  return ' ' .. (glyph or default_rail_separator) .. ' '
-end
-
 ---@class diffs.RailInfo
 ---@field width integer
 ---@field prefix_width integer
----@field separator_width integer
 ---@field style diffs.RailStyle
 
 ---@class diffs.RailRanges
@@ -110,11 +103,10 @@ end
 
 ---@param line string
 ---@param prefix_width integer
----@param separator_width? integer
 ---@return boolean
-local function has_rail_number(line, prefix_width, separator_width)
-  return any_range_has_number(line, M.number_ranges(prefix_width, separator_width, 'dual'))
-    or any_range_has_number(line, M.number_ranges(prefix_width, separator_width, 'single'))
+local function has_rail_number(line, prefix_width)
+  return any_range_has_number(line, M.number_ranges(prefix_width, 'dual'))
+    or any_range_has_number(line, M.number_ranges(prefix_width, 'single'))
 end
 
 ---@param lines string[]
@@ -134,12 +126,11 @@ local function collect_lines(lines)
 end
 
 ---@param lines string[]
----@param opts? { rail_separator?: string, rail_style?: diffs.RailStyle }
+---@param opts? { rail_style?: diffs.RailStyle }
 ---@return string[], diffs.RailInfo?
 function M.annotate(lines, opts)
   opts = opts or {}
   local rail_style = normalize_rail_style(opts.rail_style)
-  local separator = separator_for(opts.rail_separator)
   local compact_separator = separator:gsub('%s+$', '')
 
   local by_lnum, max_lnum = collect_lines(lines)
@@ -175,21 +166,19 @@ function M.annotate(lines, opts)
     {
       width = width,
       prefix_width = prefix_width,
-      separator_width = #separator,
       style = rail_style,
     }
 end
 
 ---@param line string
 ---@param prefix_width integer?
----@param separator_width? integer
 ---@return string
-function M.strip(line, prefix_width, separator_width)
+function M.strip(line, prefix_width)
   if type(prefix_width) ~= 'number' or prefix_width <= 0 then
     return line
   end
   local stripped = line:sub(prefix_width + 1)
-  if stripped == '' and has_rail_number(line, prefix_width, separator_width) then
+  if stripped == '' and has_rail_number(line, prefix_width) then
     return ' '
   end
   return stripped
@@ -197,30 +186,26 @@ end
 
 ---@param lines string[]
 ---@param prefix_width integer?
----@param separator_width? integer
 ---@return string[]
-function M.strip_lines(lines, prefix_width, separator_width)
+function M.strip_lines(lines, prefix_width)
   if type(prefix_width) ~= 'number' or prefix_width <= 0 then
     return lines
   end
 
   local stripped = {}
   for i, line in ipairs(lines) do
-    stripped[i] = M.strip(line, prefix_width, separator_width)
+    stripped[i] = M.strip(line, prefix_width)
   end
   return stripped
 end
 
 ---@param prefix_width integer?
----@param separator_width? integer
 ---@return diffs.RailRanges?
-function M.ranges(prefix_width, separator_width)
+function M.ranges(prefix_width)
   if type(prefix_width) ~= 'number' or prefix_width <= 0 then
     return nil
   end
-  separator_width = separator_width or #separator_for()
-
-  local width = (prefix_width - #bar_slot - 1 - separator_width) / 2
+  local width = (prefix_width - #bar_slot - 1 - #separator) / 2
   if width < 1 or width % 1 ~= 0 then
     return nil
   end
@@ -239,17 +224,14 @@ function M.ranges(prefix_width, separator_width)
 end
 
 ---@param prefix_width integer?
----@param separator_width? integer
 ---@param rail_style? diffs.RailStyle
 ---@return diffs.RailNumberRange[]?
-function M.number_ranges(prefix_width, separator_width, rail_style)
+function M.number_ranges(prefix_width, rail_style)
   if type(prefix_width) ~= 'number' or prefix_width <= 0 then
     return nil
   end
-  separator_width = separator_width or #separator_for()
-
   if normalize_rail_style(rail_style) == 'single' then
-    local width = prefix_width - #bar_slot - separator_width
+    local width = prefix_width - #bar_slot - #separator
     if width < 1 or width % 1 ~= 0 then
       return nil
     end
@@ -262,7 +244,7 @@ function M.number_ranges(prefix_width, separator_width, rail_style)
     }
   end
 
-  local ranges = M.ranges(prefix_width, separator_width)
+  local ranges = M.ranges(prefix_width)
   if not ranges then
     return nil
   end
@@ -290,16 +272,6 @@ function M.width_for_buffer(bufnr)
 end
 
 ---@param bufnr integer
----@return integer
-function M.separator_width_for_buffer(bufnr)
-  local ok, width = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_rail_separator_width')
-  if ok and type(width) == 'number' and width > 0 then
-    return width
-  end
-  return #separator_for()
-end
-
----@param bufnr integer
 ---@return diffs.RailStyle
 function M.style_for_buffer(bufnr)
   local ok, style = pcall(vim.api.nvim_buf_get_var, bufnr, 'diffs_rail_style')
@@ -311,7 +283,6 @@ end
 
 M._test = {
   format_lnum = format_lnum,
-  separator_for = separator_for,
 }
 
 return M

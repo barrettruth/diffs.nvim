@@ -329,7 +329,6 @@ end
 local function set_diff_rails_var(bufnr, info)
   if info then
     generated.set_var(bufnr, 'diffs_rail_width', info.prefix_width)
-    generated.set_var(bufnr, 'diffs_rail_separator_width', info.separator_width)
     if info.style == 'single' or info.style == 'dual' then
       generated.set_var(bufnr, 'diffs_rail_style', info.style)
     else
@@ -337,7 +336,6 @@ local function set_diff_rails_var(bufnr, info)
     end
   else
     generated.del_var(bufnr, 'diffs_rail_width')
-    generated.del_var(bufnr, 'diffs_rail_separator_width')
     generated.del_var(bufnr, 'diffs_rail_style')
   end
 end
@@ -396,7 +394,6 @@ end
 local function create_generated_diff_buffer(opts)
   local bufnr = vim.api.nvim_create_buf(false, true)
   local display_lines, rail_info = rails.annotate(opts.lines, {
-    rail_separator = runtime.get_view_config().rail_separator,
     rail_style = opts.rail_style,
   })
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, display_lines)
@@ -457,7 +454,6 @@ local function replace_generated_diff_buffer_lines(bufnr, diff_lines, diff_spec,
   opts = opts or {}
   difftastic.clear_active(bufnr)
   local display_lines, rail_info = rails.annotate(diff_lines, {
-    rail_separator = runtime.get_view_config().rail_separator,
     rail_style = opts.rail_style or rails.style_for_buffer(bufnr),
   })
   vim.api.nvim_set_option_value('modifiable', true, { buf = bufnr })
@@ -1425,7 +1421,6 @@ local function switch_review_split_file(state, selected, opts)
     filetype = filetype_for_path(state.repo_root, selected.file),
     diff_lines = diff_lines,
     quickfix = false,
-    change_bar = runtime.get_view_config().change_bar,
     title = 'review: ' .. state.display,
     hunk_index = selected.hunk_index or 1,
     reuse_wins = { left = left_win, right = right_win },
@@ -1837,7 +1832,6 @@ open_review_split = function(spec, opts)
     filetype = filetype_for_path(normalized.repo_root, first.file),
     diff_lines = diff_lines,
     quickfix = false,
-    change_bar = runtime.get_view_config().change_bar,
     title = 'review: ' .. normalized.display,
     hunk_index = first.hunk_index or 1,
   })
@@ -2107,7 +2101,6 @@ function M.diff(args, vertical, opts)
       filetype = vim.api.nvim_get_option_value('filetype', { buf = bufnr }),
       worktree_lines = worktree_lines,
       diff_lines = diff_lines,
-      change_bar = runtime.get_view_config().change_bar,
     })
     if not opened then
       notify(split_err or 'cannot open split diff', vim.log.levels.ERROR)
@@ -2368,7 +2361,6 @@ function M.read_buffer(bufnr, opts)
 
   if source and source.kind == 'split_endpoint' then
     local ok, err = split.read_buffer(bufnr, source, {
-      change_bar = runtime.get_view_config().change_bar,
       quickfix = opts.quickfix,
     })
     if not ok then

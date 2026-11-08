@@ -422,7 +422,6 @@ describe('merge', function()
       }, { rail_style = 'single' })
       local d_bufnr = create_diff_buffer(annotated, working_path)
       vim.api.nvim_buf_set_var(d_bufnr, 'diffs_rail_width', info.prefix_width)
-      vim.api.nvim_buf_set_var(d_bufnr, 'diffs_rail_separator_width', info.separator_width)
       vim.api.nvim_buf_set_var(d_bufnr, 'diffs_rail_style', info.style)
       vim.api.nvim_set_current_buf(d_bufnr)
 

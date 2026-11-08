@@ -87,8 +87,6 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
       view = {
         default_layout = 'unified',
         prefix = true,
-        change_bar = '▏',
-        rail_separator = '│',
       },
       integrations = {
         fugitive = false,
@@ -157,16 +155,6 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              `false` to hide them with virtual text overlay.
                              When `highlights.background` is also enabled,
                              the overlay inherits the line's background color.
-
-        {change_bar}         (string, default: '▏')
-                             Glyph for changed-line bars in diffs.nvim-owned
-                             views. Colors come from `DiffsAddBar` and
-                             `DiffsDeleteBar`.
-
-        {rail_separator}     (string, default: '│')
-                             Glyph between the generated line-number area and
-                             diff text. Surrounding padding is managed
-                             internally.
 
         {integrations}       (table, default: all false)
                              Integration toggles. Each key accepts `true` or

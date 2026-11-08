@@ -22,8 +22,6 @@ local integration_metadata = require('diffs.integrations')
 ---@class diffs.ViewConfig
 ---@field default_layout "unified"|"stacked"|"split"
 ---@field prefix boolean
----@field change_bar string
----@field rail_separator string
 
 ---@class diffs.Highlights
 ---@field background boolean
@@ -79,8 +77,6 @@ local DEFAULTS = {
   view = {
     default_layout = 'unified',
     prefix = true,
-    change_bar = '▏',
-    rail_separator = '│',
   },
   extra_filetypes = {},
   highlights = {
@@ -126,6 +122,13 @@ end
 
 ---@param opts table
 local function reject_removed_config(opts)
+  if type(opts.view) == 'table' then
+    for _, key in ipairs({ 'change_bar', 'rail_separator' }) do
+      if opts.view[key] ~= nil then
+        reject_removed_key('view.' .. key)
+      end
+    end
+  end
   if opts.hide_prefix ~= nil then
     reject_removed_key('hide_prefix', 'view.prefix')
   end
@@ -160,8 +163,6 @@ function M.validate(opts)
       return v == nil or v == 'unified' or v == 'stacked' or v == 'split'
     end, "'unified', 'stacked', or 'split'")
     vim.validate('view.prefix', opts.view.prefix, 'boolean', true)
-    vim.validate('view.change_bar', opts.view.change_bar, 'string', true)
-    vim.validate('view.rail_separator', opts.view.rail_separator, 'string', true)
   end
   vim.validate('integrations', opts.integrations, 'table', true)
   local integrations = opts.integrations or {}

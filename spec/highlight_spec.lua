@@ -9,7 +9,6 @@ describe('highlight', function()
       local opts = highlight.hunk_opts(config.new({ view = { prefix = false } }))
 
       assert.is_true(opts.hide_prefix)
-      assert.are.equal('▏', opts.change_bar)
       assert.are.same(
         { clear = 198, syntax = 199, line_bg = 200, char_bg = 201 },
         opts.highlights.priorities
@@ -100,16 +99,12 @@ describe('highlight', function()
           },
         },
       }
-      opts.change_bar = '▏'
       if overrides then
         if overrides.highlights then
           opts.highlights = vim.tbl_deep_extend('force', opts.highlights, overrides.highlights)
         end
         if overrides.hide_prefix ~= nil then
           opts.hide_prefix = overrides.hide_prefix
-        end
-        if overrides.change_bar ~= nil then
-          opts.change_bar = overrides.change_bar
         end
       end
       return opts
@@ -824,7 +819,6 @@ describe('highlight', function()
         hunk,
         default_opts({
           hide_prefix = true,
-          change_bar = '┃',
           highlights = {
             background = true,
             treesitter = { enabled = false },
@@ -839,7 +833,7 @@ describe('highlight', function()
           local group = d.virt_text[1][2]
           if group == 'DiffsAddBar' or group == 'DiffsDeleteBar' then
             bars[mark[2]] = group
-            assert.are.equal('┃', d.virt_text[1][1])
+            assert.are.equal('▏', d.virt_text[1][1])
             assert.are.equal(0, mark[3])
           end
         end
@@ -850,11 +844,11 @@ describe('highlight', function()
       delete_buffer(bufnr)
     end)
 
-    it('uses custom rail separator width for generated rails', function()
+    it('highlights generated rail numbers', function()
       local bufnr = create_buffer({
-        '      | @@ -1,1 +1,1 @@',
-        '  1   | -old',
-        '    1 | +new',
+        '      │ @@ -1,1 +1,1 @@',
+        '  1   │ -old',
+        '    1 │ +new',
       })
 
       local hunk = {
@@ -863,9 +857,8 @@ describe('highlight', function()
         start_line = 1,
         lines = { '-old', '+new' },
         prefix_width = 1,
-        quote_width = 8,
-        rail_width = 8,
-        rail_separator_width = 3,
+        quote_width = 10,
+        rail_width = 10,
       }
 
       highlight.highlight_hunk(
@@ -894,8 +887,8 @@ describe('highlight', function()
       end
 
       assert.are.same({
-        { row = 1, col = 0, end_col = 8 },
-        { row = 2, col = 0, end_col = 8 },
+        { row = 1, col = 0, end_col = 10 },
+        { row = 2, col = 0, end_col = 10 },
       }, rail_marks)
       assert.are.same({
         { row = 1, col = 2, end_col = 3 },
@@ -1003,7 +996,6 @@ describe('highlight', function()
         prefix_width = 1,
         quote_width = info.prefix_width,
         rail_width = info.prefix_width,
-        rail_separator_width = info.separator_width,
         rail_style = info.style,
       }
 
@@ -1068,7 +1060,6 @@ describe('highlight', function()
         prefix_width = 1,
         quote_width = info.prefix_width,
         rail_width = info.prefix_width,
-        rail_separator_width = info.separator_width,
         rail_style = info.style,
       }
 
