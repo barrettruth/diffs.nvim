@@ -214,7 +214,6 @@ M._test = {
   end,
   clear_ns_by_start = cache_mod.clear_ns_by_start,
   ft_retry_pending = cache.ft_retry_pending,
-  compute_hunk_context = cache_mod.compute_hunk_context,
   compute_highlight_groups = compute_highlight_groups,
   get_hl_retry_pending = function()
     return hl_retry_pending

@@ -94,10 +94,6 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
         background = true,
         blend_alpha = 0.6,
         warn_max_lines = true,
-        context = {
-          enabled = true,
-          lines = 25,
-        },
         treesitter = true,
         vim = true,
         intra = {
@@ -217,10 +213,6 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              highlighting is skipped because a hunk exceeds
                              {max_lines}. See |diffs.nvim-max-lines|.
 
-        {context}            (table, default: see below)
-                             Syntax parsing context options.
-                             See |diffs.nvim.ContextConfig| for fields.
-
         {treesitter}         (boolean|table, default: true)
                              Treesitter highlighting options.
                              See |diffs.nvim.TreesitterConfig| for fields.
@@ -239,17 +231,6 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              after all computed groups without `default`,
                              so overrides always win over both computed
                              defaults and colorscheme definitions.
-
-                                                    *diffs.nvim.ContextConfig*
-    Context config fields: ~
-        {enabled}            (boolean, default: true)
-                             Read surrounding working-tree code to improve
-                             syntax highlighting at hunk boundaries.
-
-        {lines}              (integer, default: 25)
-                             Max context lines to read in each direction.
-                             Files are read once per parse and cached across
-                             hunks in the same file.
 
                                                  *diffs.nvim.TreesitterConfig*
     Treesitter config fields: ~
@@ -1460,11 +1441,8 @@ KNOWN LIMITATIONS                                     *diffs.nvim-limitations*
 
 Incomplete Syntax Context ~
                                                    *diffs.nvim-syntax-context*
-Treesitter parses each diff hunk in isolation. When `highlights.context` is
-enabled (the default), surrounding code is read from the working tree file and
-fed into the parser to improve accuracy at hunk boundaries. This helps when a
-hunk starts inside a table, function body, or loop. Hunks that start or end
-mid-expression may still produce imperfect highlights.
+Treesitter parses each diff hunk in isolation. Hunks that start or end
+mid-expression may produce imperfect highlights.
 
 Syntax Highlighting Flash ~
                                                             *diffs.nvim-flash*

@@ -172,7 +172,6 @@ describe('email-quoted diffs', function()
         hide_prefix = false,
         highlights = {
           background = true,
-          context = { enabled = false, lines = 0 },
           treesitter = { max_lines = 500 },
           vim = false,
           intra = {
