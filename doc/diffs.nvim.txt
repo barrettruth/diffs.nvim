@@ -7,7 +7,7 @@ INTRODUCTION                                                      *diffs.nvim*
 
 diffs.nvim adds language-aware syntax highlighting to unified diff content in
 Neovim buffers. It replaces flat `diffAdded`/`diffRemoved` coloring with
-treesitter syntax, blended line backgrounds, and character-level intra-line
+treesitter syntax, line backgrounds, and character-level intra-line
 diffs.
 
 With no configuration, diffs.nvim provides:
@@ -180,9 +180,6 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              Apply background highlighting to `+`/`-` lines
                              using `DiffsAdd`/`DiffsDelete` groups (derived
                              from `DiffAdd`/`DiffDelete` backgrounds).
-
-        {blend_alpha}        (number, default: 0.6)
-                             Deprecated. See |diffs.nvim-blend-alpha|.
 
         {warn_max_lines}     (boolean, default: true)
                              Show a `vim.notify()` warning when syntax
@@ -1391,13 +1388,13 @@ Diff and generated rail highlights: ~
                         the normal foreground.
 
                                                                     *DiffsAdd*
-    DiffsAdd            Background for `+` lines.
+    DiffsAdd            DiffAdd background for `+` lines.
 
                                                                  *DiffsDelete*
-    DiffsDelete         Background for `-` lines.
+    DiffsDelete         DiffDelete background for `-` lines.
 
                                                                     *DiffsDim*
-    DiffsDim            Faint, neutral background for a whitespace-only changed
+    DiffsDim            CursorLine background for a whitespace-only changed
                         line on a decorated (non-generated) surface while
                         'diffopt' ignores whitespace. See
                         |diffs.nvim-whitespace|.
@@ -1427,11 +1424,11 @@ Diff and generated rail highlights: ~
     DiffsDeleteCount    Deleted-line counts in the quickfix file list.
 
                                                                 *DiffsAddText*
-    DiffsAddText        Character-level background for changed characters
+    DiffsAddText        DiffText background for changed characters
                         within `+` lines.
 
                                                              *DiffsDeleteText*
-    DiffsDeleteText     Character-level background for changed characters
+    DiffsDeleteText     DiffText background for changed characters
                         within `-` lines.
 
 Conflict highlights: ~

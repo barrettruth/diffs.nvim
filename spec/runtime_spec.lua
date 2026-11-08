@@ -536,33 +536,6 @@ describe('diffs.runtime', function()
       assert.is_number(set_calls.DiffsDeleteBar.bg)
     end)
 
-    it('blend_alpha controls DiffsAdd.bg intensity', function()
-      local saved_config_alpha = runtime._test.get_config().highlights.blend_alpha
-      runtime._test.get_config().highlights.blend_alpha = 0.3
-      vim.api.nvim_get_hl = function(ns, opts)
-        if opts.name == 'Normal' then
-          return { fg = 0xc0c0c0, bg = 0x1e1e2e }
-        end
-        if opts.name == 'DiffAdd' then
-          return { bg = 0x1a3a1a }
-        end
-        if opts.name == 'DiffDelete' then
-          return { bg = 0x3a1a1a }
-        end
-        return saved_get_hl(ns, opts)
-      end
-      runtime._test.compute_highlight_groups()
-      local bg_03 = set_calls.DiffsAdd.bg
-
-      runtime._test.get_config().highlights.blend_alpha = 0.9
-      runtime._test.compute_highlight_groups()
-      local bg_09 = set_calls.DiffsAdd.bg
-
-      assert.is_not.equal(bg_03, bg_09)
-
-      runtime._test.get_config().highlights.blend_alpha = saved_config_alpha
-    end)
-
     it('retries once then stops when Normal.bg stays nil', function()
       vim.api.nvim_get_hl = function(ns, opts)
         if opts.name == 'Normal' then

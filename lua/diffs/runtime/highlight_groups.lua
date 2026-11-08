@@ -3,48 +3,24 @@ local log = require('diffs.log')
 
 local M = {}
 
----@param hex integer
----@param bg_hex integer
----@param alpha number
----@return integer
-local function blend_color(hex, bg_hex, alpha)
-  ---@diagnostic disable: undefined-global
-  local r = bit.band(bit.rshift(hex, 16), 0xFF)
-  local g = bit.band(bit.rshift(hex, 8), 0xFF)
-  local b = bit.band(hex, 0xFF)
-
-  local bg_r = bit.band(bit.rshift(bg_hex, 16), 0xFF)
-  local bg_g = bit.band(bit.rshift(bg_hex, 8), 0xFF)
-  local bg_b = bit.band(bg_hex, 0xFF)
-
-  local blend_r = math.floor(r * alpha + bg_r * (1 - alpha))
-  local blend_g = math.floor(g * alpha + bg_g * (1 - alpha))
-  local blend_b = math.floor(b * alpha + bg_b * (1 - alpha))
-
-  return bit.bor(bit.lshift(blend_r, 16), bit.lshift(blend_g, 8), blend_b)
-  ---@diagnostic enable: undefined-global
-end
-
 ---@param name string
 ---@return table
 local function resolve_hl(name)
-  local hl = vim.api.nvim_get_hl(0, { name = name })
-  while hl.link do
-    hl = vim.api.nvim_get_hl(0, { name = hl.link })
-  end
-  return hl
+  return vim.api.nvim_get_hl(0, { name = name, link = false })
 end
 
 ---@param config diffs.Config
 ---@param is_default? boolean
 ---@return { transparent: boolean }
 function M.apply(config, is_default)
-  local normal = vim.api.nvim_get_hl(0, { name = 'Normal' })
-  local diff_add = vim.api.nvim_get_hl(0, { name = 'DiffAdd' })
-  local diff_delete = vim.api.nvim_get_hl(0, { name = 'DiffDelete' })
-  local line_nr = vim.api.nvim_get_hl(0, { name = 'LineNr' })
+  local normal = resolve_hl('Normal')
+  local diff_add = resolve_hl('DiffAdd')
+  local diff_delete = resolve_hl('DiffDelete')
+  local line_nr = resolve_hl('LineNr')
   local diff_added = resolve_hl('diffAdded')
   local diff_removed = resolve_hl('diffRemoved')
+  local diff_change = resolve_hl('DiffChange')
+  local diff_text = resolve_hl('DiffText')
 
   local dark = vim.o.background ~= 'light'
   local transparent = not normal.bg
@@ -57,12 +33,9 @@ function M.apply(config, is_default)
   local dflt = is_default or false
   local normal_fg = normal.fg or (dark and 0xcccccc or 0x333333)
   local line_nr_fg = line_nr.fg or normal_fg
-
-  local alpha = config.highlights.blend_alpha or 0.6
-  local blended_add = blend_color(add_bg, bg, alpha)
-  local blended_del = blend_color(del_bg, bg, alpha)
-  local blended_add_text = add_bg
-  local blended_del_text = del_bg
+  local change_bg = diff_change.bg or 0x3a3a4a
+  local text_bg = diff_text.bg or 0x4a4a5a
+  local change_fg = diff_change.fg or diff_text.fg or 0x80a0c0
 
   local clear_hl = { default = dflt, fg = normal_fg }
   if not transparent then
@@ -73,8 +46,8 @@ function M.apply(config, is_default)
     rail_hl.bg = bg
   end
   vim.api.nvim_set_hl(0, 'DiffsClear', clear_hl)
-  vim.api.nvim_set_hl(0, 'DiffsAdd', { default = dflt, bg = blended_add })
-  vim.api.nvim_set_hl(0, 'DiffsDelete', { default = dflt, bg = blended_del })
+  vim.api.nvim_set_hl(0, 'DiffsAdd', { default = dflt, bg = add_bg })
+  vim.api.nvim_set_hl(0, 'DiffsDelete', { default = dflt, bg = del_bg })
   vim.api.nvim_set_hl(0, 'DiffsRail', rail_hl)
   vim.api.nvim_set_hl(
     0,
@@ -84,21 +57,21 @@ function M.apply(config, is_default)
   vim.api.nvim_set_hl(
     0,
     'DiffsAddRailNr',
-    { default = dflt, fg = add_fg, bg = blended_add, nocombine = true }
+    { default = dflt, fg = add_fg, bg = add_bg, nocombine = true }
   )
   vim.api.nvim_set_hl(
     0,
     'DiffsDeleteRailNr',
-    { default = dflt, fg = del_fg, bg = blended_del, nocombine = true }
+    { default = dflt, fg = del_fg, bg = del_bg, nocombine = true }
   )
-  vim.api.nvim_set_hl(0, 'DiffsAddBar', { default = dflt, fg = add_fg, bg = blended_add })
-  vim.api.nvim_set_hl(0, 'DiffsDeleteBar', { default = dflt, fg = del_fg, bg = blended_del })
+  vim.api.nvim_set_hl(0, 'DiffsAddBar', { default = dflt, fg = add_fg, bg = add_bg })
+  vim.api.nvim_set_hl(0, 'DiffsDeleteBar', { default = dflt, fg = del_fg, bg = del_bg })
   vim.api.nvim_set_hl(0, 'DiffsAddCount', { default = dflt, fg = add_fg })
   vim.api.nvim_set_hl(0, 'DiffsDeleteCount', { default = dflt, fg = del_fg })
-  vim.api.nvim_set_hl(0, 'DiffsAddText', { default = dflt, bg = blended_add_text })
-  vim.api.nvim_set_hl(0, 'DiffsDeleteText', { default = dflt, bg = blended_del_text })
+  vim.api.nvim_set_hl(0, 'DiffsAddText', { default = dflt, bg = text_bg })
+  vim.api.nvim_set_hl(0, 'DiffsDeleteText', { default = dflt, bg = text_bg })
 
-  vim.api.nvim_set_hl(0, 'DiffsDim', { default = dflt, bg = blend_color(normal_fg, bg, 0.04) })
+  vim.api.nvim_set_hl(0, 'DiffsDim', { default = dflt, bg = resolve_hl('CursorLine').bg })
 
   log.dbg(
     'highlight groups: Normal.bg=%s DiffAdd.bg=#%06x diffAdded.fg=#%06x',
@@ -106,11 +79,8 @@ function M.apply(config, is_default)
     add_bg,
     add_fg
   )
-  log.dbg('DiffsAdd.bg=#%06x DiffsAddText.bg=#%06x', blended_add, blended_add_text)
-  log.dbg('DiffsDelete.bg=#%06x DiffsDeleteText.bg=#%06x', blended_del, blended_del_text)
-
-  local diff_change = resolve_hl('DiffChange')
-  local diff_text = resolve_hl('DiffText')
+  log.dbg('DiffsAdd.bg=#%06x DiffsAddText.bg=#%06x', add_bg, text_bg)
+  log.dbg('DiffsDelete.bg=#%06x DiffsDeleteText.bg=#%06x', del_bg, text_bg)
 
   vim.api.nvim_set_hl(0, 'DiffsDiffAdd', { default = dflt, bg = diff_add.bg })
   vim.api.nvim_set_hl(
@@ -122,37 +92,17 @@ function M.apply(config, is_default)
   vim.api.nvim_set_hl(0, 'DiffsDiffText', { default = dflt, bg = diff_text.bg })
   vim.api.nvim_set_hl(0, 'DiffsDiffOff', {})
 
-  local change_bg = diff_change.bg or 0x3a3a4a
-  local text_bg = diff_text.bg or 0x4a4a5a
-  local change_fg = diff_change.fg or diff_text.fg or 0x80a0c0
-
-  local base_alpha = math.max(alpha - 0.1, 0.0)
-  local blended_ours = blend_color(add_bg, bg, alpha)
-  local blended_theirs = blend_color(change_bg, bg, alpha)
-  local blended_base = blend_color(text_bg, bg, base_alpha)
-  local blended_ours_nr = add_fg
-  local blended_theirs_nr = change_fg
-  local blended_base_nr = change_fg
-
-  vim.api.nvim_set_hl(0, 'DiffsConflictOurs', { default = dflt, bg = blended_ours })
-  vim.api.nvim_set_hl(0, 'DiffsConflictTheirs', { default = dflt, bg = blended_theirs })
-  vim.api.nvim_set_hl(0, 'DiffsConflictBase', { default = dflt, bg = blended_base })
+  vim.api.nvim_set_hl(0, 'DiffsConflictOurs', { default = dflt, bg = add_bg })
+  vim.api.nvim_set_hl(0, 'DiffsConflictTheirs', { default = dflt, bg = change_bg })
+  vim.api.nvim_set_hl(0, 'DiffsConflictBase', { default = dflt, bg = text_bg })
   vim.api.nvim_set_hl(0, 'DiffsConflictMarker', { default = dflt, fg = 0x808080, bold = true })
-  vim.api.nvim_set_hl(
-    0,
-    'DiffsConflictOursNr',
-    { default = dflt, fg = blended_ours_nr, bg = blended_ours }
-  )
+  vim.api.nvim_set_hl(0, 'DiffsConflictOursNr', { default = dflt, fg = add_fg, bg = add_bg })
   vim.api.nvim_set_hl(
     0,
     'DiffsConflictTheirsNr',
-    { default = dflt, fg = blended_theirs_nr, bg = blended_theirs }
+    { default = dflt, fg = change_fg, bg = change_bg }
   )
-  vim.api.nvim_set_hl(
-    0,
-    'DiffsConflictBaseNr',
-    { default = dflt, fg = blended_base_nr, bg = blended_base }
-  )
+  vim.api.nvim_set_hl(0, 'DiffsConflictBaseNr', { default = dflt, fg = change_fg, bg = text_bg })
 
   -- Neogit's word-diff highlights changed words with these groups; when our
   -- integration owns the buffer we paint intra-line ourselves, so clear them.

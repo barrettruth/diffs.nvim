@@ -25,7 +25,6 @@ describe('diffs.config', function()
           extra_filetypes = { 'diff' },
           highlights = {
             background = true,
-            blend_alpha = 0.4,
             warn_max_lines = false,
             treesitter = { max_lines = 1000 },
             vim = false,
@@ -103,10 +102,9 @@ describe('diffs.config', function()
     end)
 
     it('keeps supported highlights config without removed priorities', function()
-      local opts = config.new({ highlights = { background = false, blend_alpha = 0.4 } })
+      local opts = config.new({ highlights = { background = false } })
 
       assert.is_false(opts.highlights.background)
-      assert.are.equal(0.4, opts.highlights.blend_alpha)
       assert.is_nil(opts.highlights.priorities)
     end)
 
@@ -169,10 +167,6 @@ describe('diffs.config', function()
         {
           input = { highlights = { intra = { max_lines = 0 } } },
           message = 'diffs: highlights.intra.max_lines must be >= 1',
-        },
-        {
-          input = { highlights = { blend_alpha = 2 } },
-          message = 'diffs: highlights.blend_alpha must be >= 0 and <= 1',
         },
       }
 
