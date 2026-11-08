@@ -184,6 +184,25 @@ function M.new(opts)
     integrations = integration_metadata.normalize(opts and opts.integrations),
   })
   M.validate(opts)
+  for group, keys in pairs({
+    conflict = { 'disable_diagnostics', 'show_virtual_text', 'format_virtual_text', 'show_actions' },
+    view = { 'change_bar', 'rail_separator' },
+  }) do
+    if type(opts[group]) == 'table' then
+      for _, key in ipairs(keys) do
+        if opts[group][key] ~= nil then
+          vim.notify_once(
+            '[diffs]: '
+              .. group
+              .. '.'
+              .. key
+              .. ' was removed and is ignored. Remove it from the configuration.',
+            vim.log.levels.WARN
+          )
+        end
+      end
+    end
+  end
   if opts.highlights and type(opts.highlights.intra) == 'boolean' then
     vim.notify_once(
       '[diffs]: Boolean highlights.intra is deprecated. Support ends on November 30, 2026. '
