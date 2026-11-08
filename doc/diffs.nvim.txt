@@ -93,7 +93,6 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
         background = true,
         blend_alpha = 0.6,
         warn_max_lines = true,
-        treesitter = true,
         vim = true,
         intra = true,
       },
@@ -189,8 +188,9 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              highlighting is skipped because a hunk exceeds
                              {max_lines}. See |diffs.nvim-max-lines|.
 
-        {treesitter}         (boolean|table, default: true)
-                             Treesitter highlighting options.
+        {treesitter}         (table, default: see below)
+                             Treesitter highlighting is always enabled when
+                             a parser is available.
                              See |diffs.nvim.TreesitterConfig| for fields.
 
         {vim}                (boolean|table, default: true)

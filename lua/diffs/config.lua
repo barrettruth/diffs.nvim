@@ -21,7 +21,7 @@ local integration_metadata = require('diffs.integrations')
 ---@field blend_alpha? number
 ---@field overrides? table<string, table>
 ---@field warn_max_lines boolean
----@field treesitter diffs.TreesitterConfig|false
+---@field treesitter diffs.TreesitterConfig
 ---@field vim diffs.VimConfig|false
 ---@field intra diffs.IntraConfig|false
 
@@ -125,9 +125,8 @@ function M.validate(opts)
     for _, key in ipairs({ 'treesitter', 'vim', 'intra' }) do
       local path = 'highlights.' .. key
       local value = opts.highlights[key]
-      vim.validate(path, value, function(v)
-        return v == nil or type(v) == 'boolean' or type(v) == 'table'
-      end, 'boolean or table')
+      local types = key == 'treesitter' and 'table' or { 'boolean', 'table' }
+      vim.validate(path, value, types, true)
       if type(value) == 'table' then
         vim.validate(path .. '.max_lines', value.max_lines, 'number', true)
         if value.max_lines and value.max_lines < 1 then
@@ -186,7 +185,7 @@ function M.new(opts)
   if result.conflict == true then
     result.conflict = vim.deepcopy(DEFAULTS.conflict)
   end
-  for _, key in ipairs({ 'treesitter', 'vim', 'intra' }) do
+  for _, key in ipairs({ 'vim', 'intra' }) do
     if result.highlights[key] == true then
       result.highlights[key] = vim.deepcopy(DEFAULTS.highlights[key])
     end
