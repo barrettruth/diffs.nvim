@@ -256,7 +256,7 @@ end
 local function set_split_intra_difft(bufnr, info)
   local opts = require('diffs.runtime').get_highlight_opts()
   local intra_cfg = opts.highlights.intra
-  if not intra_cfg or not intra_cfg.enabled then
+  if not intra_cfg then
     return
   end
   local cfg = side_config[info.side]
@@ -289,7 +289,7 @@ local function set_split_intra(bufnr, info, hunks)
 
   local opts = require('diffs.runtime').get_highlight_opts()
   local intra_cfg = opts.highlights.intra
-  if not intra_cfg or not intra_cfg.enabled then
+  if not intra_cfg then
     return
   end
 

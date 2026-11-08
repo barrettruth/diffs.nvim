@@ -89,13 +89,14 @@ vim.api.nvim_create_autocmd('BufReadCmd', {
 
 vim.api.nvim_create_autocmd('BufReadPost', {
   callback = function(args)
-    local conflict_config = user_config.conflict
-    if not conflict_config.enabled or not has_conflict_marker(args.buf) then
+    if not user_config.conflict or not has_conflict_marker(args.buf) then
       return
     end
     local runtime = get_runtime()
-    conflict_config = runtime.get_conflict_config()
-    require('diffs.conflict').attach(args.buf, conflict_config)
+    local conflict_config = runtime.get_conflict_config()
+    if conflict_config then
+      require('diffs.conflict').attach(args.buf, conflict_config)
+    end
   end,
 })
 
@@ -162,7 +163,9 @@ local function conflict_action(fn)
   local bufnr = vim.api.nvim_get_current_buf()
   local runtime = get_runtime()
   local conflict_config = runtime.get_conflict_config()
-  fn(bufnr, conflict_config)
+  if conflict_config then
+    fn(bufnr, conflict_config)
+  end
 end
 
 vim.keymap.set('n', '<Plug>(diffs-conflict-ours)', function()
@@ -184,24 +187,17 @@ vim.keymap.set('n', '<Plug>(diffs-conflict-prev)', function()
   require('diffs.conflict').goto_prev(vim.api.nvim_get_current_buf())
 end, { desc = 'Jump to previous conflict' })
 
-local function merge_action(fn)
-  local bufnr = vim.api.nvim_get_current_buf()
-  local runtime = get_runtime()
-  local conflict_config = runtime.get_conflict_config()
-  fn(bufnr, conflict_config)
-end
-
 vim.keymap.set('n', '<Plug>(diffs-merge-ours)', function()
-  merge_action(require('diffs.merge').resolve_ours)
+  conflict_action(require('diffs.merge').resolve_ours)
 end, { desc = 'Accept ours in merge diff' })
 vim.keymap.set('n', '<Plug>(diffs-merge-theirs)', function()
-  merge_action(require('diffs.merge').resolve_theirs)
+  conflict_action(require('diffs.merge').resolve_theirs)
 end, { desc = 'Accept theirs in merge diff' })
 vim.keymap.set('n', '<Plug>(diffs-merge-both)', function()
-  merge_action(require('diffs.merge').resolve_both)
+  conflict_action(require('diffs.merge').resolve_both)
 end, { desc = 'Accept both in merge diff' })
 vim.keymap.set('n', '<Plug>(diffs-merge-none)', function()
-  merge_action(require('diffs.merge').resolve_none)
+  conflict_action(require('diffs.merge').resolve_none)
 end, { desc = 'Reject both in merge diff' })
 vim.keymap.set('n', '<Plug>(diffs-merge-next)', function()
   require('diffs.merge').goto_next(vim.api.nvim_get_current_buf())

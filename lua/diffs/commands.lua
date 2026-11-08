@@ -2259,7 +2259,9 @@ function M.diff_file(filepath, opts)
     vim.api.nvim_buf_set_var(diff_buf, 'diffs_unmerged', true)
     vim.api.nvim_buf_set_var(diff_buf, 'diffs_working_path', filepath)
     local conflict_config = runtime.get_conflict_config()
-    require('diffs.merge').setup_keymaps(diff_buf, conflict_config)
+    if conflict_config then
+      require('diffs.merge').setup_keymaps(diff_buf, conflict_config)
+    end
   end
 
   dbg('opened diff buffer %d for %s (%s)', diff_buf, rel_path, diff_label)

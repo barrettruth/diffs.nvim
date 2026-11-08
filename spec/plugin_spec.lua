@@ -70,23 +70,34 @@ describe('plugin bootstrap', function()
     assert.matches('conflict_loaded=false', output, 1, true)
   end)
 
-  it('loads conflict handling when a file contains conflict markers', function()
-    local init_lines = {
-      ('vim.opt.runtimepath:prepend(%s)'):format(vim.inspect(vim.fn.getcwd())),
-    }
-    local after_lines = {
-      'local path = vim.fn.tempname()',
-      "vim.fn.writefile({ '<<<<<<< ours', 'old', '=======', 'new', '>>>>>>> theirs' }, path)",
-      'vim.cmd.edit(path)',
-      "print('runtime_loaded=' .. tostring(package.loaded['diffs.runtime'] ~= nil))",
-      "print('conflict_loaded=' .. tostring(package.loaded['diffs.conflict'] ~= nil))",
-      'vim.fn.delete(path)',
-    }
+  it('loads conflict handling only when enabled', function()
+    for _, enabled in ipairs({ true, false }) do
+      local init_lines = {
+        ('vim.g.diffs = { conflict = %s }'):format(tostring(enabled)),
+        ('vim.opt.runtimepath:prepend(%s)'):format(vim.inspect(vim.fn.getcwd())),
+      }
+      local after_lines = {
+        'local path = vim.fn.tempname()',
+        "vim.fn.writefile({ '<<<<<<< ours', 'old', '=======', 'new', '>>>>>>> theirs' }, path)",
+        'vim.cmd.edit(path)',
+        "print('runtime_loaded=' .. tostring(package.loaded['diffs.runtime'] ~= nil))",
+        "print('conflict_loaded=' .. tostring(package.loaded['diffs.conflict'] ~= nil))",
+        'if not vim.g.diffs.conflict then',
+        'local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)',
+        "vim.fn.maparg('<Plug>(diffs-conflict-ours)', 'n', false, true).callback()",
+        "print('unchanged=' .. tostring(vim.deep_equal(lines, vim.api.nvim_buf_get_lines(0, 0, -1, false))))",
+        'end',
+        'vim.fn.delete(path)',
+      }
 
-    local output = run_child(init_lines, after_lines)
+      local output = run_child(init_lines, after_lines)
 
-    assert.matches('runtime_loaded=true', output, 1, true)
-    assert.matches('conflict_loaded=true', output, 1, true)
+      assert.matches('runtime_loaded=' .. tostring(enabled), output, 1, true)
+      assert.matches('conflict_loaded=' .. tostring(enabled), output, 1, true)
+      if not enabled then
+        assert.matches('unchanged=true', output, 1, true)
+      end
+    end
   end)
 
   it('loads supported config during plugin startup', function()

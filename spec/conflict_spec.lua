@@ -3,7 +3,6 @@ local helpers = require('spec.helpers')
 
 local function default_config(overrides)
   local cfg = {
-    enabled = true,
     disable_diagnostics = false,
     show_virtual_text = true,
     show_actions = false,

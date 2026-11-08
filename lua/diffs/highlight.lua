@@ -620,7 +620,6 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
   if
     not opts.syntax_only
     and intra_cfg
-    and intra_cfg.enabled
     and not difft_active
     and pw == 1
     and (hunk._hl_line_count or #hunk.lines) <= intra_cfg.max_lines
@@ -632,7 +631,7 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     else
       dbg('intra result: nil (no change groups)')
     end
-  elseif intra_cfg and not intra_cfg.enabled then
+  elseif not intra_cfg then
     dbg('intra disabled by config')
   elseif intra_cfg and (hunk._hl_line_count or #hunk.lines) > intra_cfg.max_lines then
     dbg(

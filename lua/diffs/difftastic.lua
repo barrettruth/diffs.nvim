@@ -353,7 +353,7 @@ function M.apply_unified(bufnr, lhs, rhs, diff_lines, spec, rail_width)
   vim.api.nvim_buf_clear_namespace(bufnr, unified_ns, 0, -1)
   M.mark_active(bufnr)
 
-  if not intra_cfg or not intra_cfg.enabled then
+  if not intra_cfg then
     return 0
   end
 

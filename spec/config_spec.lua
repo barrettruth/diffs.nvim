@@ -30,7 +30,6 @@ describe('diffs.config', function()
             treesitter = { max_lines = 1000 },
             vim = false,
             intra = {
-              enabled = true,
               algorithm = 'vscode',
               max_lines = 250,
             },
@@ -44,7 +43,6 @@ describe('diffs.config', function()
             telescope = true,
           },
           conflict = {
-            enabled = true,
             disable_diagnostics = false,
             show_virtual_text = true,
             format_virtual_text = function()
@@ -79,15 +77,15 @@ describe('diffs.config', function()
       assert.is_table(opts.highlights.treesitter)
     end)
 
-    it('accepts boolean and table syntax settings', function()
-      for _, key in ipairs({ 'treesitter', 'vim' }) do
+    it('accepts boolean and table highlight settings', function()
+      for _, key in ipairs({ 'treesitter', 'vim', 'intra' }) do
         local defaults = config.new().highlights[key]
         for _, value in ipairs({ true, {} }) do
           assert.are.same(defaults, config.new({ highlights = { [key] = value } }).highlights[key])
         end
         assert.is_false(config.new({ highlights = { [key] = false } }).highlights[key])
         assert.are.same(
-          { max_lines = 1000 },
+          vim.tbl_extend('force', defaults, { max_lines = 1000 }),
           config.new({ highlights = { [key] = { max_lines = 1000 } } }).highlights[key]
         )
       end
@@ -117,11 +115,16 @@ describe('diffs.config', function()
       assert.is_nil(opts.highlights.priorities)
     end)
 
-    it('keeps supported conflict config without removed priority', function()
-      local opts = config.new({ conflict = { show_virtual_text = false } })
-
-      assert.is_false(opts.conflict.show_virtual_text)
-      assert.is_nil(opts.conflict.priority)
+    it('accepts boolean and table conflict settings', function()
+      local defaults = config.new().conflict
+      for _, value in ipairs({ true, {} }) do
+        assert.are.same(defaults, config.new({ conflict = value }).conflict)
+      end
+      assert.is_false(config.new({ conflict = false }).conflict)
+      assert.are.same(
+        vim.tbl_extend('force', defaults, { show_virtual_text = false }),
+        config.new({ conflict = { show_virtual_text = false } }).conflict
+      )
     end)
 
     it('accepts integration lists and boolean maps', function()

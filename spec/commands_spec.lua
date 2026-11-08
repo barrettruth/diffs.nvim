@@ -1226,7 +1226,7 @@ describe('commands', function()
     it('skips the intra overlay when highlights.intra is disabled', function()
       mock_view_config({ prefix = true })
       mock_highlight_opts(function(opts)
-        opts.highlights.intra.enabled = false
+        opts.highlights.intra = false
       end)
       create_split_source({
         index_lines = { 'function f()', '  return 111', '  log()', 'end' },
@@ -2161,6 +2161,20 @@ describe('commands', function()
         end
       end
       assert.is_true(rejected)
+    end)
+
+    it('opens unmerged files with conflict handling disabled', function()
+      local _, filepath = create_conflicted_repo()
+      edit_file(filepath)
+      mock_runtime_attach(function() end)
+      mock_conflict_config(false)
+
+      commands.diff(nil, false)
+
+      local bufnr = vim.api.nvim_get_current_buf()
+      table.insert(test_buffers, bufnr)
+      assert.is_true(vim.b[bufnr].diffs_unmerged)
+      assert.is_false(helpers.has_keymap(bufnr, 'go'))
     end)
 
     it('routes direct :Diff on unmerged files to the generated unmerged view', function()
