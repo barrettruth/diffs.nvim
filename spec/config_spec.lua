@@ -2,7 +2,7 @@ require('spec.helpers')
 local config = require('diffs.config')
 
 describe('diffs.config', function()
-  local integration_keys = { 'fugitive', 'neogit', 'neojj', 'gitsigns', 'committia', 'telescope' }
+  local integration_keys = { 'fugitive', 'neogit', 'neojj', 'gitsigns', 'telescope' }
 
   describe('new', function()
     it('accepts nil config', function()
@@ -22,7 +22,6 @@ describe('diffs.config', function()
           view = {
             prefix = true,
           },
-          extra_filetypes = { 'diff' },
           highlights = {
             background = true,
             blend_alpha = 0.4,
@@ -30,7 +29,6 @@ describe('diffs.config', function()
             treesitter = { max_lines = 1000 },
             vim = false,
             intra = {
-              algorithm = 'vscode',
               max_lines = 250,
             },
           },
@@ -39,19 +37,9 @@ describe('diffs.config', function()
             neogit = true,
             neojj = true,
             gitsigns = true,
-            committia = true,
             telescope = true,
           },
-          conflict = {
-            keymaps = {
-              ours = 'co',
-              theirs = 'ct',
-              both = 'cb',
-              none = 'c0',
-              next = ']x',
-              prev = '[x',
-            },
-          },
+          conflict = false,
         })
       end)
     end)
@@ -72,7 +60,7 @@ describe('diffs.config', function()
     end)
 
     it('accepts boolean and table highlight settings', function()
-      for _, key in ipairs({ 'vim', 'intra' }) do
+      for _, key in ipairs({ 'vim' }) do
         local defaults = config.new().highlights[key]
         for _, value in ipairs({ true, {} }) do
           assert.are.same(defaults, config.new({ highlights = { [key] = value } }).highlights[key])
@@ -91,16 +79,10 @@ describe('diffs.config', function()
       assert.is_nil(opts.hide_prefix)
     end)
 
-    it('accepts boolean and table conflict settings', function()
-      local defaults = config.new().conflict
-      for _, value in ipairs({ true, {} }) do
-        assert.are.same(defaults, config.new({ conflict = value }).conflict)
-      end
+    it('accepts boolean conflict settings', function()
+      assert.is_true(config.new().conflict)
+      assert.is_true(config.new({ conflict = true }).conflict)
       assert.is_false(config.new({ conflict = false }).conflict)
-      assert.are.same(
-        vim.tbl_extend('force', defaults, { keymaps = { ours = 'co' } }),
-        config.new({ conflict = { keymaps = { ours = 'co' } } }).conflict
-      )
     end)
 
     it('accepts integration lists and boolean maps', function()
@@ -146,22 +128,6 @@ describe('diffs.config', function()
     it('excludes neogit when integrations.neogit = false', function()
       local fts = compute({ integrations = { neogit = false } })
       assert.is_false(vim.tbl_contains(fts, 'NeogitStatus'))
-    end)
-
-    it('includes extra_filetypes', function()
-      local fts = compute({ extra_filetypes = { 'diff' } })
-      assert.is_true(vim.tbl_contains(fts, 'diff'))
-    end)
-
-    it('combines integrations and extra_filetypes', function()
-      local fts = compute({
-        integrations = { fugitive = true, neogit = true },
-        extra_filetypes = { 'diff' },
-      })
-      assert.is_true(vim.tbl_contains(fts, 'git'))
-      assert.is_true(vim.tbl_contains(fts, 'fugitive'))
-      assert.is_true(vim.tbl_contains(fts, 'NeogitStatus'))
-      assert.is_true(vim.tbl_contains(fts, 'diff'))
     end)
   end)
 end)

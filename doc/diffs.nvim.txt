@@ -154,28 +154,25 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              Use `{ args = {...} }` to forward flags. See
                              |diffs.nvim-difftastic|.
 
-        {extra_filetypes}    (table, default: {})
-                             Deprecated. See |diffs.nvim-extra-filetypes|.
-
         {highlights}         (table, default: see below)
-                             Controls which highlight features are enabled.
+                             Syntax and diff highlighting.
                              See |diffs.nvim.Highlights| for fields.
 
-        {conflict}           (boolean|table, default: true)
+        {conflict}           (boolean, default: true)
                              Highlight and resolve inline merge conflicts.
+                             Set to false to disable.
+                             See |diffs.nvim-conflict|.
 
                                                        *diffs.nvim.Highlights*
     Highlights table fields: ~
         {background}         (boolean, default: true)
-                             Apply background highlighting to `+`/`-` lines
-                             using `DiffsAdd`/`DiffsDelete` groups (derived
-                             from `DiffAdd`/`DiffDelete` backgrounds).
+                             Highlight added and deleted lines with
+                             `DiffsAdd` and `DiffsDelete` backgrounds.
 
         {blend_alpha}        (number, default: 0.6)
-                             Alpha value for diff line background intensity.
-                             Controls how strongly diff lines (adds/deletes)
-                             stand out from the editor background. Must be
-                             between 0 and 1 (inclusive).
+                             Blend diff backgrounds with the editor background.
+                             Use 0 for the editor background or 1 for the
+                             full `DiffAdd` and `DiffDelete` colors.
 
         {warn_max_lines}     (boolean, default: true)
                              Show a `vim.notify()` warning when syntax
@@ -183,60 +180,47 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              {max_lines}. See |diffs.nvim-max-lines|.
 
         {treesitter}         (table, default: see below)
-                             Treesitter highlighting limits.
+                             Highlight code with Treesitter when a parser
+                             is available.
                              See |diffs.nvim.TreesitterConfig| for fields.
 
         {vim}                (boolean|table, default: true)
-                             Vim syntax fallback highlighting options.
+                             Use Vim syntax when no Treesitter parser is
+                             available.  Set to false to disable.
                              See |diffs.nvim.VimConfig| for fields.
 
-        {intra}              (boolean|table, default: true)
-                             Boolean values are deprecated.
-                             See |diffs.nvim-diffopt|.
+        {intra}              (table, default: see below)
+                             Intra-line diff highlighting options.
                              See |diffs.nvim.IntraConfig| for fields.
-
-        {overrides}          (table, default: {})
-                             Deprecated. See |diffs.nvim-highlights|.
 
                                                  *diffs.nvim.TreesitterConfig*
     Treesitter config fields: ~
         {max_lines}          (integer, default: 500)
-                             Skip treesitter highlighting for hunks with more
-                             highlighted lines (`+`/`-`) than this threshold.
-                             Context lines are not counted. Prevents lag on
-                             massive diffs.
+                             Skip Treesitter highlighting for hunks with more
+                             than this many added and deleted lines.
+                             Context lines do not count toward the limit.
 
                                                         *diffs.nvim.VimConfig*
     Vim config fields: ~
         {max_lines}          (integer, default: 200)
-                             Skip vim syntax highlighting for hunks with more
-                             highlighted lines (`+`/`-`) than this threshold.
-                             Context lines are not counted.
+                             Skip Vim syntax highlighting for hunks with more
+                             than this many added and deleted lines.
+                             Context lines do not count toward the limit.
 
                                                       *diffs.nvim.IntraConfig*
     Intra config fields: ~
-        {algorithm}          (string, default: 'default')
-                             Diff algorithm for character-level analysis.
-                             `'default'`: use `vim.diff()` with settings
-                             inherited from `'diffopt'` (`algorithm` and
-                             `linematch`). `'vscode'`: use libvscodediff FFI
-                             (falls back to default if not available).
-                             libvscodediff support will be removed on
-                             30 November 2026. Remove `highlights.intra.algorithm`
-                             to use Neovim's diff.
-
         {max_lines}          (integer, default: 500)
-                             Skip character-level highlighting for hunks with
-                             more highlighted lines (`+`/`-`) than this
-                             threshold. Context lines are not counted.
+                             Skip intra-line highlighting for hunks with more
+                             than this many added and deleted lines.
+                             Context lines do not count toward the limit.
 
-    Note: Header context (e.g., `@@ -10,3 +10,4 @@ func()`) is always
-    highlighted with treesitter when a parser is available.
+    Treesitter also highlights code in hunk headers, such as `func()` in
+    `@@ -10,3 +10,4 @@ func()`.
 
-    Language detection uses Neovim's built-in `vim.filetype.match()` and
-    `vim.treesitter.language.get_lang()`. To customize filetype detection
-    or register treesitter parsers for custom filetypes, use
-    `vim.filetype.add()` and `vim.treesitter.language.register()`.
+    diffs.nvim detects the filetype with |vim.filetype.match()| and selects
+    the parser with |vim.treesitter.language.get_lang()|.  Use
+    |vim.filetype.add()| for custom filetypes and
+    |vim.treesitter.language.register()| to associate them with a parser.
 
 ==============================================================================
 MAX LINES                                               *diffs.nvim-max-lines*
@@ -456,7 +440,7 @@ Paired-window behavior: ~                          *diffs.nvim-paired-windows*
     target language. Each changed line is painted with the same palette as
     generated buffers, so its background is continuous across the gutter and the
     text, and changed regions within a line carry the same intra-line word-diff
-    highlighting, honoring `highlights.intra` (including the `vscode` algorithm).
+    highlighting, honoring `highlights.intra`.
 
     Each pane renders its own side's real line numbers in a `statuscolumn` rail
     (blank on filler rows), so the rail does not depend on or conflict with a
@@ -680,10 +664,6 @@ Whitespace handling: ~                                 *diffs.nvim-whitespace*
     - Native |:diffsplit| windows: whitespace is handled by Neovim itself.
 
     Limitations: ~
-    - With `highlights.intra.algorithm = 'vscode'` the intra-line highlighter
-      ignores only leading and trailing whitespace; internal whitespace inside
-      a changed line is still highlighted. A warning is issued once. Use the
-      `default` algorithm for full whitespace handling.
     - 'diffopt' `algorithm` and `linematch` are honored by the generated diffs
       too. `linematch` has no git equivalent, so it shapes the file diffs
       computed with |vim.diff()| but not the git-backed surfaces (|:Diff-review|
@@ -1046,18 +1026,19 @@ unchanged.
 ==============================================================================
 CONFLICT RESOLUTION                                      *diffs.nvim-conflict*
 
-diffs.nvim detects inline merge conflict markers (`<<<<<<<`/`=======`/
-`>>>>>>>`) in working files and provides highlighting and resolution actions.
-Both standard and diff3 (`|||||||`) formats are supported.
+diffs.nvim highlights merge conflicts in working files.  It recognizes standard
+markers (`<<<<<<<`, `=======`, `>>>>>>>`) and diff3 base sections (`|||||||`).
 
-Conflict regions are detected automatically on `BufReadPost` and re-scanned on
-`TextChanged`. When all conflicts in a buffer are resolved, highlighting is
-removed.
+diffs.nvim detects conflicts when you open a file and updates their highlights
+as you edit.  Resolve conflicts with the mappings below or edit the text directly.
+
+To disable conflict handling: >lua
+    vim.g.diffs = { conflict = false }
+<
 
 Buffer-local mappings: ~                      *diffs.nvim-conflict-keymaps*
 
-`conflict.keymaps` is deprecated and will be removed on 30 November 2026.
-Replace it with buffer-local mappings: >lua
+Set buffer-local mappings when conflicts are detected: >lua
     vim.api.nvim_create_autocmd('User', {
       pattern = 'DiffsConflictDetected',
       callback = function(event)
@@ -1176,8 +1157,7 @@ API                                                           *diffs.nvim-api*
 
 attach({bufnr}, {options})                               *diffs.nvim.attach()*
     Attach highlighting to a buffer.  Called automatically when the buffer's
-    filetype matches `git`, `gitcommit`, an enabled integration filetype,
-    or any entry in the deprecated `extra_filetypes` option.
+    filetype matches `git`, `gitcommit`, or an enabled integration filetype.
     Direct calls work with any filetype. For automatic attachment to other
     filetypes, see |diffs.nvim-extra-filetypes|.
 
@@ -1482,20 +1462,18 @@ Diff mode window highlights: ~ These are used for 'winhighlight' remapping in
                                                                *DiffsDiffText*
     DiffsDiffText       Background-only replacement for `DiffText`.
 
-After diffs.nvim initializes, customize with |nvim_set_hl()| and
-|ColorScheme|: >lua
-    local function set_highlights()
-      vim.api.nvim_set_hl(0, 'DiffsAdd', { bg = '#2e4a3a' })
-      vim.api.nvim_set_hl(0, 'DiffsDiffDelete', { link = 'DiffDelete' })
-    end
-
-    vim.api.nvim_create_autocmd('ColorScheme', {
-      group = vim.api.nvim_create_augroup('MyDiffsHighlights', { clear = true }),
+                                                        *DiffsHighlights*
+diffs.nvim triggers `User DiffsHighlights` after each highlight update, including
+initialization and |ColorScheme| changes.  Register this autocmd before loading
+diffs.nvim to apply your colors after each update: >lua
+    vim.api.nvim_create_autocmd('User', {
+      pattern = 'DiffsHighlights',
+      group = vim.api.nvim_create_augroup('my_diffs_highlights', { clear = true }),
       callback = function()
-        vim.schedule(set_highlights)
+        vim.api.nvim_set_hl(0, 'DiffsAdd', { bg = '#2e4a3a' })
+        vim.api.nvim_set_hl(0, 'DiffsDiffDelete', { link = 'DiffDelete' })
       end,
     })
-    vim.schedule(set_highlights)
 <
 
 ==============================================================================
@@ -1507,7 +1485,6 @@ Run `:checkhealth diffs` to check the required Neovim version (0.12.0+).
 ACKNOWLEDGEMENTS                                 *diffs.nvim-acknowledgements*
 
 - vim-fugitive (https://github.com/tpope/vim-fugitive)
-- codediff.nvim (https://github.com/esmuellert/codediff.nvim)
 - diffview.nvim (https://github.com/sindrets/diffview.nvim)
 - @phanen (https://github.com/phanen) - diff header highlighting,
   treesitter injection support, blame_hl.nvim (gitsigns blame popup

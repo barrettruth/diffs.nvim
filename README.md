@@ -111,9 +111,6 @@ own command, e.g. `:command! Review Diff review ++nountracked`.
 # Acknowledgements
 
 - [`vim-fugitive`](https://github.com/tpope/vim-fugitive)
-- [@esmuellert](https://github.com/esmuellert) /
-  [`codediff.nvim`](https://github.com/esmuellert/codediff.nvim) - vscode-diff
-  algorithm FFI backend for word-level intra-line accuracy
 - [`diffview.nvim`](https://github.com/sindrets/diffview.nvim)
 - [`difftastic`](https://github.com/Wilfred/difftastic)
 - [`mini.diff`](https://github.com/echasnovski/mini.diff)

@@ -341,14 +341,13 @@ end
 ---@return integer applied span count
 function M.apply_unified(bufnr, lhs, rhs, diff_lines, spec, rail_width)
   local opts = runtime.get_highlight_opts()
-  local intra_cfg = opts.highlights.intra
   local priority = opts.highlights.priorities.char_bg
   local base = rail_width + 1
 
   vim.api.nvim_buf_clear_namespace(bufnr, unified_ns, 0, -1)
   M.mark_active(bufnr)
 
-  if not intra_cfg or diffopt.inline() == 'none' then
+  if diffopt.inline() == 'none' then
     return 0
   end
 

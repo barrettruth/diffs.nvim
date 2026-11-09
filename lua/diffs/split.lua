@@ -245,8 +245,7 @@ end
 ---@param info diffs.SplitPaneInfo
 local function set_split_intra_difft(bufnr, info)
   local opts = require('diffs.runtime').get_highlight_opts()
-  local intra_cfg = opts.highlights.intra
-  if not intra_cfg or diffopt.inline() == 'none' then
+  if diffopt.inline() == 'none' then
     return
   end
   local cfg = side_config[info.side]
@@ -279,7 +278,7 @@ local function set_split_intra(bufnr, info, hunks)
 
   local opts = require('diffs.runtime').get_highlight_opts()
   local intra_cfg = opts.highlights.intra
-  if not intra_cfg or diffopt.inline() == 'none' then
+  if diffopt.inline() == 'none' then
     return
   end
 
@@ -309,7 +308,7 @@ local function set_split_intra(bufnr, info, hunks)
     end
 
     if #texts > 0 and #texts <= intra_cfg.max_lines then
-      local intra = diff.compute_intra_hunks(texts, intra_cfg.algorithm)
+      local intra = diff.compute_intra_hunks(texts)
       local spans = intra and intra[cfg.spans] or {}
       for _, span in ipairs(spans) do
         local ref = refs[span.line]

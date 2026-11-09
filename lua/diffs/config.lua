@@ -9,7 +9,6 @@ local integration_metadata = require('diffs.integrations')
 ---@field max_lines integer
 
 ---@class diffs.IntraConfig
----@field algorithm string
 ---@field max_lines integer
 
 ---@class diffs.ViewConfig
@@ -19,23 +18,10 @@ local integration_metadata = require('diffs.integrations')
 ---@class diffs.Highlights
 ---@field background boolean
 ---@field blend_alpha? number
----@field overrides? table<string, table>
 ---@field warn_max_lines boolean
 ---@field treesitter diffs.TreesitterConfig
 ---@field vim diffs.VimConfig|false
----@field intra diffs.IntraConfig|false
-
----@class diffs.ConflictKeymaps
----@field ours string|false
----@field theirs string|false
----@field both string|false
----@field none string|false
----@field next string|false
----@field prev string|false
-
----@class diffs.ConflictConfig
----@field enabled? boolean Deprecated.
----@field keymaps diffs.ConflictKeymaps|false
+---@field intra diffs.IntraConfig
 
 ---@class diffs.DifftasticConfig
 ---@field args? string[]
@@ -45,17 +31,15 @@ local integration_metadata = require('diffs.integrations')
 ---@field neogit? boolean
 ---@field neojj? boolean
 ---@field gitsigns? boolean
----@field committia? boolean
 ---@field telescope? boolean
 ---@field difftastic? boolean|diffs.DifftasticConfig
 
 ---@class diffs.Config
 ---@field debug boolean|string
 ---@field view diffs.ViewConfig
----@field extra_filetypes string[]
 ---@field highlights diffs.Highlights
 ---@field integrations diffs.IntegrationsConfig
----@field conflict diffs.ConflictConfig|false
+---@field conflict boolean
 
 ---@type diffs.Config
 local DEFAULTS = {
@@ -64,7 +48,6 @@ local DEFAULTS = {
     default_layout = 'unified',
     prefix = true,
   },
-  extra_filetypes = {},
   highlights = {
     background = true,
     warn_max_lines = true,
@@ -75,14 +58,11 @@ local DEFAULTS = {
       max_lines = 200,
     },
     intra = {
-      algorithm = 'default',
       max_lines = 500,
     },
   },
   integrations = {},
-  conflict = {
-    keymaps = false,
-  },
+  conflict = true,
 }
 
 ---@param opts? table
@@ -97,86 +77,9 @@ function M.new(opts)
   opts = vim.tbl_extend('force', opts or {}, {
     integrations = integration_metadata.normalize(opts and opts.integrations),
   })
-  if opts.integrations.committia ~= nil then
-    vim.notify_once(
-      '[diffs]: integrations.committia is deprecated and ignored. Support ends on November 30, 2026. '
-        .. 'Committia highlighting is automatic. See :help diffs.nvim-committia.',
-      vim.log.levels.WARN
-    )
-  end
-  for group, keys in pairs({
-    conflict = { 'disable_diagnostics', 'show_virtual_text', 'format_virtual_text', 'show_actions' },
-    view = { 'change_bar', 'rail_separator' },
-  }) do
-    if type(opts[group]) == 'table' then
-      for _, key in ipairs(keys) do
-        if opts[group][key] ~= nil then
-          vim.notify_once(
-            '[diffs]: '
-              .. group
-              .. '.'
-              .. key
-              .. ' was removed and is ignored. Remove it from the configuration.',
-            vim.log.levels.WARN
-          )
-        end
-      end
-    end
-  end
-  if opts.highlights and type(opts.highlights.intra) == 'boolean' then
-    vim.notify_once(
-      '[diffs]: Boolean highlights.intra is deprecated. Support ends on November 30, 2026. '
-        .. 'See :help diffs.nvim-diffopt.',
-      vim.log.levels.WARN
-    )
-  end
-  if opts.highlights and opts.highlights.context ~= nil then
-    vim.notify_once(
-      '[diffs]: highlights.context was removed and is ignored. Remove it from the configuration.',
-      vim.log.levels.WARN
-    )
-  end
   local result = vim.tbl_deep_extend('force', DEFAULTS, opts)
-  for _, key in ipairs({ 'treesitter', 'vim', 'intra' }) do
-    local value = result.highlights[key]
-    if type(value) == 'table' and value.enabled ~= nil then
-      local migration = key == 'treesitter'
-          and 'The enabled field is ignored. Tree-sitter highlighting is always enabled. Remove enabled.'
-        or key == 'intra' and 'Remove enabled and use diffopt. See :help diffs.nvim-diffopt.'
-        or 'Use highlights.vim = false to disable Vim syntax. Otherwise remove enabled.'
-      vim.notify_once(
-        '[diffs]: highlights.'
-          .. key
-          .. '.enabled is deprecated. Support ends on November 30, 2026. '
-          .. migration,
-        vim.log.levels.WARN
-      )
-      if key ~= 'treesitter' and value.enabled == false then
-        result.highlights[key] = false
-      else
-        value.enabled = nil
-      end
-    end
-  end
-  if type(result.conflict) == 'table' and result.conflict.enabled ~= nil then
-    vim.notify_once(
-      '[diffs]: conflict.enabled is deprecated. Support ends on November 30, 2026. '
-        .. 'Use conflict = false to disable conflict handling. Otherwise remove enabled.',
-      vim.log.levels.WARN
-    )
-    if result.conflict.enabled == false then
-      result.conflict = false
-    else
-      result.conflict.enabled = nil
-    end
-  end
-  if result.conflict == true then
-    result.conflict = vim.deepcopy(DEFAULTS.conflict)
-  end
-  for _, key in ipairs({ 'vim', 'intra' }) do
-    if result.highlights[key] == true then
-      result.highlights[key] = vim.deepcopy(DEFAULTS.highlights[key])
-    end
+  if result.highlights.vim == true then
+    result.highlights.vim = vim.deepcopy(DEFAULTS.highlights.vim)
   end
   return result
 end
