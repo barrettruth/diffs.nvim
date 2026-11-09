@@ -155,7 +155,7 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              |diffs.nvim-difftastic|.
 
         {highlights}         (table, default: see below)
-                             Controls which highlight features are enabled.
+                             Syntax and diff highlighting.
                              See |diffs.nvim.Highlights| for fields.
 
         {conflict}           (boolean, default: true)
@@ -166,15 +166,13 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                                                        *diffs.nvim.Highlights*
     Highlights table fields: ~
         {background}         (boolean, default: true)
-                             Apply background highlighting to `+`/`-` lines
-                             using `DiffsAdd`/`DiffsDelete` groups (derived
-                             from `DiffAdd`/`DiffDelete` backgrounds).
+                             Highlight added and deleted lines with
+                             `DiffsAdd` and `DiffsDelete` backgrounds.
 
         {blend_alpha}        (number, default: 0.6)
-                             Alpha value for diff line background intensity.
-                             Controls how strongly diff lines (adds/deletes)
-                             stand out from the editor background. Must be
-                             between 0 and 1 (inclusive).
+                             Blend diff backgrounds with the editor background.
+                             Use 0 for the editor background or 1 for the
+                             full `DiffAdd` and `DiffDelete` colors.
 
         {warn_max_lines}     (boolean, default: true)
                              Show a `vim.notify()` warning when syntax
@@ -182,11 +180,13 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                              {max_lines}. See |diffs.nvim-max-lines|.
 
         {treesitter}         (table, default: see below)
-                             Treesitter highlighting limits.
+                             Highlight code with Treesitter when a parser
+                             is available.
                              See |diffs.nvim.TreesitterConfig| for fields.
 
         {vim}                (boolean|table, default: true)
-                             Vim syntax fallback highlighting options.
+                             Use Vim syntax when no Treesitter parser is
+                             available.  Set to false to disable.
                              See |diffs.nvim.VimConfig| for fields.
 
         {intra}              (table, default: see below)
@@ -196,32 +196,31 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
                                                  *diffs.nvim.TreesitterConfig*
     Treesitter config fields: ~
         {max_lines}          (integer, default: 500)
-                             Skip treesitter highlighting for hunks with more
-                             highlighted lines (`+`/`-`) than this threshold.
-                             Context lines are not counted. Prevents lag on
-                             massive diffs.
+                             Skip Treesitter highlighting for hunks with more
+                             than this many added and deleted lines.
+                             Context lines do not count toward the limit.
 
                                                         *diffs.nvim.VimConfig*
     Vim config fields: ~
         {max_lines}          (integer, default: 200)
-                             Skip vim syntax highlighting for hunks with more
-                             highlighted lines (`+`/`-`) than this threshold.
-                             Context lines are not counted.
+                             Skip Vim syntax highlighting for hunks with more
+                             than this many added and deleted lines.
+                             Context lines do not count toward the limit.
 
                                                       *diffs.nvim.IntraConfig*
     Intra config fields: ~
         {max_lines}          (integer, default: 500)
-                             Skip character-level highlighting for hunks with
-                             more highlighted lines (`+`/`-`) than this
-                             threshold. Context lines are not counted.
+                             Skip intra-line highlighting for hunks with more
+                             than this many added and deleted lines.
+                             Context lines do not count toward the limit.
 
-    Note: Header context (e.g., `@@ -10,3 +10,4 @@ func()`) is always
-    highlighted with treesitter when a parser is available.
+    Treesitter also highlights code in hunk headers, such as `func()` in
+    `@@ -10,3 +10,4 @@ func()`.
 
-    Language detection uses Neovim's built-in `vim.filetype.match()` and
-    `vim.treesitter.language.get_lang()`. To customize filetype detection
-    or register treesitter parsers for custom filetypes, use
-    `vim.filetype.add()` and `vim.treesitter.language.register()`.
+    diffs.nvim detects the filetype with |vim.filetype.match()| and selects
+    the parser with |vim.treesitter.language.get_lang()|.  Use
+    |vim.filetype.add()| for custom filetypes and
+    |vim.treesitter.language.register()| to associate them with a parser.
 
 ==============================================================================
 MAX LINES                                               *diffs.nvim-max-lines*
