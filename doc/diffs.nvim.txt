@@ -160,6 +160,8 @@ Configuration is done via `vim.g.diffs`. Set options before the plugin loads:
 
         {conflict}           (boolean, default: true)
                              Highlight and resolve inline merge conflicts.
+                             Set to false to disable.
+                             See |diffs.nvim-conflict|.
 
                                                        *diffs.nvim.Highlights*
     Highlights table fields: ~
@@ -1025,13 +1027,15 @@ unchanged.
 ==============================================================================
 CONFLICT RESOLUTION                                      *diffs.nvim-conflict*
 
-diffs.nvim detects inline merge conflict markers (`<<<<<<<`/`=======`/
-`>>>>>>>`) in working files and provides highlighting and resolution actions.
-Both standard and diff3 (`|||||||`) formats are supported.
+diffs.nvim highlights merge conflicts in working files.  It recognizes standard
+markers (`<<<<<<<`, `=======`, `>>>>>>>`) and diff3 base sections (`|||||||`).
 
-Conflict regions are detected automatically on `BufReadPost` and re-scanned on
-`TextChanged`. When all conflicts in a buffer are resolved, highlighting is
-removed.
+diffs.nvim detects conflicts when you open a file and updates their highlights
+as you edit.  Resolve conflicts with the mappings below or edit the text directly.
+
+To disable conflict handling: >lua
+    vim.g.diffs = { conflict = false }
+<
 
 Buffer-local mappings: ~                      *diffs.nvim-conflict-keymaps*
 
