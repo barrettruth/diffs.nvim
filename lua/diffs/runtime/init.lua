@@ -159,30 +159,6 @@ function M.detach_diff()
   diff_windows_mod.detach(diff_windows)
 end
 
----@return boolean
-function M.get_fugitive_config()
-  init()
-  return config.integrations.fugitive == true
-end
-
----@return boolean
-function M.get_conflict_config()
-  init()
-  return config.conflict
-end
-
----@return diffs.ViewConfig
-function M.get_view_config()
-  init()
-  return config.view
-end
-
----@return boolean|diffs.DifftasticConfig|nil
-function M.get_difftastic_config()
-  init()
-  return config.integrations.difftastic
-end
-
 ---@return diffs.HunkOpts
 function M.get_highlight_opts()
   init()

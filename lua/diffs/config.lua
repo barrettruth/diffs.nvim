@@ -12,7 +12,6 @@ local integration_metadata = require('diffs.integrations')
 ---@field max_lines integer
 
 ---@class diffs.ViewConfig
----@field default_layout "unified"|"stacked"|"split"
 ---@field prefix boolean
 
 ---@class diffs.Highlights
@@ -23,29 +22,23 @@ local integration_metadata = require('diffs.integrations')
 ---@field vim diffs.VimConfig|false
 ---@field intra diffs.IntraConfig
 
----@class diffs.DifftasticConfig
----@field args? string[]
-
 ---@class diffs.IntegrationsConfig
 ---@field fugitive? boolean
 ---@field neogit? boolean
 ---@field neojj? boolean
 ---@field gitsigns? boolean
 ---@field telescope? boolean
----@field difftastic? boolean|diffs.DifftasticConfig
 
 ---@class diffs.Config
 ---@field debug boolean|string
 ---@field view diffs.ViewConfig
 ---@field highlights diffs.Highlights
 ---@field integrations diffs.IntegrationsConfig
----@field conflict boolean
 
 ---@type diffs.Config
 local DEFAULTS = {
   debug = false,
   view = {
-    default_layout = 'unified',
     prefix = true,
   },
   highlights = {
@@ -62,7 +55,6 @@ local DEFAULTS = {
     },
   },
   integrations = {},
-  conflict = true,
 }
 
 ---@param opts? table

@@ -1,5 +1,4 @@
 local integrations = require('diffs.integrations')
-local log = require('diffs.log')
 
 local M = {}
 
@@ -77,7 +76,6 @@ function M.attach(opts, bufnr, options)
       break
     end
   end
-  log.dbg('attaching to buffer %d', bufnr)
   vim.api.nvim_create_autocmd('BufWipeout', {
     buffer = bufnr,
     group = attachment.augroup,

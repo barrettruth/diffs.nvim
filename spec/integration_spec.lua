@@ -185,6 +185,29 @@ describe('integration', function()
       delete_buffer(bufnr)
     end)
 
+    it('does not refresh a new attachment from an old filetype retry', function()
+      local bufnr = create_buffer({
+        'diff --git a/app.conf b/app.conf',
+        '@@ -1 +1 @@',
+        '-old',
+        '+new',
+      })
+      runtime.attach(bufnr)
+      assert.is_not_nil(runtime._test.ft_retry_pending[bufnr])
+      runtime.detach(bufnr)
+      local calls = 0
+      runtime.attach(bufnr, {
+        hunks = function()
+          calls = calls + 1
+          return {}
+        end,
+      })
+      run_scheduled_callbacks()
+      assert.are.equal(1, calls)
+      assert.is_nil(runtime._test.ft_retry_pending[bufnr])
+      delete_buffer(bufnr)
+    end)
+
     it('refreshes cache after scheduled callback fires', function()
       local bufnr = create_buffer({
         'diff --git a/app.conf b/app.conf',
