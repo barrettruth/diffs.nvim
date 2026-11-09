@@ -1462,7 +1462,7 @@ describe('highlight', function()
         ns,
         hunk,
         default_opts({
-          highlights = { intra = { algorithm = 'default', max_lines = 500 } },
+          highlights = { intra = { max_lines = 500 } },
         })
       )
 
@@ -1504,7 +1504,7 @@ describe('highlight', function()
         ns,
         hunk,
         default_opts({
-          highlights = { intra = { algorithm = 'default', max_lines = 500 } },
+          highlights = { intra = { max_lines = 500 } },
         })
       )
 
@@ -1541,7 +1541,7 @@ describe('highlight', function()
         default_opts({
           highlights = {
             background = true,
-            intra = { algorithm = 'default', max_lines = 500 },
+            intra = { max_lines = 500 },
           },
         })
       )
@@ -1795,7 +1795,7 @@ describe('highlight', function()
         ns,
         hunk,
         default_opts({
-          highlights = { intra = { algorithm = 'default', max_lines = 500 } },
+          highlights = { intra = { max_lines = 500 } },
         })
       )
 
@@ -1954,7 +1954,7 @@ describe('highlight', function()
         highlights = {
           treesitter = false,
           background = true,
-          intra = { algorithm = 'default', max_lines = 500 },
+          intra = { max_lines = 500 },
         },
       })
 
@@ -1962,7 +1962,7 @@ describe('highlight', function()
         highlights = {
           treesitter = { max_lines = 500 },
           background = true,
-          intra = { algorithm = 'default', max_lines = 500 },
+          intra = { max_lines = 500 },
         },
       })
       syntax.syntax_only = true

@@ -12,7 +12,6 @@ local saved_git = {}
 local saved_runtime_attach
 local saved_runtime_get_conflict_config
 local saved_runtime_get_view_config
-local saved_runtime_get_highlight_opts
 local saved_schedule
 local saved_systemlist
 local saved_jobstart
@@ -81,16 +80,6 @@ local function mock_view_config(config)
   saved_runtime_get_view_config = runtime.get_view_config
   runtime.get_view_config = function()
     return config
-  end
-end
-
-local function mock_highlight_opts(mutate)
-  saved_runtime_get_highlight_opts = runtime.get_highlight_opts
-  local base = saved_runtime_get_highlight_opts()
-  runtime.get_highlight_opts = function()
-    local opts = vim.deepcopy(base)
-    mutate(opts)
-    return opts
   end
 end
 
@@ -404,10 +393,6 @@ local function restore_mocks()
   if saved_runtime_get_view_config then
     runtime.get_view_config = saved_runtime_get_view_config
     saved_runtime_get_view_config = nil
-  end
-  if saved_runtime_get_highlight_opts then
-    runtime.get_highlight_opts = saved_runtime_get_highlight_opts
-    saved_runtime_get_highlight_opts = nil
   end
   if saved_schedule then
     vim.schedule = saved_schedule
@@ -1195,28 +1180,6 @@ describe('commands', function()
       assert.is_true(
         #vim.api.nvim_buf_get_extmarks(right_buf, line_ns, { 1, 0 }, { 1, -1 }, {}) > 0
       )
-    end)
-
-    it('skips the intra overlay when highlights.intra is disabled', function()
-      mock_view_config({ prefix = true })
-      mock_highlight_opts(function(opts)
-        opts.highlights.intra = false
-      end)
-      create_split_source({
-        index_lines = { 'function f()', '  return 111', '  log()', 'end' },
-        worktree_lines = { 'function f()', '  return 222', '  log()', 'end' },
-      })
-      commands.diff('++layout=split', false)
-
-      local right_buf = vim.api.nvim_get_current_buf()
-      local left_buf = vim.api.nvim_buf_get_var(right_buf, 'diffs_split_peer')
-      table.insert(test_buffers, left_buf)
-      table.insert(test_buffers, right_buf)
-
-      local intra_ns = vim.api.nvim_get_namespaces().diffs_split_intra
-      assert.is_not_nil(intra_ns)
-      assert.are.equal(0, #vim.api.nvim_buf_get_extmarks(left_buf, intra_ns, 0, -1, {}))
-      assert.are.equal(0, #vim.api.nvim_buf_get_extmarks(right_buf, intra_ns, 0, -1, {}))
     end)
 
     it('leaves split panes untouched when attach_diff re-runs', function()
@@ -2177,9 +2140,7 @@ describe('commands', function()
       local source_buf = edit_file(filepath)
       local source_win = vim.api.nvim_get_current_win()
       mock_runtime_attach(function() end)
-      mock_conflict_config({
-        keymaps = helpers.default_conflict_keymaps(),
-      })
+      mock_conflict_config(true)
 
       assert.is_true(git.is_unmerged(filepath))
 
@@ -2210,8 +2171,8 @@ describe('commands', function()
         assert.is_true(text:find('--- /dev/null', 1, true) == nil)
         assert.is_true(text:find('new file mode', 1, true) == nil)
         assert.is_true(text:find('<<<<<<<', 1, true) == nil)
-        assert.is_true(helpers.has_keymap(bufnr, 'go'))
-        assert.is_true(helpers.has_keymap(bufnr, 'gt'))
+        assert.is_false(helpers.has_keymap(bufnr, 'go'))
+        assert.is_false(helpers.has_keymap(bufnr, 'gt'))
         if expected_rail_style then
           assert.are.equal(expected_rail_style, vim.api.nvim_buf_get_var(bufnr, 'diffs_rail_style'))
         end

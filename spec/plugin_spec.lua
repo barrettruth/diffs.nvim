@@ -129,7 +129,7 @@ vim.fn.delete(path)
       'vim.notify = function(message, level)',
       '_G.diffs_notifications[#_G.diffs_notifications + 1] = { message = message, level = level }',
       'end',
-      'vim.g.diffs = { view = { prefix = false }, highlights = { background = false, intra = { algorithm = "vscode" } }, conflict = { keymaps = { ours = "co" } }, integrations = { "fugitive", "neogit", "neojj", "gitsigns", "telescope" } }',
+      'vim.g.diffs = { view = { prefix = false }, highlights = { background = false }, conflict = false, integrations = { "fugitive", "neogit", "neojj", "gitsigns", "telescope" } }',
       ('vim.opt.runtimepath:prepend(%s)'):format(vim.inspect(vim.fn.getcwd())),
     }
 
@@ -140,10 +140,6 @@ vim.fn.delete(path)
       "local runtime = require('diffs.runtime')",
       'runtime.attach(0)',
       'runtime.attach(0)',
-      "print('warning=' .. _G.diffs_notifications[1].message)",
-      "print('warning_level=' .. _G.diffs_notifications[1].level)",
-      "print('keymap_warning=' .. _G.diffs_notifications[2].message)",
-      "print('keymap_warning_level=' .. _G.diffs_notifications[2].level)",
       "print('after_attach_notifications=' .. #(_G.diffs_notifications or {}))",
       'local runtime_config = runtime._test.get_config()',
       'local highlight_opts = runtime.get_highlight_opts()',
@@ -154,7 +150,7 @@ vim.fn.delete(path)
       "print('runtime_gitsigns=' .. tostring(runtime_config.integrations.gitsigns))",
       "print('runtime_telescope=' .. tostring(runtime_config.integrations.telescope))",
       "print('runtime_background=' .. tostring(runtime_config.highlights.background))",
-      "print('runtime_conflict_keymaps=' .. tostring(runtime_config.conflict.keymaps.ours))",
+      "print('runtime_conflict=' .. tostring(runtime_config.conflict))",
       "print('runtime_config_priorities=' .. tostring(runtime_config.highlights.priorities))",
       "print('highlight_priority_clear=' .. tostring(highlight_opts.highlights.priorities.clear))",
       "print('highlight_priority_syntax=' .. tostring(highlight_opts.highlights.priorities.syntax))",
@@ -182,13 +178,7 @@ vim.fn.delete(path)
 
     assert.matches('loaded=1', output, 1, true)
     assert.matches('notifications=0', output, 1, true)
-    assert.matches('after_attach_notifications=2', output, 1, true)
-    assert.matches('libvscodediff support will be removed on 30 November 2026.', output, 1, true)
-    assert.matches('Remove highlights.intra.algorithm', output, 1, true)
-    assert.matches('conflict.keymaps will be removed on 30 November 2026.', output, 1, true)
-    assert.matches(':help diffs.nvim-conflict-keymaps', output, 1, true)
-    assert.matches('keymap_warning_level=' .. vim.log.levels.WARN, output, 1, true)
-    assert.matches('warning_level=' .. vim.log.levels.WARN, output, 1, true)
+    assert.matches('after_attach_notifications=0', output, 1, true)
     assert.matches('runtime_view_prefix=false', output, 1, true)
     assert.matches('runtime_fugitive=true', output, 1, true)
     assert.matches('runtime_neogit=true', output, 1, true)
@@ -196,7 +186,7 @@ vim.fn.delete(path)
     assert.matches('runtime_gitsigns=true', output, 1, true)
     assert.matches('runtime_telescope=true', output, 1, true)
     assert.matches('runtime_background=false', output, 1, true)
-    assert.matches('runtime_conflict_keymaps=co', output, 1, true)
+    assert.matches('runtime_conflict=false', output, 1, true)
     assert.matches('runtime_config_priorities=nil', output, 1, true)
     assert.matches('highlight_priority_clear=198', output, 1, true)
     assert.matches('highlight_priority_syntax=199', output, 1, true)

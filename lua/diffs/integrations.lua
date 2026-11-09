@@ -48,11 +48,6 @@ function M.filetypes(opts)
       end
     end
   end
-  if type(opts.extra_filetypes) == 'table' then
-    for _, ft in ipairs(opts.extra_filetypes) do
-      table.insert(fts, ft)
-    end
-  end
   return fts
 end
 

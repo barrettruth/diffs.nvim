@@ -408,7 +408,7 @@ describe('email-quoted diffs', function()
         ns,
         hunk,
         default_opts({
-          highlights = { intra = { algorithm = 'default', max_lines = 500 } },
+          highlights = { intra = { max_lines = 500 } },
         })
       )
 

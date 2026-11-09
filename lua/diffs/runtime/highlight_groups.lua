@@ -152,12 +152,6 @@ function M.apply(config, is_default)
     vim.api.nvim_set_hl(0, 'NeogitDiffDeleteInline', {})
   end
 
-  if config.highlights.overrides then
-    for group, hl in pairs(config.highlights.overrides) do
-      vim.api.nvim_set_hl(0, group, hl)
-    end
-  end
-
   return { transparent = transparent }
 end
 
