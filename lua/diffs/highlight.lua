@@ -105,6 +105,35 @@ local function put_vim_syntax_cache(ft, code_lines, spans)
   return spans
 end
 
+---@param code_lines string[]
+---@return "open"|"close"|nil
+local function first_php_tag(code_lines)
+  local code = table.concat(code_lines, '\n')
+  local open = code:find('<?', 1, true)
+  local close = code:find('?>', 1, true)
+  if close and (not open or close < open) then
+    return 'close'
+  end
+  return open and 'open' or nil
+end
+
+--- PHP hunks rarely contain the file's opening tag, and PHP parsers treat
+--- everything before an opening tag as HTML.
+---@param lang string?
+---@param new_code string[]
+---@param old_code string[]
+---@return string?
+local function php_parse_prefix(lang, new_code, old_code)
+  if lang ~= 'php' then
+    return nil
+  end
+  local new_tag, old_tag = first_php_tag(new_code), first_php_tag(old_code)
+  if new_tag == 'close' or old_tag == 'close' or not (new_tag or old_tag) then
+    return '<?php'
+  end
+  return nil
+end
+
 ---@param bufnr integer
 ---@param ns integer
 ---@param hunk diffs.Hunk
@@ -113,9 +142,25 @@ end
 ---@param lang string
 ---@param context_lines? string[]
 ---@param priorities diffs.HighlightPriorities
+---@param prefix? string
 ---@return integer
-local function highlight_text(bufnr, ns, hunk, col_offset, text, lang, context_lines, priorities)
+local function highlight_text(
+  bufnr,
+  ns,
+  hunk,
+  col_offset,
+  text,
+  lang,
+  context_lines,
+  priorities,
+  prefix
+)
   local parts = { text }
+  local target_row = 0
+  if prefix then
+    table.insert(parts, 1, prefix)
+    target_row = 1
+  end
   if context_lines and #context_lines > 0 then
     parts[#parts + 1] = table.concat(context_lines, '\n')
   end
@@ -141,7 +186,7 @@ local function highlight_text(bufnr, ns, hunk, col_offset, text, lang, context_l
 
   for id, node, metadata in query:iter_captures(trees[1]:root(), parse_text) do
     local sr, sc, _, ec = node:range()
-    if sr == 0 then
+    if sr == target_row then
       local capture_name = '@' .. query.captures[id] .. '.' .. lang
 
       local buf_sr = header_line
@@ -242,6 +287,7 @@ end
 ---@param covered_lines? table<integer, true>
 ---@param priorities diffs.HighlightPriorities
 ---@param force_high_priority? boolean
+---@param prefix? string
 ---@return integer
 local function highlight_treesitter(
   bufnr,
@@ -252,11 +298,17 @@ local function highlight_treesitter(
   col_offset,
   covered_lines,
   priorities,
-  force_high_priority
+  force_high_priority,
+  prefix
 )
   local code = table.concat(code_lines, '\n')
   if code == '' then
     return 0
+  end
+  local row_shift = 0
+  if prefix then
+    code = prefix .. '\n' .. code
+    row_shift = 1
   end
 
   local ok, parser_obj = pcall(vim.treesitter.get_string_parser, code, lang)
@@ -284,6 +336,7 @@ local function highlight_treesitter(
       if capture ~= 'spell' and capture ~= 'nospell' then
         local capture_name = '@' .. capture .. '.' .. tree_lang
         local sr, sc, er, ec = node:range()
+        sr, er = sr - row_shift, er - row_shift
 
         local buf_sr = line_map[sr]
         if buf_sr then
@@ -553,10 +606,32 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
       end
     end
 
-    extmark_count =
-      highlight_treesitter(bufnr, ns, new_code, hunk.lang, new_map, pw + qw, covered_lines, p)
+    local prefix = php_parse_prefix(hunk.lang, new_code, old_code)
+    extmark_count = highlight_treesitter(
+      bufnr,
+      ns,
+      new_code,
+      hunk.lang,
+      new_map,
+      pw + qw,
+      covered_lines,
+      p,
+      nil,
+      prefix
+    )
     extmark_count = extmark_count
-      + highlight_treesitter(bufnr, ns, old_code, hunk.lang, old_map, pw + qw, covered_lines, p)
+      + highlight_treesitter(
+        bufnr,
+        ns,
+        old_code,
+        hunk.lang,
+        old_map,
+        pw + qw,
+        covered_lines,
+        p,
+        nil,
+        prefix
+      )
 
     if hunk.header_context and hunk.header_context_col then
       local header_extmarks = highlight_text(
@@ -567,7 +642,8 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
         hunk.header_context,
         hunk.lang,
         new_code,
-        p
+        p,
+        prefix
       )
       if header_extmarks > 0 then
         dbg('header %s:%d applied %d extmarks', hunk.filename, hunk.start_line, header_extmarks)
@@ -579,11 +655,17 @@ function M.highlight_hunk(bufnr, ns, hunk, opts)
     for _, line in ipairs(hunk.lines) do
       table.insert(code_lines, line:sub(pw + 1))
     end
+    local leading = 0
+    local prefix = php_parse_prefix(hunk.ft, code_lines, {})
+    if prefix then
+      table.insert(code_lines, 1, prefix)
+      leading = 1
+    end
     if opts.defer_vim_syntax then
       extmark_count, vim_cache_hit =
-        highlight_cached_vim_syntax(bufnr, ns, hunk, code_lines, covered_lines, 0, p)
+        highlight_cached_vim_syntax(bufnr, ns, hunk, code_lines, covered_lines, leading, p)
     else
-      extmark_count = highlight_vim_syntax(bufnr, ns, hunk, code_lines, covered_lines, 0, p)
+      extmark_count = highlight_vim_syntax(bufnr, ns, hunk, code_lines, covered_lines, leading, p)
     end
   end
 
