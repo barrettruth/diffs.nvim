@@ -1459,23 +1459,19 @@ Diff mode window highlights: ~ These are used for 'winhighlight' remapping in
                                                                *DiffsDiffText*
     DiffsDiffText       Background-only replacement for `DiffText`.
 
-After diffs.nvim initializes, customize with |nvim_set_hl()| and
-|ColorScheme|: >lua
-    local function set_highlights()
-      vim.api.nvim_set_hl(0, 'DiffsAdd', { bg = '#2e4a3a' })
-      vim.api.nvim_set_hl(0, 'DiffsDiffDelete', { link = 'DiffDelete' })
-    end
-
-    vim.api.nvim_create_autocmd('ColorScheme', {
-      group = vim.api.nvim_create_augroup('MyDiffsHighlights', { clear = true }),
+                                                        *DiffsHighlights*
+diffs.nvim triggers `User DiffsHighlights` after each highlight update, including
+initialization and |ColorScheme| changes.  Register this autocmd before loading
+diffs.nvim to apply your colors after each update: >lua
+    vim.api.nvim_create_autocmd('User', {
+      pattern = 'DiffsHighlights',
+      group = vim.api.nvim_create_augroup('my_diffs_highlights', { clear = true }),
       callback = function()
-        vim.schedule(set_highlights)
+        vim.api.nvim_set_hl(0, 'DiffsAdd', { bg = '#2e4a3a' })
+        vim.api.nvim_set_hl(0, 'DiffsDiffDelete', { link = 'DiffDelete' })
       end,
     })
-    vim.schedule(set_highlights)
 <
-
-diffs.nvim recomputes these groups on |ColorScheme|.
 
 ==============================================================================
 HEALTH CHECK                                               *diffs.nvim-health*
