@@ -31,7 +31,6 @@ local integration_metadata = require('diffs.integrations')
 ---@field neogit? boolean
 ---@field neojj? boolean
 ---@field gitsigns? boolean
----@field committia? boolean
 ---@field telescope? boolean
 ---@field difftastic? boolean|diffs.DifftasticConfig
 
