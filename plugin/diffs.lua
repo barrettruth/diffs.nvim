@@ -55,7 +55,7 @@ if integrations.is_enabled(integration_config.gitsigns) then
     require('diffs.gitsigns').setup()
   else
     vim.api.nvim_create_autocmd('User', {
-      pattern = 'GitAttach',
+      pattern = 'GitSignsUpdate',
       once = true,
       callback = function()
         require('diffs.gitsigns').setup()
