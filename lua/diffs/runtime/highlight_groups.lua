@@ -122,7 +122,7 @@ function M.apply(config, is_default)
   local blended_base = blend_color(text_bg, bg, base_alpha)
   local blended_ours_nr = add_fg
   local blended_theirs_nr = change_fg
-  local blended_base_nr = change_fg
+  local blended_base_nr = diff_text.fg or del_fg
 
   vim.api.nvim_set_hl(0, 'DiffsConflictOurs', { default = dflt, bg = blended_ours })
   vim.api.nvim_set_hl(0, 'DiffsConflictTheirs', { default = dflt, bg = blended_theirs })
