@@ -411,6 +411,21 @@ describe('diffs.runtime', function()
       assert.is_number(set_calls.DiffsDeleteBar.bg)
     end)
 
+    it('uses deletion colors for base numbers on background-only themes', function()
+      local source = {
+        DiffChange = { bg = 0x565f73 },
+        DiffText = { bg = 0x52494e },
+        diffRemoved = { fg = 0xd08080 },
+      }
+      vim.api.nvim_get_hl = function(ns, opts)
+        return source[opts.name] or saved_get_hl(ns, opts)
+      end
+      runtime._test.compute_highlight_groups()
+      assert.are.equal(0xd08080, set_calls.DiffsConflictBaseNr.fg)
+      assert.are.equal(0x80a0c0, set_calls.DiffsConflictTheirsNr.fg)
+      assert.are.equal(set_calls.DiffsConflictBase.bg, set_calls.DiffsConflictBaseNr.bg)
+    end)
+
     it('blend_alpha controls DiffsAdd.bg intensity', function()
       local saved_config_alpha = runtime._test.get_config().highlights.blend_alpha
       runtime._test.get_config().highlights.blend_alpha = 0.3
