@@ -1,7 +1,7 @@
 require('spec.helpers')
-local stub = require('luassert.stub')
 local config = require('diffs.config')
 local highlight_groups = require('diffs.runtime.highlight_groups')
+local stub = require('luassert.stub')
 
 describe('conflict highlight groups', function()
   local source
